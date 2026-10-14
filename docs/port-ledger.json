@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 250,
-  "ported": 41,
-  "unported": 1533,
+  "ported": 47,
+  "unported": 1527,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 291,
-  "pct_touched": 18.1,
+  "touched": 297,
+  "pct_touched": 18.5,
   "pct_tested": 15.8,
-  "engine_proper_touched": 278,
+  "engine_proper_touched": 284,
   "bytes_total": 1776526,
-  "bytes_touched": 340681,
-  "pct_bytes_touched": 19.2
+  "bytes_touched": 352791,
+  "pct_bytes_touched": 19.9
  },
  "orphan_refs": [],
  "functions": [
@@ -3482,8 +3482,11 @@
    "name": "sub_442460",
    "size": 38,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/actor_update.c",
+    "src/actor_update.h"
+   ]
   },
   {
    "va": "0x442490",
@@ -3599,8 +3602,11 @@
    "name": "sub_445DB0",
    "size": 150,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/actor_update.c",
+    "src/actor_update.h"
+   ]
   },
   {
    "va": "0x445e50",
@@ -4040,8 +4046,10 @@
    "name": "sub_450E00",
    "size": 237,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/entity_fx.h"
+   ]
   },
   {
    "va": "0x450ef0",
@@ -5082,8 +5090,11 @@
    "name": "sub_47D740",
    "size": 26,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/actor_update.c",
+    "src/actor_update.h"
+   ]
   },
   {
    "va": "0x47d760",
@@ -8137,8 +8148,11 @@
    "name": "actor_update_54F980",
    "size": 11597,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/actor_update.c",
+    "src/actor_update.h"
+   ]
   },
   {
    "va": "0x552c70",
@@ -8345,8 +8359,11 @@
    "name": "sub_556EB0",
    "size": 62,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/actor_update.c",
+    "src/actor_update.h"
+   ]
   },
   {
    "va": "0x556ef0",

@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **291** (18.1% of engine-proper) — tested 250, ported 41
-- code bytes touched: **19.2%** (340,681 / 1,776,526 B of engine-proper)
-- unported: **1533**
+- touched: **297** (18.5% of engine-proper) — tested 250, ported 47
+- code bytes touched: **19.9%** (352,791 / 1,776,526 B of engine-proper)
+- unported: **1527**
 - orphan refs in src/ not in this table: 0
 
 ## tested (250) — ported + host unit suite
@@ -274,7 +274,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (41) — reimplemented, no host test yet
+## ported (47) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -293,17 +293,20 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x441700 | sub_441700 | 466 | npc_ai.h |
 | 0x4418e0 | sub_4418E0 | 511 | npc_ai.h |
 | 0x441ae0 | sub_441AE0 | 749 | npc_ai.h |
+| 0x442460 | sub_442460 | 38 | actor_update.c, actor_update.h |
 | 0x442890 | sub_442890 | 54 | char_integrate.h |
 | 0x442920 | sub_442920 | 149 | char_integrate.h |
 | 0x4429c0 | sub_4429C0 | 86 | npc_ai.h |
 | 0x442a20 | sub_442A20 | 76 | npc_ai.h |
 | 0x442a70 | sub_442A70 | 12026 | char_integrate.c, char_integrate.h |
 | 0x445d30 | sub_445D30 | 124 | char_integrate.h |
+| 0x445db0 | sub_445DB0 | 150 | actor_update.c, actor_update.h |
 | 0x445f50 | sub_445F50 | 21 | char_integrate.h |
 | 0x445f70 | sub_445F70 | 91 | char_integrate.h |
 | 0x446640 | sub_446640 | 112 | char_integrate.h |
 | 0x448cb0 | sub_448CB0 | 264 | entity_fx.c, entity_fx.h |
 | 0x44bbc0 | sub_44BBC0 | 66 | entity_fx.c, entity_fx.h |
+| 0x450e00 | sub_450E00 | 237 | entity_fx.h |
 | 0x451200 | sub_451200 | 79 | entity_fx.c, entity_fx.h |
 | 0x451250 | sub_451250 | 119 | char_integrate.h |
 | 0x4537d0 | sub_4537D0 | 283 | entity_fx.c, entity_fx.h |
@@ -312,8 +315,11 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x46d180 | sub_46D180 | 798 | entity_fx.c, entity_fx.h |
 | 0x46d4a0 | sub_46D4A0 | 838 | entity_fx.c, entity_fx.h |
 | 0x46d7f0 | sub_46D7F0 | 521 | entity_fx.c, entity_fx.h |
+| 0x47d740 | sub_47D740 | 26 | actor_update.c, actor_update.h |
 | 0x485fc0 | sub_485FC0 | 4709 | char_apply.c, char_apply.h |
 | 0x54d090 | sub_54D090 | 2636 | entity_fx.c, entity_fx.h |
+| 0x54f980 | actor_update_54F980 | 11597 | actor_update.c, actor_update.h |
+| 0x556eb0 | sub_556EB0 | 62 | actor_update.c, actor_update.h |
 | 0x5bf3ee | emit_last_error_line_5BF3EE | 82 | cs_dispatch_win32.c |
 | 0x5bf440 | _fclose | 86 | cs_dispatch_win32.c |
 | 0x5bf496 | _fprintf | 50 | cs_dispatch_win32.c |

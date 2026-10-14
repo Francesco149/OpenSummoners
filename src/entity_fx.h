@@ -16,6 +16,7 @@
  *   FUN_0054d090  entity_fx_tick         FUN_0046d7f0  entity_splash
  *   FUN_004537d0  entity_snd_release     FUN_0046d180  entity_snd_update_all
  *   FUN_0046d4a0  entity_snd_update      FUN_00451200  view_listener
+ *   FUN_00450e00  entity_snd_keep
  */
 #ifndef OSS_ENTITY_FX_H
 #define OSS_ENTITY_FX_H
@@ -41,6 +42,10 @@ void entity_splash(wl_entity *e, wl_body *b, int32_t was_slow, int32_t was_c);
 void entity_snd_release(wl_entity *e, uint16_t i, intptr_t a3, int32_t stop);
 void entity_snd_update_all(wl_entity *e);
 void entity_snd_update(wl_entity *e, uint16_t i);
+/* Keep channel i live this tick (a3 != 0: no-op). */
+void entity_snd_keep(wl_entity *e, uint16_t i, intptr_t a3);
+/* "ReserveWave over index." to the error log (0x406440), every channel op's bad-index path. */
+void entity_snd_overrun(void);
 void view_listener(const camera_view *v, int32_t *x, int32_t *y);
 
 #endif /* OSS_ENTITY_FX_H */

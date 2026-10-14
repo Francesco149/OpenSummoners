@@ -29,6 +29,7 @@
   | entity tick driver | `0x46cd70` | 6,877 (3,438 full-state) | 0 |
   | entity effect records (tick / add / splash) | `0x54d090` / `0x448cb0` / `0x46d7f0` | 649k / 218 / 186k (16k full-state) | 0 |
   | looping-sound channels (all / one / release) | `0x46d180` / `0x46d4a0` / `0x4537d0` | 256k / 227k / 36 (11.5k full-state) | 0 |
+  | ACTOR update (per-code behaviours) | `0x54f980` | 706k (43.8k full-state) | 0 |
   Hybrid gate: with all of the above REPLACING retail (the whole character tick, driver → tile
   movers, runs as port code), every corpus scenario ends byte-identical.
   Infra: `src/world_layout.h` (retail-layout world/entity/char/body/cmd, pinned on 32-bit),
@@ -42,10 +43,14 @@
   ahead, `0x4418e0`, `0x440e40`, `0x441700`, `0x43ee30`, …; scratch bodies from retail's heap via
   `g_eng.op_new`). Hybrid gate with all 12 movement functions replacing retail: PASS.
 - **Next (port side):**
-  1. the band updaters under the tick driver `0x46cd70` (`src/world_tick.c`): actors `0x54f980` (11.6 KB,
-     498k calls in rh-my-play), particles `0x46e510` (10.7 KB, 167k), NPC behaviours `0x47b990` (7.5 KB,
-     55k); shots `0x4710c0` (20 KB) + the 96-band `0x46da00` never run in the corpus (no combat yet);
-     `src/entity_fx.c` arms never reached yet: the water splashes + records 100150..100157;
+  1. the band updaters under the tick driver `0x46cd70` (`src/world_tick.c`): particles `0x46e510`
+     (10.7 KB, 167k calls in rh-my-play), NPC behaviours `0x47b990` (7.5 KB, 55k); shots `0x4710c0` (20 KB)
+     + the 96-band `0x46da00` never run in the corpus (no combat yet). Arms ported but NOT yet exercised by
+     the corpus (need recordings that reach them): `src/entity_fx.c` water splashes + records
+     100150..100157; `src/actor_update.c` codes 70100/70120/70216/70230/70240/70360/70375/70390/70480/
+     70520/70521/70840/70850/100138/100142..100145 (+ the slot-only codes). The actor behaviours behind
+     slots: `0x555790` (doors), `0x554c40`, `0x553ec0`, `0x553520`, `0x552c70`, `0x552f60`, `0x554570`,
+     `0x54f140`, `0x5556d0`, `0x5531b0` (ambient timers), the channel start `0x450ef0`;
      the type handlers behind the integrator (Arche: `0x457ff0`, `0x45a300`, `0x45e830`).
   2. SWITCH the port's freeroam drive onto the retail-layout world (`g_world`, wl_char bodies,
      `char_ai` → `char_integrate`) and retire the `character.c` reductions; prove it with

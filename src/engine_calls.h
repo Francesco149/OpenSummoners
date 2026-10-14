@@ -41,6 +41,11 @@ typedef int (ENG_THISCALL *eng_tc6)(void *self, intptr_t, intptr_t, intptr_t, in
 typedef int (ENG_THISCALL *eng_tc7)(void *self, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t);
 typedef int (ENG_THISCALL *eng_tc8)(void *self, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t,
                                     intptr_t);
+typedef int (ENG_THISCALL *eng_tc12)(void *self, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t,
+                                     intptr_t, intptr_t, intptr_t, intptr_t, intptr_t);
+typedef int (ENG_THISCALL *eng_tc16)(void *self, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t,
+                                     intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t,
+                                     intptr_t);
 
 typedef struct engine_calls {
     /* a retail .data address the ported code passes on (tables handed to unported
@@ -99,11 +104,18 @@ typedef struct engine_calls {
     eng_tc0 h4878b0; eng_tc8 h476880; eng_tc0 h485f70;
     eng_tc6 h489280; eng_tc2 h487250; eng_tc0 h4895c0; eng_tc6 h41ef80;
     /* the tick driver 0x46cd70's band updaters */
-    eng_tc3 h47b990; eng_tc4 h4710c0; eng_tc0 h46e510; eng_tc0 h46da00; eng_tc4 h54f980;
+    eng_tc3 h47b990; eng_tc4 h4710c0; eng_tc0 h46e510; eng_tc0 h46da00;
     eng_tc1 h54c640;
     int (ENG_STDCALL *h5567a0)(intptr_t a1, intptr_t box, intptr_t a3);
     int (ENG_STDCALL *h4593c0)(intptr_t body);
     int (ENG_STDCALL *h4872d0)(intptr_t a1, intptr_t body);
+    /* the actor update 0x54f980's callees: the per-code behaviours, the looping-sound start,
+     * list removal, the second error logger */
+    eng_tc2 h408100; eng_tc3 h408b90; eng_tc1 h40bd90; eng_tc0 h40be00; eng_tc0 h41ea70; eng_tc5 h41ee60;
+    eng_tc7 h450ef0; eng_tc4 h453960; eng_tc5 h54f140; eng_tc3 h552c70; eng_tc5 h552f60; eng_tc16 h5531b0;
+    eng_tc3 h5534d0; eng_tc6 h553520; eng_tc7 h553ec0; eng_tc5 h554570; eng_tc6 h554c40; eng_tc3 h5556d0;
+    eng_tc12 h555790; eng_tc2 h555e90; eng_tc0 h555fc0; eng_tc1 h556180; eng_tc2 h556380; eng_tc3 h5563d0;
+    int (ENG_STDCALL *h556e50)(intptr_t owner, intptr_t id, intptr_t probe);
 } engine_calls;
 
 extern engine_calls g_eng;

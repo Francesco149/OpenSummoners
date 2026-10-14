@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <string.h>
 
+#include "actor_update.h"
 #include "char_ai.h"
 #include "char_apply.h"
 #include "engine_calls.h"
@@ -85,12 +86,12 @@ int world_tick(void *ctl, int32_t cut)
             }
         }
         int32_t slow = b->slow, cf = b->c_flag;
-        g_eng.h54f980(a, IP(a->body), IP(a->body), 0, 0);
+        actor_update((wl_actor *)a, a->body, a->body, 0, 0);
         entity_splash(a, b, slow, cf);
         entity_fx_tick(a, b, 0);
         if (rd32(a, 0x2ac) != 0)
             for (uint16_t k = 1; k < a->nbody; k++)
-                g_eng.h54f980(a, IP(&a->body[k - 1]), IP(&a->body[k]), 1, k);
+                actor_update((wl_actor *)a, &a->body[k - 1], &a->body[k], 1, k);
         entity_snd_update_all(a);
     }
 

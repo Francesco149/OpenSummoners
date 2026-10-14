@@ -251,11 +251,23 @@ void entity_splash(wl_entity *e, wl_body *b, int32_t was_slow, int32_t was_c)
 
 /* ── looping-sound channels ── */
 
+void entity_snd_overrun(void)
+{
+    g_eng.log_fail_406440(g_eng.log, (const char *)g_eng.data(0x85525cu), (const char *)g_eng.data(0x8a9b6cu));
+}
+
+void entity_snd_keep(wl_entity *e, uint16_t i, intptr_t a3)
+{
+    if (a3 != 0 || e->snd == NULL) return;
+    if (e->nsnd > i) e->snd[i].live = 1;
+    else entity_snd_overrun();
+}
+
 void entity_snd_release(wl_entity *e, uint16_t i, intptr_t a3, int32_t stop)
 {
     if (a3 != 0 || e->snd == NULL) return;
     if (e->nsnd <= i) {
-        g_eng.log_fail_406440(g_eng.log, (const char *)g_eng.data(0x85525cu), (const char *)g_eng.data(0x8a9b6cu));
+        entity_snd_overrun();
         return;
     }
     wl_sndch *ch = &e->snd[i];

@@ -26,6 +26,7 @@
 #include "char_apply.h"
 #include "world_tick.h"
 #include "entity_fx.h"
+#include "actor_update.h"
 #include "engine_calls.h"
 
 typedef struct {
@@ -37,7 +38,7 @@ typedef struct {
 
 static hook_t H[];
 enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_DECODE, H_CAM_FOLLOW, H_CAM_SHAKE, H_CHAR_AI, H_CHAR_PHYS, H_CHAR_ANIM, H_CHAR_INT, H_HAZARD, H_NPC_AI, H_CHAR_APPLY, H_WORLD_TICK,
-       H_FX_ADD, H_FX_TICK, H_SPLASH, H_SND_RELEASE, H_SND_ALL, H_SND_ONE, H_N };
+       H_FX_ADD, H_FX_TICK, H_SPLASH, H_SND_RELEASE, H_SND_ALL, H_SND_ONE, H_ACTOR, H_N };
 
 static void diverged(hook_t *h, const char *fmt, ...)
 {
@@ -647,6 +648,29 @@ static void __attribute__((thiscall)) w_snd_one(wl_entity *e, uint32_t i)
     full_shadow(h, "snd_one", sone_retail, sone_port, &x, WHAT(e));
 }
 
+/* ---- the actor update (FUN_0054f980, thiscall(actor, in, out, probe, part)) — full state ---- */
+typedef int (__attribute__((thiscall)) *actor_t)(wl_actor *, wl_body *, wl_body *, int32_t, int32_t);
+typedef struct { wl_actor *a; wl_body *in, *out; int32_t probe, part; int rr, rp; } act_ctx;
+static void act_retail(void *c) { act_ctx *x = c; x->rr = ((actor_t)(uintptr_t)H[H_ACTOR].va)(x->a, x->in, x->out, x->probe, x->part); }
+static void act_port(void *c) { act_ctx *x = c; port_world(); x->rp = actor_update(x->a, x->in, x->out, x->probe, x->part); }
+static long g_actor_codes[64]; static int32_t g_actor_code_id[64]; static int g_nactor_codes;
+static int __attribute__((thiscall)) w_actor(wl_actor *a, wl_body *in, wl_body *out, int32_t probe, int32_t part)
+{
+    hook_t *h = &H[H_ACTOR];
+    if (h->mode == 2) { h->calls++; port_world(); return actor_update(a, in, out, probe, part); }
+    if (!sample(h)) return ((actor_t)(uintptr_t)h->va)(a, in, out, probe, part);
+    int32_t code = a->base.code;
+    int k = 0;
+    while (k < g_nactor_codes && g_actor_code_id[k] != code) k++;
+    if (k == g_nactor_codes && k < 64) { g_actor_code_id[k] = code; g_nactor_codes++; }
+    if (k < 64) g_actor_codes[k]++;
+    act_ctx x = { a, in, out, probe, part, 0, 0 };
+    char what[96]; snprintf(what, sizeof what, "actor %p code %d pose %u probe %d part %d", (void *)a, code, in->pose, probe, part);
+    if (!full_shadow(h, "actor_update", act_retail, act_port, &x, what) && x.rr != x.rp)
+        diverged(h, "f%u %s ret %d/%d", g_frame, what, x.rr, x.rp);
+    return x.rr;
+}
+
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
     [H_POLL] = { "input_poll", 0x43c110u, (void *)w_poll, 0, 1, 0, 0, 0, 0, "" },
@@ -671,6 +695,7 @@ static hook_t H[H_N] = {
     [H_SND_RELEASE] = { "snd_release", 0x4537d0u, (void *)w_snd_release, 0, 1, 0, 0, 0, 0, "" },
     [H_SND_ALL]    = { "snd_all",     0x46d180u, (void *)w_snd_all,     0, 1, 0, 0, 0, 0, "" },
     [H_SND_ONE]    = { "snd_one",     0x46d4a0u, (void *)w_snd_one,     0, 1, 0, 0, 0, 0, "" },
+    [H_ACTOR]      = { "actor_update", 0x54f980u, (void *)w_actor,      0, 1, 0, 0, 0, 0, "" },
 };
 
 static const void *rh_data_identity(uint32_t va) { return (const void *)(uintptr_t)va; }
@@ -716,7 +741,10 @@ static void bind_engine_calls(void)
     B(40a010); B(446400); B(47e330); B(44e640); B(44e680); B(5b5600); B(40d960); B(487530); B(487dc0);
     B(4878b0); B(476880); B(485f70); B(489280); B(487250); B(4895c0);
     B(41ef80); B(4593c0); B(4872d0);
-    B(47b990); B(4710c0); B(46e510); B(46da00); B(54f980); B(54c640); B(5567a0);
+    B(47b990); B(4710c0); B(46e510); B(46da00); B(54c640); B(5567a0);
+    B(408100); B(408b90); B(40bd90); B(40be00); B(41ea70); B(41ee60); B(450ef0); B(453960); B(54f140);
+    B(552c70); B(552f60); B(5531b0); B(5534d0); B(553520); B(553ec0); B(554570); B(554c40); B(5556d0);
+    B(555790); B(555e90); B(555fc0); B(556180); B(556380); B(5563d0); B(556e50);
 #undef B
 }
 
@@ -730,7 +758,7 @@ void rh_hooks_install(void)
     if (strcmp(g_ed->tag, "enold"))   /* EN-old VAs only (SE: crosswalk TODO) */
         H[H_MOVER_V].va = H[H_SWEEP_H].va = H[H_ENT_MOVE_H].va = H[H_ENT_MOVE_V].va = H[H_MAP_DECODE].va =
         H[H_CAM_FOLLOW].va = H[H_CAM_SHAKE].va = H[H_CHAR_AI].va = H[H_CHAR_PHYS].va = H[H_CHAR_ANIM].va = H[H_CHAR_INT].va = H[H_HAZARD].va = H[H_NPC_AI].va = H[H_CHAR_APPLY].va = H[H_WORLD_TICK].va =
-        H[H_FX_ADD].va = H[H_FX_TICK].va = H[H_SPLASH].va = H[H_SND_RELEASE].va = H[H_SND_ALL].va = H[H_SND_ONE].va = 0;
+        H[H_FX_ADD].va = H[H_FX_TICK].va = H[H_SPLASH].va = H[H_SND_RELEASE].va = H[H_SND_ALL].va = H[H_SND_ONE].va = H[H_ACTOR].va = 0;
     if (!O.hooks) return;
     char b[512]; snprintf(b, sizeof b, "%s", O.hooks);
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {
@@ -767,6 +795,8 @@ void rh_hooks_report(void)
     if (H[H_CHAR_INT].mode == 1)
         rh_log("char_integrate: %ld calls delegated (special input pose), %ld entered an unported pose mid-call\n",
                g_int_special, g_integrate_unported);
+    if (H[H_ACTOR].mode == 1)
+        for (int k = 0; k < g_nactor_codes; k++) rh_log("actor_update coverage: code %d calls %ld\n", g_actor_code_id[k], g_actor_codes[k]);
     if (H[H_CHAR_PHYS].mode == 1)
         rh_log("char_physics coverage: state0..6+ %ld %ld %ld %ld %ld %ld %ld %ld | ctl0..3+ %ld %ld %ld %ld %ld | mode0..3+ %ld %ld %ld %ld %ld | probe %ld\n",
                g_phys_cov[0], g_phys_cov[1], g_phys_cov[2], g_phys_cov[3], g_phys_cov[4], g_phys_cov[5], g_phys_cov[6], g_phys_cov[7],

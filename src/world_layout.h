@@ -129,14 +129,15 @@ typedef struct wl_entity {
     uint16_t nrects;         /* +0x004 */
     uint8_t  _p006[0x8 - 0x6];
     void    *f08;            /* +0x008  the multi-part frame table (0x445e50)           */
-    uint8_t  _p00c[0x24 - 0xc];
+    int32_t  f00c;           /* +0x00c  actors: the switch state (0 off, 1 on, 2..)       */
+    uint8_t  _p010[0x24 - 0x10];
     int32_t  f24;            /* +0x024  added to the body y for the listener distance    */
     int32_t  width;          /* +0x028  the body box the integrator stamps each tick    */
     int32_t  height;         /* +0x02c */
     int32_t  dst_x;          /* +0x030  -> body +0x40 */
     int32_t  dst_y;          /* +0x034  -> body +0x44 */
     int32_t  no_entity_coll; /* +0x038  != 0 => the movers skip the entity scan        */
-    uint8_t  _p03c[0x40 - 0x3c];
+    int32_t  f03c;           /* +0x03c */
     wl_body *body;           /* +0x040  body array                                     */
     uint16_t nbody;          /* +0x044  parts in it                                    */
     uint8_t  _p046[0xe8 - 0x46];
@@ -159,7 +160,7 @@ typedef struct wl_entity {
     uint8_t  _p1c4[0x1d0 - 0x1c4];
     int32_t  alive;          /* +0x1d0  != 0 => targetable (the AI's target cycling)    */
     int32_t  code;           /* +0x1d4  behaviour code (0xc35b/0xc35c: Arche forms)     */
-    uint8_t  _p1d8[0x1dc - 0x1d8];
+    int32_t  handle;         /* +0x1d8  the id 0x556eb0 resolves (world list +0x2790)   */
     int32_t  faction;        /* +0x1dc  0x4416c0 operand                               */
     uint8_t  _p1e0[0x1f0 - 0x1e0];
     int32_t  coll_off;       /* +0x1f0  != 0 => no mode-2 collision                    */
@@ -282,16 +283,63 @@ typedef struct wl_world {
     wl_entity *band96[96];   /* +0x23e0  0x20c-byte entities                            */
     uint8_t    _p2560[0x2760 - 0x2560];
     int32_t    f2760;        /* +0x2760  != 0 => no idle anims                         */
-    uint8_t    _p2764[0x276c - 0x2764];
+    int32_t    f2764;        /* +0x2764  == 1 => (0x47d740) a scene is running          */
+    uint8_t    _p2768[0x276c - 0x2768];
     uint16_t   tick15;       /* +0x276c  (0x46cd70: +1 & 0x7fff per tick) */
-    uint8_t    _p276e[0x2788 - 0x276e];
+    uint8_t    _p276e[0x2770 - 0x276e];
+    int32_t    f2770;        /* +0x2770  != 0 => (0x47d740) a scene is running          */
+    uint8_t    _p2774[0x2788 - 0x2774];
     wl_list   *list_2788;    /* +0x2788 */
     wl_list   *collide;      /* +0x278c  entities the movers test against              */
-    uint8_t    _p2790[0x279c - 0x2790];
+    wl_list   *list_2790;    /* +0x2790  the actors by handle (0x556eb0)                */
+    wl_list   *list_2794;    /* +0x2794 */
+    wl_list   *list_2798;    /* +0x2798 */
     int32_t    f279c;        /* +0x279c  (-3 per tick to 0) */
     int32_t    action_serial; /* +0x27a0  bumped (mod 0xffffff) per action start         */
-    uint8_t    _p27a4[0x27b8 - 0x27a4];
+    uint8_t    _p27a4[0x27a8 - 0x27a4];
+    int32_t    busy;         /* +0x27a8  != 0 => the ambient emitters hold (scene lock)  */
+    uint8_t    _p27ac[0x27b8 - 0x27ac];
 } wl_world;
+
+/* A world ACTOR (world+0x11e0, 128 slots; 0x2fc bytes): the entity base extended with
+ * the per-code behaviour state 0x54f980 runs (props, emitters, lifts, doors, birds). */
+typedef struct wl_actor {
+    wl_entity  base;
+    void      *f1f8;           /* +0x1f8  a linked object (0x41ea70 releases it)         */
+    wl_entity *follow;         /* +0x1fc  the entity it sticks to (code 100144)          */
+    int32_t    follow_dx;      /* +0x200 */
+    int32_t    follow_dy;      /* +0x204 */
+    struct {
+        int32_t     done;      /* +0x0  != 0 => skipped by the switch-off                */
+        const void *clip;      /* +0x4  the clip it sets on the body                     */
+        uint16_t    sfx;       /* +0x8  the sound it plays                               */
+        uint16_t    _p;
+    } steps[8];                /* +0x208 */
+    uint16_t   nsteps;         /* +0x268 */
+    uint8_t    _p26a[0x26c - 0x26a];
+    int32_t    grow_max;       /* +0x26c  code 70120: the height it grows to while off   */
+    int32_t    grow_min;       /* +0x270  ... shrinks to while on                        */
+    uint8_t    _p274[0x27c - 0x274];
+    int32_t    goal_x;         /* +0x27c  code 100142 pose 146: where it flies to         */
+    int32_t    goal_y;         /* +0x280 */
+    int32_t    f284;           /* +0x284 */
+    uint8_t    _p288[0x28c - 0x288];
+    int32_t    kind;           /* +0x28c */
+    uint8_t    _p290[0x298 - 0x290];
+    int32_t    link;           /* +0x298  an actor handle (0x556eb0)                     */
+    uint8_t    _p29c[0x2a8 - 0x29c];
+    void      *f2a8;           /* +0x2a8  a heap buffer it owns                          */
+    int32_t    multipart;      /* +0x2ac  != 0 => the parts run too (0x46cd70)           */
+    uint8_t    _p2b0[0x2b4 - 0x2b0];
+    int32_t    area_x0;        /* +0x2b4  the emitter's span                             */
+    int32_t    area_x1;        /* +0x2b8 */
+    int32_t    area_y0;        /* +0x2bc */
+    int32_t    area_y1;        /* +0x2c0 */
+    int32_t    cooldown;       /* +0x2c4 */
+    int32_t    use_mover;      /* +0x2c8  != 0 => the ground probe is the full mover     */
+    int32_t    step;           /* +0x2cc */
+    uint8_t    _p2d0[0x2fc - 0x2d0];
+} wl_actor;
 
 #include "input.h"
 
@@ -617,6 +665,20 @@ _Static_assert(sizeof(wl_sndch)              == 0x24,  "sound channel");
 _Static_assert(offsetof(wl_vpool, dev)       == 0x8,   "pool device");
 _Static_assert(offsetof(wl_world, f1040)     == 0x1040, "world +0x1040");
 _Static_assert(offsetof(wl_world, view)      == 0x104c, "world view");
+_Static_assert(offsetof(wl_world, f2770)     == 0x2770, "world +0x2770");
+_Static_assert(offsetof(wl_world, list_2798) == 0x2798, "world +0x2798");
+_Static_assert(offsetof(wl_world, busy)      == 0x27a8, "world +0x27a8");
+_Static_assert(offsetof(wl_entity, f00c)     == 0x00c, "entity +0xc");
+_Static_assert(offsetof(wl_entity, f03c)     == 0x03c, "entity +0x3c");
+_Static_assert(offsetof(wl_entity, handle)   == 0x1d8, "entity +0x1d8");
+_Static_assert(offsetof(wl_actor, steps)     == 0x208, "actor steps");
+_Static_assert(offsetof(wl_actor, nsteps)    == 0x268, "actor step count");
+_Static_assert(offsetof(wl_actor, goal_y)    == 0x280, "actor +0x280");
+_Static_assert(offsetof(wl_actor, kind)      == 0x28c, "actor +0x28c");
+_Static_assert(offsetof(wl_actor, link)      == 0x298, "actor +0x298");
+_Static_assert(offsetof(wl_actor, area_x0)   == 0x2b4, "actor +0x2b4");
+_Static_assert(offsetof(wl_actor, step)      == 0x2cc, "actor +0x2cc");
+_Static_assert(sizeof(wl_actor)              == 0x2fc, "actor is 0x2fc bytes");
 _Static_assert(offsetof(wl_entity, coll_off) == 0x1f0, "entity coll_off");
 _Static_assert(sizeof(wl_entity)             == 0x1f8, "entity base is 0x1f8 bytes");
 _Static_assert(offsetof(wl_list, count)      == 0x8,   "list count");
