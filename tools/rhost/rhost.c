@@ -645,6 +645,7 @@ static void finish(const char *why)
     rh_trace_finish();
     cov_dump();
     rh_hooks_report();
+    for (int i = 0; i < g_ntrap; i++) rh_log("trap-count %08x hits=%ld\n", g_tva[i], g_thits[i]);
     rh_media_report();
     rh_log("scrub: %ld thunks, %llu dirty pages zeroed\n", rh_scrub_thunks(), (unsigned long long)rh_scrub_pages());
     if (is_dump_frame(0xffffffffu)) dump_now("end");
