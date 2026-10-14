@@ -25,7 +25,10 @@
   | the INTEGRATOR (dispatcher) | `0x442a70` | 1.03M (64k full-state) | 0 |
   | hazard probe | `0x440f40` | 31k | 0 |
   | NPC navigation AI (+ cluster) | `0x43f880` | 11,491 (all full-state) | 0 |
-  Hybrid gate: with all of the above REPLACING retail, every corpus scenario ends byte-identical.
+  | character apply pass | `0x485fc0` | 69,968 (17,492 full-state) | 0 |
+  | entity tick driver | `0x46cd70` | 6,877 (3,438 full-state) | 0 |
+  Hybrid gate: with all of the above REPLACING retail (the whole character tick, driver → tile
+  movers, runs as port code), every corpus scenario ends byte-identical.
   Infra: `src/world_layout.h` (retail-layout world/entity/char/body/cmd, pinned on 32-bit),
   `src/engine_calls.h` (slots → retail VAs for unported callees, PORT-DEBT(engine-call-slots)),
   `rh_shadow_ex` (full-state shadow; port code may call retail), `rng_bind`, heap zero-on-alloc
@@ -37,8 +40,9 @@
   ahead, `0x4418e0`, `0x440e40`, `0x441700`, `0x43ee30`, …; scratch bodies from retail's heap via
   `g_eng.op_new`). Hybrid gate with all 12 movement functions replacing retail: PASS.
 - **Next (port side):**
-  1. the apply pass `0x485fc0` (runs the integrator on the live body) and the tick driver `0x46cd70`
-     (actor_update_all; NPC behaviours `0x47b990`, actors `0x54f980`, particles `0x46e510`, `0x4710c0`).
+  1. the band updaters under the tick driver `0x46cd70` (`src/world_tick.c`): NPC behaviours `0x47b990`
+     (7.5 KB), actors `0x54f980` (11.6 KB), particles `0x46e510` (10.7 KB), shots `0x4710c0` (20 KB);
+     the type handlers behind the integrator (Arche: `0x457ff0`, `0x45a300`, `0x45e830`).
   2. SWITCH the port's freeroam drive onto the retail-layout world (`g_world`, wl_char bodies,
      `char_ai` → `char_integrate`) and retire the `character.c` reductions; prove it with
      `--det-clock` portshots/portstate vs rhost on `rh-my-play`.

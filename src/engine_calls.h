@@ -32,6 +32,8 @@
 /* thiscall slots typed by stack-arg count (the integrator's per-type handlers take
  * pointers and ints; the slot passes them as intptr_t words, as retail pushes them) */
 typedef int (ENG_THISCALL *eng_tc0)(void *self);
+typedef int (ENG_THISCALL *eng_tc1)(void *self, intptr_t);
+typedef int (ENG_THISCALL *eng_tc2)(void *self, intptr_t, intptr_t);
 typedef int (ENG_THISCALL *eng_tc3)(void *self, intptr_t, intptr_t, intptr_t);
 typedef int (ENG_THISCALL *eng_tc4)(void *self, intptr_t, intptr_t, intptr_t, intptr_t);
 typedef int (ENG_THISCALL *eng_tc5)(void *self, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t);
@@ -86,6 +88,18 @@ typedef struct engine_calls {
     eng_tc8 h44f690; eng_tc6 h450810; eng_tc5 h44d2e0; eng_tc5 h456d30; eng_tc6 h461790;
     eng_tc3 h426440; eng_tc4 h445e50;
     int (ENG_THISCALL *skill_cond_5b5990)(wl_char *self, int32_t code, int32_t a3, void *a4, int32_t a5);
+    /* the character apply pass 0x485fc0's callees (HP/MP, damage, respawn, voices, effects) */
+    eng_tc3 h5b54d0; eng_tc3 h5b5580; eng_tc2 h487730; eng_tc3 h5b4d00; eng_tc5 h407ba0; eng_tc1 h41e180;
+    eng_tc2 h4874b0; eng_tc1 h487570; eng_tc6 h4099a0; eng_tc3 h40a010; eng_tc1 h446400; eng_tc7 h47e330;
+    eng_tc1 h44e640; eng_tc1 h44e680; eng_tc2 h5b5600; eng_tc2 h40d960; eng_tc0 h487530; eng_tc1 h487dc0;
+    eng_tc0 h4878b0; eng_tc0 h46d180; eng_tc2 h54d090; eng_tc7 h448cb0; eng_tc8 h476880; eng_tc0 h485f70;
+    eng_tc6 h489280; eng_tc2 h487250; eng_tc0 h4895c0; eng_tc6 h41ef80;
+    /* the tick driver 0x46cd70's band updaters */
+    eng_tc3 h47b990; eng_tc4 h4710c0; eng_tc1 h46d4a0; eng_tc0 h46e510; eng_tc0 h46da00; eng_tc4 h54f980;
+    eng_tc3 h46d7f0; eng_tc1 h54c640;
+    int (ENG_STDCALL *h5567a0)(intptr_t a1, intptr_t box, intptr_t a3);
+    int (ENG_STDCALL *h4593c0)(intptr_t body);
+    int (ENG_STDCALL *h4872d0)(intptr_t a1, intptr_t body);
 } engine_calls;
 
 extern engine_calls g_eng;

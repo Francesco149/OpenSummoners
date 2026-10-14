@@ -83,7 +83,8 @@ typedef struct wl_body {
 } wl_body;
 
 typedef struct wl_entity {
-    const uint8_t *rects;    /* +0x000  32-byte collision rects (0x445d30 copies them)  */
+    uint8_t *rects;          /* +0x000  32-byte collision rects (0x445d30 copies them;
+                              *          +0x1c u16 = a per-rect cooldown 0x485fc0 ticks)  */
     uint16_t nrects;         /* +0x004 */
     uint8_t  _p006[0x8 - 0x6];
     void    *f08;            /* +0x008  the multi-part frame table (0x445e50)           */
@@ -96,7 +97,9 @@ typedef struct wl_entity {
     uint8_t  _p03c[0x40 - 0x3c];
     wl_body *body;           /* +0x040  body array                                     */
     uint16_t nbody;          /* +0x044  parts in it                                    */
-    uint8_t  _p046[0xf4 - 0x46];
+    uint8_t  _p046[0xe8 - 0x46];
+    int32_t  fe8;            /* +0x0e8 */
+    uint8_t  _p0ec[0xf4 - 0xec];
     int32_t  tint_f4;        /* +0x0f4 */
     int32_t  tint_f8;        /* +0x0f8 */
     uint8_t  _p0fc[0x104 - 0xfc];
@@ -150,11 +153,15 @@ typedef struct wl_party {
     uint8_t  _p000[0x54];
     int32_t  hp;              /* +0x054 */
     int32_t  hp_max;          /* +0x058 */
-    uint8_t  _p05c[0x84 - 0x5c];
+    uint8_t  _p05c[0x60 - 0x5c];
+    int32_t  mp_max;          /* +0x060 */
+    uint8_t  _p064[0x84 - 0x64];
     int32_t  hp_bonus1;       /* +0x084 */
-    uint8_t  _p088[0x9c - 0x88];
+    int32_t  mp_bonus1;       /* +0x088 */
+    uint8_t  _p08c[0x9c - 0x8c];
     int32_t  hp_bonus2;       /* +0x09c */
-    uint8_t  _p0a0[0xd4 - 0xa0];
+    int32_t  mp_bonus2;       /* +0x0a0 */
+    uint8_t  _p0a4[0xd4 - 0xa4];
     int32_t  member;          /* +0x0d4                                                 */
     uint8_t  _p0d8[0x138 - 0xd8];
     uint16_t slot[3];         /* +0x138  quick-skill slots (0x479d30 / 0x479da0)        */
@@ -180,7 +187,11 @@ typedef struct wl_keycfg {
     int32_t  skill_keys;      /* +0x104  0/1/2 skill-key layout                         */
     uint8_t  _p108[0x168 - 0x108];
     int32_t  sfx_volume;      /* +0x168  the sound-effect volume base                   */
-    uint8_t  _p16c[0x510 - 0x16c];
+    uint8_t  _p16c[0x190 - 0x16c];
+    int32_t  voices;          /* +0x190 */
+    uint8_t  _p194[0x1a0 - 0x194];
+    int32_t  voice_volume;    /* +0x1a0 */
+    uint8_t  _p1a4[0x510 - 0x1a4];
     int32_t  run_mode;        /* +0x510  2 => the run key toggles                       */
 } wl_keycfg;
 
@@ -207,14 +218,26 @@ typedef struct wl_list {
 
 struct wl_char;
 typedef struct wl_world {
-    uint8_t    _p0000[0x1048];
+    uint8_t    _p0000[0x1030];
+    int32_t    scene_kind;   /* +0x1030  2 => no fall damage / no yawn                 */
+    int32_t    f1034;        /* +0x1034  != 0 => no fall damage                        */
+    uint8_t    _p1038[0x1048 - 0x1038];
     uint8_t   *grid;         /* +0x1048  the 0x2cb044-byte runtime grid (map_grid.h)   */
-    uint8_t    _p104c[0x1160 - 0x104c];
+    uint8_t    _p104c[0x1060 - 0x104c];
+    wl_entity *band64[64];   /* +0x1060  0x258-byte entities (shots / projectiles)      */
     struct wl_char *chars[32]; /* +0x1160  the full characters (0x15bb0 B each)        */
-    uint8_t    _p11e0[0x2788 - 0x11e0];
+    wl_entity *actors[128];  /* +0x11e0  0x2fc-byte actors (townsfolk props, NPC cast)  */
+    wl_entity *particles[1024]; /* +0x13e0 0x284-byte particles                         */
+    wl_entity *band96[96];   /* +0x23e0  0x20c-byte entities                            */
+    uint8_t    _p2560[0x2760 - 0x2560];
+    int32_t    f2760;        /* +0x2760  != 0 => no idle anims                         */
+    uint8_t    _p2764[0x276c - 0x2764];
+    uint16_t   tick15;       /* +0x276c  (0x46cd70: +1 & 0x7fff per tick) */
+    uint8_t    _p276e[0x2788 - 0x276e];
     wl_list   *list_2788;    /* +0x2788 */
     wl_list   *collide;      /* +0x278c  entities the movers test against              */
-    uint8_t    _p2790[0x27a0 - 0x2790];
+    uint8_t    _p2790[0x279c - 0x2790];
+    int32_t    f279c;        /* +0x279c  (-3 per tick to 0) */
     int32_t    action_serial; /* +0x27a0  bumped (mod 0xffffff) per action start         */
     uint8_t    _p27a4[0x27b8 - 0x27a4];
 } wl_world;
@@ -225,25 +248,48 @@ typedef struct wl_world {
  * 0x15bb0 bytes.  Fields are added as ported functions need them. */
 typedef struct wl_char {
     wl_entity  base;
-    uint8_t    _p1f8[0x200 - 0x1f8];
-    int32_t    f200;           /* +0x00200 */
-    uint32_t   flags204;       /* +0x00204  0x30000 / 0x1f0000: no dust particles        */
-    uint8_t    _p208[0x750 - 0x208];
+    int32_t    f1f8;           /* +0x001f8  1 => the regen ticks (with faction 2)        */
+    uint8_t    _p1fc[0x200 - 0x1fc];
+    int32_t    f200;           /* +0x00200  0 player AI, 1 NPC behaviour, >1 idle        */
+    uint32_t   flags204;       /* +0x00204  lo16 = the +0x66 timer phase, hi16 = a tick
+                                *           counter; 0x30000 / 0x1f0000: no dust          */
+    uint8_t    _p208[0x264 - 0x208];
+    int32_t    f264;           /* +0x00264  the idle-yawn accumulator                   */
+    int32_t    f268;           /* +0x00268  != 0 => intangible (bodies get nocollide)   */
+    uint16_t   invuln_a;       /* +0x0026c */
+    uint16_t   invuln_b;       /* +0x0026e */
+    uint32_t   f270;           /* +0x00270  hi16 counts down                            */
+    uint8_t    _p274[0x750 - 0x274];
     wl_party  *party;          /* +0x00750 */
     wl_skill   skills[64];     /* +0x00754 */
     int32_t    n_skills;       /* +0x0c754 */
-    uint8_t    _pc758[0xc764 - 0xc758];
+    int32_t    respawn;        /* +0x0c758  != 0 => falling out respawns at (rx, ry)     */
+    int32_t    respawn_x;      /* +0x0c75c */
+    int32_t    respawn_y;      /* +0x0c760 */
     int32_t    fc764;          /* +0x0c764 */
-    uint8_t    _pc768[0xc788 - 0xc768];
+    uint8_t    _pc768[0xc76c - 0xc768];
+    int32_t    voice_delay;    /* +0x0c76c  ticks until the queued voice line */
+    int32_t    voice_id;       /* +0x0c770 */
+    int32_t    voice_arg;      /* +0x0c774 */
+    int32_t    voice_vol;      /* +0x0c778 */
+    int32_t    fc77c;          /* +0x0c77c  the facing at the last 1600-unit step        */
+    int32_t    fc780;          /* +0x0c780  the x of the last 1600-unit step             */
+    int32_t    fc784;          /* +0x0c784  (-5 per tick outside look-up)                */
     int32_t    fc788;          /* +0x0c788  targeting enabled                           */
-    uint8_t    _pc78c[0xc798 - 0xc78c];
+    uint16_t   step_delay;     /* +0x0c78c  footstep sound countdown                    */
+    uint16_t   step_kind;      /* +0x0c78e */
+    uint8_t    _pc790[0xc794 - 0xc790];
+    int32_t    fc794;          /* +0x0c794  != 0 => ally proximity / idle anims          */
     struct wl_char *carrier;   /* +0x0c798  (0x442920 releases its hold)                */
     uint8_t    _pc79c[0xc7a4 - 0xc79c];
     struct wl_char *held;      /* +0x0c7a4  the character this one carries              */
     uint8_t    _pc7a8[0xc7e8 - 0xc7a8];
     int32_t    max_air_jumps;  /* +0x0c7e8 */
     int32_t    fc7ec;          /* +0x0c7ec */
-    uint8_t    _pc7f0[0xc848 - 0xc7f0];
+    uint8_t    _pc7f0[0xc824 - 0xc7f0];
+    int32_t    fc824[2];       /* +0x0c824  linked effects (released when fc82c is 0)    */
+    int32_t    fc82c[2];       /* +0x0c82c  (cleared each tick)                          */
+    uint8_t    _pc834[0xc848 - 0xc834];
     /* ── the NPC navigation tuning (0x43f880) ── */
     int32_t    nav_jump_chance;/* +0x0c848  per-mille chance of a spontaneous look-up/jump */
     int32_t    nav_sim_off;    /* +0x0c84c  != 0 => commands are not simulated first     */
@@ -280,14 +326,22 @@ typedef struct wl_char {
     wl_combo   combo[64];      /* +0x148a0 (ends at +0x158a0) */
     int32_t    difficulty;     /* +0x158a0  0..1 => 10 ms, 2 => 80 ms walk-start delay   */
     input_mgr *input;          /* +0x158a4 */
-    uint8_t    _p158a8[0x158bc - 0x158a8];
+    int32_t    stun_on;        /* +0x158a8  with stun_t >= stun_len: the action is cut  */
+    int32_t    stun_t;         /* +0x158ac */
+    int32_t    stun_len;       /* +0x158b0 */
+    uint8_t    _p158b4[0x158bc - 0x158b4];
     int32_t    air_jumps;      /* +0x158bc  jumps used since landing                    */
-    uint8_t    _p158c0[0x158fc - 0x158c0];
+    uint16_t   regen_t;        /* +0x158c0  regen tick (fires at 1600)                  */
+    uint16_t   f158c2;         /* +0x158c2  counts down; clears f158c4 at 0              */
+    int32_t    f158c4;         /* +0x158c4 */
+    int32_t    leash_t;        /* +0x158c8  ticks bound to f15b60 (saturates 0xffffff)   */
+    uint8_t    _p158cc[0x158fc - 0x158cc];
     int32_t    f158fc;         /* +0x158fc  (the hit-reaction helper 0x467260 arg)      */
     uint8_t    _p15900[0x15904 - 0x15900];
     int32_t    f15904;         /* +0x15904  != 0 => pose 0x20 ends by removing itself   */
     int32_t    no_sim;         /* +0x15908  != 0 => every simulated command is accepted  */
-    uint8_t    _p1590c[0x15914 - 0x1590c];
+    int32_t    no_splash;      /* +0x1590c  != 0 => no water entry/exit splash          */
+    uint8_t    _p15910[0x15914 - 0x15910];
     /* ── the per-state clips + effects (0x466930) ── */
     const void *clip_stand;    /* +0x15914 */
     const void *clip_air0;     /* +0x15918 */
@@ -296,8 +350,8 @@ typedef struct wl_char {
     uint8_t    _p15924[0x15934 - 0x15924];
     int32_t    can_carry;      /* +0x15934 */
     uint8_t    _p15938[0x15944 - 0x15938];
-    int32_t    f15944;         /* +0x15944  1 => the water jump splash                   */
-    uint8_t    _p15948[0x1594c - 0x15948];
+    int32_t    f15944;         /* +0x15944  1/2 footstep surfaces, 3 a fixed step sound  */
+    int32_t    step_sfx;       /* +0x15948  (mode 3) */
     /* ── the movement tuning (0x467bb0) ── */
     int32_t    move_mode;      /* +0x1594c  0 ground, 1..2 the alternate probe, 3 bounded */
     int32_t    fall_cap;       /* +0x15950 */
@@ -342,7 +396,9 @@ typedef struct wl_char {
     uint8_t    _p159ec[0x159f0 - 0x159ec];
     const void *clip_hit;      /* +0x159f0  poses 0x68 / 0x69 */
     const void *clip_hit2;     /* +0x159f4  pose 0x6a */
-    uint8_t    _p159f8[0x15a10 - 0x159f8];
+    uint8_t    _p159f8[0x15a0a - 0x159f8];
+    uint16_t   member_pose;    /* +0x15a0a  the pose that keeps party+0xd4 */
+    uint8_t    _p15a0c[0x15a10 - 0x15a0c];
     int32_t    up_assist;      /* +0x15a10  != 0 => look-up / the jump-probe up assist    */
     uint8_t    _p15a14[0x15a18 - 0x15a14];
     const void *clip_up0;      /* +0x15a18 */
@@ -350,16 +406,38 @@ typedef struct wl_char {
     uint8_t    _p15a20[0x15a24 - 0x15a20];
     int32_t    f15a24;         /* +0x15a24 */
     int32_t    hazard_mode;    /* +0x15a28  1/2/3: which hitbox kinds count (0x440f40)  */
-    uint8_t    _p15a2c[0x15a90 - 0x15a2c];
+    uint8_t    _p15a2c[0x15a70 - 0x15a2c];
+    int32_t    leash_check;    /* +0x15a70 */
+    int32_t    leash_max;      /* +0x15a74 */
+    int32_t    leash_warp;     /* +0x15a78  (0x4874b0 target) */
+    int32_t    fall_warp;      /* +0x15a7c */
+    int32_t    f15a80;         /* +0x15a80 */
+    uint8_t    _p15a84[0x15a88 - 0x15a84];
+    int32_t    voice_vol_bias; /* +0x15a88 */
+    int32_t    voice_mode;     /* +0x15a8c */
     int32_t    nav_c_check;    /* +0x15a90  check region-C cells under a drop (nav)      */
     uint8_t    _p15a94[0x15a98 - 0x15a94];
     int32_t    bound_top;      /* +0x15a98  mode 3: -top limit */
     int32_t    bound_bottom;   /* +0x15a9c  mode 3: below the map height */
     int32_t    bound_left;     /* +0x15aa0 */
     int32_t    bound_right;    /* +0x15aa4 */
-    uint8_t    _p15aa8[0x15aec - 0x15aa8];
+    uint8_t    _p15aa8[0x15ab0 - 0x15aa8];
+    int32_t    f15ab0;         /* +0x15ab0  1 => run 0x4895c0 once */
+    uint8_t    _p15ab4[0x15aec - 0x15ab4];
     struct { int32_t id; uint16_t t; uint16_t _p; } recent_hit[8]; /* +0x15aec  hitbox ids already taken */
-    uint8_t    _p15b2c[0x15bb0 - 0x15b2c];
+    uint16_t   idle_n;         /* +0x15b2c  idle animations (the table below) */
+    struct { uint16_t a, pose; } idle[4]; /* +0x15b2e */
+    uint8_t    _p15b3e[0x15b40 - 0x15b3e];
+    int32_t    idle_first;     /* +0x15b40 */
+    int32_t    idle_next;      /* +0x15b44 */
+    int32_t    idle_jitter;    /* +0x15b48 */
+    int32_t    idle_i;         /* +0x15b4c */
+    int32_t    idle_t;         /* +0x15b50 */
+    void      *voice;          /* +0x15b54  the character's voice object (0x4099a0)      */
+    uint8_t    _p15b58[0x15b5c - 0x15b58];
+    int32_t    f15b5c;         /* +0x15b5c */
+    struct wl_char *leash;     /* +0x15b60 */
+    uint8_t    _p15b64[0x15bb0 - 0x15b64];
 } wl_char;
 
 #if UINTPTR_MAX == 0xFFFFFFFFu
@@ -419,6 +497,27 @@ _Static_assert(offsetof(wl_char, nav_low_bridge) == 0x15960, "char +0x15960");
 _Static_assert(offsetof(wl_char, nav_c_check) == 0x15a90, "char +0x15a90");
 _Static_assert(offsetof(wl_party, hp_bonus2)  == 0x09c, "party +0x9c");
 _Static_assert(offsetof(wl_party, f45e)       == 0x45e, "party +0x45e");
+_Static_assert(offsetof(wl_party, mp_bonus2)  == 0x0a0, "party +0xa0");
+_Static_assert(offsetof(wl_char, f1f8)        == 0x001f8, "char +0x1f8");
+_Static_assert(offsetof(wl_char, f270)        == 0x00270, "char +0x270");
+_Static_assert(offsetof(wl_char, respawn_y)   == 0x0c760, "char +0xc760");
+_Static_assert(offsetof(wl_char, voice_vol)   == 0x0c778, "char +0xc778");
+_Static_assert(offsetof(wl_char, fc794)       == 0x0c794, "char +0xc794");
+_Static_assert(offsetof(wl_char, fc82c)       == 0x0c82c, "char +0xc82c");
+_Static_assert(offsetof(wl_char, stun_len)    == 0x158b0, "char +0x158b0");
+_Static_assert(offsetof(wl_char, leash_t)     == 0x158c8, "char +0x158c8");
+_Static_assert(offsetof(wl_char, no_splash)   == 0x1590c, "char +0x1590c");
+_Static_assert(offsetof(wl_char, step_sfx)    == 0x15948, "char +0x15948");
+_Static_assert(offsetof(wl_char, member_pose) == 0x15a0a, "char +0x15a0a");
+_Static_assert(offsetof(wl_char, voice_mode)  == 0x15a8c, "char +0x15a8c");
+_Static_assert(offsetof(wl_char, f15ab0)      == 0x15ab0, "char +0x15ab0");
+_Static_assert(offsetof(wl_char, idle)        == 0x15b2e, "char idle table");
+_Static_assert(offsetof(wl_char, idle_t)      == 0x15b50, "char +0x15b50");
+_Static_assert(offsetof(wl_char, leash)       == 0x15b60, "char +0x15b60");
+_Static_assert(offsetof(wl_keycfg, voice_volume) == 0x1a0, "keycfg +0x1a0");
+_Static_assert(offsetof(wl_world, f1034)      == 0x1034, "world +0x1034");
+_Static_assert(offsetof(wl_world, tick15)     == 0x276c, "world +0x276c");
+_Static_assert(offsetof(wl_world, f279c)      == 0x279c, "world +0x279c");
 _Static_assert(sizeof(wl_skill)               == 0x300, "skill record");
 _Static_assert(offsetof(wl_skill, mode)       == 0x2f8, "skill mode");
 _Static_assert(offsetof(wl_entity, width)     == 0x028, "entity width");
@@ -442,6 +541,9 @@ _Static_assert(offsetof(wl_body, f66)         == 0x066, "body +0x66");
 _Static_assert(offsetof(wl_entity, code)      == 0x1d4, "entity code");
 _Static_assert(offsetof(wl_entity, ride_mode) == 0x1c0, "entity ride mode");
 _Static_assert(offsetof(wl_world, chars)      == 0x1160, "world chars");
+_Static_assert(offsetof(wl_world, band64)     == 0x1060, "world band64");
+_Static_assert(offsetof(wl_world, particles)  == 0x13e0, "world particles");
+_Static_assert(offsetof(wl_world, band96)     == 0x23e0, "world band96");
 _Static_assert(offsetof(wl_body, x)         == 0x004, "body x");
 _Static_assert(offsetof(wl_body, margin)    == 0x014, "body margin");
 _Static_assert(offsetof(wl_body, nocollide) == 0x07c, "body nocollide");

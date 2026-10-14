@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **281** (17.5% of engine-proper) — tested 250, ported 31
-- code bytes touched: **18.5%** (329,456 / 1,776,526 B of engine-proper)
-- unported: **1543**
+- touched: **283** (17.6% of engine-proper) — tested 250, ported 33
+- code bytes touched: **18.9%** (335,196 / 1,776,526 B of engine-proper)
+- unported: **1541**
 - orphan refs in src/ not in this table: 0
 
 ## tested (250) — ported + host unit suite
@@ -274,7 +274,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (31) — reimplemented, no host test yet
+## ported (33) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -304,6 +304,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x446640 | sub_446640 | 112 | char_integrate.h |
 | 0x451250 | sub_451250 | 119 | char_integrate.h |
 | 0x4671c0 | sub_4671C0 | 158 | char_integrate.h |
+| 0x46cd70 | actor_update_all_46CD70 | 1031 | world_tick.c, world_tick.h |
+| 0x485fc0 | sub_485FC0 | 4709 | char_apply.c, char_apply.h |
 | 0x5bf3ee | emit_last_error_line_5BF3EE | 82 | cs_dispatch_win32.c |
 | 0x5bf440 | _fclose | 86 | cs_dispatch_win32.c |
 | 0x5bf496 | _fprintf | 50 | cs_dispatch_win32.c |

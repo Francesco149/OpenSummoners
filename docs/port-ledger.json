@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 250,
-  "ported": 31,
-  "unported": 1543,
+  "ported": 33,
+  "unported": 1541,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 281,
-  "pct_touched": 17.5,
+  "touched": 283,
+  "pct_touched": 17.6,
   "pct_tested": 15.8,
-  "engine_proper_touched": 268,
+  "engine_proper_touched": 270,
   "bytes_total": 1776526,
-  "bytes_touched": 329456,
-  "pct_bytes_touched": 18.5
+  "bytes_touched": 335196,
+  "pct_bytes_touched": 18.9
  },
  "orphan_refs": [],
  "functions": [
@@ -4567,8 +4567,11 @@
    "name": "actor_update_all_46CD70",
    "size": 1031,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/world_tick.c",
+    "src/world_tick.h"
+   ]
   },
   {
    "va": "0x46d180",
@@ -5570,8 +5573,11 @@
    "name": "sub_485FC0",
    "size": 4709,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_apply.c",
+    "src/char_apply.h"
+   ]
   },
   {
    "va": "0x487250",
