@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **268** (16.6% of engine-proper) — tested 250, ported 18
-- code bytes touched: **18.0%** (320,404 / 1,776,526 B of engine-proper)
-- unported: **1556**
+- touched: **281** (17.5% of engine-proper) — tested 250, ported 31
+- code bytes touched: **18.5%** (329,456 / 1,776,526 B of engine-proper)
+- unported: **1543**
 - orphan refs in src/ not in this table: 0
 
 ## tested (250) — ported + host unit suite
@@ -274,16 +274,29 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (18) — reimplemented, no host test yet
+## ported (31) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
+| 0x4022a0 | sub_4022A0 | 47 | npc_ai.h |
 | 0x407320 | sub_407320 | 190 | char_integrate.h |
 | 0x407b80 | sub_407B80 | 32 | char_integrate.h |
 | 0x426be0 | sub_426BE0 | 395 | char_integrate.h |
 | 0x426f20 | sub_426F20 | 47 | char_integrate.h |
+| 0x426f70 | sub_426F70 | 37 | npc_ai.h |
+| 0x426fa0 | sub_426FA0 | 45 | npc_ai.h |
+| 0x43ee30 | sub_43EE30 | 228 | npc_ai.h |
+| 0x43f880 | sub_43F880 | 5491 | npc_ai.c, npc_ai.h |
+| 0x440e40 | sub_440E40 | 239 | npc_ai.h |
+| 0x441270 | sub_441270 | 84 | npc_ai.h |
+| 0x4412d0 | sub_4412D0 | 993 | npc_ai.c, npc_ai.h |
+| 0x441700 | sub_441700 | 466 | npc_ai.h |
+| 0x4418e0 | sub_4418E0 | 511 | npc_ai.h |
+| 0x441ae0 | sub_441AE0 | 749 | npc_ai.h |
 | 0x442890 | sub_442890 | 54 | char_integrate.h |
 | 0x442920 | sub_442920 | 149 | char_integrate.h |
+| 0x4429c0 | sub_4429C0 | 86 | npc_ai.h |
+| 0x442a20 | sub_442A20 | 76 | npc_ai.h |
 | 0x442a70 | sub_442A70 | 12026 | char_integrate.c, char_integrate.h |
 | 0x445d30 | sub_445D30 | 124 | char_integrate.h |
 | 0x445f50 | sub_445F50 | 21 | char_integrate.h |

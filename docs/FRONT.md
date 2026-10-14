@@ -24,6 +24,7 @@
   | per-state clip + jump fx | `0x466930` | 977k | 0 |
   | the INTEGRATOR (dispatcher) | `0x442a70` | 1.03M (64k full-state) | 0 |
   | hazard probe | `0x440f40` | 31k | 0 |
+  | NPC navigation AI (+ cluster) | `0x43f880` | 11,491 (all full-state) | 0 |
   Hybrid gate: with all of the above REPLACING retail, every corpus scenario ends byte-identical.
   Infra: `src/world_layout.h` (retail-layout world/entity/char/body/cmd, pinned on 32-bit),
   `src/engine_calls.h` (slots → retail VAs for unported callees, PORT-DEBT(engine-call-slots)),
@@ -32,10 +33,12 @@
 - **Integrator `0x442a70` LANDED** (`src/char_integrate.c`): prologue, action start, poses 0x20/0x68..0x6a,
   the full per-type dispatch (~30 type handlers as slots), tail; special poses 0x75..0x81 delegated to
   retail (PORT-DEBT(integrate-special-poses); none occur in the corpus yet).
-- **In flight — the NPC navigation AI `0x43f880`** (`src/npc_ai.c`, + `0x4412d0`, `0x441ae0`, …).
+- **NPC navigation AI `0x43f880` LANDED** (`src/npc_ai.c`: + `0x4412d0` try-command, `0x441ae0` floor
+  ahead, `0x4418e0`, `0x440e40`, `0x441700`, `0x43ee30`, …; scratch bodies from retail's heap via
+  `g_eng.op_new`). Hybrid gate with all 12 movement functions replacing retail: PASS.
 - **Next (port side):**
-  1. verify the NPC AI `0x43f880`; then the apply pass `0x485fc0` and the tick driver `0x46cd70`
-     (actor_update_all: `0x54f980`, `0x47b990`, `0x46e510`, `0x4710c0`) → the whole entity tick ported.
+  1. the apply pass `0x485fc0` (runs the integrator on the live body) and the tick driver `0x46cd70`
+     (actor_update_all; NPC behaviours `0x47b990`, actors `0x54f980`, particles `0x46e510`, `0x4710c0`).
   2. SWITCH the port's freeroam drive onto the retail-layout world (`g_world`, wl_char bodies,
      `char_ai` → `char_integrate`) and retire the `character.c` reductions; prove it with
      `--det-clock` portshots/portstate vs rhost on `rh-my-play`.

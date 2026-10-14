@@ -22,6 +22,7 @@
 #include "char_ai.h"
 #include "char_physics.h"
 #include "char_integrate.h"
+#include "npc_ai.h"
 #include "engine_calls.h"
 
 typedef struct {
@@ -32,7 +33,7 @@ typedef struct {
 } hook_t;
 
 static hook_t H[];
-enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_DECODE, H_CAM_FOLLOW, H_CAM_SHAKE, H_CHAR_AI, H_CHAR_PHYS, H_CHAR_ANIM, H_CHAR_INT, H_HAZARD, H_N };
+enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_DECODE, H_CAM_FOLLOW, H_CAM_SHAKE, H_CHAR_AI, H_CHAR_PHYS, H_CHAR_ANIM, H_CHAR_INT, H_HAZARD, H_NPC_AI, H_N };
 
 static void diverged(hook_t *h, const char *fmt, ...)
 {
@@ -463,6 +464,27 @@ static int __attribute__((thiscall)) w_hazard(wl_char *self, uint32_t n, wl_body
     return r;
 }
 
+/* ---- the NPC navigation AI (FUN_0043f880, thiscall + 9 args) — full state (heap scratch, LCG, probes) ---- */
+typedef int (__attribute__((thiscall)) *npc_ai_t)(wl_char *, int32_t, int32_t, wl_body *, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t);
+typedef struct { wl_char *self; int32_t a2, a3; wl_body *b; int32_t a5, a6, a7, a8, a9, a10; int r_ret, r_port; } npc_ctx;
+static void npc_retail(void *c) { npc_ctx *x = c; x->r_ret = ((npc_ai_t)(uintptr_t)H[H_NPC_AI].va)(x->self, x->a2, x->a3, x->b, x->a5, x->a6, x->a7, x->a8, x->a9, x->a10); }
+static void npc_port(void *c)   { npc_ctx *x = c; port_world(); x->r_port = npc_navigate(x->self, x->a2, x->a3, x->b, x->a5, x->a6, x->a7, x->a8, x->a9, x->a10); }
+static int __attribute__((thiscall)) w_npc_ai(wl_char *self, int32_t a2, int32_t a3, wl_body *b, int32_t a5, int32_t a6, int32_t a7, int32_t a8, int32_t a9, int32_t a10)
+{
+    hook_t *h = &H[H_NPC_AI];
+    if (h->mode == 2) { h->calls++; port_world(); return npc_navigate(self, a2, a3, b, a5, a6, a7, a8, a9, a10); }
+    if (!sample(h)) return ((npc_ai_t)(uintptr_t)h->va)(self, a2, a3, b, a5, a6, a7, a8, a9, a10);
+    npc_ctx x = { self, a2, a3, b, a5, a6, a7, a8, a9, a10, 0, 0 };
+    char why[512];
+    int d = rh_shadow_ex("npc_ai", npc_retail, npc_port, &x, why, sizeof why);
+    if (d < 0) { h->skipped++; return x.r_ret; }
+    h->compared++;
+    if (d || x.r_ret != x.r_port)
+        diverged(h, "f%u char %p code %x tx %d arrive %d gr %d calm %d mode %d ty %d norun %d jump %d state %u ret %d/%d %s", g_frame, (void *)self,
+                 self->base.code, a2, a3, a5, a6, a7, a8, a9, a10, b->state, x.r_ret, x.r_port, d ? why : "");
+    return x.r_ret;
+}
+
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
     [H_POLL] = { "input_poll", 0x43c110u, (void *)w_poll, 0, 1, 0, 0, 0, 0, "" },
@@ -478,6 +500,7 @@ static hook_t H[H_N] = {
     [H_CHAR_ANIM]  = { "char_anim",  0x466930u, (void *)w_char_anim,  0, 1, 0, 0, 0, 0, "" },
     [H_CHAR_INT]   = { "char_integrate", 0x442a70u, (void *)w_char_int, 0, 1, 0, 0, 0, 0, "" },
     [H_HAZARD]     = { "hazard_probe", 0x440f40u, (void *)w_hazard, 0, 1, 0, 0, 0, 0, "" },
+    [H_NPC_AI]     = { "npc_ai", 0x43f880u, (void *)w_npc_ai, 0, 1, 0, 0, 0, 0, "" },
 };
 
 static const void *rh_data_identity(uint32_t va) { return (const void *)(uintptr_t)va; }
@@ -505,6 +528,8 @@ static void bind_engine_calls(void)
     *(void **)&g_eng.dsb_play_5bb8c0     = (void *)(uintptr_t)0x5bb8c0u;
     *(void **)&g_eng.particle_557370     = (void *)(uintptr_t)0x557370u;
     g_eng.data = rh_data_identity;
+    *(void **)&g_eng.op_new    = (void *)(uintptr_t)0x5bf00du;   /* operator new (cdecl) */
+    *(void **)&g_eng.op_delete = (void *)(uintptr_t)0x5bef0eu;   /* operator delete (cdecl) */
 #define B(n) *(void **)&g_eng.h##n = (void *)(uintptr_t)0x##n##u
     B(445fd0); B(467260); B(4467d0); B(44a740); B(45a300); B(44bc10); B(44c250); B(44bf60); B(446900);
     B(452020); B(449810); B(4539b0); B(44d8f0); B(448dc0); B(452730); B(467380); B(457ff0); B(45e830);
@@ -523,7 +548,7 @@ void rh_hooks_install(void)
     H[H_POLL].va = !strcmp(g_ed->tag, "enold") ? 0x43c110u : !strcmp(g_ed->tag, "ense-en") ? 0x4383c0u : 0;
     if (strcmp(g_ed->tag, "enold"))   /* EN-old VAs only (SE: crosswalk TODO) */
         H[H_MOVER_V].va = H[H_SWEEP_H].va = H[H_ENT_MOVE_H].va = H[H_ENT_MOVE_V].va = H[H_MAP_DECODE].va =
-        H[H_CAM_FOLLOW].va = H[H_CAM_SHAKE].va = H[H_CHAR_AI].va = H[H_CHAR_PHYS].va = H[H_CHAR_ANIM].va = H[H_CHAR_INT].va = H[H_HAZARD].va = 0;
+        H[H_CAM_FOLLOW].va = H[H_CAM_SHAKE].va = H[H_CHAR_AI].va = H[H_CHAR_PHYS].va = H[H_CHAR_ANIM].va = H[H_CHAR_INT].va = H[H_HAZARD].va = H[H_NPC_AI].va = 0;
     if (!O.hooks) return;
     char b[512]; snprintf(b, sizeof b, "%s", O.hooks);
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {

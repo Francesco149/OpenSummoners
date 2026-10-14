@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 250,
-  "ported": 18,
-  "unported": 1556,
+  "ported": 31,
+  "unported": 1543,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 268,
-  "pct_touched": 16.6,
+  "touched": 281,
+  "pct_touched": 17.5,
   "pct_tested": 15.8,
-  "engine_proper_touched": 255,
+  "engine_proper_touched": 268,
   "bytes_total": 1776526,
-  "bytes_touched": 320404,
-  "pct_bytes_touched": 18.0
+  "bytes_touched": 329456,
+  "pct_bytes_touched": 18.5
  },
  "orphan_refs": [],
  "functions": [
@@ -297,8 +297,10 @@
    "name": "sub_4022A0",
    "size": 47,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/npc_ai.h"
+   ]
   },
   {
    "va": "0x4022d0",
@@ -2390,16 +2392,20 @@
    "name": "sub_426F70",
    "size": 37,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/npc_ai.h"
+   ]
   },
   {
    "va": "0x426fa0",
    "name": "sub_426FA0",
    "size": 45,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/npc_ai.h"
+   ]
   },
   {
    "va": "0x426fd0",
@@ -3321,8 +3327,10 @@
    "name": "sub_43EE30",
    "size": 228,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/npc_ai.h"
+   ]
   },
   {
    "va": "0x43ef20",
@@ -3345,16 +3353,21 @@
    "name": "sub_43F880",
    "size": 5491,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/npc_ai.c",
+    "src/npc_ai.h"
+   ]
   },
   {
    "va": "0x440e40",
    "name": "sub_440E40",
    "size": 239,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/npc_ai.h"
+   ]
   },
   {
    "va": "0x440f40",
@@ -3383,16 +3396,21 @@
    "name": "sub_441270",
    "size": 84,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/npc_ai.h"
+   ]
   },
   {
    "va": "0x4412d0",
    "name": "sub_4412D0",
    "size": 993,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/npc_ai.c",
+    "src/npc_ai.h"
+   ]
   },
   {
    "va": "0x4416c0",
@@ -3410,24 +3428,30 @@
    "name": "sub_441700",
    "size": 466,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/npc_ai.h"
+   ]
   },
   {
    "va": "0x4418e0",
    "name": "sub_4418E0",
    "size": 511,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/npc_ai.h"
+   ]
   },
   {
    "va": "0x441ae0",
    "name": "sub_441AE0",
    "size": 749,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/npc_ai.h"
+   ]
   },
   {
    "va": "0x441de0",
@@ -3526,16 +3550,20 @@
    "name": "sub_4429C0",
    "size": 86,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/npc_ai.h"
+   ]
   },
   {
    "va": "0x442a20",
    "name": "sub_442A20",
    "size": 76,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/npc_ai.h"
+   ]
   },
   {
    "va": "0x442a70",
