@@ -102,6 +102,12 @@ touches, 162 are identical/operand-only in SE — but 79% of the ported *bytes* 
 4. **Commit with an evidence line:** `rhost shadow: N calls / K scenarios, 0 divergences;
    replace: corpus --check PASS`.
 
+First port ↔ retail probe (`rhost.py portshots rh-newgame-prologue --at …`; port at real-time 60 fps,
+its title pacing is wall-clock): **f100, f640, f900 pixel-identical**; f700 9 px, f800 273 px (menu
+quill phase); f300/f450 (logo + subtitle fade-in) and f1100/f1300 (prologue gem glow) differ — the
+port runs AHEAD of deterministic retail through the title intro. Phase pillar, not logic: exactly what
+the port-side determinism item below closes.
+
 Phase-0 items for the port side (not done tonight):
 - **DIK-level input path** in the port (the producer `0x46a880`: DIK → ring ids + held axis, ring
   timestamps = event time) so the port consumes the same `rh-*` traces.
