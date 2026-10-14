@@ -101,6 +101,9 @@ typedef struct engine_calls {
     eng_tc0 h40c380; eng_tc6 h40ac90; eng_tc19 h55cfc0;
     /* the touch pass's: the input re-poll 0x40fe00 (`this` = sys), the key use 0x54ed80 */
     eng_tc0 h40fe00; eng_tc0 h54ed80;
+    /* the room loop's: the input producers 0x46a880 (keyboard) / 0x468b10 (joystick), the BGM
+     * manager update 0x5bc0c0 */
+    eng_tc1 h46a880; eng_tc2 h468b10; eng_tc0 h5bc0c0;
     /* the integrator 0x442a70's callees: per-type behaviour handlers + helpers (by VA) */
     eng_tc3 h467260; eng_tc6 h44a740; eng_tc8 h45a300;
     eng_tc4 h44bc10; eng_tc4 h44c250; eng_tc4 h44bf60; eng_tc7 h446900; eng_tc7 h452020;

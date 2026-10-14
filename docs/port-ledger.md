@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **407** (25.7% of engine-proper) — tested 250, ported 157
-- code bytes touched: **24.2%** (430,644 / 1,776,526 B of engine-proper)
-- unported: **1417**
+- touched: **414** (26.2% of engine-proper) — tested 250, ported 164
+- code bytes touched: **24.3%** (432,357 / 1,776,526 B of engine-proper)
+- unported: **1410**
 - orphan refs in src/ not in this table: 0
 
 ## tested (250) — ported + host unit suite
@@ -274,7 +274,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (157) — reimplemented, no host test yet
+## ported (164) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -317,6 +317,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x426fa0 | sub_426FA0 | 45 | npc_ai.h |
 | 0x4272e0 | sub_4272E0 | 79 | particle_init.h |
 | 0x4385c0 | sub_4385C0 | 19 | particle_init.h |
+| 0x43e140 | sub_43E140 | 266 | room_loop.h |
 | 0x43e3a0 | sub_43E3A0 | 516 | event.c, event.h |
 | 0x43ee30 | sub_43EE30 | 228 | npc_ai.h |
 | 0x43f880 | sub_43F880 | 5491 | npc_ai.c, npc_ai.h |
@@ -356,6 +357,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x460e40 | sub_460E40 | 143 | particle_init.h |
 | 0x4671c0 | sub_4671C0 | 158 | char_integrate.h |
 | 0x467380 | ambient_event_timer_467380 | 376 | sound_fx.h |
+| 0x468a20 | sub_468A20 | 237 | room_loop.h |
 | 0x46cd70 | actor_update_all_46CD70 | 1031 | world_tick.c, world_tick.h |
 | 0x46d180 | sub_46D180 | 798 | entity_fx.c, entity_fx.h |
 | 0x46d4a0 | sub_46D4A0 | 838 | entity_fx.c, entity_fx.h |
@@ -420,6 +422,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x55cd50 | sub_55CD50 | 85 | particle_init.h |
 | 0x55cdb0 | sub_55CDB0 | 145 | particle_init.h |
 | 0x55ce50 | sub_55CE50 | 18 | particle_init.h |
+| 0x58ff50 | sub_58FF50 | 66 | room_loop.h |
+| 0x58ffd0 | sub_58FFD0 | 595 | room_loop.h |
+| 0x590410 | sub_590410 | 112 | room_loop.h |
 | 0x59a1f0 | sub_59A1F0 | 1485 | gimmick.h |
 | 0x59a7c0 | sub_59A7C0 | 181 | gimmick.h |
 | 0x59a880 | sub_59A880 | 138 | gimmick.h |
@@ -427,6 +432,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x59b170 | sub_59B170 | 2621 | gimmick.c, gimmick.h |
 | 0x59bdd0 | sub_59BDD0 | 1129 | gimmick.h |
 | 0x59c240 | sub_59C240 | 929 | gimmick.h |
+| 0x59ca10 | sub_59CA10 | 114 | room_loop.h |
+| 0x59d3f0 | sub_59D3F0 | 323 | room_loop.h |
 | 0x5b54d0 | sub_5B54D0 | 166 | char_state.h |
 | 0x5b5580 | sub_5B5580 | 121 | char_state.h |
 | 0x5b5990 | sub_5B5990 | 202 | char_state.h |

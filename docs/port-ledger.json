@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 250,
-  "ported": 157,
-  "unported": 1417,
+  "ported": 164,
+  "unported": 1410,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 407,
-  "pct_touched": 25.7,
+  "touched": 414,
+  "pct_touched": 26.2,
   "pct_tested": 15.8,
-  "engine_proper_touched": 394,
+  "engine_proper_touched": 401,
   "bytes_total": 1776526,
-  "bytes_touched": 430644,
-  "pct_bytes_touched": 24.2
+  "bytes_touched": 432357,
+  "pct_bytes_touched": 24.3
  },
  "orphan_refs": [],
  "functions": [
@@ -3361,8 +3361,10 @@
    "name": "sub_43E140",
    "size": 266,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_loop.h"
+   ]
   },
   {
    "va": "0x43e250",
@@ -4641,8 +4643,10 @@
    "name": "sub_468A20",
    "size": 237,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_loop.h"
+   ]
   },
   {
    "va": "0x468b10",
@@ -10259,8 +10263,10 @@
    "name": "sub_58FF50",
    "size": 66,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_loop.h"
+   ]
   },
   {
    "va": "0x58ffa0",
@@ -10286,8 +10292,10 @@
    "name": "sub_58FFD0",
    "size": 595,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_loop.h"
+   ]
   },
   {
    "va": "0x590230",
@@ -10302,8 +10310,10 @@
    "name": "sub_590410",
    "size": 112,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_loop.h"
+   ]
   },
   {
    "va": "0x590480",
@@ -10766,8 +10776,10 @@
    "name": "sub_59CA10",
    "size": 114,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_loop.h"
+   ]
   },
   {
    "va": "0x59ca90",
@@ -10806,8 +10818,10 @@
    "name": "sub_59D3F0",
    "size": 323,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_loop.h"
+   ]
   },
   {
    "va": "0x59d540",

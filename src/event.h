@@ -4,7 +4,7 @@
  *
  * 0x40b8f0 fills the runner *(world+0x1054) and runs the script engine 0x40c380 (still a
  * slot, PORT-DEBT(engine-call-slots)).  When the script asked for a room change (+0x0c)
- * every entry of the sys+0xaa8 list below state 3 is raised to 3 with 400 at +0x14, and
+ * every timed sound still playing (sys+0xaa8, run by 0x43e140) fades out at 400 per tick, and
  * every resource of load group >= 4 is released (0x43e3a0: surface sets, sound pools,
  * GDI objects); the result is then 24.
  *

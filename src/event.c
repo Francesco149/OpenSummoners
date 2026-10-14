@@ -11,7 +11,8 @@
 #include "asset_register.h"
 #include "engine_calls.h"
 
-/* sys+0xaa8: a list of 24-byte records (+0x10 a state, +0x14 a duration) */
+/* sys+0xaa8: the timed-sound list 0x43e140 runs (24-byte records: buffer, volume, duration,
+ * start, +0x10 state 1 start / 2 play / 3 fade out by +0x14 per tick) */
 typedef struct ev_rec {
     int32_t  f00;
     int32_t  _p04[3];
@@ -61,7 +62,7 @@ int event_run(wl_event *ev, void *f00, wl_room *room, wl_actor *actor, int32_t a
                 l->rec[i].f14 = 400;
             }
         }
-    g_eng.dbg_out("Unload Resource From 'StartEvent'\n");
+    g_eng.dbg_out(g_eng.data(0x854798u));   /* "Unload Resource From 'StartEvent'" */
     sys_unload(g_eng.sys, 4);
     return 24;
 }
@@ -69,7 +70,7 @@ int event_run(wl_event *ev, void *f00, wl_room *room, wl_actor *actor, int32_t a
 void sys_unload(void *sys, uint16_t group)
 {
     const uint8_t *s = sys;
-    g_eng.dbg_out("Unload Surface Sets\n");
+    g_eng.dbg_out(g_eng.data(0x854780u));   /* "Unload Surface Sets" */
     for (uint32_t i = 0; i < 909; i++) {
         ar_sprite_slot *t; memcpy(&t, s + 0xaac + 4 * i, sizeof t);
         if (t == NULL || t->group < group) continue;
@@ -90,7 +91,7 @@ void sys_unload(void *sys, uint16_t group)
             en->frames = NULL;
         }
     }
-    g_eng.dbg_out("Unload Waves\n");
+    g_eng.dbg_out(g_eng.data(0x854770u));   /* "Unload Waves" */
     for (uint32_t i = 0; i < 465; i++) {
         wl_vpool *p; memcpy(&p, s + 0x364 + 4 * i, sizeof p);
         if (p == NULL || p->group < group || p->v == NULL) continue;
@@ -104,7 +105,7 @@ void sys_unload(void *sys, uint16_t group)
         g_eng.op_delete(p->v);
         p->v = NULL;
     }
-    g_eng.dbg_out("Unload GDIs\n");
+    g_eng.dbg_out(g_eng.data(0x854760u));   /* "Unload GDIs" */
     for (uint32_t i = 0; i < 16; i++) {
         ev_gdi *g; memcpy(&g, s + 0x2714 + 4 * i, sizeof g);
         if (g == NULL || g->group < group || g->obj == NULL) continue;
@@ -118,5 +119,5 @@ void sys_unload(void *sys, uint16_t group)
         g->f04 = 0;
         g->obj = NULL;
     }
-    g_eng.dbg_out("Success Resource Unload\n");
+    g_eng.dbg_out(g_eng.data(0x854744u));   /* "Success Resource Unload" */
 }

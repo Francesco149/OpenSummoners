@@ -448,7 +448,9 @@ typedef struct wl_actor {
     uint8_t    _p2d8[0x2e0 - 0x2d8];
     const int32_t *f2e0;       /* +0x2e0  [1] = the shot power (70220: 93 / 94)          */
     int32_t    f2e4;           /* +0x2e4  70251..: 1 => particle 100135 (else 100134)     */
-    uint8_t    _p2e8[0x2f8 - 0x2e8];
+    int32_t    f2e8;           /* +0x2e8  != 0 => faction 3 while a character is near (16-tick check) */
+    int32_t    f2ec;           /* +0x2ec  ... its countdown                                  */
+    uint8_t    _p2f0[0x2f8 - 0x2f0];
     int32_t    f2f8;           /* +0x2f8  != 0 (on a kind-2 platform) => no touch (0x59bdd0) */
 } wl_actor;
 
@@ -470,7 +472,9 @@ typedef struct wl_pslot {
 /* A ROOM (operator_new(0x4120); world+0x2784 points at the current one): the map object
  * that owns the party slots. */
 typedef struct wl_room {
-    uint8_t    _p0000[0x8];
+    uint16_t   nin;            /* +0x0000  input managers */
+    uint16_t   _p0002;
+    input_mgr *in;             /* +0x0004  ... (0x170 B each; [0] = the leader's keyboard) */
     struct { int32_t id, state; } flags[1024]; /* +0x0008  event flags (state 1 = done)    */
     uint16_t   nflags;         /* +0x2008 */
     uint16_t   _p200a;
@@ -505,6 +509,8 @@ typedef struct wl_zonestate {
 typedef struct wl_roomloop {
     wl_room   *rooms;          /* +0x0 */
     uint16_t   nrooms;         /* +0x4 */
+    uint16_t   _p6;
+    int32_t    lead;           /* +0x8  the leader's camera lead (-52000..-8000, 0x59d3f0) */
 } wl_roomloop;
 
 /* The EVENT-SCRIPT runner *(world+0x1054): 0x40b8f0 fills it and runs the script
@@ -974,6 +980,10 @@ _Static_assert(offsetof(wl_pslot, room)      == 0x9ec, "slot room");
 _Static_assert(offsetof(wl_pslot, ch)        == 0x9f4, "slot character");
 _Static_assert(offsetof(wl_room, leader)     == 0x200c, "room leader");
 _Static_assert(offsetof(wl_room, nflags)     == 0x2008, "room flag count");
+_Static_assert(offsetof(wl_room, in)         == 0x4,   "room input managers");
+_Static_assert(sizeof(input_mgr)             == 0x170, "input manager stride");
+_Static_assert(offsetof(wl_roomloop, lead)   == 0x8,   "room loop +0x8");
+_Static_assert(offsetof(wl_actor, f2ec)      == 0x2ec, "actor +0x2ec");
 _Static_assert(offsetof(wl_zonestate, fired) == 0x28,  "zone state +0x28");
 _Static_assert(offsetof(wl_actor, zone_kind) == 0x278, "actor +0x278");
 _Static_assert(offsetof(wl_world, zones)     == 0x1038, "world +0x1038");

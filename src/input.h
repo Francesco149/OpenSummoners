@@ -86,7 +86,8 @@ typedef struct input_event {
  *                it alongside A).
  */
 typedef struct input_mgr {
-    uint8_t      _head[0x0c];                 /* 0x00..0x0b — opaque    */
+    int32_t      src_kb;                      /* 0x00 — != 0: the keyboard feeds it (0x468a20) */
+    int32_t      src_joy[2];                  /* 0x04 — the joysticks that feed it              */
     input_event *ring[INPUT_RING_LEN];        /* 0x0c..0x108 — 64 ptrs  */
     int32_t      field_10c;                   /* 0x10c — flushed by skip-splash */
     int32_t      field_110;                   /* 0x110 — flushed by skip-splash */

@@ -39,6 +39,7 @@
 #include "particle_init.h"
 #include "gimmick.h"
 #include "event.h"
+#include "room_loop.h"
 #include "engine_calls.h"
 
 typedef struct {
@@ -63,7 +64,7 @@ enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_D
        H_PARTS_FREE, H_SET_ANGLE, H_FX_RESET, H_SKILL_AVAIL, H_PARTY_FIND, H_FLOOR_BELOW,
        H_GPASS, H_GSTEP, H_SWSET, H_SWLINK, H_EVRUN, H_UNLOAD, H_UNLIST_ALL, H_GLOW, H_RECT_HIT, H_CHARS_COUNT, H_CHAR_IN, H_RIDING,
        H_PART_FIND, H_SERIAL, H_SHOT, H_WARP, H_GATHER, H_TPASS, H_TACTOR, H_RFLUSH, H_PROBE_RECT, H_NEAR,
-       H_ZPASS, H_ZHIT, H_B96_NEAR, H_N };
+       H_ZPASS, H_ZHIT, H_B96_NEAR, H_RIN, H_RCHAR, H_RACT, H_RANIM, H_RDOWN, H_RLEAD, H_TSOUNDS, H_N };
 
 static void diverged(hook_t *h, const char *fmt, ...)
 {
@@ -2229,6 +2230,98 @@ static int __stdcall w_b96(int32_t x, int32_t y)
     return r;
 }
 
+/* ---- the room loop's per-tick calls (src/room_loop.c) — full state ---- */
+typedef void (__attribute__((thiscall)) *rin_t)(wl_room *);
+static void rin_retail(void *c) { ((rin_t)(uintptr_t)H[H_RIN].va)(c); }
+static void rin_port(void *c) { port_world(); room_input_update(c); }
+static void __attribute__((thiscall)) w_rin(wl_room *r)
+{
+    hook_t *h = &H[H_RIN];
+    if (h->mode == 2) { h->calls++; rin_port(r); return; }
+    if (!sample(h)) { rin_retail(r); return; }
+    full_shadow(h, "room_input_update", rin_retail, rin_port, r, "room");
+}
+typedef int (__attribute__((fastcall)) *rchar_t)(wl_char *, void *, int32_t);
+typedef struct { wl_char *c; void *w; int32_t cut; int rr, rp; } rchar_ctx;
+static void rchar_retail(void *c_) { rchar_ctx *x = c_; x->rr = ((rchar_t)(uintptr_t)H[H_RCHAR].va)(x->c, x->w, x->cut); }
+static void rchar_port(void *c_) { rchar_ctx *x = c_; port_world(); x->rp = room_char_step(x->c, x->cut); }
+static int __attribute__((fastcall)) w_rchar(wl_char *c, void *w, int32_t cut)
+{
+    hook_t *h = &H[H_RCHAR];
+    rchar_ctx x = { c, w, cut, 0, 0 };
+    if (h->mode == 2) { h->calls++; rchar_port(&x); return x.rp; }
+    if (!sample(h)) { rchar_retail(&x); return x.rr; }
+    char what[96]; snprintf(what, sizeof what, "char %p code %d mode %d cut %d", (void *)c, c->base.code, c->f200, cut);
+    if (!full_shadow(h, "room_char_step", rchar_retail, rchar_port, &x, what) && x.rr != x.rp)
+        diverged(h, "f%u %s ret %d/%d", g_frame, what, x.rr, x.rp);
+    return x.rr;
+}
+typedef void (__attribute__((thiscall)) *ract_t)(wl_actor *);
+static void ract_retail(void *c) { ((ract_t)(uintptr_t)H[H_RACT].va)(c); }
+static void ract_port(void *c) { port_world(); room_actor_step(c); }
+static void __attribute__((thiscall)) w_ract(wl_actor *a)
+{
+    hook_t *h = &H[H_RACT];
+    if (h->mode == 2) { h->calls++; ract_port(a); return; }
+    if (!sample(h)) { ract_retail(a); return; }
+    char what[64];
+    full_shadow(h, "room_actor_step", ract_retail, ract_port, a, WHAT(&a->base));
+}
+typedef void (__attribute__((thiscall)) *ranim_t)(uint8_t *);
+static void ranim_retail(void *c) { ((ranim_t)(uintptr_t)H[H_RANIM].va)(c); }
+static void ranim_port(void *c) { port_world(); room_grid_anim(c); }
+static void __attribute__((thiscall)) w_ranim(uint8_t *g)
+{
+    hook_t *h = &H[H_RANIM];
+    if (h->mode == 2) { h->calls++; ranim_port(g); return; }
+    if (!sample(h)) { ranim_retail(g); return; }
+    full_shadow(h, "room_grid_anim", ranim_retail, ranim_port, g, "grid");
+}
+typedef int (__stdcall *rdown_t)(const wl_room *);
+static int __stdcall w_rdown(const wl_room *r)
+{
+    hook_t *h = &H[H_RDOWN];
+    if (h->mode == 2) { h->calls++; return room_party_down(r); }
+    int ret = ((rdown_t)(uintptr_t)h->va)(r);
+    if (!sample(h)) return ret;
+    int p = room_party_down(r);
+    h->compared++;
+    if (p != ret) diverged(h, "f%u room %p: retail %d port %d", g_frame, (void *)r, ret, p);
+    return ret;
+}
+typedef void (__attribute__((thiscall)) *rlead_t)(wl_roomloop *, const wl_char *, const wl_char *, int32_t);
+typedef struct { wl_roomloop *rl; const wl_char *c, *p; int32_t mode; } rlead_ctx;
+static void rlead_retail(void *c_) { rlead_ctx *x = c_; ((rlead_t)(uintptr_t)H[H_RLEAD].va)(x->rl, x->c, x->p, x->mode); }
+static void rlead_port(void *c_) { rlead_ctx *x = c_; port_world(); room_lead(x->rl, x->c, x->p, x->mode); }
+static void __attribute__((thiscall)) w_rlead(wl_roomloop *rl, const wl_char *c, const wl_char *p, int32_t mode)
+{
+    hook_t *h = &H[H_RLEAD];
+    rlead_ctx x = { rl, c, p, mode };
+    if (h->mode == 2) { h->calls++; rlead_port(&x); return; }
+    if (!sample(h)) { rlead_retail(&x); return; }
+    char what[64]; snprintf(what, sizeof what, "mode %d lead %d", mode, rl->lead);
+    full_shadow(h, "room_lead", rlead_retail, rlead_port, &x, what);
+}
+typedef void (__attribute__((thiscall)) *tsnd_t)(void *);
+static void tsnd_retail(void *c) { ((tsnd_t)(uintptr_t)H[H_TSOUNDS].va)(c); }
+static void tsnd_port(void *c) { timed_sounds_tick(c); }
+static int tsnd_live(const uint8_t *sys)
+{
+    const uint8_t *l; memcpy(&l, sys + 0xaa8, sizeof l);
+    if (l == NULL) return 0;
+    const uint8_t *rec; memcpy(&rec, l + 8, sizeof rec);
+    uint16_t n; memcpy(&n, l + 4, 2);
+    for (uint16_t i = 0; rec != NULL && i < n; i++) { uint32_t b; memcpy(&b, rec + 24u * i, 4); if (b != 0) return 1; }
+    return 0;
+}
+static void __attribute__((thiscall)) w_tsnd(void *sys)
+{
+    hook_t *h = &H[H_TSOUNDS];
+    if (h->mode == 2) { h->calls++; tsnd_port(sys); return; }
+    if (!sample_rare(h, !rh_in_shadow() && tsnd_live(sys))) { tsnd_retail(sys); return; }
+    full_shadow(h, "timed_sounds_tick", tsnd_retail, tsnd_port, sys, "sys");
+}
+
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
     [H_POLL] = { "input_poll", 0x43c110u, (void *)w_poll, 0, 1, 0, 0, 0, 0, "" },
@@ -2352,6 +2445,13 @@ static hook_t H[H_N] = {
     [H_ZPASS]      = { "zone_pass",      0x59a1f0u, (void *)w_zpass,  0, 1, 0, 0, 0, 0, "" },
     [H_ZHIT]       = { "zone_hit",       0x59a7c0u, (void *)w_zhit,   0, 1, 0, 0, 0, 0, "" },
     [H_B96_NEAR]   = { "band96_near",    0x59a880u, (void *)w_b96,    0, 1, 0, 0, 0, 0, "" },
+    [H_RIN]        = { "room_input_update", 0x468a20u, (void *)w_rin, 0, 1, 0, 0, 0, 0, "" },
+    [H_RCHAR]      = { "room_char_step", 0x590410u, (void *)w_rchar,  0, 1, 0, 0, 0, 0, "" },
+    [H_RACT]       = { "room_actor_step", 0x58ffd0u, (void *)w_ract,  0, 1, 0, 0, 0, 0, "" },
+    [H_RANIM]      = { "room_grid_anim", 0x58ff50u, (void *)w_ranim,  0, 1, 0, 0, 0, 0, "" },
+    [H_RDOWN]      = { "room_party_down", 0x59ca10u, (void *)w_rdown, 0, 1, 0, 0, 0, 0, "" },
+    [H_RLEAD]      = { "room_lead",      0x59d3f0u, (void *)w_rlead,  0, 1, 0, 0, 0, 0, "" },
+    [H_TSOUNDS]    = { "timed_sounds_tick", 0x43e140u, (void *)w_tsnd, 0, 1, 0, 0, 0, 0, "" },
 };
 
 static const void *rh_data_identity(uint32_t va) { return (const void *)(uintptr_t)va; }
@@ -2397,7 +2497,7 @@ static void bind_engine_calls(void)
    
     B(4710c0); B(46da00);
     B(408b90); B(54f140);
-    B(40ac90); B(55cfc0); B(54ed80);
+    B(40ac90); B(55cfc0); B(54ed80); B(46a880); B(468b10); B(5bc0c0);
     B(552c70); B(552f60); B(5534d0); B(553520); B(553ec0); B(554570); B(554c40); B(5556d0);
     B(556e50);
     B(47da60); B(482240); B(482460); B(482ac0); B(47de50); B(47f670); B(47f9d0);
@@ -2442,7 +2542,8 @@ void rh_hooks_install(void)
         H[H_GLOW].va = H[H_RECT_HIT].va = H[H_CHARS_COUNT].va = H[H_CHAR_IN].va = H[H_RIDING].va = H[H_PART_FIND].va =
         H[H_SERIAL].va = H[H_SHOT].va = H[H_WARP].va = H[H_GATHER].va =
         H[H_TPASS].va = H[H_TACTOR].va = H[H_RFLUSH].va = H[H_PROBE_RECT].va = H[H_NEAR].va =
-        H[H_ZPASS].va = H[H_ZHIT].va = H[H_B96_NEAR].va = 0;
+        H[H_ZPASS].va = H[H_ZHIT].va = H[H_B96_NEAR].va =
+        H[H_RIN].va = H[H_RCHAR].va = H[H_RACT].va = H[H_RANIM].va = H[H_RDOWN].va = H[H_RLEAD].va = H[H_TSOUNDS].va = 0;
     if (!O.hooks) return;
     char b[4096]; snprintf(b, sizeof b, "%s", O.hooks);
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {
