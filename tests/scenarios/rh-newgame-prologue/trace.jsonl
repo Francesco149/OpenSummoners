@@ -1,0 +1,12 @@
+# rhost scenario (EN-old): title Start (Enter) → difficulty menu → Down x2 → Start Game → prologue gem crawl.
+# DIK: Enter 0x1c (=28, ring ids 20 + 0x24 confirm), Down 0xd0 (=208, id 3).
+{"meta": {"edition": "enold"}}
+{"frame":620,"keys":[28]}
+{"frame":624,"keys":[]}
+{"frame":760,"keys":[208]}
+{"frame":764,"keys":[]}
+{"frame":790,"keys":[208]}
+{"frame":794,"keys":[]}
+{"frame":830,"keys":[28]}
+{"frame":834,"keys":[]}
+{"frame":1250,"keys":[]}

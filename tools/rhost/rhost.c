@@ -162,7 +162,7 @@ static uint32_t __attribute__((noinline)) call_on_stack(void *fn, void *arg, uin
 {
     NT_TIB *tib = (NT_TIB *)NtCurrentTeb();
     void *ob = tib->StackBase, *ol = tib->StackLimit; struct _EXCEPTION_REGISTRATION_RECORD *oe = tib->ExceptionList;
-    tib->StackBase = (void *)(uintptr_t)top; tib->StackLimit = (void *)(uintptr_t)(lo + STACK_GUARD);
+    tib->StackBase = (void *)(uintptr_t)MAIN_STACK_HI; tib->StackLimit = (void *)(uintptr_t)(lo + STACK_GUARD);
     tib->ExceptionList = (void *)(uintptr_t)0xffffffffu;
     uint32_t r;
     __asm__ volatile(
@@ -212,6 +212,13 @@ static DWORD WINAPI my_GetModuleFileNameA(HMODULE h, LPSTR buf, DWORD n)
     if (!h || h == (HMODULE)0x400000) { snprintf(buf, n, "%s\\sotes.exe", g_gamedir_abs); return (DWORD)strlen(buf); }
     return GetModuleFileNameA(h, buf, n);
 }
+/* resources of "the exe" (hModule NULL: the map loader 0x5b62a0 FindResourceA(NULL, id, "DATA"),
+ * 59 MB of .rsrc) live in the hand-mapped image at 0x400000, not in rhost.exe */
+#define RMOD(h) ((h) ? (h) : (HMODULE)0x400000)
+static HRSRC WINAPI my_FindResourceA(HMODULE h, LPCSTR n, LPCSTR t) { return FindResourceA(RMOD(h), n, t); }
+static HGLOBAL WINAPI my_LoadResource(HMODULE h, HRSRC r) { return LoadResource(RMOD(h), r); }
+static DWORD WINAPI my_SizeofResource(HMODULE h, HRSRC r) { return SizeofResource(RMOD(h), r); }
+
 /* single-instance mutex (sub_5b5a60: CreateMutexA(0,1,name); GetLastError()!=183): unnamed, so
  * parallel rhost runs — and a human playing the real game — never collide */
 static HANDLE WINAPI my_CreateMutexA(LPSECURITY_ATTRIBUTES sa, BOOL own, LPCSTR name)
@@ -369,6 +376,79 @@ static void cov_dump(void)
     rh_log("coverage: %d/%d hit\n", hits, g_cov_n);
 }
 
+/* ---- --watch-write VA@FRAME: hardware write watchpoints (DR0..DR3) on the main thread ----
+ * Armed at the flip ending frame FRAME through a VEH (the context of a deliberate
+ * breakpoint exception gets Dr0-3/Dr7), so every later write to VA logs the writing
+ * instruction (EIP after the write), the new value and the retail return-address chain. */
+static uint32_t g_wva[4], g_wfr[4]; static int g_nw, g_warmed; static long g_whits[4];
+#define WATCH_ARM_CODE 0xE0551001u
+static void stack_chain(char *b, size_t n, uint32_t esp)
+{
+    int k = 0; size_t o = 0; b[0] = 0;
+    for (int i = 0; i < 512 && k < 6; i++) {
+        uint32_t v = ((uint32_t *)(uintptr_t)esp)[i];
+        if (v >= RT_TEXT_LO && v < RT_TEXT_LO + RT_TEXT_SZ) { o += snprintf(b + o, n - o, "%s%x", k ? "<" : "", v); k++; }
+    }
+}
+static LONG CALLBACK watch_veh(EXCEPTION_POINTERS *e)
+{
+    CONTEXT *c = e->ContextRecord;
+    if (e->ExceptionRecord->ExceptionCode == WATCH_ARM_CODE) {
+        uint32_t dr7 = 0;
+        for (int i = 0; i < g_nw; i++) if (g_warmed & (1 << i)) {
+            (&c->Dr0)[i] = g_wva[i];
+            dr7 |= (1u << (2 * i)) | (1u << (16 + 4 * i)) | (3u << (18 + 4 * i));   /* local enable, write, 4 bytes */
+        }
+        c->Dr7 = dr7;
+        return EXCEPTION_CONTINUE_EXECUTION;
+    }
+    if (e->ExceptionRecord->ExceptionCode != EXCEPTION_SINGLE_STEP) return EXCEPTION_CONTINUE_SEARCH;
+    uint32_t dr6 = c->Dr6;
+    int hit = 0;
+    for (int i = 0; i < g_nw; i++) if (dr6 & (1u << i)) {
+        hit = 1;
+        if (c->Eip >= 0x5f010000u && c->Eip < 0x5f050000u) continue;   /* the scrubber zeroing it */
+        if (g_whits[i]++ < 400) {
+            char st[128]; stack_chain(st, sizeof st, c->Esp);
+            rh_log("watch %08x f%u eip=%08x val=%08x [%s]\n", g_wva[i], g_frame, c->Eip, G32(g_wva[i]), st);
+        }
+    }
+    if (!hit) return EXCEPTION_CONTINUE_SEARCH;
+    c->Dr6 = 0;
+    return EXCEPTION_CONTINUE_EXECUTION;
+}
+/* --trap VA[,VA]: INT3 at an instruction; every hit logs the registers (first 50), re-arms by
+ * single-stepping over the restored byte */
+static uint32_t g_tva[8]; static int g_ntrap; static uint8_t g_torig[8]; static long g_thits[8]; static int g_trearm = -1;
+static LONG CALLBACK trap_veh(EXCEPTION_POINTERS *e)
+{
+    CONTEXT *c = e->ContextRecord;
+    uint32_t a = (uint32_t)(uintptr_t)e->ExceptionRecord->ExceptionAddress;
+    if (e->ExceptionRecord->ExceptionCode == EXCEPTION_BREAKPOINT) {
+        for (int i = 0; i < g_ntrap; i++) if (g_tva[i] == a) {
+            if (g_thits[i]++ < 50)
+                rh_log("trap %08x f%u eax=%08lx ebx=%08lx ecx=%08lx edx=%08lx esi=%08lx edi=%08lx ebp=%08lx esp=%08lx\n", a, g_frame,
+                       c->Eax, c->Ebx, c->Ecx, c->Edx, c->Esi, c->Edi, c->Ebp, c->Esp);
+            *(volatile uint8_t *)(uintptr_t)a = g_torig[i];
+            c->Eip = a; c->EFlags |= 0x100; g_trearm = i;     /* single-step, then re-arm */
+            return EXCEPTION_CONTINUE_EXECUTION;
+        }
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
+    if (e->ExceptionRecord->ExceptionCode == EXCEPTION_SINGLE_STEP && g_trearm >= 0 && !(c->Dr6 & 0xf)) {
+        *(volatile uint8_t *)(uintptr_t)g_tva[g_trearm] = 0xCC; g_trearm = -1;
+        return EXCEPTION_CONTINUE_EXECUTION;
+    }
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+
+static void watch_arm_due(void)
+{
+    int arm = 0;
+    for (int i = 0; i < g_nw; i++) if (!(g_warmed & (1 << i)) && g_wfr[i] == g_frame) { g_warmed |= 1 << i; arm = 1; }
+    if (arm) { RaiseException(WATCH_ARM_CODE, 0, 0, NULL); rh_log("watch: armed at frame %u\n", g_frame); }
+}
+
 /* ---- engine hooks ---- */
 typedef void (__cdecl *srand_t)(unsigned);
 static void __cdecl my_srand(unsigned s)
@@ -395,6 +475,7 @@ static void watch_str(char *wb, size_t n)
 static void __cdecl pre_flip(void)
 {
     if (g_finished) return;
+    if (g_nw) watch_arm_due();
     char t[32]; snprintf(t, sizeof t, "f%06u", g_frame);
     if (is_dump_frame(g_frame)) dump_now(t);
     for (int i = 0; i < O.n_shot; i++) if (O.shot_at[i] == g_frame) rh_shot(t);
@@ -418,6 +499,7 @@ static void __cdecl pre_flip(void)
         double due = g_frame * (1000.0 / 60.0), now = (q.QuadPart - g_t0.QuadPart) * 1000.0 / g_qf.QuadPart;
         if (due > now + 1) Sleep((DWORD)(due - now));
     }
+    rh_scrub_here();
 }
 
 static void finish(const char *why)
@@ -428,6 +510,7 @@ static void finish(const char *why)
     cov_dump();
     rh_hooks_report();
     rh_media_report();
+    rh_log("scrub: %ld thunks, %llu dirty pages zeroed\n", rh_scrub_thunks(), (unsigned long long)rh_scrub_pages());
     if (is_dump_frame(0xffffffffu)) dump_now("end");
     for (int i = 0; i < O.n_shot; i++) if (O.shot_at[i] == 0xffffffffu) rh_shot("end");
     char hs[256]; rh_heap_stats(hs, sizeof hs);
@@ -464,7 +547,7 @@ static void parse_list(const char *s, uint32_t *out, int *n, int max)
 static void parse(int argc, char **argv)
 {
     O.seed = 0x4f5347; O.has_seed = 1; O.tail = 120; O.log_every = 600; O.frames = 0; O.quiet = 1;
-    O.step_ms = 16; O.creep_after = 2000; O.stall_wall_ms = 60000;
+    O.step_ms = 16; O.creep_after = 2000; O.stall_wall_ms = 60000; O.scrub_kb = 32;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i];
         #define ARG() (i + 1 < argc ? argv[++i] : (usage(), (char *)0))
@@ -490,6 +573,7 @@ static void parse(int argc, char **argv)
         else if (!strcmp(a, "--step-ms")) O.step_ms = strtoul(ARG(), 0, 0);
         else if (!strcmp(a, "--creep-after")) O.creep_after = strtoul(ARG(), 0, 0);
         else if (!strcmp(a, "--stall-wall")) O.stall_wall_ms = strtoul(ARG(), 0, 0);
+        else if (!strcmp(a, "--scrub-kb")) O.scrub_kb = strtoul(ARG(), 0, 0);
         else if (!strcmp(a, "--audible")) O.audible = 1;
         else if (!strcmp(a, "--show")) O.quiet = 0;
         else if (!strcmp(a, "--quiet")) O.quiet = 1;
@@ -500,6 +584,17 @@ static void parse(int argc, char **argv)
         else if (!strcmp(a, "--log-ext")) O.log_ext = 1;
         else if (!strcmp(a, "--log-media")) O.log_media = 1;
         else if (!strcmp(a, "--log-input")) O.log_input = 1;
+        else if (!strcmp(a, "--watch-write")) {
+            char b[256]; snprintf(b, sizeof b, "%s", ARG());
+            for (char *t = strtok(b, ","); t && g_nw < 4; t = strtok(NULL, ",")) {
+                char *at = strchr(t, '@'); g_wfr[g_nw] = at ? strtoul(at + 1, 0, 0) : 0; if (at) *at = 0;
+                g_wva[g_nw++] = strtoul(t, 0, 16) & ~3u;
+            }
+        }
+        else if (!strcmp(a, "--trap")) {
+            char b[256]; snprintf(b, sizeof b, "%s", ARG());
+            for (char *t = strtok(b, ","); t && g_ntrap < 8; t = strtok(NULL, ",")) g_tva[g_ntrap++] = strtoul(t, 0, 16);
+        }
         else if (!strcmp(a, "--watch")) {
             char b[256]; snprintf(b, sizeof b, "%s", ARG());
             for (char *t = strtok(b, ","); t && O.n_watch < 16; t = strtok(NULL, ",")) O.watch[O.n_watch++] = strtoul(t, 0, 16);
@@ -560,6 +655,9 @@ static DWORD WINAPI watchdog(LPVOID p)
     }
 }
 
+/* host-only overrides that never enter a system DLL: not worth a scrub thunk (hot paths) */
+void *rh_scrub_skip[] = { (void *)my_GetTickCount, (void *)my_WaitMessage, (void *)my_GetLocalTime, NULL };
+
 RETAIL_HOLE_DEFINE
 
 int main(int argc, char **argv)
@@ -583,6 +681,9 @@ int main(int argc, char **argv)
            exe_abs, g_ed->tag, img.n_imports_resolved, img.n_imports_stubbed, img.entry, RT_TEXT_LO, RT_TEXT_SZ, RT_DATA_LO, RT_DATA_HI);
     iat_override("GetModuleHandleA", my_GetModuleHandleA);
     iat_override("GetModuleFileNameA", my_GetModuleFileNameA);
+    iat_override("FindResourceA", my_FindResourceA);
+    iat_override("LoadResource", my_LoadResource);
+    iat_override("SizeofResource", my_SizeofResource);
     iat_override("ExitProcess", my_ExitProcess);
     snprintf(g_cmdline, sizeof g_cmdline, "\"%s\\sotes.exe\"", g_gamedir_abs);
     iat_override("GetCommandLineA", my_GetCommandLineA);
@@ -624,12 +725,19 @@ int main(int argc, char **argv)
     rh_trace_init();
     rh_hooks_install();
     if (O.coverage) cov_install();
+    if (g_nw) AddVectoredExceptionHandler(1, watch_veh);
+    if (g_ntrap) {
+        AddVectoredExceptionHandler(1, trap_veh);
+        for (int i = 0; i < g_ntrap; i++) { g_torig[i] = G8(g_tva[i]); G8(g_tva[i]) = 0xCC; }
+    }
+    rh_scrub_install();
+    rh_scrub_iat();                                  /* last: wraps every IAT slot incl. our overrides */
     if (O.trace && !O.frames) O.frames = rh_trace_last_frame() + O.tail;
     rh_log("rhost: seed=%s%08x frames<=%u step=%ums creep_after=%u realtime=%d quiet=%d audible=%d arena=%d overlay=%d\n",
            O.has_seed ? "" : "none/", O.seed, O.frames, O.step_ms, O.creep_after, O.realtime, O.quiet, O.audible, !O.no_arena, !O.no_overlay);
     rh_dinput_frame(0);
     if (!O.record && O.stall_wall_ms) CloseHandle(CreateThread(NULL, 0, watchdog, NULL, 0, NULL));
-    call_on_stack((void *)(uintptr_t)img.entry, NULL, MAIN_STACK_LO, MAIN_STACK_HI);   /* CRT entry: never returns */
+    call_on_stack((void *)(uintptr_t)img.entry, NULL, MAIN_STACK_LO, MAIN_STACK_HI - 192);   /* CRT entry: never returns */
     finish("entry-returned");
     return 0;
 }

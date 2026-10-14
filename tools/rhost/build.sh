@@ -15,5 +15,5 @@ for f in rng input; do
 done
 $CC -std=gnu11 -O2 -Wall -Wno-unused-function -Wno-format-truncation -Wno-cast-function-type -I"$S" -I"$H" "${LDF[@]}" -o "$B/rhost.exe" \
     "$H"/rhost.c "$H"/rh_heap.c "$H"/rh_files.c "$H"/rh_state.c "$H"/rh_trace.c "$H"/rh_hooks.c "$H"/rh_handles.c \
-    "$H"/rh_shot.c "$H"/rh_dinput.c "$H"/rh_media.c "$H"/rh_gdi.c "${PORT_OBJS[@]}" -luser32 -lgdi32 -lwinmm -lole32 -luuid -lddraw
+    "$H"/rh_shot.c "$H"/rh_dinput.c "$H"/rh_media.c "$H"/rh_gdi.c "$H"/rh_scrub.c "${PORT_OBJS[@]}" -luser32 -lgdi32 -lwinmm -lole32 -luuid -lddraw
 echo "built $B/rhost.exe (port std: $PORT_STD)"

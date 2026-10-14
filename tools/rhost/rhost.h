@@ -64,6 +64,7 @@ typedef struct {
     uint32_t step_ms;           /* virtual ms per flip (16 = the engines' 0x10 update slice) */
     uint32_t creep_after;       /* GetTickCount calls without a flip before the clock creeps */
     uint32_t stall_wall_ms;     /* watchdog: no Flip for this long (wall) → RESULT status=stalled */
+    uint32_t scrub_kb;          /* zero this much dead stack after each external call (0 = off) */
 } rh_opts_t;
 
 extern rh_opts_t O;
@@ -125,6 +126,14 @@ void rh_dinput_frame(uint32_t frame);   /* called at each flip: latch the next f
 /* rh_media.c — DirectShow BGM on a virtual clock + fake/real DirectSound */
 void rh_media_install(void);
 void rh_media_report(void);
+
+/* rh_scrub.c — zero system-DLL stack garbage after every external call */
+void rh_scrub_install(void);
+void rh_scrub_iat(void);
+long rh_scrub_thunks(void);
+void rh_scrub_wrap_vtbl(void *obj, int nslots, const char *what);   /* COM: every slot via a scrub thunk */
+void rh_scrub_here(void);           /* zero the dead stack below the caller */
+uint64_t rh_scrub_pages(void);
 
 /* rh_shot.c */
 void rh_shot(const char *tag);

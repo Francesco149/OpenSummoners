@@ -133,6 +133,8 @@ static ds_t g_ds = { g_ds_vtbl, 1 };
 static HRESULT WINAPI my_DirectSoundCreate(const GUID *g, ds_t **out, void *outer)
 {
     (void)g; (void)outer;
+    static int wrapped;
+    if (!wrapped) { wrapped = 1; rh_scrub_wrap_vtbl(&g_ds, 11, "fake IDirectSound"); dsb_t tmp = { g_dsb_vtbl, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 }; rh_scrub_wrap_vtbl(&tmp, 21, "fake IDirectSoundBuffer"); }
     *out = &g_ds; g_ds.refs++;
     rh_log("dsound: DirectSoundCreate = silent fake\n");
     return S_OK_;
@@ -268,6 +270,14 @@ static HRESULT WINAPI my_CoCreateInstance(REFCLSID c, LPUNKNOWN outer, DWORD ctx
         r_GetCurrentPosition = (g1_t)patch_vt(vs, 12, (void *)p_GetCurrentPosition);
         r_SetPositions = (sp_t)patch_vt(vs, 14, (void *)p_SetPositions);
         r_GetPositions = (gp_t)patch_vt(vs, 15, (void *)p_GetPositions);
+        /* every quartz call (incl. our patched ones, which QI into quartz) through a scrub thunk */
+        rh_scrub_wrap_vtbl(gb, 18, "IGraphBuilder");
+        rh_scrub_wrap_vtbl(mc, 16, "IMediaControl");
+        rh_scrub_wrap_vtbl(ms, 20, "IMediaSeeking");
+        void *ba = NULL;
+        static const GUID kIID_IBasicAudio = { 0x56A868B3, 0x0AD4, 0x11CE, { 0xB0, 0x3A, 0x00, 0x20, 0xAF, 0x0B, 0xA7, 0x70 } };
+        (*(qi_t *)(*(void ***)gb))(gb, &kIID_IBasicAudio, &ba);
+        if (ba) { rh_scrub_wrap_vtbl(ba, 11, "IBasicAudio"); (*(rel_t *)((*(void ***)ba) + 2))(ba); }
         (*(rel_t *)(vc + 2))(mc); (*(rel_t *)(vs + 2))(ms);
         g_dshow_patched = 1;
         rh_log("dshow: FilterGraph patched (virtual playback clock, %s)\n", O.audible ? "audible" : "silent");
