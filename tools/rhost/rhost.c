@@ -48,8 +48,15 @@ static const rh_edition_t EDITIONS[] = {
       0x5b8fc0u, 0x43d1d0u, 0x5bf4fbu, 0x5bf505u, 0x8a4f94u, 0x8a9b64u, 0x8a952cu,
       /* dlgproc   launch     cfg_screen cfg_sound  zdd        wndproc */
       0x4013c0u, 0x8a9a40u, 0x8a9b48u, 0x8a9b4cu, 0x8a93ccu, 0x5b12e0u,
-      /* hwnd_slot */
-      0x8a93ecu },
+      /* hwnd_slot  pump_wait_off */
+      0x8a93ecu, 0x1cu },
+    /* EN Steam SE (sotes_en.exe, buildid 24635888 / 2026-08-10, unpacked sha256 36a0294df405):
+     * every VA from tools/ida/crosswalk.py (functions: bytes/mnem/graph matches; globals: xref
+     * votes) except flip (0x5e14e0) + cfg_sound (0x92dfd4), read off the SE pseudocode. */
+    { "ense-en", 0x4502000u, 0x5f0d7bu,
+      0x5e14e0u, 0x438760u, 0x5ef169u, 0x5ef173u, 0x927304u, 0x92dfecu, 0x92d9b0u,
+      0x4015a0u, 0x92dec8u, 0x92dfd0u, 0x92dfd4u, 0x92d850u, 0x5d95a0u,
+      0x92d870u, 0x20u },
 };
 const rh_edition_t *g_ed;
 
@@ -321,13 +328,13 @@ static BOOL WINAPI my_ShowWindow(HWND hw, int cmd)
 static BOOL WINAPI my_SetForegroundWindow(HWND hw) { return O.quiet ? TRUE : SetForegroundWindow(hw); }
 static UINT_PTR WINAPI my_SetTimer(HWND hw, UINT_PTR id, UINT ms, TIMERPROC fn) { (void)hw; (void)ms; (void)fn; return id ? id : 1; }
 static BOOL WINAPI my_KillTimer(HWND hw, UINT_PTR id) { (void)hw; (void)id; return TRUE; }
-/* the pump (0x5b1030) waits here while the app is inactive or the wait flag state+0x1c is set;
+/* the pump (EN-old 0x5b1030) waits here while the app is inactive or the wait flag state+0x1c is set;
  * WM_TIMER is what clears that flag in retail — do it now, deterministically */
 static uint32_t g_waits_since_flip;
 static BOOL WINAPI my_WaitMessage(void)
 {
     uint32_t st = G32(g_ed->state_ptr);
-    if (st) G32(st + 0x1c) = 0;
+    if (st) G32(st + g_ed->pump_wait_off) = 0;
     if (!G32(g_ed->active) && g_waits_since_flip == 0) rh_log("WaitMessage while inactive (frame %u)\n", g_frame);
     if (++g_waits_since_flip > 5000000u) rh_fatal("pump spins in WaitMessage without a Flip (inactive=%d)", !G32(g_ed->active));
     return TRUE;

@@ -287,6 +287,7 @@ static HRESULT WINAPI my_CoCreateInstance(REFCLSID c, LPUNKNOWN outer, DWORD ctx
 
 void rh_media_install(void)
 {
+    pool_free(pool_alloc(16));     /* reserve the fixed pool NOW, before retail loads its DLLs */
     r_CoCreateInstance = (cci_t)iat_lookup("CoCreateInstance");
     if (r_CoCreateInstance) iat_override("CoCreateInstance", my_CoCreateInstance);
     if (!O.audible) {

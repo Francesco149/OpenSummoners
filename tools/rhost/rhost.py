@@ -38,7 +38,8 @@ LOCAL_RUNS = os.environ.get("RHOST_RUNS", "/mnt/ephemeral/opensummoners/rhost-ru
 IDA_DIR = os.environ.get("OSS_IDA_LOCAL", "/mnt/ephemeral/opensummoners/decompiled-ida")
 WIN = os.environ.get("RHOST_WIN", "win")
 WROOT = "C:\\oss-rhost"
-VOLATILE = os.path.join(HERE, "volatile.txt")
+def volatile_file(ed):
+    return os.path.join(HERE, f"volatile.{ed}.txt")
 EXES = {"enold": "sotes.unpacked.exe", "ense-en": "sotes_en.unpacked.exe", "ense-jp": "sotes.unpacked.exe"}
 GAMEDIR = {"enold": "enold", "ense-en": "ense", "ense-jp": "ense"}
 SSH_NOISE = re.compile(r"post-quantum|pq\.html|may need to be upgraded|store now, decrypt later")
@@ -181,8 +182,8 @@ def make_batch(a, runs, tag):
         ed = getattr(a, "edition", None) or ed or "enold"
         rdir = os.path.join(bdir, name)
         os.makedirs(rdir)
-        if os.path.exists(VOLATILE):
-            shutil.copy(VOLATILE, rdir)
+        if os.path.exists(volatile_file(ed)):
+            shutil.copy(volatile_file(ed), os.path.join(rdir, "volatile.txt"))
         if save:
             stage_save(save, rdir)
         run_win = f"{WROOT}\\runs\\{batch}\\{name}"
@@ -298,6 +299,7 @@ def cmd_det(a):
     print(f"DETERMINISM {'PASS' if not bad else 'FAIL'}: {bad} non-pointer differing dwords; "
           f"semantic hashes: {len(sems)} distinct; external-pointer slots seen: {len(learned)}")
     if a.calibrate and learned:
+        VOLATILE = volatile_file(a.edition or ed or "enold")
         old = set()
         if os.path.exists(VOLATILE):
             old = {int(l.split()[0], 16) for l in open(VOLATILE) if l.strip() and not l.startswith("#")}

@@ -6,7 +6,7 @@ $src = @{ 'enold' = 'C:\Program Files (x86)\Steam\steamapps\common\Fortune Summo
           'ense'  = 'C:\Program Files (x86)\Steam\steamapps\common\sotes' }[$Edition]
 $dst = "C:\oss-rhost\game\$Edition"
 New-Item -ItemType Directory -Force $dst | Out-Null
-$keep = @('*.exe','*.dll','*.spl','*.sin','*.htm')
+$keep = @('*.exe','*.dll','*.spl','*.sin','*.htm','_sotes2.ini')
 Get-ChildItem $src -File | Where-Object { $n = $_.Name; ($keep | Where-Object { $n -like $_ }) -and $n -notmatch '^(oss_|imgui|version\.dll|realver)' } | ForEach-Object {
     $d = Join-Path $dst $_.Name
     if (!(Test-Path $d) -or (Get-Item $d).Length -ne $_.Length) { Copy-Item $_.FullName $d }

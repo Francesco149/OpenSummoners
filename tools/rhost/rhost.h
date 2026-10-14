@@ -38,6 +38,7 @@ typedef struct {
     uint32_t zdd;               /* DAT_ zdd object pointer (backbuffer for shots) */
     uint32_t wndproc;           /* CLASS_LIZSOFT_SOTES WndProc (WM_ACTIVATEAPP target) */
     uint32_t hwnd_slot;         /* DAT_ game HWND (always masked: a kernel handle value) */
+    uint32_t pump_wait_off;     /* state_ptr + this = the pump's WM_TIMER wait flag (EN-old 0x1c, SE 0x20) */
 } rh_edition_t;
 extern const rh_edition_t *g_ed;
 

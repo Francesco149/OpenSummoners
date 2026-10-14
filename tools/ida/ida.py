@@ -35,10 +35,10 @@ def scp_to(local, remote):
 
 def stage():
     ssh(r"New-Item -ItemType Directory -Force C:\oss-ida\out | Out-Null")
-    for f in ("oss_ida_export.py", "run_ida.ps1"):
+    for f in ("oss_ida_export.py", "oss_ida_classes.py", "run_ida.ps1"):
         scp_to(os.path.join(ROOT, "tools/ida", f), WIN + "\\" + f)
 
-def export_one(ed, kb_win, noasm):
+def export_one(ed, kb_win, noasm, classes=True):
     exe, _ = EDITIONS[ed]
     i64 = WIN + "\\" + exe + ".i64"
     have_db = "True" in ssh("Test-Path '%s'" % i64)
@@ -46,6 +46,7 @@ def export_one(ed, kb_win, noasm):
     opts = []
     if kb_win: opts.append("kb=" + kb_win)
     if noasm: opts.append("noasm")
+    if classes: opts.append("classes")
     cmd = "powershell -NoProfile -ExecutionPolicy Bypass -File %s\\run_ida.ps1 -Exe '%s' -Out '%s\\out\\%s'" % (WIN, inp, WIN, ed)
     if opts:
         cmd += " -Opts '%s'" % ";".join(opts)
@@ -56,7 +57,7 @@ def fetch(ed):
     dst = os.path.join(LOCAL, ed); os.makedirs(dst, exist_ok=True)
     src = "win:C:/oss-ida/out/%s/" % ed
     files = ["all_ida.c", "all_ida.asm", "functions_ida.tsv", "data_xrefs.tsv", "strings_ida.tsv",
-             "vtables_ida.tsv", "fingerprints.jsonl", "export_summary.txt", "export_log.txt", "ida.log"]
+             "vtables_ida.tsv", "classes_ida.tsv", "fingerprints.jsonl", "export_summary.txt", "export_log.txt", "ida.log"]
     for f in files:
         subprocess.run(["scp", "-q", "-o", "BatchMode=yes", src + f, dst + "/"], check=False)
     s = os.path.join(dst, "export_summary.txt")
@@ -68,6 +69,8 @@ def main():
     ap.add_argument("editions", nargs="*")
     ap.add_argument("--kb", action="store_true")
     ap.add_argument("--noasm", action="store_true")
+    ap.add_argument("--no-classes", action="store_true")
+    ap.add_argument("--fresh", action="store_true", help="re-analyse from the exe (drop the cached .i64)")
     a = ap.parse_args()
     eds = a.editions or list(EDITIONS)
     if a.cmd == "status":
@@ -81,7 +84,10 @@ def main():
             subprocess.run([sys.executable, os.path.join(ROOT, "tools/ida/gen_knowledge.py"), "-o", kbl], check=True)
             kb_win = WIN + r"\knowledge.json"; scp_to(kbl, kb_win)
         with cf.ThreadPoolExecutor(len(eds)) as ex:
-            for ed, out in ex.map(lambda e: export_one(e, kb_win, a.noasm), eds):
+            if a.fresh:
+                for e in eds:
+                    ssh("Remove-Item -ErrorAction SilentlyContinue '%s\\%s.i64'; exit 0" % (WIN, EDITIONS[e][0]))
+            for ed, out in ex.map(lambda e: export_one(e, kb_win if e == "enold" else None, a.noasm, not a.no_classes), eds):
                 print("[%s] %s" % (ed, out))
     for ed in eds:
         print("[%s] %s" % (ed, fetch(ed)))

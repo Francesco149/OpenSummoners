@@ -3,7 +3,7 @@
 # fingerprints for one SotES edition.
 #
 # Run (Windows, via tools/ida/run_ida.ps1):
-#   idat -A -L<log> -Ooss:<out_dir>[;kb=<knowledge.json>][;novtbl][;noasm] -S<this> <exe|i64>
+#   idat -A -L<log> -Ooss:<out_dir>[;kb=<knowledge.json>][;classes][;novtbl][;noasm] -S<this> <exe|i64>
 #
 # Outputs (<out_dir>, all derived from the user's binary — never committed):
 #   all_ida.c            Hex-Rays pseudocode, every function, "/* ===== name @ 0xVA ..." headers
@@ -11,7 +11,8 @@
 #   functions_ida.tsv    va size name flirt_lib cc nargs callers callees proto
 #   data_xrefs.tsv       target_va target_name func_va insn_va kind(r|w|o)
 #   strings_ida.tsv      va len text(escaped) referencing funcs
-#   vtables_ida.tsv      vtable_va nslots ctor/xref funcs slot targets (C++ recovery)
+#   vtables_ida.tsv      vtable_va nslots ctor/xref funcs slot targets (none in sotes: /GR-, no virtuals)
+#   classes_ida.tsv      recovered classes (oss_ida_classes.py): methods, instances, size, fields
 #   fingerprints.jsonl   one object per function (crosswalk input: masked-bytes hash,
 #                        mnemonic hash, cfg shape, string refs, imm consts, callees)
 #   export_summary.txt   counts + timings
@@ -157,6 +158,17 @@ if not O.get("novtbl"):
     log("vtables=%d vf_named=%d" % (len(vtables), n_vf_named))
     ida_auto.auto_wait()
 
+# ---------------------------------------------------------------- C++ class recovery (no RTTI/vtables)
+n_classes = 0
+if O.get("classes"):
+    import sys as _sys
+    _sys.path.insert(0, O.get("dir", r"C:\oss-ida"))
+    import oss_ida_classes
+    ida_hexrays.init_hexrays_plugin()
+    keep = {int(v, 16) for v in (kb.get("protos", {}) if O.get("kb") else {})}
+    n_classes = oss_ida_classes.build_and_apply(log, os.path.join(OUT, "classes_ida.tsv"), keep)
+    ida_auto.auto_wait()
+
 # ---------------------------------------------------------------- helpers
 def fn_cc(ea):
     tif = ida_typeinf.tinfo_t()
@@ -292,7 +304,7 @@ with open(os.path.join(OUT, "vtables_ida.tsv"), "w", encoding="utf-8") as fv:
                  ",".join("%x" % x for x in vt["refs"]), ",".join("%x" % x for x in vt["slots"])))
 with open(os.path.join(OUT, "export_summary.txt"), "w") as fh:
     fh.write("input=%s md5=%s\n" % (ida_nalt.get_root_filename(), ida_nalt.retrieve_input_file_md5().hex()))
-    fh.write("functions=%d failed=%d auto_s=%.1f export_s=%.1f vtables=%d kb=%s\n" % (nf, len(fails), t_auto, time.time() - t1, len(vtables), json.dumps(n_kb)))
+    fh.write("functions=%d failed=%d auto_s=%.1f export_s=%.1f vtables=%d classes=%d kb=%s\n" % (nf, len(fails), t_auto, time.time() - t1, len(vtables), n_classes, json.dumps(n_kb)))
     fh.write("failed_vas=%s\n" % ",".join("%x" % x for x in fails))
 log("done")
 LOG.close()
