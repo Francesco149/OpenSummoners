@@ -6,6 +6,24 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-15 (night) — the layer under the tick bands: sound / voices, entity lifecycle, particles
+
+- Ported on retail layout + verified per call inside retail (full-state shadow), each retiring
+  engine_calls slots (~70): the behaviour helpers (step-ahead 0x47dbb0, target pick 0x47e330,
+  walk-to / pace / hold / follow); the SOUND layer (pools, placement 0x40bb90, one-shots, voice
+  lines 0x4099a0, the voice cue + queue 0x445fd0, looping channels, ambient / idle-voice timers);
+  entity lists + release (entity / actor / character); the per-character state helpers (HP/MP,
+  status gates, AI reset, respawn mark, pit timer, skill availability 0x402a60, party lookup);
+  the crate 0x555790; the particle SPAWNER 0x557370 + INIT 0x557550 (all 96 codes; x87 polar
+  steps in asm) + the entity setup 0x426620; the grid refresh 0x54c640. quirk #136.
+- Layout fixes found in the asm: u16 halves at char +0xc7e8 / +0x158bc (+ the pit timer +0x158be)
+  / +0xc770, entity +0xe8 (char_apply wrote dwords); `near` is a windows.h macro (rhost build).
+- Hybrid gate: 96 ported hooks replacing retail, all 7 scenarios byte-identical. Verification
+  note: full-state shadows of per-tick functions crawl in the town segment of rh-my-play — sample
+  them (@64) there. The corpus has no combat: the remaining big slots (Arche handlers 0x457ff0 /
+  0x45a300 / 0x461790, the hit pass 0x487dc0, 0x4878b0) run only their idle paths — a USER
+  recording with combat (`rhost.py record`) would make them verifiable.
+
 ## 2026-10-14 (day) — the movement stack ported + verified INSIDE retail (rhost shadow/hybrid)
 
 - USER decisions applied: rhost 1:1 cadence, EN-old first, Frida retail drive retired; port boot
