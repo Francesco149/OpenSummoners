@@ -20,6 +20,7 @@
 #include "entity_life.h"
 #include "entity_fx.h"
 #include "entity_move.h"
+#include "gimmick.h"
 #include "npc_ai.h"
 #include "rng.h"
 #include "sound_fx.h"
@@ -94,33 +95,6 @@ static void snd_loop(wl_actor *a, int32_t id, int32_t vol, int32_t freq, int32_t
     if (s->f20 == 0) entity_snd_start(&a->base, 0, 0, (uint16_t)id, vol, freq, falloff, a7);
     entity_snd_keep(&a->base, 0, 0);
     if (++s->f20 >= period) s->f20 = 0;
-}
-
-/* the switch-off (inlined at codes 70216 / 70850): the first step record not done sets its
- * clip on the body and plays its sound */
-static void switch_off(wl_actor *a)
-{
-    int32_t on = a->base.f00c;
-    wl_body *b = a->base.body;
-    if (on == 0) return;
-    int32_t code = a->base.code;
-    if (code > 0x11300) {
-        if (code == 70820) entity_set_collide(&a->base, 3, 3);
-    } else if (code != 70400) {
-        switch (code) {
-        case 70230: if (a->kind == 1 && on == 1) return; break;
-        case 70251: case 70252: case 70371: g_eng.h408100(a, 0, 1); break;
-        default: break;
-        }
-    }
-    uint16_t n = a->nsteps;
-    a->base.f00c = 0;
-    for (uint16_t i = 0; i < n; i++) {
-        if (a->steps[i].done != 0) continue;
-        if (a->steps[i].clip != NULL) body_set_clip(b, a->steps[i].clip);
-        if (a->steps[i].sfx != 0) sfx_play_at(&a->base, 0, a->steps[i].sfx, 0, 0, 0);
-        return;
-    }
 }
 
 /* the earthquake emitter's camera shake block (all fields cleared, then armed) */
@@ -259,7 +233,7 @@ int actor_update(wl_actor *a, wl_body *in, wl_body *out, int32_t probe, int32_t 
         if (on == 0) { out->act_ctr = 0; break; }
         if (on != 1) break;
         if (++out->act_ctr <= 5) break;
-        switch_off(a);
+        actor_switch_off(a);
         break;
     }
     case 70220:
@@ -281,7 +255,7 @@ int actor_update(wl_actor *a, wl_body *in, wl_body *out, int32_t probe, int32_t 
         if (a->area_y0 != a->area_y1) actor_slide_v(a, out, 100);
         if (++out->act_ctr > 100) {
             out->act_ctr = 0;
-            g_eng.h40be00(g_world);
+            world_next_serial(g_world);
         }
         break;
     case 70245: case 70246: case 70247: case 70248:
@@ -568,7 +542,7 @@ int actor_update(wl_actor *a, wl_body *in, wl_body *out, int32_t probe, int32_t 
     }
     case 70850:
         if (probe != 0 || a->base.f00c != 1) break;
-        switch_off(a);
+        actor_switch_off(a);
         break;
     /* ── a bird: perched sway (141 take off, 142 rise, 143 gone) ── */
     case 100138: {

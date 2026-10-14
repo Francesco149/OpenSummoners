@@ -52,6 +52,8 @@ typedef struct wl_vpool {
     uint16_t  res;            /* +0x0c  the wave resource id                              */
     uint16_t  _p0e;
     void     *module;         /* +0x10  the module holding it                             */
+    uint16_t  group;          /* +0x14  load group: >= the unload class => freed (0x43e3a0) */
+    uint16_t  _p16;
 } wl_vpool;
 
 /* One VOICE LINE of a voice group (40 bytes; 0x4099a0 plays one at random). */
@@ -307,6 +309,8 @@ typedef struct wl_keycfg {
     int32_t  voice_volume;    /* +0x1a0 */
     uint8_t  _p1a4[0x510 - 0x1a4];
     int32_t  run_mode;        /* +0x510  2 => the run key toggles                       */
+    uint8_t  _p514[0x53c - 0x514];
+    int32_t  joy_f53c;        /* +0x53c  the joystick read's argument (0x49bf90)          */
 } wl_keycfg;
 
 /* One combo/skill input entry (character+0x148a0 + 0x40*i, 0x479a10's record). */
@@ -341,7 +345,9 @@ typedef struct wl_world {
     uint8_t   *f1044;        /* +0x1044  +0xce u16 = the particle slot cursor (0x557370) */
     uint8_t   *grid;         /* +0x1048  the 0x2cb044-byte runtime grid (map_grid.h)   */
     struct camera_view *view; /* +0x104c  the camera/view (camera_follow.h)           */
-    uint8_t    _p1050[0x1060 - 0x1050];
+    uint8_t    _p1050[0x1054 - 0x1050];
+    struct wl_event *event;  /* +0x1054  the event-script runner (0x40b8f0's `this`)    */
+    uint8_t    _p1058[0x1060 - 0x1058];
     wl_entity *band64[64];   /* +0x1060  0x258-byte entities (shots / projectiles)      */
     struct wl_char *chars[32]; /* +0x1160  the full characters (0x15bb0 B each)        */
     wl_entity *actors[128];  /* +0x11e0  0x2fc-byte actors (townsfolk props, NPC cast)  */
@@ -350,11 +356,12 @@ typedef struct wl_world {
     uint8_t    _p2560[0x2760 - 0x2560];
     int32_t    f2760;        /* +0x2760  != 0 => no idle anims                         */
     int32_t    f2764;        /* +0x2764  == 1 => (0x47d740) a scene is running          */
-    uint8_t    _p2768[0x276c - 0x2768];
+    int32_t    f2768;        /* +0x2768  != 0 => no warp request (0x54ecf0)            */
     uint16_t   tick15;       /* +0x276c  (0x46cd70: +1 & 0x7fff per tick) */
     uint8_t    _p276e[0x2770 - 0x276e];
     int32_t    f2770;        /* +0x2770  != 0 => (0x47d740) a scene is running          */
-    uint8_t    _p2774[0x2788 - 0x2774];
+    uint8_t    _p2774[0x2784 - 0x2774];
+    struct wl_room *room;    /* +0x2784  the current room (party slots, the leader)      */
     wl_list   *list_2788;    /* +0x2788 */
     wl_list   *collide;      /* +0x278c  entities the movers test against              */
     wl_list   *list_2790;    /* +0x2790  the actors by handle (0x556eb0)                */
@@ -399,7 +406,7 @@ typedef struct wl_actor {
     int32_t    follow_dx;      /* +0x200 */
     int32_t    follow_dy;      /* +0x204 */
     struct {
-        int32_t     done;      /* +0x0  != 0 => skipped by the switch-off                */
+        int32_t     state;     /* +0x0  the switch state (+0x0c) this record applies to   */
         const void *clip;      /* +0x4  the clip it sets on the body                     */
         uint16_t    sfx;       /* +0x8  the sound it plays                               */
         uint16_t    _p;
@@ -412,12 +419,15 @@ typedef struct wl_actor {
     int32_t    goal_x;         /* +0x27c  code 100142 pose 146: where it flies to         */
     int32_t    goal_y;         /* +0x280 */
     int32_t    f284;           /* +0x284 */
-    uint8_t    _p288[0x28c - 0x288];
+    int32_t    link_all;       /* +0x288  != 0 => 0x40be30 switches every linked actor    */
     int32_t    kind;           /* +0x28c  crates: 1 resting, 2 fell (pushable), 4 falling */
-    int32_t    material;       /* +0x290  1 / 2: the break sound (0x555bd0)               */
-    uint8_t    _p294[0x298 - 0x294];
-    int32_t    link;           /* +0x298  an actor handle (0x556eb0)                     */
-    uint8_t    _p29c[0x2a8 - 0x29c];
+    int32_t    material;       /* +0x290  what a hit does: 1 / 2 break (the sound,
+                                *          0x555bd0), 3 toggle, 4 switch on (0x59b170)     */
+    int32_t    hit;            /* +0x294  != 0 => 0x59b170 runs +0x290 once, clears it    */
+    int32_t    link;           /* +0x298  an actor handle (0x556eb0): the switches it drives */
+    int32_t    invert;         /* +0x29c  != 0 => drives its links to the opposite state   */
+    uint16_t   hold;           /* +0x2a0  0x59b170 waits this many ticks (20 after a switch) */
+    uint8_t    _p2a2[0x2a8 - 0x2a2];
     void      *f2a8;           /* +0x2a8  a heap buffer it owns                          */
     int32_t    multipart;      /* +0x2ac  != 0 => the parts run too (0x46cd70)           */
     uint8_t    _p2b0[0x2b4 - 0x2b0];
@@ -427,11 +437,62 @@ typedef struct wl_actor {
     int32_t    area_y1;        /* +0x2c0 */
     int32_t    cooldown;       /* +0x2c4 */
     int32_t    use_mover;      /* +0x2c8  != 0 => the ground probe is the full mover     */
-    int32_t    step;           /* +0x2cc */
-    uint8_t    _p2d0[0x2fc - 0x2d0];
+    int32_t    step;           /* +0x2cc  per-code parameter (70220: the effect 90..94;
+                                *          70830: the lowest character id; 70810: the
+                                *          state that means on)                          */
+    int32_t    f2d0;           /* +0x2d0  (70830: the highest id; 70800: an actor handle) */
+    int32_t    f2d4;           /* +0x2d4 */
+    uint8_t    _p2d8[0x2e0 - 0x2d8];
+    const int32_t *f2e0;       /* +0x2e0  [1] = the shot power (70220: 93 / 94)          */
+    int32_t    f2e4;           /* +0x2e4  70251..: 1 => particle 100135 (else 100134)     */
+    uint8_t    _p2e8[0x2fc - 0x2e8];
 } wl_actor;
 
 #include "input.h"
+
+/* A PARTY SLOT (operator_new(0xeec)): room+0x4030 holds 8 of them, room+0x200c points at
+ * the leader's. */
+struct wl_room;
+typedef struct wl_pslot {
+    input_mgr *in;             /* +0x000  the member's input manager                      */
+    uint8_t    _p004[0x9c4 - 0x4];
+    int32_t    active;         /* +0x9c4  1 = in use                                     */
+    uint8_t    _p9c8[0x9ec - 0x9c8];
+    struct wl_room *room;      /* +0x9ec  the room it belongs to                          */
+    int32_t    id;             /* +0x9f0  (100000104: not flushed by the gimmick pass)     */
+    struct wl_char *ch;        /* +0x9f4  the member's character                         */
+} wl_pslot;
+
+/* A ROOM (operator_new(0x4120); world+0x2784 points at the current one): the map object
+ * that owns the party slots. */
+typedef struct wl_room {
+    uint8_t    _p0000[0x200c];
+    wl_pslot  *leader;         /* +0x200c */
+    uint8_t    _p2010[0x4030 - 0x2010];
+    wl_pslot  *slot[8];        /* +0x4030 */
+    uint8_t    _p4050[0x4080 - 0x4050];
+    int32_t    f4080;          /* +0x4080  != 0 => no warp request (0x54ecf0)             */
+    uint8_t    _p4084[0x40d0 - 0x4084];
+    int32_t    f40d0;          /* +0x40d0  == 0 => no warp request (0x54ecf0)             */
+    uint8_t    _p40d4[0x4120 - 0x40d4];
+} wl_room;
+
+/* The head of the ROOM LOOP object (0x58f360's `this`): its rooms, contiguous. */
+typedef struct wl_roomloop {
+    wl_room   *rooms;          /* +0x0 */
+    uint16_t   nrooms;         /* +0x4 */
+} wl_roomloop;
+
+/* The EVENT-SCRIPT runner *(world+0x1054): 0x40b8f0 fills it and runs the script
+ * engine 0x40c380 on it. */
+typedef struct wl_event {
+    void      *f00;            /* +0x00  (world+0x1044)                                  */
+    struct wl_actor *actor;    /* +0x04  the actor whose script runs                      */
+    wl_room   *room;           /* +0x08  (world+0x2784)                                  */
+    int32_t    unload;         /* +0x0c  set by the script: a room change follows         */
+    int32_t    f10;            /* +0x10 */
+    int32_t    mode;           /* +0x14  3 = switched, 4 = hit                            */
+} wl_event;
 
 /* A full CHARACTER (Arche, the party, townsfolk with AI): the entity base extended to
  * 0x15bb0 bytes.  Fields are added as ported functions need them. */
@@ -872,6 +933,25 @@ _Static_assert(offsetof(wl_actor, link)      == 0x298, "actor +0x298");
 _Static_assert(offsetof(wl_actor, area_x0)   == 0x2b4, "actor +0x2b4");
 _Static_assert(offsetof(wl_actor, step)      == 0x2cc, "actor +0x2cc");
 _Static_assert(sizeof(wl_actor)              == 0x2fc, "actor is 0x2fc bytes");
+_Static_assert(offsetof(wl_actor, link_all)  == 0x288, "actor +0x288");
+_Static_assert(offsetof(wl_actor, hit)       == 0x294, "actor +0x294");
+_Static_assert(offsetof(wl_actor, invert)    == 0x29c, "actor +0x29c");
+_Static_assert(offsetof(wl_actor, hold)      == 0x2a0, "actor +0x2a0");
+_Static_assert(offsetof(wl_actor, f2d0)      == 0x2d0, "actor +0x2d0");
+_Static_assert(offsetof(wl_actor, f2e0)      == 0x2e0, "actor +0x2e0");
+_Static_assert(offsetof(wl_actor, f2e4)      == 0x2e4, "actor +0x2e4");
+_Static_assert(offsetof(wl_vpool, group)     == 0x14,  "pool group");
+_Static_assert(offsetof(wl_world, event)     == 0x1054, "world +0x1054");
+_Static_assert(offsetof(wl_world, f2768)     == 0x2768, "world +0x2768");
+_Static_assert(offsetof(wl_world, room)      == 0x2784, "world +0x2784");
+_Static_assert(offsetof(wl_pslot, active)    == 0x9c4, "slot active");
+_Static_assert(offsetof(wl_pslot, room)      == 0x9ec, "slot room");
+_Static_assert(offsetof(wl_pslot, ch)        == 0x9f4, "slot character");
+_Static_assert(offsetof(wl_room, leader)     == 0x200c, "room leader");
+_Static_assert(offsetof(wl_room, slot)       == 0x4030, "room slots");
+_Static_assert(offsetof(wl_room, f40d0)      == 0x40d0, "room +0x40d0");
+_Static_assert(sizeof(wl_room)               == 0x4120, "room is 0x4120 bytes");
+_Static_assert(offsetof(wl_event, mode)      == 0x14,  "event mode");
 _Static_assert(offsetof(wl_entity, par_dy)   == 0x018, "entity +0x18");
 _Static_assert(offsetof(wl_particle, life)   == 0x258, "particle life");
 _Static_assert(offsetof(wl_particle, f250)   == 0x250, "particle +0x250");

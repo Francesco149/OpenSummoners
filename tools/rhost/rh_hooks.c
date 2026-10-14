@@ -37,6 +37,8 @@
 #include "particle_spawn.h"
 #include "grid_refresh.h"
 #include "particle_init.h"
+#include "gimmick.h"
+#include "event.h"
 #include "engine_calls.h"
 
 typedef struct {
@@ -58,7 +60,9 @@ enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_D
        H_AMBIENT, H_IDLE_VOICE, H_SCATTER, H_SYS_MODE,
        H_CRATE, H_BREAK, H_SLIDE_V, H_RIDERS, H_DUST, H_ANCHOR, H_SPAWN, H_TRACK, H_GRID_REFRESH, H_GRID_MARK,
        H_PINIT, H_ESETUP, H_RIDE, H_RIDE_PART, H_POLAR_DIV, H_POLAR_MILLI, H_FADE_A, H_FADE_B, H_TRACK_ON, H_SND_ALLOC, H_JITTER,
-       H_PARTS_FREE, H_SET_ANGLE, H_FX_RESET, H_SKILL_AVAIL, H_PARTY_FIND, H_FLOOR_BELOW, H_N };
+       H_PARTS_FREE, H_SET_ANGLE, H_FX_RESET, H_SKILL_AVAIL, H_PARTY_FIND, H_FLOOR_BELOW,
+       H_GPASS, H_GSTEP, H_SWSET, H_SWLINK, H_EVRUN, H_UNLOAD, H_UNLIST_ALL, H_GLOW, H_RECT_HIT, H_CHARS_COUNT, H_CHAR_IN, H_RIDING,
+       H_PART_FIND, H_SERIAL, H_SHOT, H_WARP, H_GATHER, H_N };
 
 static void diverged(hook_t *h, const char *fmt, ...)
 {
@@ -1835,6 +1839,239 @@ static int32_t __stdcall w_fbelow(const wl_body *b, int32_t *row)
     return r;
 }
 
+/* ---- the gimmick pass (src/gimmick.c) — full state; the pure rect queries compare their return ---- */
+typedef int (__attribute__((thiscall)) *gpass_t)(wl_roomloop *, wl_char *);
+typedef struct { wl_roomloop *rl; wl_char *pl; int rr, rp; } gpass_ctx;
+static void gpass_retail(void *c) { gpass_ctx *x = c; x->rr = ((gpass_t)(uintptr_t)H[H_GPASS].va)(x->rl, x->pl); }
+static void gpass_port(void *c) { gpass_ctx *x = c; port_world(); x->rp = gimmick_pass(x->rl, x->pl); }
+static int __attribute__((thiscall)) w_gpass(wl_roomloop *rl, wl_char *pl)
+{
+    hook_t *h = &H[H_GPASS];
+    gpass_ctx x = { rl, pl, 0, 0 };
+    if (h->mode == 2) { h->calls++; gpass_port(&x); return x.rp; }
+    if (!sample(h)) { gpass_retail(&x); return x.rr; }
+    char what[64]; snprintf(what, sizeof what, "player %p", (void *)pl);
+    if (!full_shadow(h, "gimmick_pass", gpass_retail, gpass_port, &x, what) && x.rr != x.rp)
+        diverged(h, "f%u %s ret %d/%d", g_frame, what, x.rr, x.rp);
+    return x.rr;
+}
+
+/* a gimmick step that will switch something (the trigger condition holds) is shadowed on every
+ * call; the idle ones @N */
+static int gstep_live(const wl_actor *a, const wl_char *pl)
+{
+    if (a->hold != 0) return 0;
+    if (a->hit != 0) return 1;
+    int32_t code = a->base.code, st = a->base.f00c;
+    if (code == 70130 || code == 70100) {
+        port_world();
+        int ov = part_left(&a->base, 0) <= part_right(&pl->base, 0) && part_right(&a->base, 0) > part_left(&pl->base, 0) &&
+                 char_part_top((const wl_char *)a, 0) <= part_bottom(&pl->base, 0) && part_bottom(&a->base, 0) > char_part_top(pl, 0);
+        return st == 0 ? ov : code == 70130 && st == 1 && !ov;
+    }
+    return code == 70215 || code == 70600 || code == 70800 || code == 70810 || code == 70830;
+}
+typedef int (__attribute__((thiscall)) *gstep_t)(wl_actor *, wl_char *);
+typedef struct { wl_actor *a; wl_char *pl; int rr, rp; } gstep_ctx;
+static void gstep_retail(void *c) { gstep_ctx *x = c; x->rr = ((gstep_t)(uintptr_t)H[H_GSTEP].va)(x->a, x->pl); }
+static void gstep_port(void *c) { gstep_ctx *x = c; port_world(); x->rp = gimmick_step(x->a, x->pl); }
+static long g_gstep_live;
+static int __attribute__((thiscall)) w_gstep(wl_actor *a, wl_char *pl)
+{
+    hook_t *h = &H[H_GSTEP];
+    gstep_ctx x = { a, pl, 0, 0 };
+    if (h->mode == 2) { h->calls++; gstep_port(&x); return x.rp; }
+    int live = !rh_in_shadow() && gstep_live(a, pl);
+    if (!sample_rare(h, live)) { gstep_retail(&x); return x.rr; }
+    if (live) g_gstep_live++;
+    char what[128]; snprintf(what, sizeof what, "actor %p code %d state %d hit %d", (void *)a, a->base.code, a->base.f00c, a->hit);
+    if (!full_shadow(h, "gimmick_step", gstep_retail, gstep_port, &x, what) && x.rr != x.rp)
+        diverged(h, "f%u %s ret %d/%d", g_frame, what, x.rr, x.rp);
+    return x.rr;
+}
+
+typedef int (__attribute__((thiscall)) *swset_t)(wl_actor *, int32_t, int32_t);
+typedef struct { wl_actor *a; int32_t v, q; int rr, rp; int link; } swset_ctx;
+static void swset_retail(void *c) { swset_ctx *x = c; x->rr = ((swset_t)(uintptr_t)H[x->link ? H_SWLINK : H_SWSET].va)(x->a, x->v, x->q); }
+static void swset_port(void *c) { swset_ctx *x = c; port_world(); x->rp = x->link ? switch_link(x->a, x->v, x->q) : switch_set(x->a, x->v, x->q); }
+static int sw_hook(int link, wl_actor *a, int32_t v, int32_t q)
+{
+    hook_t *h = &H[link ? H_SWLINK : H_SWSET];
+    swset_ctx x = { a, v, q, 0, 0, link };
+    if (h->mode == 2) { h->calls++; swset_port(&x); return x.rp; }
+    if (!sample(h)) { swset_retail(&x); return x.rr; }
+    char what[128]; snprintf(what, sizeof what, "actor %p code %d state %d -> %d quiet %d", (void *)a, a->base.code, a->base.f00c, v, q);
+    if (!full_shadow(h, link ? "switch_link" : "switch_set", swset_retail, swset_port, &x, what) && x.rr != x.rp)
+        diverged(h, "f%u %s ret %d/%d", g_frame, what, x.rr, x.rp);
+    return x.rr;
+}
+static int __attribute__((thiscall)) w_swset(wl_actor *a, int32_t v, int32_t q) { return sw_hook(0, a, v, q); }
+static int __attribute__((thiscall)) w_swlink(wl_actor *a, int32_t v, int32_t q) { return sw_hook(1, a, v, q); }
+
+/* the event runner and the unload release retail's DirectDraw / DirectSound / GDI objects:
+ * running both sides would free them twice — REPLACE only (verified by the corpus hash) */
+typedef int (__attribute__((thiscall)) *evrun_t)(wl_event *, void *, wl_room *, wl_actor *, int32_t, int32_t, int32_t);
+static int __attribute__((thiscall)) w_evrun(wl_event *ev, void *f00, wl_room *room, wl_actor *a, int32_t a5, int32_t f10, int32_t mode)
+{
+    hook_t *h = &H[H_EVRUN];
+    h->calls++;
+    if (h->mode == 2) { port_world(); return event_run(ev, f00, room, a, a5, f10, mode); }
+    return ((evrun_t)(uintptr_t)h->va)(ev, f00, room, a, a5, f10, mode);
+}
+typedef void (__attribute__((thiscall)) *unload_t)(void *, uint32_t);
+static void __attribute__((thiscall)) w_unload(void *sys, uint32_t group)
+{
+    hook_t *h = &H[H_UNLOAD];
+    h->calls++;
+    if (h->mode == 2) { sys_unload(sys, (uint16_t)group); return; }
+    ((unload_t)(uintptr_t)h->va)(sys, group);
+}
+
+typedef void (__attribute__((thiscall)) *unlall_t)(wl_actor *);
+static void unlall_retail(void *c) { ((unlall_t)(uintptr_t)H[H_UNLIST_ALL].va)(c); }
+static void unlall_port(void *c) { port_world(); actor_unlist_all(c); }
+static void __attribute__((thiscall)) w_unlall(wl_actor *a)
+{
+    hook_t *h = &H[H_UNLIST_ALL];
+    if (h->mode == 2) { h->calls++; unlall_port(a); return; }
+    if (!sample(h)) { unlall_retail(a); return; }
+    char what[64];
+    full_shadow(h, "actor_unlist_all", unlall_retail, unlall_port, a, WHAT(&a->base));
+}
+
+typedef void (__attribute__((thiscall)) *glow_t)(wl_actor *, int32_t, int32_t);
+typedef struct { wl_actor *a; int32_t v, burst; } glow_ctx;
+static void glow_retail(void *c) { glow_ctx *x = c; ((glow_t)(uintptr_t)H[H_GLOW].va)(x->a, x->v, x->burst); }
+static void glow_port(void *c) { glow_ctx *x = c; port_world(); switch_glow(x->a, x->v, x->burst); }
+static void __attribute__((thiscall)) w_glow(wl_actor *a, int32_t v, int32_t burst)
+{
+    hook_t *h = &H[H_GLOW];
+    glow_ctx x = { a, v, burst };
+    if (h->mode == 2) { h->calls++; glow_port(&x); return; }
+    if (!sample(h)) { glow_retail(&x); return; }
+    char what[64];
+    full_shadow(h, "switch_glow", glow_retail, glow_port, &x, WHAT(&a->base));
+}
+
+typedef int (__attribute__((thiscall)) *rhit_t)(const wl_entity *, const int32_t *, uint32_t);
+static int __attribute__((thiscall)) w_rhit(const wl_entity *e, const int32_t *r, uint32_t part)
+{
+    hook_t *h = &H[H_RECT_HIT];
+    if (h->mode == 2) { h->calls++; return entity_rect_hit(e, r, (uint16_t)part); }
+    int ret = ((rhit_t)(uintptr_t)h->va)(e, r, part);
+    if (!sample(h)) return ret;
+    int p = entity_rect_hit(e, r, (uint16_t)part);
+    h->compared++;
+    if (p != ret) diverged(h, "f%u ent %p: retail %d port %d", g_frame, (void *)e, ret, p);
+    return ret;
+}
+typedef uint32_t (__stdcall *ccount_t)(uint32_t, const int32_t *, uint32_t, uint32_t);
+static uint32_t __stdcall w_ccount(uint32_t part, const int32_t *r, uint32_t lo, uint32_t hi)
+{
+    hook_t *h = &H[H_CHARS_COUNT];
+    if (h->mode == 2) { h->calls++; port_world(); return chars_in_rect_count((uint16_t)part, r, lo, hi); }
+    uint32_t ret = ((ccount_t)(uintptr_t)h->va)(part, r, lo, hi);
+    if (!sample(h)) return ret;
+    port_world();
+    uint16_t p = chars_in_rect_count((uint16_t)part, r, lo, hi);
+    h->compared++;
+    if (p != (uint16_t)ret) diverged(h, "f%u ids %u..%u: retail %u port %u", g_frame, lo, hi, ret & 0xffffu, p);
+    return ret;
+}
+typedef int (__stdcall *cin_t)(uint32_t, const int32_t *, int32_t);
+static int __stdcall w_cin(uint32_t part, const int32_t *r, int32_t leader)
+{
+    hook_t *h = &H[H_CHAR_IN];
+    if (h->mode == 2) { h->calls++; port_world(); return char_in_rect((uint16_t)part, r, leader); }
+    int ret = ((cin_t)(uintptr_t)h->va)(part, r, leader);
+    if (!sample(h)) return ret;
+    port_world();
+    int p = char_in_rect((uint16_t)part, r, leader);
+    h->compared++;
+    if (p != ret) diverged(h, "f%u rect %d,%d %dx%d: retail %d port %d", g_frame, r[0], r[1], r[2], r[3], ret, p);
+    return ret;
+}
+typedef wl_entity *(__attribute__((thiscall)) *riding_t)(const wl_actor *, int32_t, uint16_t *);
+static wl_entity *__attribute__((thiscall)) w_riding(const wl_actor *a, int32_t leader, uint16_t *st)
+{
+    hook_t *h = &H[H_RIDING];
+    if (h->mode == 2) { h->calls++; port_world(); return char_riding(a, leader, st); }
+    uint16_t pre = st ? *st : 0;
+    wl_entity *ret = ((riding_t)(uintptr_t)h->va)(a, leader, st);
+    if (!sample(h)) return ret;
+    uint16_t rs = st ? *st : 0, ps = pre;
+    port_world();
+    wl_entity *p = char_riding(a, leader, st ? &ps : NULL);
+    h->compared++;
+    if (p != ret || ps != rs) diverged(h, "f%u actor %p: retail %p/%u port %p/%u", g_frame, (void *)a, (void *)ret, rs, (void *)p, ps);
+    return ret;
+}
+typedef wl_entity *(__stdcall *pfnd_t)(const wl_entity *, int32_t);
+static wl_entity *__stdcall w_pfnd(const wl_entity *owner, int32_t code)
+{
+    hook_t *h = &H[H_PART_FIND];
+    if (h->mode == 2) { h->calls++; port_world(); return particle_find(owner, code); }
+    wl_entity *ret = ((pfnd_t)(uintptr_t)h->va)(owner, code);
+    if (!sample(h)) return ret;
+    port_world();
+    wl_entity *p = particle_find(owner, code);
+    h->compared++;
+    if (p != ret) diverged(h, "f%u owner %p code %d: retail %p port %p", g_frame, (void *)owner, code, (void *)ret, (void *)p);
+    return ret;
+}
+typedef uint32_t (__attribute__((thiscall)) *serial_t)(wl_world *);
+typedef struct { wl_world *w; uint32_t rr, rp; } serial_ctx;
+static void serial_retail(void *c) { serial_ctx *x = c; x->rr = ((serial_t)(uintptr_t)H[H_SERIAL].va)(x->w); }
+static void serial_port(void *c) { serial_ctx *x = c; port_world(); x->rp = world_next_serial(x->w); }
+static uint32_t __attribute__((thiscall)) w_serial(wl_world *w)
+{
+    hook_t *h = &H[H_SERIAL];
+    serial_ctx x = { w, 0, 0 };
+    if (h->mode == 2) { h->calls++; serial_port(&x); return x.rp; }
+    if (!sample(h)) { serial_retail(&x); return x.rr; }
+    if (!full_shadow(h, "next_serial", serial_retail, serial_port, &x, "serial") && x.rr != x.rp)
+        diverged(h, "f%u ret %u/%u", g_frame, x.rr, x.rp);
+    return x.rr;
+}
+typedef int (__attribute__((thiscall)) *shot_t)(wl_actor *, wl_body *, int32_t, int32_t);
+typedef struct { wl_actor *a; wl_body *b; int32_t a3, pw; int rr, rp; } shot_ctx;
+static void shot_retail(void *c) { shot_ctx *x = c; x->rr = ((shot_t)(uintptr_t)H[H_SHOT].va)(x->a, x->b, x->a3, x->pw); }
+static void shot_port(void *c) { shot_ctx *x = c; port_world(); x->rp = actor_shot(x->a, x->b, x->a3, x->pw); }
+static int __attribute__((thiscall)) w_shot(wl_actor *a, wl_body *b, int32_t a3, int32_t pw)
+{
+    hook_t *h = &H[H_SHOT];
+    shot_ctx x = { a, b, a3, pw, 0, 0 };
+    if (h->mode == 2) { h->calls++; shot_port(&x); return x.rp; }
+    if (!sample(h)) { shot_retail(&x); return x.rr; }
+    char what[64];
+    if (!full_shadow(h, "actor_shot", shot_retail, shot_port, &x, WHAT(&a->base)) && x.rr != x.rp)
+        diverged(h, "f%u %s ret %d/%d", g_frame, what, x.rr, x.rp);
+    return x.rr;
+}
+typedef void (__attribute__((thiscall)) *warp_t)(wl_actor *, int32_t);
+typedef struct { wl_actor *a; int32_t kind; } warp_ctx;
+static void warp_retail(void *c) { warp_ctx *x = c; ((warp_t)(uintptr_t)H[H_WARP].va)(x->a, x->kind); }
+static void warp_port(void *c) { warp_ctx *x = c; port_world(); warp_request(x->a, x->kind); }
+static void __attribute__((thiscall)) w_warp(wl_actor *a, int32_t kind)
+{
+    hook_t *h = &H[H_WARP];
+    warp_ctx x = { a, kind };
+    if (h->mode == 2) { h->calls++; warp_port(&x); return; }
+    if (!sample(h)) { warp_retail(&x); return; }
+    char what[64];
+    full_shadow(h, "warp_request", warp_retail, warp_port, &x, WHAT(&a->base));
+}
+typedef void (__stdcall *gather_t)(const wl_body *);
+static void gather_retail(void *c) { ((gather_t)(uintptr_t)H[H_GATHER].va)(c); }
+static void gather_port(void *c) { port_world(); party_gather(c); }
+static void __stdcall w_gather(const wl_body *b)
+{
+    hook_t *h = &H[H_GATHER];
+    if (h->mode == 2) { h->calls++; gather_port((void *)b); return; }
+    if (!sample(h)) { gather_retail((void *)b); return; }
+    full_shadow(h, "party_gather", gather_retail, gather_port, (void *)b, "gather");
+}
+
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
     [H_POLL] = { "input_poll", 0x43c110u, (void *)w_poll, 0, 1, 0, 0, 0, 0, "" },
@@ -1933,6 +2170,23 @@ static hook_t H[H_N] = {
     [H_SKILL_AVAIL] = { "skill_avail",   0x402a60u, (void *)w_savail, 0, 1, 0, 0, 0, 0, "" },
     [H_PARTY_FIND] = { "party_find",     0x5b5990u, (void *)w_pfind,  0, 1, 0, 0, 0, 0, "" },
     [H_FLOOR_BELOW] = { "floor_below",   0x4060d0u, (void *)w_fbelow, 0, 1, 0, 0, 0, 0, "" },
+    [H_GPASS]      = { "gimmick_pass",   0x59afd0u, (void *)w_gpass,  0, 1, 0, 0, 0, 0, "" },
+    [H_GSTEP]      = { "gimmick_step",   0x59b170u, (void *)w_gstep,  0, 1, 0, 0, 0, 0, "" },
+    [H_SWSET]      = { "switch_set",     0x40afe0u, (void *)w_swset,  0, 1, 0, 0, 0, 0, "" },
+    [H_SWLINK]     = { "switch_link",    0x40be30u, (void *)w_swlink, 0, 1, 0, 0, 0, 0, "" },
+    [H_EVRUN]      = { "event_run",      0x40b8f0u, (void *)w_evrun,  0, 1, 0, 0, 0, 0, "" },
+    [H_UNLOAD]     = { "sys_unload",     0x43e3a0u, (void *)w_unload, 0, 1, 0, 0, 0, 0, "" },
+    [H_UNLIST_ALL] = { "actor_unlist_all", 0x40c300u, (void *)w_unlall, 0, 1, 0, 0, 0, 0, "" },
+    [H_GLOW]       = { "switch_glow",    0x408100u, (void *)w_glow,   0, 1, 0, 0, 0, 0, "" },
+    [H_RECT_HIT]   = { "rect_hit",       0x4804b0u, (void *)w_rhit,   0, 1, 0, 0, 0, 0, "" },
+    [H_CHARS_COUNT] = { "chars_in_rect_count", 0x556610u, (void *)w_ccount, 0, 1, 0, 0, 0, 0, "" },
+    [H_CHAR_IN]    = { "char_in_rect",   0x5567a0u, (void *)w_cin,    0, 1, 0, 0, 0, 0, "" },
+    [H_RIDING]     = { "char_riding",    0x5568e0u, (void *)w_riding, 0, 1, 0, 0, 0, 0, "" },
+    [H_PART_FIND]  = { "particle_find",  0x556de0u, (void *)w_pfnd,   0, 1, 0, 0, 0, 0, "" },
+    [H_SERIAL]     = { "next_serial",    0x40be00u, (void *)w_serial, 0, 1, 0, 0, 0, 0, "" },
+    [H_SHOT]       = { "actor_shot",     0x40ac10u, (void *)w_shot,   0, 1, 0, 0, 0, 0, "" },
+    [H_WARP]       = { "warp_request",   0x54ecf0u, (void *)w_warp,   0, 1, 0, 0, 0, 0, "" },
+    [H_GATHER]     = { "party_gather",   0x54efd0u, (void *)w_gather, 0, 1, 0, 0, 0, 0, "" },
 };
 
 static const void *rh_data_identity(uint32_t va) { return (const void *)(uintptr_t)va; }
@@ -1958,6 +2212,9 @@ static void bind_engine_calls(void)
     *(void **)&g_eng.dsb_create_5bb250   = (void *)(uintptr_t)0x5bb250u;
     *(void **)&g_eng.dsb_dup_5bb2f0      = (void *)(uintptr_t)0x5bb2f0u;
     *(void **)&g_eng.log_fail_406440     = (void *)(uintptr_t)0x406440u;
+    *(void **)&g_eng.dsb_release_5bb3a0  = (void *)(uintptr_t)0x5bb3a0u;
+    *(void **)&g_eng.dbg_out             = iat_lookup("OutputDebugStringA");
+    *(void **)&g_eng.gdi_delete          = iat_lookup("DeleteObject");
     g_eng.data = rh_data_identity;
     *(void **)&g_eng.op_new    = (void *)(uintptr_t)0x5bf00du;   /* operator new (cdecl) */
     *(void **)&g_eng.op_delete = (void *)(uintptr_t)0x5bef0eu;   /* operator delete (cdecl) */
@@ -1972,8 +2229,9 @@ static void bind_engine_calls(void)
     B(5b5600); B(487dc0);
     B(4878b0); B(4895c0);
    
-    B(4710c0); B(46da00); B(5567a0);
-    B(408100); B(408b90); B(40be00); B(54f140);
+    B(4710c0); B(46da00);
+    B(408b90); B(54f140);
+    B(5ba4c0); B(5ba2d0); B(5ba650); B(49bf90); B(40c380); B(40ac90); B(55cfc0);
     B(552c70); B(552f60); B(5534d0); B(553520); B(553ec0); B(554570); B(554c40); B(5556d0);
     B(556e50);
     B(5b9390);
@@ -2006,7 +2264,10 @@ void rh_hooks_install(void)
         H[H_CRATE].va = H[H_BREAK].va = H[H_SLIDE_V].va = H[H_RIDERS].va = H[H_DUST].va = H[H_ANCHOR].va = H[H_SPAWN].va = H[H_TRACK].va = H[H_GRID_REFRESH].va = H[H_GRID_MARK].va =
         H[H_PINIT].va = H[H_ESETUP].va = H[H_RIDE].va = H[H_RIDE_PART].va = H[H_POLAR_DIV].va = H[H_POLAR_MILLI].va = H[H_FADE_A].va =
         H[H_FADE_B].va = H[H_TRACK_ON].va = H[H_SND_ALLOC].va = H[H_JITTER].va = H[H_PARTS_FREE].va = H[H_SET_ANGLE].va = H[H_FX_RESET].va =
-        H[H_SKILL_AVAIL].va = H[H_PARTY_FIND].va = H[H_FLOOR_BELOW].va = 0;
+        H[H_SKILL_AVAIL].va = H[H_PARTY_FIND].va = H[H_FLOOR_BELOW].va =
+        H[H_GPASS].va = H[H_GSTEP].va = H[H_SWSET].va = H[H_SWLINK].va = H[H_EVRUN].va = H[H_UNLOAD].va = H[H_UNLIST_ALL].va =
+        H[H_GLOW].va = H[H_RECT_HIT].va = H[H_CHARS_COUNT].va = H[H_CHAR_IN].va = H[H_RIDING].va = H[H_PART_FIND].va =
+        H[H_SERIAL].va = H[H_SHOT].va = H[H_WARP].va = H[H_GATHER].va = 0;
     if (!O.hooks) return;
     char b[4096]; snprintf(b, sizeof b, "%s", O.hooks);
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {
@@ -2020,6 +2281,8 @@ void rh_hooks_install(void)
         h->mode = !strcmp(mode, "shadow") ? 1 : !strcmp(mode, "replace") ? 2 : 0;
         h->every = every;
         if (!h->mode) continue;
+        if ((h == &H[H_EVRUN] || h == &H[H_UNLOAD]) && h->mode == 1)
+            rh_fatal("%s: replace only (it releases retail's DirectDraw / DirectSound / GDI objects)", h->name);
         if (h == &H[H_MAP_DECODE]) {
             if (h->mode == 2) rh_fatal("map_decode: shadow only (the port decode needs the recorded resource)");
             rh_log("hook map_decode: parse recorder %d call sites\n", redirect_calls(0x587970u, w_map_parse));
@@ -2047,6 +2310,7 @@ void rh_hooks_report(void)
         for (int k = 0; k < g_nbh_codes; k++) rh_log("char_behave coverage: code %d compared %ld\n", g_bh_code_id[k], g_bh_codes[k]);
     if (H[H_PINIT].mode == 1)
         for (int k = 0; k < g_npinit_codes; k++) rh_log("particle_init coverage: code %d compared %ld\n", g_pinit_code_id[k], g_pinit_codes[k]);
+    if (H[H_GSTEP].mode == 1) rh_log("gimmick_step: %ld live (switching) calls shadowed\n", g_gstep_live);
     if (H[H_PARTICLE].mode == 1)
         for (int k = 0; k < g_nprt_codes; k++) rh_log("particle_tick coverage: code %d compared %ld\n", g_prt_code_id[k], g_prt_codes[k]);
     if (H[H_ACTOR].mode == 1)

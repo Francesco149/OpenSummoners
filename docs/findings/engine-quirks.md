@@ -4179,6 +4179,33 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
 - Party `+0x448` = 18 u16 status timers; table `0x628764` (0x8c B records): +0 "stuck" flag (`0x485f70`), +0x2c
   the threat weight (`0x485f30` / `0x47e330`).
 
+### #137 — the gimmick pass `0x59afd0` / `0x59b170`: switch codes, switching, links (port 2026-10-15)
+- **Per-actor step `0x59b170`** (after a u16 `+0x2a0` hold countdown): 70100 one-shot plate (part-0 box overlaps the
+  player: sound 12, +0x284 = 1, on); 70130 plate (on while overlapped, off once not); 70215 weight plate (`0x5564e0`:
+  kind 2 → any kind-2 rider within 400, else weighing riders; kind 0 / > 2 switches off when empty); 70600 lever (kind
+  2; the LEADER riding it (`0x5568e0`) switches it off, then script mode 3 + links unless the script returned 6);
+  70800 area (`0x5567a0` any weighing character, or the box of actor handle `+0x2d0` > 0; kind 1 never switches off);
+  70810 follower (link `+0x298`'s state; `+0x2cc` == 1 follows, else inverts; holds 20 ticks EVERY step); 70830 timed
+  plate (faction-2 characters with id `+0x2cc`..`+0x2d0` in the area widened 3200 left / 6400 right; two-tick
+  debounce on the actor body's `+0x58` / `+0x5c`; switching on also needs someone in a 6400-wide strip at its x).
+- **Hit** (`+0x294`, cleared): `+0x290` 1/2 = break (`0x555bd0`; if `+0x2cc` != 0 and off: unlisted, switched on, else
+  released), 3 = toggle, 4 = on; then the hit script (mode 4) if it has a handle.
+- **Switching `0x40afe0`** = per-code effect (70400 / 70450 bridges: sound + 20 dust, 70400 also leaves every list;
+  70820 solid ↔ passable; 70850 gathers the party at its body `0x54efd0`; 70220 by `+0x2cc` 90..94: shots / invert /
+  warp `0x54ecf0` / power shot (pose 147); 70251/70252/70371 glow `0x408100`) → the 12-byte step record of the new
+  state (`+0x208`: state, clip, u16 sound) → the script (mode 3) → `0x40be30`: every actor whose handle == `+0x298`
+  (`+0x29c` inverts the state; `+0x288` == 0 stops after the first match), recursively. 70230 (a resting crate plate,
+  kind 1) that is on cannot be switched (returns 0). `0x59b170` / `0x40afe0` / `0x40be30` inline the effect three
+  times, differing only in the bridge sounds (`0x407ba0` vs a pool voice placed by `0x40bb90`) and `0x40afe0`
+  expanding the 70220 shot emitter `0x40ac90` inline.
+- **`0x40b8f0` (event runner) ignores its 5th argument**; it returns the script engine's result, or 24 when the script
+  set runner `+0xc` (room change): sys+0xaa8's 24-byte records below state 3 → 3 with 400 at +0x14, then the
+  "StartEvent" line + exactly `0x43e3a0(sys, 4)` inline (surface sets / sound pools / GDI sets of load group ≥ 4).
+- **Doors are the TOUCH pass, not the gimmick pass** (corrects #134): in rh-my-play the room changes return 24 from
+  `0x59bdd0` → `0x59c240` → `0x40b8f0` (3 of its 8 calls); the gimmick pass's scripts (5 hit-tail, 7 via `0x40afe0`)
+  all return 0. A step result other than 0/1/2/6 makes `0x59afd0` re-poll DirectInput and flush the input manager of
+  every active party slot (except id 100000104), then continue.
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

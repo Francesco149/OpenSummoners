@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **382** (24.1% of engine-proper) — tested 250, ported 132
-- code bytes touched: **23.5%** (417,465 / 1,776,526 B of engine-proper)
-- unported: **1442**
+- touched: **399** (25.2% of engine-proper) — tested 250, ported 149
+- code bytes touched: **24.0%** (426,423 / 1,776,526 B of engine-proper)
+- unported: **1425**
 - orphan refs in src/ not in this table: 0
 
 ## tested (250) — ported + host unit suite
@@ -274,7 +274,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (132) — reimplemented, no host test yet
+## ported (149) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -284,13 +284,20 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x407320 | sub_407320 | 190 | char_integrate.h |
 | 0x407b80 | sub_407B80 | 32 | char_integrate.h |
 | 0x407ba0 | sub_407BA0 | 907 | sound_fx.h |
+| 0x408100 | sub_408100 | 205 | gimmick.h |
 | 0x4099a0 | sub_4099A0 | 1251 | sound_fx.h |
 | 0x409e90 | sub_409E90 | 375 | sound_fx.h |
 | 0x40a010 | sub_40A010 | 645 | sound_fx.h |
 | 0x40ab80 | sub_40AB80 | 136 | actor_ops.h |
+| 0x40ac10 | sub_40AC10 | 127 | gimmick.h |
+| 0x40afe0 | sub_40AFE0 | 1640 | gimmick.c, gimmick.h |
 | 0x40b710 | sub_40B710 | 480 | sound_fx.h |
+| 0x40b8f0 | sub_40B8F0 | 626 | event.c, event.h |
 | 0x40bb90 | sub_40BB90 | 502 | sound_fx.h |
 | 0x40bd90 | sub_40BD90 | 110 | entity_life.h |
+| 0x40be00 | sub_40BE00 | 36 | gimmick.h |
+| 0x40be30 | sub_40BE30 | 1032 | gimmick.c, gimmick.h |
+| 0x40c300 | sub_40C300 | 120 | gimmick.h |
 | 0x40d960 | sub_40D960 | 69 | char_state.h |
 | 0x411390 | sub_411390 | 413 | sound_fx.h |
 | 0x41e180 | sub_41E180 | 244 | char_state.h |
@@ -309,6 +316,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x426fa0 | sub_426FA0 | 45 | npc_ai.h |
 | 0x4272e0 | sub_4272E0 | 79 | particle_init.h |
 | 0x4385c0 | sub_4385C0 | 19 | particle_init.h |
+| 0x43e3a0 | sub_43E3A0 | 516 | event.c, event.h |
 | 0x43ee30 | sub_43EE30 | 228 | npc_ai.h |
 | 0x43f880 | sub_43F880 | 5491 | npc_ai.c, npc_ai.h |
 | 0x440e40 | sub_440E40 | 239 | npc_ai.h |
@@ -364,6 +372,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x47dbb0 | sub_47DBB0 | 655 | behave_ops.h |
 | 0x47e330 | sub_47E330 | 1120 | behave_ops.h |
 | 0x47e790 | sub_47E790 | 37 | npc_ai.h |
+| 0x4804b0 | sub_4804B0 | 207 | gimmick.h |
 | 0x484bf0 | sub_484BF0 | 31 | behave_ops.h |
 | 0x484c10 | sub_484C10 | 322 | behave_ops.h |
 | 0x4852c0 | sub_4852C0 | 37 | behave_ops.h |
@@ -385,6 +394,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x54c640 | sub_54C640 | 812 | grid_refresh.c, grid_refresh.h |
 | 0x54c9d0 | sub_54C9D0 | 214 | grid_refresh.c, grid_refresh.h |
 | 0x54d090 | sub_54D090 | 2636 | entity_fx.c, entity_fx.h |
+| 0x54ecf0 | sub_54ECF0 | 137 | gimmick.h |
+| 0x54efd0 | sub_54EFD0 | 358 | gimmick.h |
 | 0x54f980 | actor_update_54F980 | 11597 | actor_update.c, actor_update.h |
 | 0x5531b0 | ambient_sound_timer_5531B0 | 756 | sound_fx.h |
 | 0x555790 | sub_555790 | 1082 | actor_ops.h |
@@ -395,6 +406,10 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x556380 | sub_556380 | 74 | entity_life.h |
 | 0x5563d0 | sub_5563D0 | 266 | entity_life.h |
 | 0x5564e0 | sub_5564E0 | 298 | actor_ops.h |
+| 0x556610 | sub_556610 | 391 | gimmick.h |
+| 0x5567a0 | sub_5567A0 | 309 | gimmick.h |
+| 0x5568e0 | sub_5568E0 | 161 | gimmick.h |
+| 0x556de0 | sub_556DE0 | 98 | gimmick.h |
 | 0x556eb0 | sub_556EB0 | 62 | actor_update.c, actor_update.h |
 | 0x557370 | particle_spawn_557370 | 452 | particle_spawn.c, particle_spawn.h |
 | 0x557550 | sub_557550 | 21735 | particle_init.c, particle_init.h |
@@ -402,6 +417,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x55cd50 | sub_55CD50 | 85 | particle_init.h |
 | 0x55cdb0 | sub_55CDB0 | 145 | particle_init.h |
 | 0x55ce50 | sub_55CE50 | 18 | particle_init.h |
+| 0x59afd0 | sub_59AFD0 | 374 | gimmick.c, gimmick.h |
+| 0x59b170 | sub_59B170 | 2621 | gimmick.c, gimmick.h |
 | 0x5b54d0 | sub_5B54D0 | 166 | char_state.h |
 | 0x5b5580 | sub_5B5580 | 121 | char_state.h |
 | 0x5b5990 | sub_5B5990 | 202 | char_state.h |

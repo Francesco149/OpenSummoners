@@ -12,6 +12,7 @@
 #include "engine_calls.h"
 #include "entity_fx.h"
 #include "entity_move.h"
+#include "gimmick.h"
 #include "particle_tick.h"
 
 #define IP(p) ((intptr_t)(p))
@@ -85,7 +86,7 @@ int world_tick(void *ctl, int32_t cut)
                 box[2] = 64000;
                 box[1] = b->y + (b->h - b->margin) / 2 + b->margin - 24000;
                 box[3] = 48000;
-                a->faction = g_eng.h5567a0(0, IP(box), 0) != 0 ? 3 : 2;
+                a->faction = char_in_rect(0, box, 0) != 0 ? 3 : 2;
             }
         }
         int32_t slow = b->slow, cf = b->c_flag;

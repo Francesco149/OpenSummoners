@@ -47,6 +47,9 @@ typedef int (ENG_THISCALL *eng_tc10)(void *self, intptr_t, intptr_t, intptr_t, i
                                      intptr_t, intptr_t, intptr_t);
 typedef int (ENG_THISCALL *eng_tc12)(void *self, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t,
                                      intptr_t, intptr_t, intptr_t, intptr_t, intptr_t);
+typedef int (ENG_THISCALL *eng_tc19)(void *self, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t,
+                                     intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t,
+                                     intptr_t, intptr_t, intptr_t, intptr_t);
 typedef int (ENG_THISCALL *eng_tc16)(void *self, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t,
                                      intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t,
                                      intptr_t);
@@ -85,6 +88,17 @@ typedef struct engine_calls {
     int (ENG_THISCALL *dsb_play_5bb8c0)(void *buf);
     int (ENG_THISCALL *dsb_stop_5bb8e0)(void *buf);
     int (ENG_THISCALL *log_fail_406440)(void *log, const char *msg, const char *tail);
+    /* the DirectSound buffer release 0x5bb3a0 (COM Release + the device's buffer count) */
+    eng_tc0 dsb_release_5bb3a0;
+    /* KERNEL32 / GDI32 through retail's import table (OutputDebugStringA, DeleteObject) */
+    void (ENG_STDCALL *dbg_out)(const char *s);
+    int  (ENG_STDCALL *gdi_delete)(void *obj);
+    /* the DirectInput boundary: keyboard state 0x5ba4c0 / buffered data 0x5ba2d0, joystick
+     * poll 0x5ba650 / read 0x49bf90 */
+    eng_tc0 h5ba4c0; eng_tc0 h5ba2d0; eng_tc0 h5ba650; eng_tc1 h49bf90;
+    /* the gimmick pass's callees: the event-script engine 0x40c380, the shot emitter 0x40ac90,
+     * the shot spawner 0x55cfc0 */
+    eng_tc0 h40c380; eng_tc6 h40ac90; eng_tc19 h55cfc0;
     /* the integrator 0x442a70's callees: per-type behaviour handlers + helpers (by VA) */
     eng_tc3 h467260; eng_tc6 h44a740; eng_tc8 h45a300;
     eng_tc4 h44bc10; eng_tc4 h44c250; eng_tc4 h44bf60; eng_tc7 h446900; eng_tc7 h452020;
@@ -101,10 +115,9 @@ typedef struct engine_calls {
     eng_tc0 h4895c0; 
     /* the tick driver 0x46cd70's band updaters */
     eng_tc4 h4710c0; eng_tc0 h46da00;
-        int (ENG_STDCALL *h5567a0)(intptr_t a1, intptr_t box, intptr_t a3);
     /* the actor update 0x54f980's callees: the per-code behaviours, the looping-sound start,
      * list removal, the second error logger */
-    eng_tc2 h408100; eng_tc3 h408b90; eng_tc0 h40be00; 
+    eng_tc3 h408b90;
     eng_tc5 h54f140; eng_tc3 h552c70; eng_tc5 h552f60; 
     eng_tc3 h5534d0; eng_tc6 h553520; eng_tc7 h553ec0; eng_tc5 h554570; eng_tc6 h554c40; eng_tc3 h5556d0;
     

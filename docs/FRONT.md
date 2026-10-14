@@ -43,8 +43,11 @@
   | grid refresh (growing pillars + cached-frame flush) | `0x54c640` / `0x54c9d0` | 16 | 0 |
   | particle INIT (per-code setup, 96 codes) + entity setup / tracks / tints / ride / x87 polar | `0x557550` `0x426620` `0x426d70` `0x448c80` `0x476710` `0x55cd50` `0x476c70` `0x460e40` `0x55cdb0` … | 8.6k (1.1k compared, 7 codes) / 9.5k / 9k / 22k / 465 / – / – / 36 / – | 0 |
   | skill availability, party lookup, floor-below scan | `0x402a60` `0x5b5990` `0x4060d0` | 157k / 8.8k / 13 | 0 |
-  Hybrid gate: with all of the above REPLACING retail (96 hooks) (the whole character tick, driver → tile
-  movers, runs as port code), every corpus scenario ends byte-identical.
+  | GIMMICK pass (plates / levers / followers / timed plates, hits) + switching + links | `0x59afd0` / `0x59b170` / `0x40afe0` / `0x40be30` | 7.7k (240) / 227k (1,710 full-state, 16 switching) / 9 / 7 | 0 |
+  | rect queries, riders, glow, serial, shot, warp, party gather, unlist | `0x4804b0` `0x556610` `0x5567a0` `0x5568e0` `0x556de0` `0x408100` `0x40be00` `0x40ac10` `0x54ecf0` `0x54efd0` `0x40c300` | 175 / – (unreached) | 0 |
+  | event runner + resource unload (REPLACE only: they free retail's DDraw/DSound/GDI objects) | `0x40b8f0` / `0x43e3a0` | 26 / 33 replaced | – |
+  Hybrid gate: with all of the above REPLACING retail (113 hooks) (the whole character tick, driver → tile
+  movers, + the gimmick pass, runs as port code), every corpus scenario ends byte-identical.
   Infra: `src/world_layout.h` (retail-layout world/entity/char/body/cmd, pinned on 32-bit),
   `src/engine_calls.h` (slots → retail VAs for unported callees, PORT-DEBT(engine-call-slots)),
   `rh_shadow_ex` (full-state shadow; port code may call retail), `rng_bind`, heap zero-on-alloc
@@ -56,10 +59,11 @@
   ahead, `0x4418e0`, `0x440e40`, `0x441700`, `0x43ee30`, …; scratch bodies from retail's heap via
   `g_eng.op_new`). Hybrid gate with all 12 movement functions replacing retail: PASS.
 - **Next (port side):**
-  00. the room loop's GIMMICK pass (verifiable: 10 door / exit uses in rh-my-play): `0x59afd0` → `0x59b170`
-     (2.6 KB per-code: doors, switches, levers) + `0x40afe0` / `0x40be30` / `0x40b8f0` / `0x4804b0` / `0x556eb0`,
-     the touch pass `0x59bdd0` → `0x59c240`, events `0x59a1f0`; the event-script engine `0x40c380` (5 KB)
-     stays a slot.
+  00. the TOUCH pass = the DOORS (quirk #137: rh-my-play's room changes return 24 from `0x59bdd0` → `0x59c240`
+     → `0x40b8f0`, 3 of 8 calls) + its helpers `0x4812c0` / `0x411560` / `0x40fe00` (input), then the event
+     zones `0x59a1f0` (+ `0x59a7c0` / `0x59a880`). The gimmick pass `0x59afd0` is DONE (`src/gimmick.c`); the
+     event-script engine `0x40c380` (5 KB) stays a slot. A touch call that unloads must not be shadowed (the
+     unload frees retail's DirectDraw objects): shadow the non-firing calls, prove the rest by replace.
   0. the Arche handlers `0x457ff0` (4.6 KB),
      `0x45a300` (14 KB), `0x461790` (19 KB) and the apply-pass `0x487dc0` (5 KB) / `0x4878b0`; the DirectSound
      calls `0x5bb250`..`0x5bb8e0` + `0x5b9390` stay platform slots (PORT-DEBT(engine-call-slots)).

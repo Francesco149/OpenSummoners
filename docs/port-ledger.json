@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 250,
-  "ported": 132,
-  "unported": 1442,
+  "ported": 149,
+  "unported": 1425,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 382,
-  "pct_touched": 24.1,
+  "touched": 399,
+  "pct_touched": 25.2,
   "pct_tested": 15.8,
-  "engine_proper_touched": 369,
+  "engine_proper_touched": 386,
   "bytes_total": 1776526,
-  "bytes_touched": 417465,
-  "pct_bytes_touched": 23.5
+  "bytes_touched": 426423,
+  "pct_bytes_touched": 24.0
  },
  "orphan_refs": [],
  "functions": [
@@ -611,8 +611,10 @@
    "name": "sub_408100",
    "size": 205,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/gimmick.h"
+   ]
   },
   {
    "va": "0x4081d0",
@@ -800,8 +802,10 @@
    "name": "sub_40AC10",
    "size": 127,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/gimmick.h"
+   ]
   },
   {
    "va": "0x40ac90",
@@ -816,8 +820,11 @@
    "name": "sub_40AFE0",
    "size": 1640,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/gimmick.c",
+    "src/gimmick.h"
+   ]
   },
   {
    "va": "0x40b710",
@@ -834,8 +841,11 @@
    "name": "sub_40B8F0",
    "size": 626,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/event.c",
+    "src/event.h"
+   ]
   },
   {
    "va": "0x40bb70",
@@ -870,24 +880,31 @@
    "name": "sub_40BE00",
    "size": 36,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/gimmick.h"
+   ]
   },
   {
    "va": "0x40be30",
    "name": "sub_40BE30",
    "size": 1032,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/gimmick.c",
+    "src/gimmick.h"
+   ]
   },
   {
    "va": "0x40c300",
    "name": "sub_40C300",
    "size": 120,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/gimmick.h"
+   ]
   },
   {
    "va": "0x40c380",
@@ -3360,8 +3377,11 @@
    "name": "sub_43E3A0",
    "size": 516,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/event.c",
+    "src/event.h"
+   ]
   },
   {
    "va": "0x43e5b0",
@@ -5332,8 +5352,10 @@
    "name": "sub_4804B0",
    "size": 207,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/gimmick.h"
+   ]
   },
   {
    "va": "0x480580",
@@ -8259,8 +8281,10 @@
    "name": "sub_54ECF0",
    "size": 137,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/gimmick.h"
+   ]
   },
   {
    "va": "0x54ed80",
@@ -8275,8 +8299,10 @@
    "name": "sub_54EFD0",
    "size": 358,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/gimmick.h"
+   ]
   },
   {
    "va": "0x54f140",
@@ -8472,24 +8498,30 @@
    "name": "sub_556610",
    "size": 391,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/gimmick.h"
+   ]
   },
   {
    "va": "0x5567a0",
    "name": "sub_5567A0",
    "size": 309,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/gimmick.h"
+   ]
   },
   {
    "va": "0x5568e0",
    "name": "sub_5568E0",
    "size": 161,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/gimmick.h"
+   ]
   },
   {
    "va": "0x556990",
@@ -8504,8 +8536,10 @@
    "name": "sub_556DE0",
    "size": 98,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/gimmick.h"
+   ]
   },
   {
    "va": "0x556e50",
@@ -10670,16 +10704,22 @@
    "name": "sub_59AFD0",
    "size": 374,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/gimmick.c",
+    "src/gimmick.h"
+   ]
   },
   {
    "va": "0x59b170",
    "name": "sub_59B170",
    "size": 2621,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/gimmick.c",
+    "src/gimmick.h"
+   ]
   },
   {
    "va": "0x59bdd0",
