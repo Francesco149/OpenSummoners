@@ -247,7 +247,9 @@ int collision_move_vertical(const uint8_t *grid, const phys_box *box,
     const int32_t dim0_px = cg_i32(grid, MG_DIM0_PX);
     const int32_t dim1_px = cg_i32(grid, MG_DIM1_PX);
 
-    *out_y = box->y;                       /* always-defined (upward-block case) */
+    /* *out_y is written ONLY by a clear step or a downward block (54e990: a zero delta returns
+     * before any write, an upward block leaves it as the caller set it) — rhost shadow found the
+     * old always-defined pre-write diverging on 110 zero-delta calls with an uninitialized out. */
 
     int32_t mag = delta < 0 ? -delta : delta;          /* iVar12 = abs(delta) */
 

@@ -14,6 +14,7 @@
 #include "rhost.h"
 #include "rng.h"
 #include "input.h"
+#include "collision.h"
 
 typedef struct {
     const char *name; uint32_t va; void *wrapper;
@@ -23,7 +24,7 @@ typedef struct {
 } hook_t;
 
 static hook_t H[];
-enum { H_RAND, H_POLL, H_N };
+enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_N };
 
 static void diverged(hook_t *h, const char *fmt, ...)
 {
@@ -94,9 +95,58 @@ static int __attribute__((thiscall)) w_poll(void *mgr, uint32_t now, int32_t id)
     return r;
 }
 
+/* ---- tile movers (FUN_0054e990 / FUN_0054ded0, thiscall on the grid object) vs src/collision.c ----
+ * a slope cell's region-B +0x8 is a pointer to a 32-byte height profile in retail .rdata: the port's
+ * resolver callback reads the byte straight out of the mapped image. The __int16 flags are passed
+ * through as raw stack dwords (retail reads only the low half). */
+static int rh_slope(void *ctx, uint32_t sref, int sub) { (void)ctx; return *(const uint8_t *)(uintptr_t)(sref + (uint32_t)sub); }
+
+typedef int (__attribute__((thiscall)) *mover_v_t)(void *, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t *, uint32_t);
+static int __attribute__((thiscall)) w_mover_v(void *grid, int32_t x, int32_t y, int32_t w, int32_t hh, int32_t delta, int32_t *out_y, uint32_t pass)
+{
+    hook_t *h = &H[H_MOVER_V];
+    phys_box b = { x, y, w, hh, 0 };
+    if (h->mode == 2) { h->calls++; return collision_move_vertical(grid, &b, delta, (int16_t)pass != 0, rh_slope, NULL, out_y); }
+    if (!sample(h)) return ((mover_v_t)(uintptr_t)h->va)(grid, x, y, w, hh, delta, out_y, pass);
+    int32_t pre = *out_y;
+    int r = ((mover_v_t)(uintptr_t)h->va)(grid, x, y, w, hh, delta, out_y, pass);
+    int32_t post = *out_y, py = pre;
+    uint32_t sp = SP() - 256;
+    dead_save(sp);
+    int p = collision_move_vertical(grid, &b, delta, (int16_t)pass != 0, rh_slope, NULL, &py);
+    dead_restore(sp);
+    h->compared++;
+    if (p != r || py != post)
+        diverged(h, "box (%d,%d %dx%d) d=%d pass=%d pre_y=%d: retail %d/y=%d port %d/y=%d", x, y, w, hh, delta, (int16_t)pass, pre, r, post, p, py);
+    return r;
+}
+
+typedef int (__attribute__((thiscall)) *sweep_h_t)(void *, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t *, int32_t *, uint32_t);
+static int __attribute__((thiscall)) w_sweep_h(void *grid, int32_t x, int32_t w, int32_t top, int32_t bot, int32_t delta,
+                                               int32_t sdown, int32_t sup, int32_t *out_x, int32_t *io_y, uint32_t pass)
+{
+    hook_t *h = &H[H_SWEEP_H];
+    if (h->mode == 2) { h->calls++; return collision_sweep_horizontal(grid, x, w, top, bot, delta, sdown, sup, (int16_t)pass != 0, rh_slope, NULL, out_x, io_y); }
+    if (!sample(h)) return ((sweep_h_t)(uintptr_t)h->va)(grid, x, w, top, bot, delta, sdown, sup, out_x, io_y, pass);
+    int32_t px0 = *out_x, py0 = *io_y;
+    int r = ((sweep_h_t)(uintptr_t)h->va)(grid, x, w, top, bot, delta, sdown, sup, out_x, io_y, pass);
+    int32_t rx = *out_x, ry = *io_y, px = px0, py = py0;
+    uint32_t sp = SP() - 256;
+    dead_save(sp);
+    int p = collision_sweep_horizontal(grid, x, w, top, bot, delta, sdown, sup, (int16_t)pass != 0, rh_slope, NULL, &px, &py);
+    dead_restore(sp);
+    h->compared++;
+    if (p != r || px != rx || py != ry)
+        diverged(h, "x=%d w=%d y=[%d,%d] d=%d down=%d up=%d pass=%d pre=(%d,%d): retail %d/(%d,%d) port %d/(%d,%d)",
+                 x, w, top, bot, delta, sdown, sup, (int16_t)pass, px0, py0, r, rx, ry, p, px, py);
+    return r;
+}
+
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
     [H_POLL] = { "input_poll", 0x43c110u, (void *)w_poll, 0, 1, 0, 0, 0, 0, "" },
+    [H_MOVER_V] = { "mover_v", 0x54e990u, (void *)w_mover_v, 0, 1, 0, 0, 0, 0, "" },
+    [H_SWEEP_H] = { "sweep_h", 0x54ded0u, (void *)w_sweep_h, 0, 1, 0, 0, 0, 0, "" },
 };
 
 void rh_hooks_install(void)
@@ -104,6 +154,7 @@ void rh_hooks_install(void)
     H[H_RAND].va = g_ed->rand;
     /* input_poll_consume: EN-old 0x43c110; EN-SE 0x4383c0 (crosswalk: masked bytes identical) */
     H[H_POLL].va = !strcmp(g_ed->tag, "enold") ? 0x43c110u : !strcmp(g_ed->tag, "ense-en") ? 0x4383c0u : 0;
+    if (strcmp(g_ed->tag, "enold")) H[H_MOVER_V].va = H[H_SWEEP_H].va = 0;   /* EN-old VAs only (SE: crosswalk TODO) */
     if (!O.hooks) return;
     char b[512]; snprintf(b, sizeof b, "%s", O.hooks);
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {
@@ -113,7 +164,7 @@ void rh_hooks_install(void)
         hook_t *h = NULL;
         for (int i = 0; i < H_N; i++) if (!strcmp(H[i].name, name)) h = &H[i];
         if (!h) rh_fatal("unknown hook %s", name);
-        if (!h->va) rh_fatal("hook %s has no VA for edition %s", name, g_ed->tag);
+        if (!h->va) { rh_log("hook %s: no VA for edition %s — skipped\n", name, g_ed->tag); continue; }
         h->mode = !strcmp(mode, "shadow") ? 1 : !strcmp(mode, "replace") ? 2 : 0;
         h->every = every;
         if (!h->mode) continue;

@@ -49,8 +49,9 @@ typedef int (*coll_slope_fn)(void *ctx, uint32_t slope_ref, int subtile_x);
 /* FUN_0054e990 — sweep `box`'s world-Y by `delta` (>=0 down, <0 up) in
  * <=100-unit steps, scanning the X-extent cells against region B (class 10 =
  * solid wall, class 1 = slope surface).  Does NOT mutate `box`; writes the
- * resulting (clamped) world-Y to *out_y (initialised to box->y, so it is always
- * defined — the decompile leaves it to the caller's local on an upward block).
+ * resulting (clamped) world-Y to *out_y on each clear step and on a downward
+ * block; a zero delta or an upward block leaves *out_y untouched (retail —
+ * callers pre-set it; rhost shadow-verified, 2.46M calls).
  * Returns 1 if the whole delta was clear, 0 if a wall/slope clamped it.
  * `pass_slopes` = the 54e990 param_7 (moving down, !=0 passes through slope
  * surfaces).  `slope`/`ctx` resolve sloped cells (unused when all in-range

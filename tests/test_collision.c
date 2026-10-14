@@ -89,7 +89,8 @@ int test_collision_ceiling_blocks_upward(void)
     return 0;
 }
 
-/* delta 0 is an immediate clear with out unchanged from y. */
+/* delta 0 is an immediate clear that never writes out (retail 54e990 returns before any
+ * store — rhost shadow, rh-my-play). */
 int test_collision_zero_delta_noop(void)
 {
     uint8_t *g = grid10();
@@ -98,7 +99,7 @@ int test_collision_zero_delta_noop(void)
     int32_t out = -1;
     int r = collision_move_vertical(g, &b, 0, 0, NULL, NULL, &out);
     T_ASSERT_EQ_I(r, 1);
-    T_ASSERT_EQ_I(out, 8000);
+    T_ASSERT_EQ_I(out, -1);
     map_grid_free(g);
     return 0;
 }

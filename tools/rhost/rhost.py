@@ -111,7 +111,7 @@ def rhost_stale():
         return True
     t = os.path.getmtime(exe)
     return any(os.path.getmtime(os.path.join(HERE, f)) > t for f in os.listdir(HERE) if f.endswith((".c", ".h", ".sh"))) or \
-        any(os.path.getmtime(os.path.join(ROOT, "src", f)) > t for f in ("rng.c", "rng.h", "input.c", "input.h"))
+        any(os.path.getmtime(os.path.join(ROOT, "src", f)) > t for f in os.listdir(os.path.join(ROOT, "src")) if f.endswith((".c", ".h")))
 
 
 def ensure_staged():
@@ -425,7 +425,7 @@ def cmd_corpus(a):
     return 0 if done == len(names) else 1
 
 
-VERIFY_HOOKS = ["rand", "input_poll"]
+VERIFY_HOOKS = ["rand", "input_poll", "mover_v", "sweep_h"]
 
 
 def cmd_verify(a):
