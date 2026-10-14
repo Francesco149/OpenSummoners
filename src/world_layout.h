@@ -33,26 +33,41 @@ typedef struct wl_body {
     int32_t  w;               /* +0x00c  box width                                      */
     int32_t  h;               /* +0x010  box height                                     */
     int32_t  margin;          /* +0x014  top inset: the collision top = y + margin      */
-    uint8_t  _p018[0x28 - 0x18];
-    int32_t  vel_x;           /* +0x028  horizontal velocity (x100 per tick)            */
-    int32_t  facing;          /* +0x02c  1 left, 3 right                                */
-    uint8_t  _p030[0x48 - 0x30];
-    uint16_t pose;            /* +0x048  body state (10 = the 0xc35b skill pose)         */
+    int32_t  vvel;            /* +0x018  vertical velocity (x100 per tick, + = down)     */
+    int32_t  fall_cap;        /* +0x01c  != 0 overrides the fall cap (gravity = it/10)  */
+    uint8_t  drop;            /* +0x020  drop-through timer (8 on a DOWN+jump)           */
+    uint8_t  _p021[3];
+    int32_t  grounded;        /* +0x024  the support probe's result                     */
+    int32_t  vel_x;           /* +0x028  horizontal speed (x100 per tick, >= 0)          */
+    int32_t  facing;          /* +0x02c  1 right, 3 left                                 */
+    uint8_t  _p030[0x38 - 0x30];
+    uint16_t state;           /* +0x038  0 stand, 1 move, 2 crouch, 3 jump, 4 air,
+                               *          5 look up, 6 slide                              */
+    uint16_t sub;             /* +0x03a  the state's sub-phase                          */
+    uint16_t ctr;             /* +0x03c  the sub-phase's tick counter                   */
+    uint8_t  _p03e[0x48 - 0x3e];
+    uint16_t pose;            /* +0x048  the ACTION (0 none, 2 turn around, 10 skill..)  */
     uint8_t  _p04a[0x4c - 0x4a];
-    int32_t  spell;           /* +0x04c  the targeting spell record (0 = none)           */
+    int32_t  spell;           /* +0x04c  the action's record (the targeting spell)       */
     int32_t  target;          /* +0x050  the targeted character (wl_char *)              */
-    uint8_t  _p054[0x58 - 0x54];
-    uint16_t f58;             /* +0x058 */
-    uint8_t  _p05a[0x66 - 0x5a];
+    uint16_t act_arg;         /* +0x054 */
+    uint16_t act_len;         /* +0x056  (200 for the turn-around; 210 = reset)          */
+    uint16_t f58;             /* +0x058  the action's phase                             */
+    uint16_t act_5a;          /* +0x05a */
+    int32_t  act_ctr;         /* +0x05c */
+    uint8_t  _p060[0x64 - 0x60];
+    uint16_t act_64;          /* +0x064 */
     uint16_t f66;             /* +0x066  != 0 (with f68 == 0) => the use key is live     */
     uint8_t  f68;             /* +0x068 */
-    uint8_t  _p069[0x7c - 0x69];
+    uint8_t  _p069[0x78 - 0x69];
+    int32_t  act_78;          /* +0x078 */
     uint8_t  nocollide;       /* +0x07c  != 0 => ignores / is ignored by entity checks  */
     uint8_t  _p07d;
     uint8_t  f7e;             /* +0x07e  (the AI drops a target whose body[0] has it set)*/
     uint8_t  _p07f[0x284 - 0x7f];
     struct wl_entity *attach; /* +0x284  the entity this body rides/belongs to          */
-    uint8_t  _p288[0x290 - 0x288];
+    int32_t  slow;            /* +0x288  != 0 => the fall cap is a third (water)        */
+    uint8_t  _p28c[0x290 - 0x28c];
     void    *frames;          /* +0x290  per-frame sub-records (0x14 B each, 0x4411e0)  */
 } wl_body;
 
@@ -162,9 +177,14 @@ typedef struct wl_char {
     wl_party  *party;          /* +0x00750 */
     uint8_t    _p754[0xc788 - 0x754];
     int32_t    fc788;          /* +0x0c788  targeting enabled                           */
-    uint8_t    _pc78c[0x1427c - 0xc78c];
+    uint8_t    _pc78c[0xc7e8 - 0xc78c];
+    int32_t    max_air_jumps;  /* +0x0c7e8 */
+    uint8_t    _pc7ec[0x1427c - 0xc7ec];
     struct wl_char *target;    /* +0x1427c */
-    uint8_t    _p14280[0x14854 - 0x14280];
+    uint8_t    _p14280[0x14810 - 0x14280];
+    int32_t    boost_speed;    /* +0x14810  != 0 => walk max + 6000                     */
+    int32_t    boost_accel;    /* +0x14814  != 0 => accel + 2000, brake - 800            */
+    uint8_t    _p14818[0x14854 - 0x14818];
     wl_cmd     cmd;            /* +0x14854 */
     struct { int32_t key, val; } member_skill[4]; /* +0x14874  (count +0x14894)        */
     int32_t    n_member_skill; /* +0x14894 */
@@ -173,11 +193,48 @@ typedef struct wl_char {
     wl_combo   combo[64];      /* +0x148a0 (ends at +0x158a0) */
     int32_t    difficulty;     /* +0x158a0  0..1 => 10 ms, 2 => 80 ms walk-start delay   */
     input_mgr *input;          /* +0x158a4 */
-    uint8_t    _p158a8[0x15990 - 0x158a8];
-    int32_t    max_speed;      /* +0x15990 */
-    uint8_t    _p15994[0x15a10 - 0x15994];
-    int32_t    up_assist;      /* +0x15a10  != 0 => the jump-probe up assist             */
-    uint8_t    _p15a14[0x15bb0 - 0x15a14];
+    uint8_t    _p158a8[0x158bc - 0x158a8];
+    int32_t    air_jumps;      /* +0x158bc  jumps used since landing                    */
+    uint8_t    _p158c0[0x1594c - 0x158c0];
+    /* ── the movement tuning (0x467bb0) ── */
+    int32_t    move_mode;      /* +0x1594c  0 ground, 1..2 the alternate probe, 3 bounded */
+    int32_t    fall_cap;       /* +0x15950 */
+    int32_t    gravity;        /* +0x15954 */
+    int32_t    slide_cap;      /* +0x15958 */
+    int32_t    slide_grav;     /* +0x1595c */
+    uint8_t    _p15960[0x15964 - 0x15960];
+    int32_t    float_h;        /* +0x15964  > 0: the float threshold over region-D floors */
+    uint8_t    _p15968[0x1596c - 0x15968];
+    int32_t    walk_max;       /* +0x1596c */
+    int32_t    walk_accel;     /* +0x15970 */
+    int32_t    run_accel;      /* +0x15974 */
+    int32_t    brake;          /* +0x15978  (negative) */
+    uint8_t    _p1597c[0x15984 - 0x1597c];
+    int32_t    turn_anim;      /* +0x15984  != 0 => a reversal plays the turn action     */
+    int32_t    turn_anim_air;  /* +0x15988 */
+    int32_t    can_run;        /* +0x1598c */
+    int32_t    max_speed;      /* +0x15990  the run max */
+    uint8_t    _p15994[0x15998 - 0x15994];
+    int32_t    can_jump;       /* +0x15998 */
+    int32_t    jump_impulse;   /* +0x1599c */
+    int32_t    rise_grav_held; /* +0x159a0 */
+    int32_t    rise_grav_free; /* +0x159a4 */
+    int32_t    air_max;        /* +0x159a8  != 0 => air control */
+    int32_t    air_accel_fast; /* +0x159ac */
+    int32_t    air_accel_slow; /* +0x159b0 */
+    uint8_t    _p159b4[0x159d4 - 0x159b4];
+    int32_t    can_crouch;     /* +0x159d4 */
+    int32_t    crouch_margin;  /* +0x159d8 */
+    uint8_t    _p159dc[0x15a10 - 0x159dc];
+    int32_t    up_assist;      /* +0x15a10  != 0 => look-up / the jump-probe up assist    */
+    uint8_t    _p15a14[0x15a24 - 0x15a14];
+    int32_t    f15a24;         /* +0x15a24 */
+    uint8_t    _p15a28[0x15a98 - 0x15a28];
+    int32_t    bound_top;      /* +0x15a98  mode 3: -top limit */
+    int32_t    bound_bottom;   /* +0x15a9c  mode 3: below the map height */
+    int32_t    bound_left;     /* +0x15aa0 */
+    int32_t    bound_right;    /* +0x15aa4 */
+    uint8_t    _p15aa8[0x15bb0 - 0x15aa8];
 } wl_char;
 
 #if UINTPTR_MAX == 0xFFFFFFFFu
@@ -192,6 +249,21 @@ _Static_assert(offsetof(wl_char, combo)       == 0x148a0, "char combos");
 _Static_assert(offsetof(wl_char, difficulty)  == 0x158a0, "char +0x158a0");
 _Static_assert(offsetof(wl_char, input)       == 0x158a4, "char input");
 _Static_assert(offsetof(wl_char, max_speed)   == 0x15990, "char +0x15990");
+_Static_assert(offsetof(wl_char, max_air_jumps) == 0x0c7e8, "char +0xc7e8");
+_Static_assert(offsetof(wl_char, boost_accel) == 0x14814, "char +0x14814");
+_Static_assert(offsetof(wl_char, air_jumps)   == 0x158bc, "char +0x158bc");
+_Static_assert(offsetof(wl_char, move_mode)   == 0x1594c, "char +0x1594c");
+_Static_assert(offsetof(wl_char, float_h)     == 0x15964, "char +0x15964");
+_Static_assert(offsetof(wl_char, brake)       == 0x15978, "char +0x15978");
+_Static_assert(offsetof(wl_char, air_accel_slow) == 0x159b0, "char +0x159b0");
+_Static_assert(offsetof(wl_char, crouch_margin) == 0x159d8, "char +0x159d8");
+_Static_assert(offsetof(wl_char, f15a24)      == 0x15a24, "char +0x15a24");
+_Static_assert(offsetof(wl_char, bound_right) == 0x15aa4, "char +0x15aa4");
+_Static_assert(offsetof(wl_body, vvel)        == 0x018, "body vvel");
+_Static_assert(offsetof(wl_body, grounded)    == 0x024, "body grounded");
+_Static_assert(offsetof(wl_body, state)       == 0x038, "body state");
+_Static_assert(offsetof(wl_body, act_78)      == 0x078, "body +0x78");
+_Static_assert(offsetof(wl_body, slow)        == 0x288, "body +0x288");
 _Static_assert(offsetof(wl_char, up_assist)   == 0x15a10, "char +0x15a10");
 _Static_assert(sizeof(wl_char)                == 0x15bb0, "character is 0x15bb0 bytes");
 _Static_assert(sizeof(wl_cmd)                 == 0x20,  "command block");

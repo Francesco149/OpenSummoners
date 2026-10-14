@@ -56,7 +56,7 @@ SRCS_PORTED  := ../src/pixel_drawer.c ../src/asset_register.c \
                 ../src/portrait.c ../src/portrait_face_data.c \
                 ../src/osr_replay.c ../src/osr_emit.c \
                 ../src/sword_trail.c ../src/hud.c \
-                ../src/entity_move.c ../src/char_ai.c ../src/engine_calls.c
+                ../src/entity_move.c ../src/char_ai.c ../src/engine_calls.c ../src/char_physics.c
 SRCS_TESTS   := test_main.c test_pixel_drawer.c test_asset_register.c \
                 test_bitmap_session.c test_wnd_proc.c test_zdd.c \
                 test_cs_dispatch.c test_app_pump.c test_title_scene.c \
@@ -83,7 +83,7 @@ SRCS_TESTS   := test_main.c test_pixel_drawer.c test_asset_register.c \
                 test_character.c test_input_live.c test_cutscene.c \
                 test_portrait.c test_osr_format.c test_osr_replay.c \
                 test_osr_emit.c test_sword_trail.c test_hud.c \
-                test_entity_move.c test_char_ai.c
+                test_entity_move.c test_char_ai.c test_char_physics.c
 
 OUT := build/run_tests
 

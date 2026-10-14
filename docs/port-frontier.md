@@ -164,7 +164,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x448c80 | 47 | 2 | 0 | ✓ |
 | 0x4467d0 | 289 | 2 | 2 |  |
 | 0x440f40 | 670 | 1 | 1 |  |
-| 0x442a70 | 12026 | 1 | 56 |  |
+| 0x442a70 | 12026 | 1 | 55 |  |
 
 ### master dialogue runner + action/frame dispatch + sprite batch (1)
 
@@ -361,7 +361,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x58e6a0 | 218 | 1 | 1 |  |
 | 0x583ee0 | 248 | 1 | 0 | ✓ |
 | 0x5798f0 | 259 | 1 | 0 | ✓ |
-| 0x58d0b0 | 337 | 1 | 4 |  |
+| 0x58d0b0 | 337 | 1 | 3 |  |
 | 0x58d210 | 403 | 1 | 1 |  |
 | 0x58e170 | 441 | 1 | 2 |  |
 | 0x583c90 | 580 | 1 | 0 | ✓ |

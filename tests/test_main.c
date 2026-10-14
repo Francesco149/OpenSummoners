@@ -861,6 +861,8 @@ struct test_case {
     X(map_grid_emit_obj_clamps_dims)                           \
     X(map_grid_emit_tile_explicit_span)                        \
     X(map_grid_emit_tile_bank_span)                            \
+    X(char_physics_walk_ramp)                                  \
+    X(char_physics_jump_windup)                                \
     X(char_ai_ring_find_window_flag_consume)                   \
     X(char_ai_ring_double_needs_two_records)                   \
     X(char_ai_combo_chain)                                     \

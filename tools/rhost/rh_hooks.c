@@ -20,6 +20,7 @@
 #include "map_decode.h"
 #include "camera_follow.h"
 #include "char_ai.h"
+#include "char_physics.h"
 #include "engine_calls.h"
 
 typedef struct {
@@ -30,7 +31,7 @@ typedef struct {
 } hook_t;
 
 static hook_t H[];
-enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_DECODE, H_CAM_FOLLOW, H_CAM_SHAKE, H_CHAR_AI, H_N };
+enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_DECODE, H_CAM_FOLLOW, H_CAM_SHAKE, H_CHAR_AI, H_CHAR_PHYS, H_N };
 
 static void diverged(hook_t *h, const char *fmt, ...)
 {
@@ -360,6 +361,42 @@ static int __attribute__((thiscall)) w_char_ai(void *self, int32_t a2, int32_t a
     return x.r_ret;
 }
 
+/* ---- character movement step (FUN_00467bb0, thiscall(char, cmd, body, probe, ctl, part, grounded)) ----
+ * writes only the body record (x/y/attach through the movers) and char->air_jumps: those are
+ * snapshotted (cheap enough for every call); stray writes are the hybrid corpus gate's job. */
+static long g_phys_cov[8], g_phys_ctl[5], g_phys_mode[5], g_phys_probe;
+typedef int (__attribute__((thiscall)) *char_phys_t)(wl_char *, wl_cmd *, wl_body *, int32_t, int32_t, int32_t, int32_t);
+static int __attribute__((thiscall)) w_char_phys(wl_char *self, wl_cmd *cmd, wl_body *b, int32_t probe, int32_t ctl, int32_t part, int32_t gr)
+{
+    hook_t *h = &H[H_CHAR_PHYS];
+    if (h->mode == 2) { h->calls++; port_world(); return char_physics_step(self, cmd, b, probe, ctl, part, gr); }
+    if (!sample(h)) return ((char_phys_t)(uintptr_t)h->va)(self, cmd, b, probe, ctl, part, gr);
+    static wl_body pre, ret; int32_t aj0 = self->air_jumps;
+    pre = *b;
+    g_phys_cov[pre.state < 7 ? pre.state : 7]++; g_phys_ctl[(uint32_t)ctl < 4 ? ctl : 4]++;
+    g_phys_mode[(uint32_t)self->move_mode < 4 ? self->move_mode : 4]++; if (probe) g_phys_probe++;
+    int r = ((char_phys_t)(uintptr_t)h->va)(self, cmd, b, probe, ctl, part, gr);
+    ret = *b; int32_t aj_r = self->air_jumps;
+    *b = pre; self->air_jumps = aj0;
+    uint32_t sp = SP() - 256;
+    dead_save(sp);
+    port_world();
+    int p = char_physics_step(self, cmd, b, probe, ctl, part, gr);
+    dead_restore(sp);
+    int bad = memcmp(b, &ret, sizeof ret) ? 1 : 0;
+    int k = 0; if (bad) while (((uint8_t *)b)[k] == ((uint8_t *)&ret)[k]) k++;
+    uint32_t pv = bad ? *(uint32_t *)((uint8_t *)b + (k & ~3)) : 0, rv = bad ? *(uint32_t *)((uint8_t *)&ret + (k & ~3)) : 0;
+    int32_t aj_p = self->air_jumps;
+    *b = ret; self->air_jumps = aj_r;
+    h->compared++;
+    if (bad || aj_p != aj_r || p != r)
+        diverged(h, "f%u char %p code %x part %d probe %d ctl %d gr %d cmd lr%d j%d ud%d | body +%03x retail %08x port %08x"
+                 " | pre st%u/%u/%u vx%d vy%d x%d y%d facing %d | air_jumps %d/%d ret %d/%d",
+                 g_frame, (void *)self, self->base.code, part, probe, ctl, gr, cmd->lr, cmd->jump, cmd->ud, k & ~3, rv, pv,
+                 pre.state, pre.sub, pre.ctr, pre.vel_x, pre.vvel, pre.x, pre.y, pre.facing, aj_r, aj_p, r, p);
+    return r;
+}
+
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
     [H_POLL] = { "input_poll", 0x43c110u, (void *)w_poll, 0, 1, 0, 0, 0, 0, "" },
@@ -371,6 +408,7 @@ static hook_t H[H_N] = {
     [H_CAM_FOLLOW] = { "cam_follow", 0x43d1d0u, (void *)w_cam_follow, 0, 1, 0, 0, 0, 0, "" },
     [H_CAM_SHAKE]  = { "cam_shake",  0x43d340u, (void *)w_cam_shake,  0, 1, 0, 0, 0, 0, "" },
     [H_CHAR_AI]    = { "char_ai",    0x478ba0u, (void *)w_char_ai,    0, 1, 0, 0, 0, 0, "" },
+    [H_CHAR_PHYS]  = { "char_physics", 0x467bb0u, (void *)w_char_phys, 0, 1, 0, 0, 0, 0, "" },
 };
 
 /* engine_calls.h slots -> retail (EN-old VAs; the roots are retail's globals) */
@@ -399,7 +437,7 @@ void rh_hooks_install(void)
     H[H_POLL].va = !strcmp(g_ed->tag, "enold") ? 0x43c110u : !strcmp(g_ed->tag, "ense-en") ? 0x4383c0u : 0;
     if (strcmp(g_ed->tag, "enold"))   /* EN-old VAs only (SE: crosswalk TODO) */
         H[H_MOVER_V].va = H[H_SWEEP_H].va = H[H_ENT_MOVE_H].va = H[H_ENT_MOVE_V].va = H[H_MAP_DECODE].va =
-        H[H_CAM_FOLLOW].va = H[H_CAM_SHAKE].va = H[H_CHAR_AI].va = 0;
+        H[H_CAM_FOLLOW].va = H[H_CAM_SHAKE].va = H[H_CHAR_AI].va = H[H_CHAR_PHYS].va = 0;
     if (!O.hooks) return;
     char b[512]; snprintf(b, sizeof b, "%s", O.hooks);
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {
@@ -433,4 +471,9 @@ void rh_hooks_report(void)
                    h->skipped, h->compared, h->diverge ? " first: " : "", h->diverge ? h->first : "");
         else rh_log("hook-result replace %s calls=%ld\n", h->name, h->calls);
     }
+    if (H[H_CHAR_PHYS].mode == 1)
+        rh_log("char_physics coverage: state0..6+ %ld %ld %ld %ld %ld %ld %ld %ld | ctl0..3+ %ld %ld %ld %ld %ld | mode0..3+ %ld %ld %ld %ld %ld | probe %ld\n",
+               g_phys_cov[0], g_phys_cov[1], g_phys_cov[2], g_phys_cov[3], g_phys_cov[4], g_phys_cov[5], g_phys_cov[6], g_phys_cov[7],
+               g_phys_ctl[0], g_phys_ctl[1], g_phys_ctl[2], g_phys_ctl[3], g_phys_ctl[4],
+               g_phys_mode[0], g_phys_mode[1], g_phys_mode[2], g_phys_mode[3], g_phys_mode[4], g_phys_probe);
 }

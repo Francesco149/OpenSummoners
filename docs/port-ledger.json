@@ -6,17 +6,17 @@
   "non_thunk_functions": 1824,
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
-  "tested": 245,
+  "tested": 247,
   "ported": 5,
-  "unported": 1574,
+  "unported": 1572,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 250,
-  "pct_touched": 15.5,
-  "pct_tested": 15.5,
-  "engine_proper_touched": 237,
+  "touched": 252,
+  "pct_touched": 15.6,
+  "pct_tested": 15.6,
+  "engine_proper_touched": 239,
   "bytes_total": 1776526,
-  "bytes_touched": 301361,
-  "pct_bytes_touched": 17.0
+  "bytes_touched": 304770,
+  "pct_bytes_touched": 17.2
  },
  "orphan_refs": [],
  "functions": [
@@ -2945,8 +2945,11 @@
    "name": "sub_4385E0",
    "size": 45,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/char_physics.c",
+    "src/char_physics.h"
+   ]
   },
   {
    "va": "0x438610",
@@ -4436,8 +4439,11 @@
    "name": "sub_467BB0",
    "size": 3364,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/char_physics.c",
+    "src/char_physics.h"
+   ]
   },
   {
    "va": "0x468970",

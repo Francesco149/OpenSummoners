@@ -4109,6 +4109,21 @@ The "up assist" (`cfg+0x78 == 1`, `char+0x15a10`): up to 4 integrator probes (`0
 command on two scratch bodies) judged by `0x440f40` (thiscall; IDA types it fastcall — `edx` is dead).
 Verified: rhost shadow:char_ai (full state), 8,750 calls.
 
+### #133 — the movement step `0x467bb0`: body state machine + per-character tuning at char+0x1594c..
+All character types funnel into `0x467bb0(char, cmd, body, probe, ctl, part, grounded)` from the integrator
+`0x442a70`. Body: `+0x18` vvel, `+0x1c` fall-cap override (gravity = it/10), `+0x20` drop-through timer (8 on a
+DOWN+jump, counts down), `+0x24` grounded, `+0x28` speed (>= 0), `+0x2c` facing (1 right, 3 left), `+0x38/+0x3a/
++0x3c` state/sub/counter: 0 stand, 1 move (sub 1 = braking: speed falls, up to 40 ticks), 2 crouch (4-tick enter,
+margin = char+0x159d8; exit 4 ticks), 3 jump (windup: the impulse char+0x1599c fires on the 5th tick and moves at
+once; rise gravity +0x159a0 while jump is held, +0x159a4 released), 4 air (landing phases), 5 look up (17 ticks),
+6 slide (8 ticks, gravity/cap +0x1595c/+0x15958). Gravity +0x15954 up to the cap +0x15950 (a third with body
++0x288 set; at least 50000/2000 when floating `char+0x15964` above the next region-D floor). Horizontal: walk
+max/accel +0x1596c/+0x15970, run (lr 5/6, +0x1598c) +0x15990/+0x15974, brake +0x15978 (negative), air control
++0x159a8/ac/b0, boosts +0x14810 (+6000 max) / +0x14814 (+2000 accel, brake -800). A reversal decelerates at
+-accel, then from rest either flips facing or (char+0x15984) starts the turn action (pose 2, 200). Then the entity
+movers (step-down unless probing a non-player, step-up always, pass = the drop timer). Move mode +0x1594c: 0
+ground, 1..2 alternate, 3 bounded box (+0x15a98..). Verified: rhost shadow:char_physics 1,582,325 calls.
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`
