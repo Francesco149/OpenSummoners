@@ -81,6 +81,10 @@ understates how much actual instruction volume is ported.
   ahead, `0x4418e0`, `0x440e40`, `0x441700`, `0x43ee30`, …; scratch bodies from retail's heap via
   `g_eng.op_new`). Hybrid gate with all 12 movement functions replacing retail: PASS.
 - **Next (port side):**
+  00. the room loop's GIMMICK pass (verifiable: 10 door / exit uses in rh-my-play): `0x59afd0` → `0x59b170`
+     (2.6 KB per-code: doors, switches, levers) + `0x40afe0` / `0x40be30` / `0x40b8f0` / `0x4804b0` / `0x556eb0`,
+     the touch pass `0x59bdd0` → `0x59c240`, events `0x59a1f0`; the event-script engine `0x40c380` (5 KB)
+     stays a slot.
   0. the Arche handlers `0x457ff0` (4.6 KB),
      `0x45a300` (14 KB), `0x461790` (19 KB) and the apply-pass `0x487dc0` (5 KB) / `0x4878b0`; the DirectSound
      calls `0x5bb250`..`0x5bb8e0` + `0x5b9390` stay platform slots (PORT-DEBT(engine-call-slots)).
