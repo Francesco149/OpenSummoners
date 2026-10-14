@@ -512,19 +512,23 @@ def cmd_portshots(a):
     tr, save, ed = scenario_inputs(a.scenario)
     frames = sorted(int(x) for x in a.at.split(","))
     W = a.search or 0
-    rframes = sorted({g for f in frames for g in range(max(0, f - W), f + W + 1)})
+    # numbering: the port's capture N = the N-th present (1-based, g_present_frame after ++);
+    # rhost's shot fK = the frame presented by flip K+1 (0-based) ⇒ port N ≡ retail shot N-1
+    rframes = sorted({g - 1 for f in frames for g in range(max(1, f - W), f + W + 1)})
     if len(rframes) > 64:
         a.shot_at = None; a.shot_every = 1                       # dense window: every flip
     else:
         a.shot_at = ",".join(str(f) for f in rframes)
     a.frames = max(frames) + W + 2
+    frames = [f for f in frames if f >= 1]
     a.jobs = 2
     batch, bdir = make_batch(a, [("retail", tr, save, ed)], "portshots")
     pdir = os.path.join(bdir, "port"); os.makedirs(pdir)
     port_traces(tr, pdir)
     pw = f"{WROOT}\\runs\\{batch}\\port"
     pargs = ["--hide-window", "--allow-multi"] + ([] if a.port_realtime else ["--det-clock"]) + ["--frames", str(max(frames) + 2), "--capture-frames", ",".join(map(str, frames)),
-             "--capture-dir", pw, "--input-trace", pw + "\\port_ids.jsonl", "--held-trace", pw + "\\port_held.jsonl"]
+             "--capture-dir", pw, "--input-trace", pw + "\\port_ids.jsonl", "--held-trace", pw + "\\port_held.jsonl"] \
+        + shlex.split(a.port_extra or "")
     go = open(os.path.join(bdir, "go.ps1"), newline="").read().split("\r\n")
     i = next(k for k, l in enumerate(go) if l.startswith("$procs | ForEach"))
     go.insert(i, f"$env:OPENSUMMONERS_GAME_DIR='{WROOT}\\portgame'; $procs += Start-Process -FilePath '{WROOT}\\port\\opensummoners.exe' "
@@ -536,7 +540,7 @@ def cmd_portshots(a):
     scp(f"{WIN}:C:/oss-rhost/runs/{batch}/port/*", pdir, recursive=True, check=False)
     rows = []
     for f in frames:
-        rp = os.path.join(bdir, "retail", f"shot_f{f:06d}.png")
+        rp = os.path.join(bdir, "retail", f"shot_f{f - 1:06d}.png")
         pp = os.path.join(pdir, f"port_frame_{f:05d}.bmp")
         if not (os.path.exists(rp) and os.path.exists(pp)):
             print(f"f{f}: missing {'retail' if not os.path.exists(rp) else 'port'} frame"); continue
@@ -555,8 +559,8 @@ def cmd_portshots(a):
             pp = os.path.join(pdir, f"port_frame_{f:05d}.bmp")
             q = Image.open(pp).convert("RGB")
             best = None
-            for g in range(max(0, f - W), f + W + 1):
-                rp = os.path.join(bdir, "retail", f"shot_f{g:06d}.png")
+            for g in range(max(1, f - W), f + W + 1):
+                rp = os.path.join(bdir, "retail", f"shot_f{g - 1:06d}.png")
                 if not os.path.exists(rp):
                     continue
                 d = ImageChops.difference(Image.open(rp).convert("RGB"), q.resize(Image.open(rp).size))
@@ -635,6 +639,7 @@ def main():
     p = sub.add_parser("portshots"); p.add_argument("scenario"); p.add_argument("--at", required=True)
     p.add_argument("--port-realtime", action="store_true", help="run the port on its wall clock instead of --det-clock")
     p.add_argument("--search", type=int, help="also find the best-matching retail flip within ±W of each port frame")
+    p.add_argument("--port-extra", help="extra port args, e.g. --port-extra=--boot-loading")
     common(p); p.set_defaults(fn=cmd_portshots)
     p = sub.add_parser("diff"); p.add_argument("a"); p.add_argument("b"); p.add_argument("--show", type=int, default=40); p.set_defaults(fn=cmd_diff)
     p = sub.add_parser("record"); p.add_argument("name"); p.add_argument("--save"); p.add_argument("--force", action="store_true")

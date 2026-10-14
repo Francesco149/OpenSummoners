@@ -139,6 +139,8 @@ static int       g_no_frame_limit;   /* --no-frame-limit: uncap the 60 FPS gate 
  * presented frame, deterministically and as fast as the CPU allows — the same flip axis rhost
  * gives retail, so `rhost.py portshots` compares port and retail frame by frame.  Off by default. */
 static int       g_det_clock;
+/* --boot-loading: present retail's 47 boot "Now Loading NN%" frames before the title (quirk #129). */
+static int       g_boot_loading;
 static uint32_t  g_det_vclock = 1000000u, g_det_reads, g_det_creep;
 static uint32_t clock_now(void)
 {
@@ -720,6 +722,7 @@ static void maybe_capture_frame(unsigned flip_frame);
 static int  capture_primary_to_bmp(const char *path);
 static void drive_present(void *user);
 static void drive_log_flip(void *user);
+static void boot_loading_frames(void);
 static uint32_t game_rng_seed(void);
 
 /* The .osr emitter's injected surface reader (M5 SHEET grab): lock a source
@@ -920,6 +923,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * self-decode hook, and allocate the scene object graph.  After this the
      * per-frame loop runs the title scene; --no-title-scene or a failed/absent
      * DDraw boot falls back to the legacy minimal present loop. */
+    if (g_boot_loading && !g_no_title_scene && !g_render_glyph_test && !g_skip_ddraw && g_zdd != NULL)
+        boot_loading_frames();
     if (!g_no_title_scene && !g_render_glyph_test && !g_skip_ddraw && g_zdd != NULL)
         init_title_drive();
 
@@ -1092,6 +1097,50 @@ static void drive_present(void *user)
      * before this), so suppressing the present is lossless for headless runs. */
     if (!g_no_present && !g_hide_window && g_zdd != NULL)
         zdd_present(g_zdd);
+}
+
+/* Retail's boot progress frames (quirk #129): the scene driver's "Music was set" stage FUN_005752e0
+ * presents one frame per extracted BGM track ("Now Loading % 3d%%" 2..58, inline), then
+ * FUN_0056dc20(1, cur, 50) for cur = 30..46 (60..92%) and FUN_0056dc20(1, 1, 1) = "Ready" — 47
+ * presents before the title scene's first frame.  Each: clear the composed buffer
+ * (FUN_005b9410 on zdd+0x16c), GDI text in the FUN_005b5dc0(6, 12, 0) font (LOGFONT width 6,
+ * height 12, weight 400, charset 1, "Courier New"), colour 0x808080, transparent, at
+ * x = 320 - (6*len)/2, y = 456, then Flip.  Verified frame-exact against rhost retail (shots f0..f46). */
+static void boot_loading_frame(const char *text)
+{
+    if (g_zdd == NULL || g_zdd->primary_obj == NULL) return;
+    zdd_object_clear(g_zdd->primary_obj);
+    void *hdc = NULL;
+    if (zdd_object_get_dc(g_zdd->primary_obj, &hdc) && hdc != NULL) {
+        LOGFONTA lf;
+        memset(&lf, 0, sizeof lf);
+        lf.lfWidth = 6; lf.lfHeight = 12; lf.lfWeight = 400; lf.lfCharSet = 1;
+        strcpy(lf.lfFaceName, "Courier New");
+        HFONT f = CreateFontIndirectA(&lf);
+        if (f == NULL) { lf.lfFaceName[0] = 0; f = CreateFontIndirectA(&lf); }
+        SetTextColor((HDC)hdc, 0x808080);
+        SetBkMode((HDC)hdc, TRANSPARENT);
+        SelectObject((HDC)hdc, f);
+        int len = (int)strlen(text);
+        TextOutA((HDC)hdc, 320 - ((6 * len) >> 1), 456, text, len);
+        zdd_object_release_dc(g_zdd->primary_obj, hdc);
+        DeleteObject(f);
+    }
+    drive_present(NULL);
+}
+static void boot_loading_frames(void)
+{
+    char buf[64];
+    for (int pct = 2; pct <= 58; pct += 2) {            /* FUN_005752e0: one per BGM track */
+        snprintf(buf, sizeof buf, "Now Loading % 3d%%", pct);
+        boot_loading_frame(buf);
+    }
+    for (int cur = 30; cur <= 46; cur++) {              /* FUN_0056dc20(1, cur, 50) */
+        snprintf(buf, sizeof buf, "Now Loading % 3d%%", 100 * cur / 50);
+        boot_loading_frame(buf);
+    }
+    boot_loading_frame("Ready");                        /* FUN_0056dc20(1, 1, 1) */
+    log_line("boot-loading: presented 47 boot frames (quirk #129)");
 }
 
 /* TITLE_DRAW_LOG_FLIPPING → the engine's "Title Menu - Flipping" marker. */
@@ -4730,6 +4779,7 @@ static void parse_cmdline(LPSTR lpCmdLine)
         if      (!strcmp(tok, "--hide-window"))  g_hide_window = 1;
         else if (!strcmp(tok, "--no-frame-limit")) g_no_frame_limit = 1;
         else if (!strcmp(tok, "--det-clock"))      g_det_clock = 1;
+        else if (!strcmp(tok, "--boot-loading"))   g_boot_loading = 1;
         else if (!strcmp(tok, "--show-msgbox"))  g_show_msgbox = 1;
         else if (!strcmp(tok, "--allow-multi"))  g_allow_multi = 1;
         else if (!strcmp(tok, "--no-cd"))        g_skip_cd = 1;

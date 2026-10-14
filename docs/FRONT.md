@@ -16,9 +16,10 @@
   33 ms/tick pin), (2) editions: EN-old first + SE delta later?, (3) retire the Frida retail drive.
   **Port↔retail phase map** (`rhost.py portshots rh-newgame-prologue --search 40`, port `--det-clock`):
   title intro port +31 flips ahead at f300 (exact match), +12..+20 later; prologue −3 flips and
-  pixel-identical once aligned. Title offset ROOT CAUSE: retail's ~47 boot "Now Loading NN%" presents
-  (`0x5752e0`, quirk #129) the port lacks. **Next (port side, Phase 0):** port those boot presents
-  (title then aligns flip-for-flip), then the −3 prologue offset;
+  pixel-identical once aligned. Title offset FIXED: retail's 47 boot "Now Loading NN%" presents (quirk
+  #129) ported behind `--boot-loading` → flips 1–48 + the title intro pixel-identical at the SAME flip.
+  **Next (port side, Phase 0):** make `--boot-loading` default (re-key port-only traces +47); menu quill
+  (f800 273 px); prologue 2 flips late (f1100 ≡ retail f1098);
   DIK-level input path (producer `0x46a880`) so the port consumes `rh-*` traces natively; re-verify parity-ledger claims under rhost;
   ledger generator → IDA function list (`docs/decompiled/functions.csv` is not on maximus).
 - **Phase — the freeroam sim**, built bit-exact vs errands re-drives. The prior arcs

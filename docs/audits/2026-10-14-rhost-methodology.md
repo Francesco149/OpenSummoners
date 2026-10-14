@@ -112,7 +112,11 @@ runs the new opt-in `--det-clock` = rhost's clock model, identical frames to its
 pixel-identical once aligned** (f1100 ≡ retail f1097, f1300 ≡ f1297, 0 px). **Root cause of the
 title offset found (quirk #129):** retail presents ~47 "Now Loading NN%" frames during boot (BGM
 extraction stage `0x5752e0`, 29 Flip sites) that the port doesn't; the title phases themselves are
-update-exact once offset. Porting those boot presents should align the title flip-for-flip.
+update-exact once offset. **Fixed (opt-in `--boot-loading`):** the port now presents the same 47
+frames → flips 1–48 and the title intro are **pixel-identical at the same flip**; remaining deltas: the
+menu quill animation (f700 9 px, f800 273 px) and the prologue running 2 flips late (f1100 ≡ retail
+f1098). Also found: portshots compared port N with retail N (port captures are 1-based present
+counts, rhost shots 0-based) — fixed (port N ≡ retail shot N−1).
 
 Phase-0 items for the port side (not done tonight):
 - **DIK-level input path** in the port (the producer `0x46a880`: DIK → ring ids + held axis, ring
@@ -162,8 +166,8 @@ Phase-0 items for the port side (not done tonight):
   `python3 tools/ida/ida.py export ense-en ense-jp --kb` (EN-old's enhanced export is done).
 - Copy `C:\oss-rhost\game\enold` to `/mnt/ephemeral/opensummoners/game/enold` so the wine
   target covers EN-old too (`--target wine`).
-- Pin EN-old's full boot-present sequence (29 "Now Loading" 2–58% frames + ~17 others):
-  `rhost.py boot --frames 60 --shot-every 1 --extra="--trap 5b8fc0 --trap-max 60"` → then port it.
+- Decide whether `--boot-loading` becomes the port default (it shifts every port-only flip-keyed
+  trace by +47; the rh-* traces then drive port and retail identically).
 
 ## Appendix — where things are
 

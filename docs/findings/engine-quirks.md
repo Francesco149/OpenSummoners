@@ -4059,11 +4059,15 @@ The scene driver's "Music was set" stage `0x5752e0` (17 KB) extracts every BGM t
 to a temp `.wma`, registers it with the music manager (`0x5bc7c0`), then per track: clear the back
 buffer (`0x5b9410`), GDI `TextOutA("Now Loading % 3d%%")` in gray `0x808080`, transparent, centred
 at y=456, and **Flip** (`0x5b8fc0`) — 29 call sites, each gated on the music manager `*0x8a93e4`.
-Under rhost (deterministic) the title scene starts at flip **47**; the port presents none of these, so
-its title intro runs ~44–46 flips AHEAD of retail at the same flip (`rhost.py portshots … --search`:
-port f120 ≡ retail ~f166 in the logo fade-out). Retail's title phases themselves are update-exact with
-the port's curve once offset (logo hold ends retail f149 = port curve 102 + 47). Seen in SE too
-(boot f10 = "Now Loading 18%"). A faithful port presents the same loading frames.
+Exact EN-old sequence (rhost `--trap 5b8fc0` caller log + shots): 29 inline frames "Now Loading
+ 2%".."58%" (one per BGM track), then `0x56dc20(1, cur, 50)` for cur = 30..46 (60%..92%), then
+`0x56dc20(1, 1, 1)` = "Ready" (`cur >= total` prints the `Ready` string) — **47 presents**; the title
+scene's first frame is flip 48. `0x56dc20(show, cur, total)` is also the room/map-load progress frame
+(callers `0x586010`, `0x59e9e0`, `0x59ee50`, `0x564160`). The font is `0x5b5dc0(6, 12, 0)` = LOGFONT
+6×12, weight 400, charset 1, "Courier New" (it also leaks a 4-byte `operator new` per call). The
+port without these frames ran its title ~47 flips ahead; with them (`--boot-loading`) flips 1–48 and
+the title intro are pixel-identical at the SAME flip (2026-10-14). SE has its own loader (~60 steps,
+f10 = "Now Loading 18%").
 
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
