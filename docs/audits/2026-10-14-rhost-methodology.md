@@ -156,6 +156,15 @@ Phase-0 items for the port side (not done tonight):
 6. SE intro looks right? `python3 tools/rhost/rhost.py boot --edition ense-en --frames 1500 --shot-every 100`
    (PNGs in the run dir).
 
+## 8. Pending (the Windows box went offline at ~10:17 local, mid-run)
+
+- Re-run the SE IDA exports with class recovery + the crosswalk-translated knowledge pack:
+  `python3 tools/ida/ida.py export ense-en ense-jp --kb` (EN-old's enhanced export is done).
+- Copy `C:\oss-rhost\game\enold` to `/mnt/ephemeral/opensummoners/game/enold` so the wine
+  target covers EN-old too (`--target wine`).
+- Pin EN-old's full boot-present sequence (29 "Now Loading" 2–58% frames + ~17 others):
+  `rhost.py boot --frames 60 --shot-every 1 --extra="--trap 5b8fc0 --trap-max 60"` → then port it.
+
 ## Appendix — where things are
 
 | item | location |
