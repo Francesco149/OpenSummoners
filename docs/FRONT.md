@@ -14,8 +14,10 @@
   replace → end states identical to pure retail (both editions). IDA 9.4 export of EN-old / EN-SE (2026-08-10 build) / JP-SE + crosswalk + C++ class recovery.
   **USER decisions (audit §7):** (1) deterministic cadence for parity (rhost 1 update/flip vs the port's
   33 ms/tick pin), (2) editions: EN-old first + SE delta later?, (3) retire the Frida retail drive.
-  **Next (port side, Phase 0):** DIK-level input path (producer `0x46a880`) → port consumes the same
-  `rh-*` traces → frame-number alignment + `portshots`; re-verify parity-ledger claims under rhost;
+  **Port↔retail phase map** (`rhost.py portshots rh-newgame-prologue --search 40`, port `--det-clock`):
+  title intro port +31 flips ahead at f300 (exact match), +12..+20 later; prologue −3 flips and
+  pixel-identical once aligned. **Next (port side, Phase 0):** chase the title-intro phase lengths;
+  DIK-level input path (producer `0x46a880`) so the port consumes `rh-*` traces natively; re-verify parity-ledger claims under rhost;
   ledger generator → IDA function list (`docs/decompiled/functions.csv` is not on maximus).
 - **Phase — the freeroam sim**, built bit-exact vs errands re-drives. The prior arcs
   (town intro → arrival/house/errands cutscene; the HUD panel ckpt 167–174) render 1:1.

@@ -33,6 +33,8 @@
  *     (the harness format, tools/frida_capture.py) into the drive's input
  *     ring, keyed on the present/Flip count — drives the title scene
  *     deterministically (skip-splash / menu nav).  No-op without the drive.
+ *   - --det-clock: the rhost clock model — virtual GetTickCount (+16 ms per present, frozen
+ *     between presents), no frame-limiter sleep: deterministic, turbo, retail-comparable flips.
  *   - --held-trace <file.jsonl>: replay a sparse {frame,keys} HELD-AXIS trace
  *     (held_trace.h) — rebuilds the drive's input_mgr.axis_held[] each frame so
  *     held WALKING replays deterministically (the level counterpart of the ring
@@ -130,6 +132,20 @@ static HINSTANCE g_hInstance;
 static HWND      g_hwnd;
 static int       g_hide_window;
 static int       g_no_frame_limit;   /* --no-frame-limit: uncap the 60 FPS gate */
+/* --det-clock: the rhost clock model (tools/rhost, docs/findings/in-process-retail-host.md §3) —
+ * the engine's GetTickCount reads become a virtual clock that advances 16 ms per PRESENT and is
+ * frozen between presents (after 2000 reads without a present it creeps 1 ms/read, the busy-wait
+ * breaker), and frame_limiter never sleeps.  Every pace machine then runs exactly one update per
+ * presented frame, deterministically and as fast as the CPU allows — the same flip axis rhost
+ * gives retail, so `rhost.py portshots` compares port and retail frame by frame.  Off by default. */
+static int       g_det_clock;
+static uint32_t  g_det_vclock = 1000000u, g_det_reads, g_det_creep;
+static uint32_t clock_now(void)
+{
+    if (!g_det_clock) return GetTickCount();
+    if (++g_det_reads > 2000u) { g_det_vclock++; g_det_creep++; }
+    return g_det_vclock;
+}
 static int       g_show_msgbox;
 static int       g_allow_multi;
 static int       g_skip_cd;
@@ -599,9 +615,9 @@ static int               g_held_trace_active;
 #define OSS_REPLAY_MS_PER_TICK 33u
 static uint32_t input_now(void)
 {
-    if ((g_input_trace_active || g_held_trace_active) && g_freeroam_active)
+    if ((g_input_trace_active || g_held_trace_active) && g_freeroam_active && !g_det_clock)
         return g_sim_tick_count * OSS_REPLAY_MS_PER_TICK;
-    return GetTickCount();
+    return clock_now();
 }
 
 /* The LIVE keyboard producer (0x46a880; src/input_live.{c,h}).  When NO replay
@@ -1029,6 +1045,7 @@ static void drive_present(void *user)
     /* The Flip count is the input-trace's frame axis (matching the harness's
      * Flip-anchored injection), so bump it on every present. */
     g_present_frame++;
+    if (g_det_clock) { g_det_vclock += 16u; g_det_reads = 0; }
     /* M8: push this frame's engine STATE (the RNG census + whatever else is
      * annotated) before the frame boundary; flushed as OSR_STATE after FRAMEBEG.
      * No-op unless --osr-state armed.  Add more osr_emit_state_field() calls here
@@ -4539,7 +4556,7 @@ static void main_loop_body(void)
         /* The Elemental-Stone cutscene: one prologue_drive_step per presented
          * frame (the FUN_0056cd20 update/render tick).  Same replay-inject-then-
          * step shape as the newgame scene; on DONE the game proper is unported. */
-        uint32_t now = GetTickCount();
+        uint32_t now = clock_now();
         feed_input(&g_prologue_drive.input, now);
         prologue_status st = prologue_drive_step(&g_prologue_drive, now);
         if (st == PROLOGUE_DONE)
@@ -4562,7 +4579,7 @@ static void main_loop_body(void)
          * (no pace machine — frame_limiter gates the rate).  Inject any due
          * replay events into the drive's ring before it polls (keyed on the
          * Flip count drive_present bumps), then act on the outcome. */
-        uint32_t now = GetTickCount();
+        uint32_t now = clock_now();
         feed_input(&g_newgame_drive.input, now);
         newgame_scene_status st = newgame_drive_step(&g_newgame_drive, now);
         if (st == NEWGAME_START) {
@@ -4588,7 +4605,7 @@ static void main_loop_body(void)
          * display refresh).  See docs/findings/title-scene.md "Intro pacing". */
         unsigned guard = 0;
         for (;;) {
-            uint32_t now = GetTickCount();
+            uint32_t now = clock_now();
             /* Inject any due replay events into the drive's input ring before
              * the scene polls it (keyed on the present/Flip count, stable
              * across the spin; input_trace_replay's cursor never re-injects). */
@@ -4683,6 +4700,7 @@ static void frame_limiter(void)
      * is flip/wall-clock sensitive (uncapping desyncs the frame-keyed title nav:
      * newgame_enter slid 750 -> 5403 flips).  g_total_ms still tracks the real
      * clock for any wall-clock reader. */
+    if (g_det_clock) { g_total_ms = g_det_vclock - 1000000u; return; }
     if (g_no_frame_limit && g_game_active) {
         g_total_ms = timeGetTime() - g_base_time_ms;
         return;
@@ -4711,6 +4729,7 @@ static void parse_cmdline(LPSTR lpCmdLine)
     while (tok) {
         if      (!strcmp(tok, "--hide-window"))  g_hide_window = 1;
         else if (!strcmp(tok, "--no-frame-limit")) g_no_frame_limit = 1;
+        else if (!strcmp(tok, "--det-clock"))      g_det_clock = 1;
         else if (!strcmp(tok, "--show-msgbox"))  g_show_msgbox = 1;
         else if (!strcmp(tok, "--allow-multi"))  g_allow_multi = 1;
         else if (!strcmp(tok, "--no-cd"))        g_skip_cd = 1;

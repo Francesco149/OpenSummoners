@@ -436,7 +436,7 @@ def port_traces(trace, out_dir):
 
 
 def cmd_portshots(a):
-    """retail (rhost) | port at the same flips, same scenario; port runs realtime (its title pacing is wall-clock)"""
+    """retail (rhost) | port at the same flips, same scenario; the port runs --det-clock (rhost's clock model)"""
     from PIL import Image, ImageChops
     ensure_staged()
     sh(["nix", "develop", ROOT, "--command", "make", "-s", "-C", os.path.join(ROOT, "src")])
@@ -445,14 +445,19 @@ def cmd_portshots(a):
     scp(os.path.join(ROOT, "build", "opensummoners.exe"), f"{WIN}:C:/oss-rhost/port/opensummoners.exe")
     tr, save, ed = scenario_inputs(a.scenario)
     frames = sorted(int(x) for x in a.at.split(","))
-    a.shot_at = ",".join(str(f) for f in frames)
-    a.frames = max(frames) + 2
+    W = a.search or 0
+    rframes = sorted({g for f in frames for g in range(max(0, f - W), f + W + 1)})
+    if len(rframes) > 64:
+        a.shot_at = None; a.shot_every = 1                       # dense window: every flip
+    else:
+        a.shot_at = ",".join(str(f) for f in rframes)
+    a.frames = max(frames) + W + 2
     a.jobs = 2
     batch, bdir = make_batch(a, [("retail", tr, save, ed)], "portshots")
     pdir = os.path.join(bdir, "port"); os.makedirs(pdir)
     port_traces(tr, pdir)
     pw = f"{WROOT}\\runs\\{batch}\\port"
-    pargs = ["--hide-window", "--allow-multi", "--frames", str(max(frames) + 2), "--capture-frames", ",".join(map(str, frames)),
+    pargs = ["--hide-window", "--allow-multi"] + ([] if a.port_realtime else ["--det-clock"]) + ["--frames", str(max(frames) + 2), "--capture-frames", ",".join(map(str, frames)),
              "--capture-dir", pw, "--input-trace", pw + "\\port_ids.jsonl", "--held-trace", pw + "\\port_held.jsonl"]
     go = open(os.path.join(bdir, "go.ps1"), newline="").read().split("\r\n")
     i = next(k for k, l in enumerate(go) if l.startswith("$procs | ForEach"))
@@ -479,7 +484,22 @@ def cmd_portshots(a):
         m.paste(r, (0, 0)); m.paste(q, (r.width, 0)); m.paste(d.point(lambda v: min(255, v * 8)), (r.width * 2, 0))
         m.save(os.path.join(bdir, f"cmp_f{f:06d}.png"))
     for f, n in rows:
-        print(f"f{f:6d}  differ_px={n}")
+        line = f"f{f:6d}  differ_px={n}"
+        if W:
+            pp = os.path.join(pdir, f"port_frame_{f:05d}.bmp")
+            q = Image.open(pp).convert("RGB")
+            best = None
+            for g in range(max(0, f - W), f + W + 1):
+                rp = os.path.join(bdir, "retail", f"shot_f{g:06d}.png")
+                if not os.path.exists(rp):
+                    continue
+                d = ImageChops.difference(Image.open(rp).convert("RGB"), q.resize(Image.open(rp).size))
+                n2 = sum(1 for px in d.getdata() if px != (0, 0, 0))
+                if best is None or n2 < best[1]:
+                    best = (g, n2)
+            if best:
+                line += f"   best retail flip {best[0]} ({best[0] - f:+d}) differ_px={best[1]}"
+        print(line)
     print(f"→ {bdir}/cmp_f*.png  (retail | port | diff×8)")
 
 
@@ -543,7 +563,10 @@ def main():
     p.add_argument("--check", action="store_true"); common(p); p.set_defaults(fn=cmd_corpus)
     p = sub.add_parser("verify"); p.add_argument("--only"); common(p); p.set_defaults(fn=cmd_verify)
     p = sub.add_parser("coverage"); p.add_argument("--only"); p.add_argument("scenarios", nargs="*"); common(p); p.set_defaults(fn=cmd_coverage)
-    p = sub.add_parser("portshots"); p.add_argument("scenario"); p.add_argument("--at", required=True); common(p); p.set_defaults(fn=cmd_portshots)
+    p = sub.add_parser("portshots"); p.add_argument("scenario"); p.add_argument("--at", required=True)
+    p.add_argument("--port-realtime", action="store_true", help="run the port on its wall clock instead of --det-clock")
+    p.add_argument("--search", type=int, help="also find the best-matching retail flip within ±W of each port frame")
+    common(p); p.set_defaults(fn=cmd_portshots)
     p = sub.add_parser("diff"); p.add_argument("a"); p.add_argument("b"); p.add_argument("--show", type=int, default=40); p.set_defaults(fn=cmd_diff)
     p = sub.add_parser("record"); p.add_argument("name"); p.add_argument("--save"); p.add_argument("--force", action="store_true")
     common(p); p.set_defaults(fn=cmd_record)

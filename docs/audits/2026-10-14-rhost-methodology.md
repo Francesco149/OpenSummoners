@@ -102,17 +102,18 @@ touches, 162 are identical/operand-only in SE — but 79% of the ported *bytes* 
 4. **Commit with an evidence line:** `rhost shadow: N calls / K scenarios, 0 divergences;
    replace: corpus --check PASS`.
 
-First port ↔ retail probe (`rhost.py portshots rh-newgame-prologue --at …`; port at real-time 60 fps,
-its title pacing is wall-clock): **f100, f640, f900 pixel-identical**; f700 9 px, f800 273 px (menu
-quill phase); f300/f450 (logo + subtitle fade-in) and f1100/f1300 (prologue gem glow) differ — the
-port runs AHEAD of deterministic retail through the title intro. Phase pillar, not logic: exactly what
-the port-side determinism item below closes.
+First port ↔ retail probe (`rhost.py portshots rh-newgame-prologue --at … --search 40`; the port
+runs the new opt-in `--det-clock` = rhost's clock model, identical frames to its real-time run):
+**f100, f640, f900 pixel-identical**; title intro: port **+31 flips ahead at f300** (≡ retail f331,
+0 px), +12 / +20 / +18 later (2.4k / 3k / 5 px residuals); **prologue: port 3 flips behind and
+pixel-identical once aligned** (f1100 ≡ retail f1097, f1300 ≡ f1297, 0 px). Phase pillar with exact
+numbers — the next session can chase each title-intro phase length against retail.
 
 Phase-0 items for the port side (not done tonight):
 - **DIK-level input path** in the port (the producer `0x46a880`: DIK → ring ids + held axis, ring
   timestamps = event time) so the port consumes the same `rh-*` traces.
-- **Cadence decision** (§7 item 1), then frame-number alignment port ↔ rhost and a
-  `rhost.py portshots` (retail | port | diff at the same flips).
+- **Cadence decision** (§7 item 1). Mechanism exists: port `--det-clock` (opt-in) + `rhost.py
+  portshots --search W` (retail | port | diff at the same flips + best-matching retail flip).
 - `.osr` capture from inside rhost (load `capture_proxy`'s engine hooks in-process) so Trace Studio
   diffs deterministic retail streams.
 - Re-verify `docs/parity-ledger.md` "confirmed 1:1" claims under rhost (openrecet found several
