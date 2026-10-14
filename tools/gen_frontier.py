@@ -27,6 +27,7 @@ from __future__ import annotations
 import csv
 import json
 import re
+import sys
 from collections import defaultdict
 from pathlib import Path
 
@@ -73,15 +74,9 @@ def band_of(va: int) -> str:
 
 
 def main() -> int:
-    funcs = {}
-    with FUNCTIONS_CSV.open() as fh:
-        for r in csv.DictReader(fh):
-            try:
-                va = int(r["entry"], 16)
-            except (KeyError, ValueError):
-                continue
-            funcs[va] = {"name": r["name"], "size": int(r.get("size") or 0),
-                         "thunk": r.get("is_thunk") == "true"}
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from ida_funcs import load_functions
+    funcs = load_functions()
 
     ledger = json.loads(LEDGER_JSON.read_text())
     touched = {int(e["va"], 16) for e in ledger["functions"] if e["status"] != "unported"}
@@ -105,13 +100,8 @@ def main() -> int:
 
     callees: dict[int, set[int]] = defaultdict(set)
     callers: dict[int, set[int]] = defaultdict(set)
-    for f in BY_ADDR.glob("*.c"):
-        try:
-            cva = int(f.stem, 16)
-        except ValueError:
-            continue
-        for m in FUN_RE.finditer(f.read_text(errors="replace")):
-            callee = int(m.group(1), 16)
+    for cva, f in funcs.items():
+        for callee in f["callees"]:
             if callee == cva:
                 continue
             callees[cva].add(callee)

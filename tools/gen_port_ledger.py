@@ -101,20 +101,11 @@ def load_front() -> str:
 
 
 def load_engine_functions() -> dict[int, dict]:
-    """All engine functions from the Ghidra export, keyed by entry VA."""
-    funcs: dict[int, dict] = {}
-    with FUNCTIONS_CSV.open() as fh:
-        for row in csv.DictReader(fh):
-            try:
-                va = int(row["entry"], 16)
-            except (KeyError, ValueError):
-                continue
-            funcs[va] = {
-                "name": row.get("name", ""),
-                "size": int(row.get("size") or 0),
-                "is_thunk": (row.get("is_thunk") == "true"),
-            }
-    return funcs
+    """All engine functions (IDA export, else the legacy Ghidra CSV), keyed by entry VA."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from ida_funcs import load_functions
+    return {va: {"name": f["name"], "size": f["size"], "is_thunk": f["thunk"]}
+            for va, f in load_functions().items()}
 
 
 def tested_modules() -> set[str]:
