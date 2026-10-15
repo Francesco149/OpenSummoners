@@ -4696,6 +4696,27 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   previewed item's, frames rebuilt (`0x417c40`); the bank is kept in context +0x18 (the previous one's
   frames freed first).
 
+### #152 — the cutscene message box: balloon placement over the speaker, the tail, the fade (port 2026-10-16)
+- **Records**: the room loop's two 0x3c-B box slots, +0x54 (current) and +0x90 (previous, fading out); a new
+  box moves the current one to +0x90 (its window's +0x50 cleared first).  B: +0 the window, +0x10 / +0x14 two
+  1 x 1 tail grids, u16 +0x2e the fade state (1 in, 2 / 3 out), +0x30 the clock 0..1000, +0x34 its step.
+- **Placement** `0x49c640`: with a speaker, the box is centred on the speaker's body (`0x490b90`, the
+  projector without shake), x clamped to 32..608 − w; y = body +0x14 / 100 + entity +0x1c − box h + screen y
+  − 48 (above the head); if that is under 24 px (64 with the "high" flag) it goes below: body h / 100 +
+  entity +0x20 + screen y.  The tail sits under the speaker's centre, clamped 32 px inside the box; its pieces
+  are sys+0xba8 frames — above: 9 (on +0x10, at box h − 32) + 10 (on +0x14, at box h); below: 11 (+0x10 at 0)
+  + 12 (+0x14 at −32); the single-piece mode uses +0x14 only: 13 above / 14 below.  No speaker: centred,
+  y 80.
+- **Fade** `0x49c910` (only while the box window is live with +0x54 == 1000): in (1) — the clock's first half
+  ramps the +0x10 piece's alpha (sys+0x27a8, 20 steps: step 20t / 500), the second half the +0x14 piece
+  (20 (1000 − t) / 500); at 1000 both opaque, +0x14's icon cleared, state 0.  Out (2 / 3): the +0x10 piece by
+  20t / 1000 while the clock runs down; at 0 its icon cleared, state 0.
+- **Styles**: the balloon `0x43e0e0` = sys+0xba8 frames {0,0,1..8}; the plain box `0x43e080` = sys+0xb88
+  {64,0,1..8} (unreached by the corpus).
+- **Projector** `0x490b90` (view = world+0x104c): screen x = dx + x / 100 − (cur_x [+ shake x]) / 100, screen y
+  = dy + y / 100 − (cur_y [+ shake y] + 100 · view +0x74) / 100; visible when the w x h box overlaps the
+  viewport (+0x64 / +0x68).
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

@@ -6,6 +6,19 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-16 — the cutscene runner, chip 4a: the message box (`src/scene_box.c`) + the projector
+
+- Under the scene command runner `0x439690`: the message box's placement over the speaker `0x49c640` (the
+  balloon above / below the head, x-clamped, the tail pieces 9..14 under the speaker's centre) and its fade
+  `0x49c910` (the two tail pieces' alpha ramps over the sys+0x27a8 table) in the new `src/scene_box.c`; the
+  balloon / plain box styles `0x43e0e0` / `0x43e080` and the cell-icon alpha `0x43d470` in `src/ui_core.c`;
+  the world → screen projector `0x490b90` (`view_project`, `src/camera_follow.c`; view +0x74 named).  Quirk
+  #152.
+- rhost: box_place 8,207, box_fade_tick 8,857, sys_balloon_style 63, cell_icon_alpha 86, view_project 16,287
+  (sampled @500 of 8.2M render calls; its out-params are compared by the wrapper) — 0 divergences over the
+  three in-game scenarios, corpus unperturbed; hybrid gate 435 hooks PASS.  The plan for the runner: 4b the
+  cast step `0x43e5b0` + the path search `0x43ef20` / `0x43f370`, 4c the runner itself (REPLACE-only).
+
 ## 2026-10-16 — the UI widget toolkit, chip 3c: the shop (`src/ui_menu.c` +7, `src/ui_core.c` +4)
 
 - The shop runs as port code: the driver `0x415060` (the Buy / Sell choice on the event runner's choice

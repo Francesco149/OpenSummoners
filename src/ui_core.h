@@ -14,7 +14,8 @@
  *   FUN_0040f5c0  ctrl_grid_init      FUN_004134f0  win_grid_new        FUN_0040f800  grid_row_add
  *   FUN_00415860  cell_icon_set       FUN_00412c40  win_title_add       FUN_0040f1c0  sys_win_open
  *   FUN_004103d0  sys_page_arrows     FUN_00412330  grid_gauge_clamp    FUN_004173f0  cell_color_set
- *   FUN_00412160  grid_row_text_add   FUN_00411940  sys_list_open
+ *   FUN_00412160  grid_row_text_add   FUN_00411940  sys_list_open       FUN_0043d470  cell_icon_alpha
+ *   FUN_0043e0e0  sys_balloon_style   FUN_0043e080  sys_box_style
  */
 #ifndef OSS_UI_CORE_H
 #define OSS_UI_CORE_H
@@ -69,6 +70,11 @@ int32_t grid_row_text_add(uint8_t *c, int32_t a, int32_t b, const char *text);  
 intptr_t sys_list_open(void *sys, uint8_t *mgr, int32_t x, int32_t y, int32_t w, int32_t h, uint16_t cap,
                        uint16_t rows, uint16_t cols, uint8_t **win_out, uint8_t **ctrl_out, const char *title,
                        int32_t plain);                                                 /* 0x411940 */
+/* a cell's icon alpha (+0x50) when the cell and its icon exist */
+void cell_icon_alpha(uint8_t *c, int32_t row, int32_t col, int32_t v);               /* 0x43d470 */
+/* the cutscene message styles: the balloon (sys+0xba8 frames {0,0,1..8}) / the plain box (sys+0xb88, {64,0,1..8}) */
+uint8_t *sys_balloon_style(void *sys, uint8_t *st);                                   /* 0x43e0e0 */
+uint8_t *sys_box_style(void *sys, uint8_t *st);                                       /* 0x43e080 */
 /* records */
 int32_t ui_ref_set(uint8_t *r, int32_t a, uint16_t b);                                 /* 0x40f5a0 */
 uint8_t *ui_link_drop(uint8_t *o);                                                     /* 0x412570 */

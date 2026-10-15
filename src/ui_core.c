@@ -656,3 +656,35 @@ intptr_t sys_list_open(void *sys, uint8_t *mgr, int32_t x, int32_t y, int32_t w,
     *ctrl_out = c;
     return r;
 }
+
+/* ── chip 4a: the cutscene runner's toolkit leaves ─────────────────────────────── */
+
+void cell_icon_alpha(uint8_t *c, int32_t row, int32_t col, int32_t v)
+{
+    const uint8_t *gi = ldp(c, 0x174);
+    if (ld32(gi, 8) <= col || ld32(gi, 0x10) <= row) return;
+    uint8_t *ic = ldp(ldp((uint8_t *)ldp(c, 0x17c) + 16 * row, 0xc), 24u * (uint32_t)col + 4);
+    if (ic != NULL) st32(ic, 0x50, v);
+}
+
+uint8_t *sys_balloon_style(void *sys, uint8_t *st)
+{
+    static const uint16_t fr[10] = { 0, 0, 1, 2, 3, 4, 5, 6, 7, 8 };
+    st32(st, 0x18, 32);
+    st32(st, 0x1c, 32);
+    memcpy(st + 4, fr, sizeof fr);
+    st32(st, 0, ld32(sys, 0xba8));
+    st32(st, 0x20, 0);
+    return st;
+}
+
+uint8_t *sys_box_style(void *sys, uint8_t *st)
+{
+    static const uint16_t fr[10] = { 64, 0, 1, 2, 3, 4, 5, 6, 7, 8 };
+    st32(st, 0x18, 32);
+    st32(st, 0x1c, 32);
+    memcpy(st + 4, fr, sizeof fr);
+    st32(st, 0, ld32(sys, 0xb88));
+    st32(st, 0x20, 0);
+    return st;
+}

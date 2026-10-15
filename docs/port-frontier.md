@@ -117,7 +117,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
 | 0x430400 | 5039 | 1 | 0 | ✓ |
-| 0x439690 | 8866 | 1 | 19 |  |
+| 0x439690 | 8866 | 1 | 15 |  |
 
 ### entity per-frame FSM + action handlers + dialog + skills (18)
 

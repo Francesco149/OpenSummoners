@@ -57,6 +57,7 @@
 #include "ui_core.h"
 #include "ui_text.h"
 #include "ui_menu.h"
+#include "scene_box.h"
 #include "ui_run.h"
 #include "glyph_text.h"
 #include "engine_calls.h"
@@ -181,6 +182,9 @@ typedef struct {
     X(H_RL_VMARK, "room_views_mark", 0x41a140u) X(H_UM_ROWS, "member_rows_add", 0x4167a0u) X(H_UM_STAT, "stat_row_set", 0x418c90u) \
     X(H_UM_SPR, "member_sprite", 0x4175a0u) X(H_UM_EQP, "equip_panel_fill", 0x4169e0u) X(H_UM_SHOP, "shop_run", 0x415060u) \
     X(H_UM_BUY, "shop_buy", 0x415460u) X(H_UM_WHO, "shop_who", 0x415f60u) X(H_MCTX, "menu_ctx_clear", 0x4115e0u) \
+    X(H_UC_IALPHA, "cell_icon_alpha", 0x43d470u) X(H_UC_BSTYLE, "sys_balloon_style", 0x43e0e0u) \
+    X(H_UC_XSTYLE, "sys_box_style", 0x43e080u) X(H_VPROJ, "view_project", 0x490b90u) X(H_SB_PLACE, "box_place", 0x49c640u) \
+    X(H_SB_FADE, "box_fade_tick", 0x49c910u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
 
@@ -3645,6 +3649,40 @@ static void __attribute__((thiscall)) H_UM_EQP_w(void *self, GP5)
     if (!sample(h)) { eqp_r(&x); return; }
     sx_begin(&x);
     sx_tail(h, &x, eqp_r, eqp_p, 0, "equip_panel_fill");
+}
+/* chip 4a: the cutscene runner's leaves (src/ui_core.c, src/camera_follow.c, src/scene_box.c) */
+TC_HOOK(H_UC_IALPHA, "cell_icon_alpha", 3, 0, cell_icon_alpha(self, a1, a2, a3); return 0)
+TC_HOOK(H_UC_BSTYLE, "sys_balloon_style", 1, 1, return (intptr_t)sys_balloon_style(self, (uint8_t *)a1))
+TC_HOOK(H_UC_XSTYLE, "sys_box_style", 1, 1, return (intptr_t)sys_box_style(self, (uint8_t *)a1))
+ST_HOOK(H_SB_PLACE, "box_place", 8, 0,
+        return box_place(a1, (uint8_t *)a2, a3, (uint8_t *)a4, (uint8_t *)a5, CP(a6), a7, a8))
+ST_HOOK(H_SB_FADE, "box_fade_tick", 1, 0, return box_fade_tick((uint8_t *)a1))
+/* 0x490b90 (thiscall view, 9 args): the screen point lands in the caller's (stack) out-params */
+typedef intptr_t (__attribute__((thiscall)) *vproj_t)(void *, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t,
+                                                      intptr_t, intptr_t, intptr_t);
+static void vproj_r(void *c)
+{
+    sx_ctx *x = c; intptr_t *a = x->a;
+    x->rr = ((vproj_t)(uintptr_t)H[H_VPROJ].va)(x->self, a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]);
+    x->out_r[0] = *(int32_t *)a[6]; x->out_r[1] = *(int32_t *)a[7];
+}
+static void vproj_p(void *c)
+{
+    sx_ctx *x = c; intptr_t *a = x->a;
+    int32_t sx = 0, sy = 0;
+    port_world();
+    x->rp = view_project(x->self, a[0], a[1], a[2], a[3], a[4], a[5], &sx, &sy, a[8]);
+    x->out_p[0] = sx; x->out_p[1] = sy;
+}
+static intptr_t __attribute__((thiscall)) H_VPROJ_w(void *self, GP9)
+{
+    hook_t *h = &H[H_VPROJ];
+    if (h->mode == 2) { h->calls++; return view_project(self, a1, a2, a3, a4, a5, a6, (int32_t *)a7, (int32_t *)a8, a9); }
+    sx_ctx x = { self, NULL, { GA9 }, 0, 0, { 0 }, { 0 }, { 0 }, { 0 }, { 0 }, 0 };
+    if (!sample(h)) { vproj_r(&x); return x.rr; }
+    sx_tail(h, &x, vproj_r, vproj_p, 2, "view_project");
+    *(int32_t *)a7 = (int32_t)x.out_r[0]; *(int32_t *)a8 = (int32_t)x.out_r[1];
+    return x.rr;
 }
 /* the shop's loops (menus: render + Flip) + the menu context clear (its `this` is a stack object) — REPLACE only */
 typedef int32_t (__attribute__((thiscall)) *shop_t)(void *, intptr_t, intptr_t, intptr_t);

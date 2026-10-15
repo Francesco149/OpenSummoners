@@ -25,6 +25,8 @@
  * trajectory the HW watchpoint captured (docs/findings/in-game-intro.md "The
  * camera EASER located").
  *
+ * FUN_00490b90 (view_project) is the projector itself: world (x100) → screen pixels.
+ *
  * Then FUN_0043d340 writes the projector sub-accumulator (view +0x34 / +0x4c)
  * from a screen-shake block + a 0..1000 envelope, clamped to the map.  Inert
  * during the pan (block inactive -> accumulator 0).
@@ -74,7 +76,7 @@ typedef struct camera_view {
     int32_t  vp_h;      /* +0x68 — viewport height (48000)                     */
     int32_t  tgt_x;     /* +0x6c — TARGET scroll-x origin                      */
     int32_t  tgt_y;     /* +0x70 — TARGET scroll-y origin                      */
-    uint8_t  _p74[0x78 - 0x74];
+    int32_t  y_off;     /* +0x74 — extra screen-y offset (px) the projector adds */
 } camera_view;           /* retail layout: the 0x78-byte object at world+0x104c */
 
 #include <stddef.h>
@@ -128,5 +130,13 @@ void camera_follow_step(camera_view *v);
 void camera_apply_pan(camera_view *v, int32_t tgt_x, int32_t tgt_y,
                       int32_t speed);
 void camera_apply_snap(camera_view *v, int32_t tgt_x, int32_t tgt_y);
+
+/*
+ * FUN_00490b90 (thiscall view): world (x, y) (x100) + (dx, dy) px → screen (*sx, *sy); without
+ * `noshake` the shake accumulators (+0x34 / +0x4c) shift it.  Returns whether a w x h box there
+ * touches the viewport.
+ */
+int view_project(const camera_view *v, int32_t x, int32_t y, int32_t dx, int32_t dy, int32_t w, int32_t h,
+                 int32_t *sx, int32_t *sy, int32_t noshake);
 
 #endif /* OSS_CAMERA_FOLLOW_H */

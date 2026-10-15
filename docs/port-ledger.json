@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 439,
-  "unported": 1136,
+  "ported": 443,
+  "unported": 1132,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 688,
-  "pct_touched": 44.1,
+  "touched": 692,
+  "pct_touched": 44.3,
   "pct_tested": 15.7,
-  "engine_proper_touched": 675,
+  "engine_proper_touched": 679,
   "bytes_total": 1776526,
-  "bytes_touched": 572590,
-  "pct_bytes_touched": 32.2
+  "bytes_touched": 573418,
+  "pct_bytes_touched": 32.3
  },
  "orphan_refs": [],
  "functions": [
@@ -3630,8 +3630,10 @@
    "name": "sub_43D470",
    "size": 64,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x43d4b0",
@@ -3678,16 +3680,20 @@
    "name": "sub_43E080",
    "size": 89,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x43e0e0",
    "name": "sub_43E0E0",
    "size": 87,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x43e140",
@@ -6501,6 +6507,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/camera_follow.h",
     "src/dialogue.c",
     "src/map_present.c",
     "src/map_present.h",
@@ -7221,7 +7228,8 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/dialogue.c"
+    "src/dialogue.c",
+    "src/scene_box.h"
    ]
   },
   {
@@ -7229,8 +7237,10 @@
    "name": "sub_49C910",
    "size": 588,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_box.h"
+   ]
   },
   {
    "va": "0x49cb60",

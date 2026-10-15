@@ -127,3 +127,18 @@ void camera_apply_snap(camera_view *v, int32_t tgt_x, int32_t tgt_y)
     v->vel_x = 0;          /* +0x08 = 0            */
     v->vel_y = 0;          /* +0x0c = 0            */
 }
+
+int view_project(const camera_view *v, int32_t x, int32_t y, int32_t dx, int32_t dy, int32_t w, int32_t h,
+                 int32_t *sx, int32_t *sy, int32_t noshake)
+{
+    int32_t oy;
+    if (noshake != 0) {
+        *sx = dx + x / 100 - v->cur_x / 100;
+        oy = v->cur_y + 100 * v->y_off;
+    } else {
+        *sx = dx + x / 100 - (v->shake_x.out + v->cur_x) / 100;
+        oy = v->shake_y.out + v->cur_y + 100 * v->y_off;
+    }
+    *sy = dy + y / 100 - oy / 100;
+    return *sx + w >= 0 && *sy + h >= 0 && v->vp_w / 100 > *sx && v->vp_h / 100 > *sy;
+}
