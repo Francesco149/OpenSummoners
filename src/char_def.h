@@ -24,6 +24,7 @@
  *   FUN_00426380  voice_set_free       FUN_0041e440  voice_set_stop
  *   FUN_00426420  tod_off              FUN_00426480  grid_f1c
  *   FUN_00426e00  stat_jitter          FUN_00426fd0  char_stats_init
+ *   FUN_004090e0  stat_row_find        FUN_004c6110  char_profile_find
  *   FUN_00427360  char_idle_init       FUN_004273c0  char_idle_add
  *   FUN_004273f0  char_member_skill_add FUN_00427430 char_combo_add
  *   FUN_00427580  char_clips_set       FUN_004275f0  char_clips2_set
@@ -66,6 +67,10 @@ int32_t grid_f1c(const void *grid);
 int32_t stat_jitter(int32_t base, int32_t pm, int32_t r);
 /* 0x426fd0 (stdcall): the stat block `st` (char+0x274) for (code, level) */
 void char_stats_init(uint8_t *st, int32_t code, int32_t level);
+/* 0x4090e0 (stdcall): its stat table row (the first of `code` at `level`, any for 0; else row 0) */
+const uint8_t *stat_row_find(int32_t code, int32_t level);
+/* 0x4c6110 (stdcall): the code's profile row (0x682660, 24 B), or NULL */
+const uint8_t *char_profile_find(int32_t code);
 /* 0x427360 / 0x4273c0: the idle animation timing / one idle pose (up to 4) */
 void char_idle_init(wl_char *c, int32_t first, int32_t next, int32_t jitter);
 void char_idle_add(wl_char *c, int32_t pose);

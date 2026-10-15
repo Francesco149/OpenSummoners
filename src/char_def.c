@@ -83,6 +83,15 @@ int32_t stat_jitter(int32_t base, int32_t pm, int32_t r)
 }
 
 /* 0x426fd0's row select: the first row of `code` at `level` (any level for 0), else row 0 */
+static const uint8_t *stat_row(int32_t code, int32_t level, int any);
+const uint8_t *stat_row_find(int32_t code, int32_t level) { return stat_row(code, level, 1); }
+const uint8_t *char_profile_find(int32_t code)
+{
+    const uint8_t *vt = g_eng.data(0x682660u);   /* 24-byte rows keyed by +0 */
+    for (uint16_t i = 0; ld32(vt, 24u * i) != 0; i++)
+        if (ld32(vt, 24u * i) == code) return vt + 24u * i;
+    return NULL;
+}
 static const uint8_t *stat_row(int32_t code, int32_t level, int any)
 {
     const uint8_t *t = g_eng.data(0x67ac58u);
@@ -98,10 +107,7 @@ void char_stats_init(uint8_t *st, int32_t code, int32_t level)
     const uint8_t *row = stat_row(code, level, 1);
     const uint8_t *row1 = stat_row(code, 1, 0);
     strcpy((char *)st, (const char *)(*(const char *)(row + 0x3a) != 0 ? row : row1) + 0x3a);
-    const uint8_t *vt = g_eng.data(0x682660u), *v = NULL;   /* 24-byte rows keyed by +0 */
-    for (uint16_t i = 0; ld32(vt, 24u * i) != 0; i++)
-        if (ld32(vt, 24u * i) == code) { v = vt + 24u * i; break; }
-    stp(st, 0x50, v);
+    stp(st, 0x50, char_profile_find(code));
     st32(st, 0xe8, 0);
     st32(st, 0xec, ld32(row, 0x20));
     st32(st, 0xd8, 0);

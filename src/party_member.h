@@ -26,6 +26,28 @@
  *   FUN_004094d0  pslot_code           FUN_005b4a10  member_palette
  *   FUN_00406ec0  char_skills_refresh  FUN_00407320  char_skill_usable
  *   FUN_004071f0  member_skill_at
+ *
+ * The PARTY API (the story setups 0x4c5350 / 0x4e59a0 at a new game and the scripts): a slot
+ * by id (0x413b20; status 1 = in the party, 2 = known but out), a slot's init from the stat
+ * table (0x4c5e00 / 0x4cc820: + the code's skills 0x4c6160 and its starting items 0x4c6990 /
+ * 0x415e20), the party levelled to the area's row (0x408dc0: 0x690b40 by room +0x401c: [1]
+ * level, [2] the minimum +0xaec, [3] the gold cap +0x4020), heal (0x408d40), the leader
+ * (0x4c6830: the input moves with it), join / leave (0x4c6550 / 0x4c63a0 / 0x4e6070: the
+ * items they hold are re-equipped / handed back), the stat refresh from the equipment (0x413810
+ * / 0x416570 + 0x413a00 per item), the item / class fit (0x416420).
+ *
+ *   FUN_00413b20  pslot_by_id          FUN_00409090  dramatist_row
+ *   FUN_0041dc40  area_level_row       FUN_00408d40  pslot_heal
+ *   FUN_00408dc0  room_party_level     FUN_004c5e00  pslot_init
+ *   FUN_004c6160  member_skills_learn  FUN_004c6990  room_items_grant
+ *   FUN_004c6830  room_leader_set      FUN_004c5350  room_story_setup
+ *   FUN_004e59a0  room_story_setup2    FUN_00429d00  skill_row_find
+ *   FUN_00416420  item_fits            FUN_004e6030  pslot_status_set
+ *   FUN_004c6530  pslot_revive_mark    FUN_00413a00  item_stats_add
+ *   FUN_00413810  room_stats_refresh   FUN_00416570  room_item_equip
+ *   FUN_004e6070  room_party_dismiss   FUN_004c63a0  room_member_leave
+ *   FUN_004c6550  room_member_join     FUN_004cc820  room_member_add
+ *   FUN_00415e20  room_item_add
  */
 #ifndef OSS_PARTY_MEMBER_H
 #define OSS_PARTY_MEMBER_H
@@ -50,5 +72,32 @@ int char_skill_usable(wl_char *c, const uint8_t *k, int32_t probing);
 /* 0x4071f0 (stdcall): the member record of class `cls` in slot `slot` whose skill table row has
  * +0xa8 set, or NULL */
 uint8_t *member_skill_at(const uint8_t *st, int32_t cls, uint16_t slot);
+
+/* the party API (see the head) */
+wl_pslot *pslot_by_id(wl_room *r, int32_t id, int32_t passive);                          /* 0x413b20 */
+const uint8_t *dramatist_row(int32_t id);                                                /* 0x409090 */
+const int32_t *area_level_row(int32_t key);                                              /* 0x41dc40 */
+void pslot_heal(wl_pslot *s, int32_t full);                                              /* 0x408d40 */
+void room_party_level(wl_room *r, int32_t quiet);                                        /* 0x408dc0 */
+void pslot_init(wl_pslot *s, wl_room *r, int32_t code, int32_t level, int32_t id, int32_t status,
+                int32_t order);                                                          /* 0x4c5e00 */
+void member_skills_learn(wl_pslot *s, int32_t code, int32_t level);                      /* 0x4c6160 */
+void room_items_grant(wl_room *r, int32_t id);                                           /* 0x4c6990 */
+void room_leader_set(wl_room *r, wl_pslot *s);                                           /* 0x4c6830 */
+void room_story_setup(int32_t *key);                                                     /* 0x4c5350 */
+void room_story_setup2(int32_t *key);                                                    /* 0x4e59a0 */
+const uint8_t *skill_row_find(int32_t id);                                               /* 0x429d00 */
+int item_fits(const wl_pslot *s, const uint8_t *item);                                   /* 0x416420 */
+void pslot_status_set(wl_pslot *s, int32_t in, void *ch);                                /* 0x4e6030 */
+void pslot_revive_mark(wl_pslot *s);                                                     /* 0x4c6530 */
+void item_stats_add(const uint8_t *item, uint8_t *st);                                   /* 0x413a00 */
+void room_stats_refresh(wl_room *r, int32_t palette);                                    /* 0x413810 */
+void room_item_equip(wl_room *r, uint16_t k, int32_t id, int32_t refresh);               /* 0x416570 */
+void room_party_dismiss(wl_room *r);                                                     /* 0x4e6070 */
+void room_member_leave(wl_room *r, wl_pslot *s, int32_t check);                          /* 0x4c63a0 */
+wl_pslot *room_member_join(wl_room *r, int32_t id, wl_char *ch, int32_t mode);           /* 0x4c6550 */
+wl_pslot *room_member_add(wl_room *r, uint16_t idx, int32_t code, int32_t level, int32_t id, int32_t order,
+                          int32_t active);                                               /* 0x4cc820 */
+int room_item_add(wl_room *r, int32_t item, uint16_t *idx, int32_t count, uint8_t flag, int32_t dry); /* 0x415e20 */
 
 #endif /* OSS_PARTY_MEMBER_H */

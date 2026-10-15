@@ -14,6 +14,7 @@
 #include "entity_life.h"
 #include "entity_move.h"
 #include "event.h"
+#include "party_member.h"
 #include "room_load.h"
 #include "sprite_slot.h"
 #include "world_alloc.h"
@@ -300,8 +301,8 @@ void room_area_enter(int32_t *key, int32_t mode, wl_room *r)
 {
     stp(key, 4, r);
     key[0] = mode;
-    g_eng.h4c5350(key);
-    g_eng.h4e59a0(key);
+    room_story_setup(key);
+    room_story_setup2(key);
 }
 
 int room_has_retry(const wl_room *r) { return r->f4080 == 0 && r->f40d0 != 0; }
@@ -929,8 +930,8 @@ int32_t scene_loop(uint8_t *ss, int32_t save, uint16_t sub, int32_t demo, int32_
         st32(r, 0x4104, start);
         key[0] = 0;
         stp(key, 4, r);
-        g_eng.h4c5350(key);
-        g_eng.h4e59a0(key);
+        room_story_setup(key);
+        room_story_setup2(key);
     } else {
         if (!load_save(ss, r, save, sub, so)) goto end;
         wide = 1;

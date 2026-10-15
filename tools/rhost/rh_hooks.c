@@ -101,6 +101,17 @@ typedef struct {
     X(H_SL_FCACHE, "frame_cache_clear", 0x562a70u) X(H_SL_FREAD, "file_read_section", 0x5b6300u) \
     X(H_SL_POBJDEL, "pool_obj_delete", 0x562e60u) X(H_SL_WDEL, "world_delete", 0x562e40u) \
     X(H_SL_TOSC, "room_to_scene", 0x55f790u) \
+    X(H_PA_BYID, "pslot_by_id", 0x413b20u) X(H_PA_DRAM, "dramatist_row", 0x409090u) X(H_PA_ALV, "area_level_row", 0x41dc40u) \
+    X(H_PA_HEAL, "pslot_heal", 0x408d40u) X(H_PA_LEVEL, "room_party_level", 0x408dc0u) X(H_PA_INIT, "pslot_init", 0x4c5e00u) \
+    X(H_PA_SKL, "member_skills_learn", 0x4c6160u) X(H_PA_GRANT, "room_items_grant", 0x4c6990u) \
+    X(H_PA_LEAD, "room_leader_set", 0x4c6830u) X(H_PA_STORY, "room_story_setup", 0x4c5350u) \
+    X(H_PA_STORY2, "room_story_setup2", 0x4e59a0u) X(H_PA_SKROW, "skill_row_find", 0x429d00u) \
+    X(H_PA_FITS, "item_fits", 0x416420u) X(H_PA_STAT, "pslot_status_set", 0x4e6030u) X(H_PA_REVIVE, "pslot_revive_mark", 0x4c6530u) \
+    X(H_PA_ISTATS, "item_stats_add", 0x413a00u) X(H_PA_REFRESH, "room_stats_refresh", 0x413810u) \
+    X(H_PA_EQUIP, "room_item_equip", 0x416570u) X(H_PA_DISMISS, "room_party_dismiss", 0x4e6070u) \
+    X(H_PA_LEAVE, "room_member_leave", 0x4c63a0u) X(H_PA_JOIN, "room_member_join", 0x4c6550u) \
+    X(H_PA_ADD, "room_member_add", 0x4cc820u) X(H_PA_IADD, "room_item_add", 0x415e20u) \
+    X(H_PA_SROW, "stat_row_find", 0x4090e0u) X(H_PA_PROF, "char_profile_find", 0x4c6110u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
 
@@ -3190,6 +3201,32 @@ TC_HOOK(H_SL_FREAD, "file_read_section", 3, 0, return file_read_section(self, (v
 TC_HOOK(H_SL_POBJDEL, "pool_obj_delete", 1, 0, pool_obj_delete(self, a1); return (intptr_t)self)
 TC_HOOK(H_SL_WDEL, "world_delete", 1, 0, world_delete(self, a1); return (intptr_t)self)
 TC_HOOK(H_SL_TOSC, "room_to_scene", 1, 0, room_to_scene(self, (uint8_t *)a1); return 0)
+/* the party API (src/party_member.c) */
+TC_HOOK(H_PA_BYID, "pslot_by_id", 2, 1, return (intptr_t)pslot_by_id(self, a1, a2))
+ST_HOOK(H_PA_DRAM, "dramatist_row", 1, 1, return (intptr_t)dramatist_row(a1))
+ST_HOOK(H_PA_ALV, "area_level_row", 1, 1, return (intptr_t)area_level_row(a1))
+TC_HOOK(H_PA_HEAL, "pslot_heal", 1, 1, pslot_heal(self, a1); return 0)
+TC_HOOK(H_PA_LEVEL, "room_party_level", 1, 0, room_party_level(self, a1); return 0)
+TC_HOOK(H_PA_INIT, "pslot_init", 6, 0, pslot_init(self, (wl_room *)a1, a2, a3, a4, a5, a6); return 0)
+TC_HOOK(H_PA_SKL, "member_skills_learn", 2, 0, member_skills_learn(self, a1, a2); return 0)
+TC_HOOK(H_PA_GRANT, "room_items_grant", 1, 0, room_items_grant(self, a1); return 0)
+TC_HOOK(H_PA_LEAD, "room_leader_set", 1, 0, room_leader_set(self, (wl_pslot *)a1); return 0)
+TC_HOOK0(H_PA_STORY, "room_story_setup", 0, room_story_setup(self); return 0)
+TC_HOOK0(H_PA_STORY2, "room_story_setup2", 0, room_story_setup2(self); return 0)
+ST_HOOK(H_PA_SKROW, "skill_row_find", 1, 1, return (intptr_t)skill_row_find(a1))
+TC_HOOK(H_PA_FITS, "item_fits", 1, 1, return item_fits(self, CP(a1)))
+TC_HOOK(H_PA_STAT, "pslot_status_set", 2, 0, pslot_status_set(self, a1, (void *)a2); return 0)
+TC_HOOK0(H_PA_REVIVE, "pslot_revive_mark", 0, pslot_revive_mark(self); return 0)
+ST_HOOK(H_PA_ISTATS, "item_stats_add", 2, 0, item_stats_add(CP(a1), (uint8_t *)a2); return 0)
+TC_HOOK(H_PA_REFRESH, "room_stats_refresh", 1, 0, room_stats_refresh(self, a1); return 0)
+TC_HOOK(H_PA_EQUIP, "room_item_equip", 3, 0, room_item_equip(self, U16(a1), a2, a3); return 0)
+TC_HOOK0(H_PA_DISMISS, "room_party_dismiss", 0, room_party_dismiss(self); return 0)
+TC_HOOK(H_PA_LEAVE, "room_member_leave", 2, 0, room_member_leave(self, (wl_pslot *)a1, a2); return 0)
+TC_HOOK(H_PA_JOIN, "room_member_join", 3, 1, return (intptr_t)room_member_join(self, a1, (wl_char *)a2, a3))
+TC_HOOK(H_PA_ADD, "room_member_add", 6, 1, return (intptr_t)room_member_add(self, U16(a1), a2, a3, a4, a5, a6))
+TC_HOOK(H_PA_IADD, "room_item_add", 5, 1, return room_item_add(self, a1, (uint16_t *)a2, a3, (uint8_t)a4, a5))
+ST_HOOK(H_PA_SROW, "stat_row_find", 2, 1, return (intptr_t)stat_row_find(a1, a2))
+ST_HOOK(H_PA_PROF, "char_profile_find", 1, 1, return (intptr_t)char_profile_find(a1))
 /* the scene loop itself — REPLACE only (a whole session per call) */
 typedef int32_t (__attribute__((thiscall)) *scloop_t)(uint8_t *, int32_t, uint32_t, int32_t, int32_t *, int32_t);
 static int32_t __attribute__((thiscall)) w_scloop(uint8_t *ss, int32_t save, uint32_t sub, int32_t demo, int32_t *out, int32_t start)
@@ -3476,7 +3513,7 @@ static void bind_engine_calls(void)
     B(56dc20); B(41a890); B(5bf3ee); B(426110); B(560900); B(5bf5db);
     B(428c00); B(429060); B(429db0); B(42a500); B(42a9a0); B(42b9a0); B(42c130); B(42c510); B(42c970);
     B(42cce0); B(42d3c0); B(42da50); B(42e290); B(42eb20); B(42f840); B(42fbf0); B(42ff00); B(430400);
-    B(4c5350); B(4e59a0); B(561d20); B(41b670); B(4c5af0); B(52fd80); B(5a3870); B(5a00c0);
+    B(561d20); B(409150); B(55fdb0); B(4066d0); B(41d780); B(4e6520); B(4e61d0); B(41b670); B(4c5af0); B(52fd80); B(5a3870); B(5a00c0);
     B(5a3670); B(56c640); B(5b6060); B(5b60d0); B(5b61b0); B(5b6200); B(5b6bc0); B(5b6340); B(5b64b0);
     B(41cfd0);
     g_eng.world = (wl_world **)(uintptr_t)WORLD_PTR_VA;

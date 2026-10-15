@@ -6,6 +6,17 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-15 (morning) — the party API runs as port code
+
+- `src/party_member.c`: the story setups 0x4c5350 / 0x4e59a0 (the start party from the config, the
+  start-area branches), slot by id / init / heal, the party levelled to the area row 0x408dc0, the
+  code's skills 0x4c6160 into class slots, starting items, the leader switch (the input moves),
+  join / leave / dismiss, equip + the stat refresh from the equipment, the class fit, item add.  25
+  functions; quirk #142.
+- rhost: the new-game path shadowed (room_story_setup 6 / setup2 6 / party level 6 / slot by id 6 /
+  stat row 6 / init 3 / skills 3 / items 3 / leader 3 / heal 3), 0 divergences; the rest (join /
+  leave / equip / add / dismiss) unreached by the corpus.  Hybrid gate: 292 hooks, PASS.
+
 ## 2026-10-15 (dawn) — the SCENE LOOP 0x59f2c0 runs as port code
 
 - `scene_loop` (`src/scene_loop.c`): the session (area table copy + cross-reference, the fill table, the

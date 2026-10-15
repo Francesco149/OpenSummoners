@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **552** (35.2% of engine-proper) — tested 250, ported 302
-- code bytes touched: **29.7%** (527,567 / 1,776,526 B of engine-proper)
-- unported: **1272**
+- touched: **574** (36.6% of engine-proper) — tested 250, ported 324
+- code bytes touched: **30.1%** (534,067 / 1,776,526 B of engine-proper)
+- unported: **1250**
 - orphan refs in src/ not in this table: 0
 
 ## tested (250) — ported + host unit suite
@@ -115,9 +115,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x49aa00 | sf_pattern_sweep_down_49AA00 | 216 | scene_fade.c, scene_fade.h |
 | 0x49aae0 | sf_pattern_sweep_up_49AAE0 | 234 | scene_fade.c, scene_fade.h |
 | 0x49c640 | sub_49C640 | 720 | dialogue.c |
-| 0x4c5350 | map_resolve_room_key_4C5350 | 1169 | game_map.c, game_map.h |
-| 0x4cc820 | sub_4CC820 | 508 | party.c, party.h |
-| 0x4e59a0 | sub_4E59A0 | 1676 | party.h |
+| 0x4c5350 | map_resolve_room_key_4C5350 | 1169 | game_map.c, game_map.h, party_member.h |
+| 0x4cc820 | sub_4CC820 | 508 | party.c, party.h, party_member.h |
+| 0x4e59a0 | sub_4E59A0 | 1676 | party.h, party_member.h |
 | 0x4f19e0 | sub_4F19E0 | 20437 | party.c |
 | 0x54c970 | map_grid_clear_cell_54C970 | 84 | map_grid.c, map_grid.h |
 | 0x54db10 | mover_horizontal_54DB10 | 946 | collision.c, collision.h, entity_move.c (+1) |
@@ -274,7 +274,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (302) — reimplemented, no host test yet
+## ported (324) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -293,6 +293,10 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x407b80 | sub_407B80 | 32 | char_integrate.h |
 | 0x407ba0 | sub_407BA0 | 907 | sound_fx.h |
 | 0x408100 | sub_408100 | 205 | gimmick.h |
+| 0x408d40 | sub_408D40 | 124 | party_member.h |
+| 0x408dc0 | sub_408DC0 | 714 | party_member.h |
+| 0x409090 | sub_409090 | 67 | party_member.h |
+| 0x4090e0 | sub_4090E0 | 107 | char_def.h |
 | 0x4094d0 | sub_4094D0 | 71 | party_member.h |
 | 0x4099a0 | sub_4099A0 | 1251 | sound_fx.h |
 | 0x409e90 | sub_409E90 | 375 | sound_fx.h |
@@ -314,9 +318,16 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4115e0 | sub_4115E0 | 33 | room_loop.h |
 | 0x4118b0 | sub_4118B0 | 134 | sprite_slot.h |
 | 0x412db0 | sub_412DB0 | 57 | room_loop.h |
+| 0x413810 | sub_413810 | 444 | party_member.h |
+| 0x413a00 | sub_413A00 | 286 | party_member.h |
+| 0x413b20 | sub_413B20 | 68 | party_member.h |
+| 0x415e20 | sub_415E20 | 320 | party_member.h |
+| 0x416420 | sub_416420 | 115 | party_member.h |
+| 0x416570 | sub_416570 | 547 | party_member.h |
 | 0x4182d0 | sub_4182D0 | 408 | room_load.h |
 | 0x419c00 | sub_419C00 | 110 | scene_loop.h |
 | 0x41a7f0 | sub_41A7F0 | 152 | scene_loop.h |
+| 0x41dc40 | sub_41DC40 | 75 | party_member.h |
 | 0x41dc90 | sub_41DC90 | 890 | room_load.h |
 | 0x41e020 | sub_41E020 | 70 | room_load.h |
 | 0x41e180 | sub_41E180 | 244 | char_state.h |
@@ -374,6 +385,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4287d0 | sub_4287D0 | 384 | char_def.h |
 | 0x428950 | sub_428950 | 146 | char_def.h |
 | 0x4289f0 | sub_4289F0 | 522 | char_def.h |
+| 0x429d00 | sub_429D00 | 68 | party_member.h |
 | 0x431930 | sub_431930 | 599 | char_def.h |
 | 0x431b90 | sub_431B90 | 15 | char_def.h |
 | 0x431ba0 | sub_431BA0 | 266 | char_def.h |
@@ -473,8 +485,18 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x49be60 | sub_49BE60 | 290 | room_loop.h |
 | 0x4c57f0 | sub_4C57F0 | 50 | scene_loop.h |
 | 0x4c5830 | sub_4C5830 | 694 | scene_loop.h |
+| 0x4c5e00 | sub_4C5E00 | 778 | party_member.h |
+| 0x4c6110 | sub_4C6110 | 65 | char_def.h |
+| 0x4c6160 | sub_4C6160 | 574 | party_member.h |
+| 0x4c63a0 | sub_4C63A0 | 391 | party_member.h |
+| 0x4c6530 | sub_4C6530 | 30 | party_member.h |
+| 0x4c6550 | sub_4C6550 | 618 | party_member.h |
+| 0x4c6830 | sub_4C6830 | 337 | party_member.h |
+| 0x4c6990 | sub_4C6990 | 419 | party_member.h |
 | 0x4cc5a0 | sub_4CC5A0 | 628 | scene_loop.h |
 | 0x4e1950 | sub_4E1950 | 135 | scene_loop.h |
+| 0x4e6030 | sub_4E6030 | 54 | party_member.h |
+| 0x4e6070 | sub_4E6070 | 299 | party_member.h |
 | 0x4e61a0 | sub_4E61A0 | 33 | scene_loop.h |
 | 0x54bf90 | sub_54BF90 | 30 | room_load.h |
 | 0x54bfb0 | sub_54BFB0 | 801 | world_alloc.c, world_alloc.h |

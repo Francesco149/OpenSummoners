@@ -4419,6 +4419,35 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   reader zero-fills each record to its capacity: version tolerance).  A new game's room record: +0x405c..+0x4063
   = 0, 0, 0, 1 (u16) and +0x4064 = 0 (a u16 1 written there first is overwritten by the dword).
 
+### #142 — the party API: the start party, levels, inventory caps, the class fit (port 2026-10-15)
+- **The session start by start area** (room +0x4104, `0x4c5350` then `0x4e59a0`, `{mode, room}`): 1 (a new
+  game) — the area level key +0x401c = 1, the party levelled, then the START MEMBERS from the config
+  (**(sys+0x320)): +0x804 on → Arche 100000101 (slot 0, order 2) at level +0x814, +0x83c → 100000103 (slot 2,
+  order 3) at +0x84c, +0x820 → 100000102 (slot 1, order 5) at +0x830 — each with its starting items and the
+  leader set to Arche when there is none; all healed, the retry point cleared.  1010 — key 0, gold +5 up to the
+  cap, Arche ensured, next area 210110 / gate 101.  1020 (mode 1) — when flag 100100101 is 500 and 101200101 is
+  0 / 50 / missing: next 200115 / 102, everyone leaves, flags 490 / 5 / 20, Arche + 100000102 rejoin.  2 —
+  key 19, three members ADDED (`0x4cc820`), the start equipment / skills, flags 1500 / 0 / 1, next 410230.
+  1010 (mode 1) with flag 500: next 230140 / 106, the party dismissed and three rejoin; with 2900: next 210110,
+  everyone's held items re-equipped where they fit.
+- **Levels** (`0x408dc0`): the row of 0x690b40 (16 B: key, level, minimum, gold cap; a negative key ends it,
+  an unknown key takes the last row) for +0x401c; +0x4020 = the cap; every member below the level gains levels
+  one at a time (a pending bonus +0xae8 > 0 is spent first; else the next stat row of (code, level + bonus) is
+  applied by `0x409150` and the 0x4dc stat block mirrored to +0x4e8; the active ones play the cue `0x55fdb0`
+  unless quiet, keeping the first pre-level-up copy at +0xc), and +0xaec is raised to the minimum.
+- **Inventory** (room +0x2010, 16-byte records {item, owner (slot id), u16 count, u8 flag, -, def}, u16 count
+  +0x4010): at most 512 records and at most 48 unequipped GEAR items (category +0x2ac < 900); a member's starting
+  items are the item rows with +0x2b8 == its id and +0x2bc set, granted once (count = the row's u16 +0x64).
+  Equipping takes the item's equip slot (+0x78) off the member's other items; a member's stats recompute from
+  its base + every item it owns (`0x413a00`: +0x80..+0x94 added, kind 1 also +0x98..+0xa8 into +0x124.., up to
+  four per-mille multipliers {u16 index, value} at +0x2c0 on the 12 modifiers +0xa4), HP / MP capped at the new
+  maxima.  The CLASS FIT (`0x416420`, the item's +0x7c): Arche 1 / 2 / 4 / 9, 100000102 1 / 3 / 5 / 9,
+  100000103 1 / 3 / 6 / 9, 100000104 only 8.
+- **Skill slots** (`0x4c6160`, the code's 0x6907c0 rows {code, skill, level, prerequisite} up to the level, not
+  known, the prerequisite known): an equippable skill (row +0xa8) takes the first of 10 class-1 slots no usable
+  class-1 skill holds, else the first free class-2 slot, else class 255; a non-equippable one class 1 / slot 0;
+  an unknown skill class 255.
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`
