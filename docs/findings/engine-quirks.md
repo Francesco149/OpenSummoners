@@ -4508,6 +4508,29 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   scene records +0x54 / +0x90 and the hitstop clear, world+0x2760 (no idle anims) / +0x27a8 = 0, both views'
   +0xc refreshed (`0x49ce70`), every live character's command + AI reset, +0x268 / +0x15b5c = 0, runner +0x2e4 = 1.
 
+### #145 — the scene COMMAND builders: message box, cast commands, talk turn, flags, doors (port 2026-10-15)
+- **Message box `0x49d6e0`** (runner +0x20 = 1): +0x7c the kind, +0x2e0 the speaker, +0x2dc / +0x80 (the
+  speaker's +0x1e8 for kinds 0..2), text +0x8a, title +0x28a (the given name, else "" or — own-name flag — the
+  speaker's party name), u16 +0x2e8 the face only while the voice bank (sys+0xaa8) is loaded and config +0x1ac
+  is on.  Kinds 0..2 need a speaker (none: nothing is set, not even +0x20); one without parts logs
+  "GetHeadLeftRight State Count Over." (the code) and goes on.  The VOICE line +0x84: key 32 keeps the old
+  one, 0 clears it, else the row of 0x6b6568 (16 B {record, key, u16 +8 facing left, +0xa right, +0xc alt})
+  by (the speaker's map record +0x1d8, key) — none: 0; with runner +0x2f0 set the speaker is dropped (kinds
+  0..2 / 4) and the alt line used.
+- **Cast commands** (char +0x15b64, after clearing +0x15b8c / +0x15b68 / +0x15b6a / +0x15b90 / +0x15ba8 /
+  +0x1429c / +0x147a0; the runner +0x20 = 4): 2 face (+0x15b74 the side, `0x401e60`), 3 join (`0x401f50`),
+  4 the weapon STANCE (`0x402d40`: Arche 50010 / 100165 / 100167 / 100168 with party +0xd4 = 0 → 3 draw when
+  asked, = 1 → 4 sheathe when not; +0x15b9c 1, +0x15b88 100).  A cast record is the actor's own, else the
+  first free of 32 — with all taken retail dereferences NULL (+0xc).
+- **Talk turn `0x406210`**: the leader faces the target by the centre difference (> 0 right); with `step` and
+  nearer than 3200 the party gathers to x = target.x - leader.w - 2800 (right) / target.x + target.w + 2800;
+  the target faces back when asked (no +0x20); then `0x405e80`.  No target: the leader's own facing.
+- **Flag set `0x41d190`**: find, else the LAST free slot, else append (512: fatal); both values 0 free it (id 0).
+- **Doors**: placing (`0x41ec20`) x = door.x + dx, y = door.y + door.h + dy - actor+0x1f4 - actor+0x2c, facing
+  99 = keep; spawning (`0x41f0e0`) takes the world character at the room loop's cursor +0xcc (& 31) that is
+  dead and inits it there (`0x41f200` anchor 3 / 3).  Area title `0x403100`: the arrival's title for `dur`
+  ticks + runner +0x20 = 9.
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

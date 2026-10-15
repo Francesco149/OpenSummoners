@@ -6,6 +6,17 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-15 (late afternoon) — the scene COMMAND builders run as port code
+
+- `src/scene_cmd.c`: what the chapter scripts call to build scene commands — the message box `0x49d6e0`
+  (+ the voice row of 0x6b6568, by record `0x4a5ee0`), face `0x401e60` / `0x4a5e20`, the party's weapon stance
+  `0x402d40`, the talk turn `0x406210`, flag set `0x41d190`, camera `0x4a5f50`, next event `0x401d40`, pause /
+  mark / fades / waits (`0x4a5f30` `0x4a5f90` `0x4cc060`..`0x4cc0c0`), the area title `0x403100`, door place
+  `0x41ec20` / by record `0x4cbf80` / spawn `0x41f0e0`, the room BGM restart `0x4cca70`.  Quirk #145.  The cast
+  record search they all inline is shared with the engine (`script_cast_rec`); the `h49d6e0` slot retired.
+- rhost (calls from retail's chapter scripts): msg 101, msg by record 34, spawn 15, stance 13, talk 13, camera
+  18 … 0 divergences (title / BGM restart guarded: REPLACE).  Hybrid gate: 334 hooks, PASS.
+
 ## 2026-10-15 (afternoon) — the SCRIPT ENGINE 0x40c380 runs as port code
 
 - `src/script_engine.c`: the event runner's body — the chapter scripts by area / flag (called by VA:

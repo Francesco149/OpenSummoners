@@ -39,6 +39,14 @@ wl_char *script_leader(const wl_event *ev);
 void script_party_cast(wl_event *ev);
 /* 0x401f50 (thiscall runner): `actor` takes a cast slot (its own, else the first free) */
 void script_cast_add(wl_event *ev, void *actor);
+/* the cast record of `actor` in the runner's 32 (+0x2fc, 20 B {used, lead, actor, actor, 0}): its own,
+ * else the first free one, (re)initialised; NULL when all are taken (inlined by 0x401f50 / 0x401e60 /
+ * 0x402d40 / 0x405e80 / 0x406210) */
+uint8_t *script_cast_rec(wl_event *ev, void *actor, int32_t lead);
+/* a cast record's actor (+0xc; a NULL record faults as in retail) */
+uint8_t *script_cast_actor(const uint8_t *rec);
+/* a cast member's scene command reset to `type` (char +0x15b64: 2 face, 3 join, 4 the stance) */
+void script_cast_cmd(uint8_t *a, int32_t type);
 /* 0x439680 (thiscall runner): run the scene commands set up so far (0x439690); 6 = quit */
 int script_wait(wl_event *ev);
 /* 0x4afda0: the empty chapter script */

@@ -203,15 +203,16 @@ typedef struct engine_calls {
      * the start equipment / skills 0x4e6520 / 0x4e61d0 */
     eng_tc1 h409150; eng_tc0 h55fdb0; eng_tc3 h41d780; eng_tc2 h4e6520; eng_tc2 h4e61d0;
     /* the script engine 0x40c380's: the chapter scripts by VA (thiscall runner -> int; the area
-     * tables), the scene command run 0x439690 (`this` = the room loop: the nested frame loop), the
-     * message box 0x49d6e0, the chest 0x4081d0, the save statue 0x408730, the furniture 0x407970, mode
+     * tables), the scene command run 0x439690 (`this` = the room loop: the nested frame loop), the chest 0x4081d0, the save statue 0x408730, the furniture 0x407970, mode
      * 5 0x40a340, the talk steps 0x402d40 / 0x406210 / 0x411610, the area title's text set 0x4031c0
      * (`this` = the text node), the view refresh 0x49ce70; the BGM player (sys+0x2884): voice stop
      * 0x5bcfb0, has / differs 0x5bbc60 / 0x5bbc90, fade 0x5bbcd0, playing 0x5bbc20, play 0x5bcb80 */
     int (*script_call)(uint32_t va, wl_event *ev);
-    eng_tc1 h439690; eng_tc10 h49d6e0; eng_tc6 h4081d0; eng_tc1 h408730; eng_tc2 h407970; eng_tc0 h40a340;
+    eng_tc1 h439690; eng_tc6 h4081d0; eng_tc1 h408730; eng_tc2 h407970; eng_tc0 h40a340;
     eng_tc2 h402d40; eng_tc4 h406210; eng_tc0 h411610; eng_tc2 h4031c0; eng_tc0 h49ce70;
     eng_tc3 h5bcfb0; eng_tc1 h5bbc60; eng_tc1 h5bbc90; eng_tc1 h5bbcd0; eng_tc0 h5bbc20; eng_tc5 h5bcb80;
+    /* the scene commands': the party gather after a talk turn 0x405e80 (thiscall runner) */
+    eng_tc5 h405e80;
 } engine_calls;
 
 extern engine_calls g_eng;

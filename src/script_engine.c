@@ -16,6 +16,7 @@
 #include "gimmick.h"
 #include "particle_spawn.h"
 #include "room_loop.h"
+#include "scene_cmd.h"
 #include "sound_fx.h"
 
 #define IP(p) ((intptr_t)(p))
@@ -91,25 +92,33 @@ void *actor_by_record(int32_t id)
     return NULL;
 }
 
-void script_cast_add(wl_event *ev, void *actor)
+uint8_t *script_cast_rec(wl_event *ev, void *actor, int32_t lead)
 {
-    if (actor == NULL) return;
-    uint8_t *r = (uint8_t *)ev, *rec = NULL;
+    uint8_t *r = (uint8_t *)ev;
     uint16_t k;
     for (k = 0; k < 32; k++)
         if (ldp(r, 0x304 + 20u * k) == actor && ld32(r, 0x2fc + 20u * k) != 0) break;
     if (k == 32)
         for (k = 0; k < 32 && ld32(r, 0x2fc + 20u * k) != 0; k++) {}
-    if (k < 32) {
-        rec = r + 0x2fc + 20u * k;
-        st32(rec, 0, 1);
-        st32(rec, 4, 1);
-        memcpy(rec + 8, &actor, 4);
-        memcpy(rec + 0xc, &actor, 4);
-        st32(rec, 0x10, 0);
-    }
-    /* (all 32 taken: retail reads the record at NULL — a crash) */
-    uint8_t *a = (uint8_t *)ldp(rec != NULL ? rec : (uint8_t *)(volatile uintptr_t)0, 0xc);
+    if (k == 32) return NULL;
+    uint8_t *rec = r + 0x2fc + 20u * k;
+    st32(rec, 0, 1);
+    st32(rec, 4, lead);
+    memcpy(rec + 8, &actor, 4);
+    memcpy(rec + 0xc, &actor, 4);
+    st32(rec, 0x10, 0);
+    return rec;
+}
+
+uint8_t *script_cast_actor(const uint8_t *rec)
+{
+    /* (all 32 records taken: retail reads +0xc of NULL — an access violation; so does this) */
+    const volatile uint8_t *p = rec;
+    return (uint8_t *)ldp((const void *)p, 0xc);
+}
+
+void script_cast_cmd(uint8_t *a, int32_t type)
+{
     st32(a, 0x15b8c, 0);
     st16(a, 0x15b68, 0);
     st16(a, 0x15b6a, 0);
@@ -117,8 +126,14 @@ void script_cast_add(wl_event *ev, void *actor)
     st32(a, 0x15ba8, 0);
     st16(a, 0x1429c, 0);
     st16(a, 0x147a0, 0);
-    st32(a, 0x15b64, 3);
-    st32(r, 0x20, 4);
+    st32(a, 0x15b64, type);
+}
+
+void script_cast_add(wl_event *ev, void *actor)
+{
+    if (actor == NULL) return;
+    script_cast_cmd(script_cast_actor(script_cast_rec(ev, actor, 1)), 3);
+    st32(ev, 0x20, 4);
 }
 
 void script_party_cast(wl_event *ev)
@@ -263,28 +278,7 @@ static int arrival(wl_event *ev)
     int r = script_wait(ev);
     if (r == 6) return 6;
     st32(ev, 0x1c, 0);
-    if (rl->f24 != 0) {
-        const uint8_t *t = (const uint8_t *)ldp(W->areas, 0);
-        int32_t map = ld32(W->roominfo, 4);
-        uint16_t k = 0;
-        for (int32_t id2 = ld32(t, 0); id2 != 0; id2 = ld32(t, 64u * ++k))
-            if (id2 == map) {
-                const char *name = (const char *)t + 64u * k + 4;
-                if (name[0] != 0) {
-                    uint8_t *rec = (uint8_t *)rl->f11c;
-                    void *obj = ldp(rec, 0xc);
-                    st32(rec, 0, 1);
-                    st32(rec, 0x20, 1);
-                    st16(rec, 4, 0);
-                    st16(rec, 6, 0);
-                    st32(rec, 8, 0);
-                    st32(rec, 0x1c, 0);
-                    g_eng.h4031c0(obj, IP(name), 0);
-                    st16(rec, 0x10, 200);
-                }
-                break;
-            }
-    }
+    if (rl->f24 != 0) scene_title_show(rl, 200);
     rl->f24 = 0;
     script_end(ev);
     return r;
@@ -300,7 +294,7 @@ static int door(wl_event *ev)
     }
     if (k < 128 && W->actors[k] != NULL && ld32(W->actors[k], 0xc) == 1) {
         script_begin(ev);
-        g_eng.h49d6e0(ev, 3, 0, IP(S(0x8547e4u)), 0, 1, 0, 0, 0, 0, 0);   /* "The door is locked." */
+        scene_msg(ev, 3, NULL, S(0x8547e4u), 0, 1, 0, NULL, 0, 0, 0);   /* "The door is locked." */
         int r = script_wait(ev);
         if (r == 6) return 6;
         script_end(ev);

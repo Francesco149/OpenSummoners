@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 346,
-  "unported": 1229,
+  "ported": 366,
+  "unported": 1209,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 595,
-  "pct_touched": 38.0,
+  "touched": 615,
+  "pct_touched": 39.3,
   "pct_tested": 15.7,
-  "engine_proper_touched": 582,
+  "engine_proper_touched": 602,
   "bytes_total": 1776526,
-  "bytes_touched": 530187,
-  "pct_bytes_touched": 29.8
+  "bytes_touched": 534299,
+  "pct_bytes_touched": 30.1
  },
  "orphan_refs": [],
  "functions": [
@@ -242,8 +242,10 @@
    "name": "sub_401D40",
    "size": 49,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_cmd.h"
+   ]
   },
   {
    "va": "0x401d80",
@@ -266,8 +268,10 @@
    "name": "sub_401E60",
    "size": 232,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_cmd.h"
+   ]
   },
   {
    "va": "0x401f50",
@@ -380,8 +384,10 @@
    "name": "sub_402D40",
    "size": 470,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_cmd.h"
+   ]
   },
   {
    "va": "0x402f20",
@@ -414,8 +420,10 @@
    "name": "sub_403100",
    "size": 181,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_cmd.h"
+   ]
   },
   {
    "va": "0x4031c0",
@@ -474,8 +482,10 @@
    "name": "sub_406210",
    "size": 555,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_cmd.h"
+   ]
   },
   {
    "va": "0x406440",
@@ -2134,8 +2144,10 @@
    "name": "sub_41D190",
    "size": 779,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_cmd.h"
+   ]
   },
   {
    "va": "0x41d4a0",
@@ -2312,8 +2324,10 @@
    "name": "sub_41EC20",
    "size": 181,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_cmd.h"
+   ]
   },
   {
    "va": "0x41ece0",
@@ -2380,8 +2394,10 @@
    "name": "sub_41F0E0",
    "size": 280,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_cmd.h"
+   ]
   },
   {
    "va": "0x41f200",
@@ -7135,8 +7151,10 @@
    "name": "sub_49D6E0",
    "size": 590,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_cmd.h"
+   ]
   },
   {
    "va": "0x49d930",
@@ -7191,8 +7209,10 @@
    "name": "sub_4A5E20",
    "size": 32,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_cmd.h"
+   ]
   },
   {
    "va": "0x4a5e40",
@@ -7231,24 +7251,30 @@
    "name": "sub_4A5EE0",
    "size": 72,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_cmd.h"
+   ]
   },
   {
    "va": "0x4a5f30",
    "name": "sub_4A5F30",
    "size": 20,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_cmd.h"
+   ]
   },
   {
    "va": "0x4a5f50",
    "name": "sub_4A5F50",
    "size": 45,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_cmd.h"
+   ]
   },
   {
    "va": "0x4a5f80",
@@ -7263,8 +7289,10 @@
    "name": "sub_4A5F90",
    "size": 11,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_cmd.h"
+   ]
   },
   {
    "va": "0x4a5fa0",
@@ -7681,8 +7709,10 @@
    "name": "sub_4CBF80",
    "size": 47,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_cmd.h"
+   ]
   },
   {
    "va": "0x4cbfb0",
@@ -7729,32 +7759,40 @@
    "name": "sub_4CC060",
    "size": 31,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_cmd.h"
+   ]
   },
   {
    "va": "0x4cc080",
    "name": "sub_4CC080",
    "size": 28,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_cmd.h"
+   ]
   },
   {
    "va": "0x4cc0a0",
    "name": "sub_4CC0A0",
    "size": 28,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_cmd.h"
+   ]
   },
   {
    "va": "0x4cc0c0",
    "name": "sub_4CC0C0",
    "size": 28,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_cmd.h"
+   ]
   },
   {
    "va": "0x4cc0e0",
@@ -7823,8 +7861,10 @@
    "name": "sub_4CCA70",
    "size": 453,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_cmd.h"
+   ]
   },
   {
    "va": "0x4ccc90",
