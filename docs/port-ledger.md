@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **623** (39.8% of engine-proper) — tested 249, ported 374
-- code bytes touched: **30.7%** (545,354 / 1,776,526 B of engine-proper)
-- unported: **1201**
+- touched: **630** (40.3% of engine-proper) — tested 249, ported 381
+- code bytes touched: **30.9%** (548,939 / 1,776,526 B of engine-proper)
+- unported: **1194**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (374) — reimplemented, no host test yet
+## ported (381) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -567,8 +567,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5567a0 | sub_5567A0 | 309 | gimmick.h |
 | 0x5568e0 | sub_5568E0 | 161 | gimmick.h |
 | 0x556de0 | sub_556DE0 | 98 | gimmick.h |
-| 0x556eb0 | sub_556EB0 | 62 | actor_update.c, actor_update.h, script_engine.h |
+| 0x556eb0 | sub_556EB0 | 62 | actor_update.c, actor_update.h |
 | 0x556ef0 | sub_556EF0 | 349 | device_init.h |
+| 0x557060 | sub_557060 | 778 | room_tick.h |
 | 0x557370 | particle_spawn_557370 | 452 | particle_spawn.c, particle_spawn.h |
 | 0x557550 | sub_557550 | 21735 | particle_init.c, particle_init.h |
 | 0x55cbc0 | sub_55CBC0 | 394 | particle_init.h |
@@ -619,11 +620,17 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x59a1f0 | sub_59A1F0 | 1485 | gimmick.h |
 | 0x59a7c0 | sub_59A7C0 | 181 | gimmick.h |
 | 0x59a880 | sub_59A880 | 138 | gimmick.h |
+| 0x59aa40 | sub_59AA40 | 630 | room_tick.c, room_tick.h |
+| 0x59acc0 | sub_59ACC0 | 90 | room_tick.h |
+| 0x59ad20 | sub_59AD20 | 60 | room_tick.h |
 | 0x59afd0 | sub_59AFD0 | 374 | gimmick.c, gimmick.h |
 | 0x59b170 | sub_59B170 | 2621 | gimmick.c, gimmick.h |
 | 0x59bdd0 | sub_59BDD0 | 1129 | gimmick.h |
 | 0x59c240 | sub_59C240 | 929 | gimmick.h |
+| 0x59c750 | sub_59C750 | 702 | room_tick.c, room_tick.h |
 | 0x59ca10 | sub_59CA10 | 114 | room_loop.h |
+| 0x59ca90 | sub_59CA90 | 975 | room_tick.c, room_tick.h |
+| 0x59ce60 | sub_59CE60 | 350 | room_tick.h |
 | 0x59cfc0 | sub_59CFC0 | 405 | scene_loop.h |
 | 0x59d3f0 | sub_59D3F0 | 323 | room_loop.h |
 | 0x59db70 | sub_59DB70 | 227 | room_load.h |

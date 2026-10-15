@@ -6,6 +6,16 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-15 (late night) — the room loop's party chores: warp, leader swap, pickups
+
+- `src/room_tick.c`: the warp countdown `0x59c750` (the party fade-out, the screen dissolve, the refusal),
+  the leader swap `0x59aa40` (+ the stand checks `0x59acc0` / `0x59ad20`, the zone re-arm), the pickups
+  `0x59ca90` (gold to the cap, items with "You got %s!", the throttled notices; + `0x59ce60` touch,
+  `0x557060` the item sparkle).  Quirk #147.  The room loop's three slots retired.  Also: `0x556eb0` was
+  ported twice (`actor_by_handle` in actor_update.c, my `actor_by_record`) — folded into `actor_by_handle`.
+- rhost: warp / pickups 8,750 calls (1,093 full-state), leader swap 3, actor_by_handle 129, 0 divergences
+  (the corpus rooms hold no pickups: their touch / sparkle REPLACE-only).  Hybrid gate: 350 hooks, PASS.
+
 ## 2026-10-15 (night) — the per-tick STATUS pass 0x487dc0 + the FADE 0x4878b0
 
 - `src/char_status.c`: the apply pass's tail — the status pass (doom / stun / weak / poison / the damaging

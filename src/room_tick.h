@@ -1,0 +1,37 @@
+/*
+ * room_tick.{c,h} — the room loop's per-tick party chores (retail layout; rhost-verified inside retail):
+ * the warp countdown 0x59c750, the leader swap 0x59aa40, the pickups 0x59ca90 (+ their helpers).
+ *
+ *   FUN_0059c750  room_warp_tick      FUN_0059aa40  room_leader_next   FUN_0059acc0  char_lead_ok
+ *   FUN_0059ad20  char_on_ground      FUN_0059ca90  room_pickups       FUN_0059ce60  pickup_touch
+ *   FUN_00557060  item_sparkle
+ */
+#ifndef OSS_ROOM_TICK_H
+#define OSS_ROOM_TICK_H
+
+#include <stdint.h>
+
+#include "world_layout.h"
+
+/* 0x59c750 (thiscall room loop): the warp countdown (u16 +0x28: 160 → at 40 the screen dissolve of world
+ * +0x1040, at 0 result 10); a warp request (+0x10) starts it — refused outside a warp-able room ("For some
+ * reason ..."), always for a teleport trap (+0x90c == 2) — and fades the party out */
+int room_warp_tick(wl_roomloop *rl, wl_room *room);
+/* 0x59aa40 (thiscall room loop): the next able party member after `cur` (+0xa0c order) takes the lead
+ * (`forced`: only another one; else `cur` must stand); the event zone under the new leader is re-armed */
+int room_leader_next(wl_roomloop *rl, wl_room *room, int32_t forced, wl_pslot *cur);
+/* 0x59acc0 (thiscall char): a free-moving (move mode 1..3) or grounded character */
+int char_lead_ok(wl_char *c, uint16_t part);
+/* 0x59ad20 (thiscall char): part `part` stands on something */
+int char_on_ground(wl_char *c, uint16_t part);
+/* 0x59ca90 (stdcall): each party member touching a live pickup (world+0x23e0, 96) takes it: gold (to the cap
+ * +0x4020; full: "You have all the money ..." once a minute) or, for the leader, an item ("You got %s!"; bags
+ * full: once per 10 s) */
+void room_pickups(wl_room *room);
+/* 0x59ce60 (thiscall entity): part `part` of `e` overlaps part `part` of `o` (a part past the count: 0) */
+int pickup_touch(const wl_entity *e, const wl_entity *o, uint16_t part);
+/* 0x557060 (thiscall entity): the item-get sparkle 100137 on `e` (+0x25c the item), with `sound` the pool
+ * sys+0x6d0 cue */
+wl_entity *item_sparkle(wl_entity *e, int32_t item, int32_t sound);
+
+#endif /* OSS_ROOM_TICK_H */

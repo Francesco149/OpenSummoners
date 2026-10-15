@@ -4556,6 +4556,24 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   +0x4ec / +0x4f0; while shown, sparkles 100049 and per sprite row two 100098 from the cut line
   (frame height · +0x158ac / +0x158b0).  The room arrival starts it (mode 2, delay 40 + 30 k).
 
+### #147 — the room loop's party chores: warp countdown, leader swap, pickups (port 2026-10-15)
+- **Warp `0x59c750`**: a request (room loop +0x10) outside a warp-able room (world +0x1034 / scene kind 2 /
+  +0x2768 / room +0x4080 set, or +0x40d0 clear) plays sound 6 and logs "For some reason, you cannot teleport
+  here."; otherwise — and always for a teleport trap (+0x90c == 2: "You triggered a teleport trap!") — the u16
+  countdown +0x28 (which also locks the keys) starts at 160 and each live party member fades out (+0x158a8 = 1,
+  cut 0 → 40, delay 10 (k + 2)).  At 40 left the screen dissolve starts (world +0x1040: state 2, a random
+  pattern 0..2, its tile grid reset); at 0 the loop gets 10 (the warp).
+- **Leader swap `0x59aa40`** (the swap key, or forced when the leader can no longer act): the next slot after
+  the current one's order (+0xa0c) that is active, not 100000104, has no input bound (+0x0) and is targetable;
+  a voluntary swap also needs the current leader standing (or in a free move mode 1..3) and the new one too.
+  The leader's slot hands over via `0x4c6830`, another slot swaps input devices; then the formation
+  (`0x41dc90`), the zone state re-armed on the new leader's zone, cue sys+0x36c (volume only).
+- **Pickups `0x59ca90`** (world +0x23e0, 96; +0x204 state 1..4 = taken / ending): touched by a member — gold
+  (+0x1fc 1, +0x200 the amount) up to the cap room +0x4020 (the total earned +0x40bc saturates at 2^31-1); at
+  the cap it stays (state 4) and the leader is told "You have all the money you can carry." at most once a
+  minute (world +0x102c); an item (+0x1fc 2, +0x208) only by the leader: "You got %s!" (item table 0x6c0cd0,
+  736-B rows, the name at +4) + the sparkle 100137, or "Your bags are full ..." at most every 10 s (+0x1028).
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

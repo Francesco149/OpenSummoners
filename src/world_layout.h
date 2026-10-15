@@ -561,7 +561,7 @@ typedef struct wl_roomloop {
     uint16_t   enc_ctr;        /* +0x20  the encounter pass runs every 5th update          */
     uint16_t   _p22;
     int32_t    f24;            /* +0x24  1 = the entry gate leads from another map (0x586010) */
-    uint16_t   ui_lock;        /* +0x28  != 0 => no keys, no passes                         */
+    uint16_t   ui_lock;        /* +0x28  != 0 => no keys, no passes: the warp countdown (0x59c750) */
     uint16_t   _p2a;
     int32_t    f2c;            /* +0x2c */
     int32_t    f30;            /* +0x30 */

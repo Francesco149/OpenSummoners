@@ -3,6 +3,7 @@
  * Transcribed from the asm.  GetTickCount is read exactly where retail reads it (rhost's
  * virtual clock counts calls). */
 #include "room_loop.h"
+#include "room_tick.h"
 
 #include <stddef.h>
 #include <stdio.h>
@@ -539,15 +540,15 @@ static int room_keys(wl_roomloop *rl, wl_room *room, uint32_t now)
     int res = 0;
     menu_ctx_clear(ctx);
     for (int k = 0; k < 8; k++) {
-        const wl_pslot *s = room->slot[k];
+        wl_pslot *s = room->slot[k];
         if (!pslot_ok(s, 0, 0)) continue;
         input_mgr *in = s->in;
         if (in == NULL || rl->paused != 0) continue;
         if (in->field_16c != 0) {
             in->field_16c--;
-            if (g_eng.h59aa40(rl, IP(room), 0, IP(s)) != 0) in->field_16c = 0;
+            if (room_leader_next(rl, room, 0, s) != 0) in->field_16c = 0;
         }
-        if (input_poll_consume(in, now, 20) && g_eng.h59aa40(rl, IP(room), 0, IP(s)) == 0) in->field_16c = 40;
+        if (input_poll_consume(in, now, 20) && room_leader_next(rl, room, 0, s) == 0) in->field_16c = 40;
     }
     input_mgr *in = room->in;
     if (in == NULL) goto done;
@@ -748,7 +749,7 @@ int room_loop_run(wl_roomloop *rl)
         for (uint16_t j = 0; j < rl->nrooms; j++) {
             wl_room *r = &rl->rooms[j];
             wl_pslot *ld = r->leader;
-            if (ld == NULL || !pslot_ok(ld, 0, 0) || !char_targetable(ld->ch, 0, 1)) g_eng.h59aa40(rl, IP(r), 1, IP(ld));
+            if (ld == NULL || !pslot_ok(ld, 0, 0) || !char_targetable(ld->ch, 0, 1)) room_leader_next(rl, r, 1, ld);
         }
         if (g_world->f27b4 == 2 && room_party_down(&rl->rooms[0]) == 0 && room_party_down(&rl->rooms[1]) == 0) {
             int32_t v; memcpy(&v, g_world->f27b0 + 4, 4);
@@ -762,11 +763,11 @@ int room_loop_run(wl_roomloop *rl)
             room_lead(rl, r->leader != NULL ? r->leader->ch : NULL, partner, r->lead_mode);
             int d = room_party_down(g_world->room);
             if (d != 0) return d;
-            d = g_eng.h59c750(rl, IP(g_world->room));
+            d = room_warp_tick(rl, g_world->room);
             if (d != 0) return d;
         }
         if (g_world->room != NULL && rl->ui_lock == 0) {
-            g_eng.h59ca90(g_world->room);
+            room_pickups(g_world->room);
             const wl_pslot *ld = g_world->room->leader;
             if (ld != NULL) {
                 int r = gimmick_pass(rl, ld->ch);

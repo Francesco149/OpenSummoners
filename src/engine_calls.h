@@ -124,9 +124,9 @@ typedef struct engine_calls {
      * (the scene start 0x59cfc0 is ported) */
     void (*h5b1030)(void);
     eng_tc3 h48c150; eng_tc7 h495e40; eng_tc0 h59d160; eng_tc1 flip_5b8fc0; eng_tc0 easer_43d1d0;
-    eng_tc3 h59aa40; eng_tc1 h58ffa0; eng_tc0 h590480; eng_tc1 h590f20; eng_tc0 h590ca0;
+    eng_tc1 h58ffa0; eng_tc0 h590480; eng_tc1 h590f20; eng_tc0 h590ca0;
     eng_tc2 h59d540; eng_tc0 h591120; eng_tc0 h562a70; eng_tc0 h58ffc0; eng_tc0 h59a910; eng_tc0 h415350;
-    eng_tc0 h590230; eng_tc1 h59c750; int (ENG_STDCALL *h59ca90)(void *room); eng_tc1 h59ad60;
+    eng_tc0 h590230; eng_tc1 h59ad60;
     eng_tc0 h5908a0; eng_tc0 h499ab0;
     /* the integrator 0x442a70's callees: per-type behaviour handlers + helpers (by VA) */
     eng_tc3 h467260; eng_tc6 h44a740; eng_tc8 h45a300;

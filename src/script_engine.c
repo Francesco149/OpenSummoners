@@ -10,6 +10,7 @@
 
 #include "char_ai.h"
 #include "char_integrate.h"
+#include "actor_update.h"
 #include "char_state.h"
 #include "engine_calls.h"
 #include "entity_life.h"
@@ -84,14 +85,6 @@ wl_char *script_leader(const wl_event *ev)
     return ld != NULL ? ld->ch : NULL;
 }
 
-void *actor_by_record(int32_t id)
-{
-    const wl_list *l = W->list_2790;
-    for (uint16_t i = 0; i < l->count; i++)
-        if (ld32(l->items[i], 0x1d8) == id) return l->items[i];
-    return NULL;
-}
-
 uint8_t *script_cast_rec(wl_event *ev, void *actor, int32_t lead)
 {
     uint8_t *r = (uint8_t *)ev;
@@ -140,7 +133,7 @@ void script_party_cast(wl_event *ev)
 {
     for (int k = 0; k < 8; k++) {
         const wl_pslot *s = ev->room->slot[k];
-        if (s->active == 1) script_cast_add(ev, actor_by_record(s->id));
+        if (s->active == 1) script_cast_add(ev, actor_by_handle(s->id));
     }
 }
 

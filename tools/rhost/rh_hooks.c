@@ -53,6 +53,7 @@
 #include "script_engine.h"
 #include "scene_cmd.h"
 #include "char_status.h"
+#include "room_tick.h"
 #include "engine_calls.h"
 
 typedef struct {
@@ -125,7 +126,7 @@ typedef struct {
     X(H_SE_RUN, "script_engine", 0x40c380u) X(H_SE_BEGIN, "script_begin", 0x49cb60u) X(H_SE_END, "script_end", 0x49cd70u) \
     X(H_SE_FLAG, "script_flag", 0x41e2f0u) X(H_SE_LEAD, "script_leader", 0x402f20u) \
     X(H_SE_PCAST, "script_party_cast", 0x402060u) X(H_SE_CAST, "script_cast_add", 0x401f50u) \
-    X(H_SE_WAIT, "script_wait", 0x439680u) X(H_SE_ABYREC, "actor_by_record", 0x556eb0u) \
+    X(H_SE_WAIT, "script_wait", 0x439680u) X(H_SE_ABYREC, "actor_by_handle", 0x556eb0u) \
     X(H_SC_MSG, "scene_msg", 0x49d6e0u) X(H_SC_MSGREC, "scene_msg_rec", 0x4a5ee0u) X(H_SC_FACE, "scene_face", 0x401e60u) \
     X(H_SC_FACEREC, "scene_face_rec", 0x4a5e20u) X(H_SC_STANCE, "scene_party_stance", 0x402d40u) \
     X(H_SC_TALK, "scene_talk_face", 0x406210u) X(H_SC_FLAGSET, "script_flag_set", 0x41d190u) \
@@ -141,6 +142,10 @@ typedef struct {
     X(H_CS_DECAY, "char_status_decay", 0x48bb30u) X(H_CS_HIT, "char_hit_queue", 0x4891c0u) \
     X(H_CS_LOG, "world_log_line", 0x44e6c0u) X(H_CS_PARTS, "entity_part_descs", 0x44d020u) \
     X(H_CS_SPRITE, "entity_sprite_desc", 0x44d160u) X(H_CS_SHOT, "shot_spawn", 0x55cfc0u) \
+    X(H_RT_WARP, "room_warp_tick", 0x59c750u) X(H_RT_LEAD, "room_leader_next", 0x59aa40u) \
+    X(H_RT_LEADOK, "char_lead_ok", 0x59acc0u) X(H_RT_GROUND, "char_on_ground", 0x59ad20u) \
+    X(H_RT_PICK, "room_pickups", 0x59ca90u) X(H_RT_TOUCH, "pickup_touch", 0x59ce60u) \
+    X(H_RT_SPARK, "item_sparkle", 0x557060u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
 
@@ -3323,7 +3328,7 @@ TC_HOOK0(H_SE_LEAD, "script_leader", 1, return (intptr_t)script_leader(self))
 TC_HOOK0(H_SE_PCAST, "script_party_cast", 0, script_party_cast(self); return 0)
 TC_HOOK(H_SE_CAST, "script_cast_add", 1, 0, script_cast_add(self, (void *)a1); return 0)
 TC_HOOK0(H_SE_WAIT, "script_wait", 1, return script_wait(self))
-ST_HOOK(H_SE_ABYREC, "actor_by_record", 1, 1, return (intptr_t)actor_by_record(a1))
+ST_HOOK(H_SE_ABYREC, "actor_by_handle", 1, 1, return (intptr_t)actor_by_handle(a1))
 /* the scene command builders (src/scene_cmd.c) */
 TC_HOOK(H_SC_MSG, "scene_msg", 10, 0,
         scene_msg(self, (uint32_t)a1, (void *)a2, (const char *)a3, a4, a5, a6, (const char *)a7, a8, a9, U16(a10)); return 0)
@@ -3375,6 +3380,14 @@ TC_HOOK(H_CS_HIT, "char_hit_queue", 16, 1,
 TC_HOOK(H_CS_LOG, "world_log_line", 1, 0, world_log_line(self, (const char *)a1); return 0)
 TC_HOOK(H_CS_PARTS, "entity_part_descs", 3, 1, return entity_part_descs(self, CP(a1), (es_desc *)a2, (uint16_t *)a3))
 TC_HOOK(H_CS_SPRITE, "entity_sprite_desc", 2, 1, return entity_sprite_desc(self, CP(a1), (es_desc *)a2))
+/* the room loop's per-tick chores (src/room_tick.c) */
+TC_HOOK(H_RT_WARP, "room_warp_tick", 1, 1, return room_warp_tick(self, (wl_room *)a1))
+TC_HOOK(H_RT_LEAD, "room_leader_next", 3, 1, return room_leader_next(self, (wl_room *)a1, a2, (wl_pslot *)a3))
+TC_HOOK(H_RT_LEADOK, "char_lead_ok", 1, 1, return char_lead_ok(self, U16(a1)))
+TC_HOOK(H_RT_GROUND, "char_on_ground", 1, 1, return char_on_ground(self, U16(a1)))
+ST_HOOK(H_RT_PICK, "room_pickups", 1, 0, room_pickups((wl_room *)a1); return 0)
+TC_HOOK(H_RT_TOUCH, "pickup_touch", 2, 1, return pickup_touch(self, CP(a1), U16(a2)))
+TC_HOOK(H_RT_SPARK, "item_sparkle", 2, 0, item_sparkle(self, a1, a2); return 0)
 TC_HOOK(H_CS_SHOT, "shot_spawn", 19, 1,
         return (intptr_t)shot_spawn(self, a1, a2, a3, (wl_body *)a4, a5, a6, a7, a8, (int16_t)a9, a10, a11, a12, a13, a14,
                                     a15, a16, a17, a18, a19))
@@ -3650,8 +3663,8 @@ static void bind_engine_calls(void)
     B(4710c0); B(46da00);
     B(408b90); B(54f140);
     B(40ac90); B(54ed80); B(468b10); B(5bc0c0); B(409520);
-    B(5b1030); B(48c150); B(495e40); B(59d160); B(59aa40); B(58ffa0); B(590480); B(590f20); B(590ca0); B(59d540);
-    B(591120); B(562a70); B(58ffc0); B(59a910); B(415350); B(590230); B(59c750); B(59ca90); B(59ad60); B(5908a0);
+    B(5b1030); B(48c150); B(495e40); B(59d160); B(58ffa0); B(590480); B(590f20); B(590ca0); B(59d540);
+    B(591120); B(562a70); B(58ffc0); B(59a910); B(415350); B(590230); B(59ad60); B(5908a0);
     B(499ab0);
     *(void **)&g_eng.flip_5b8fc0  = g_rh_flip_stub;    /* the virtual clock steps there */
     *(void **)&g_eng.easer_43d1d0 = g_rh_easer_stub;   /* the tick count (+ a camera hook chained behind) */

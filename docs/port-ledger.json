@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 374,
-  "unported": 1201,
+  "ported": 381,
+  "unported": 1194,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 623,
-  "pct_touched": 39.8,
+  "touched": 630,
+  "pct_touched": 40.3,
   "pct_tested": 15.7,
-  "engine_proper_touched": 610,
+  "engine_proper_touched": 617,
   "bytes_total": 1776526,
-  "bytes_touched": 545354,
-  "pct_bytes_touched": 30.7
+  "bytes_touched": 548939,
+  "pct_bytes_touched": 30.9
  },
  "orphan_refs": [],
  "functions": [
@@ -8894,8 +8894,7 @@
    "status": "ported",
    "src": [
     "src/actor_update.c",
-    "src/actor_update.h",
-    "src/script_engine.h"
+    "src/actor_update.h"
    ]
   },
   {
@@ -8913,8 +8912,10 @@
    "name": "sub_557060",
    "size": 778,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_tick.h"
+   ]
   },
   {
    "va": "0x557370",
@@ -11106,24 +11107,31 @@
    "name": "sub_59AA40",
    "size": 630,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_tick.c",
+    "src/room_tick.h"
+   ]
   },
   {
    "va": "0x59acc0",
    "name": "sub_59ACC0",
    "size": 90,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_tick.h"
+   ]
   },
   {
    "va": "0x59ad20",
    "name": "sub_59AD20",
    "size": 60,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_tick.h"
+   ]
   },
   {
    "va": "0x59ad60",
@@ -11180,8 +11188,11 @@
    "name": "sub_59C750",
    "size": 702,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_tick.c",
+    "src/room_tick.h"
+   ]
   },
   {
    "va": "0x59ca10",
@@ -11198,16 +11209,21 @@
    "name": "sub_59CA90",
    "size": 975,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_tick.c",
+    "src/room_tick.h"
+   ]
   },
   {
    "va": "0x59ce60",
    "name": "sub_59CE60",
    "size": 350,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_tick.h"
+   ]
   },
   {
    "va": "0x59cfc0",

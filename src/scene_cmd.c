@@ -7,6 +7,7 @@
 #include <stddef.h>
 #include <string.h>
 
+#include "actor_update.h"
 #include "char_init.h"
 #include "engine_calls.h"
 #include "room_loop.h"
@@ -93,7 +94,7 @@ void scene_msg(wl_event *ev, uint32_t kind, void *actor, const char *text, int32
 void scene_msg_rec(wl_event *ev, uint32_t kind, int32_t rec, const char *text, int32_t a5, int32_t a6,
                    int32_t own_name, const char *name, int32_t voice, int32_t a10, uint16_t face)
 {
-    scene_msg(ev, kind, actor_by_record(rec), text, a5, a6, own_name, name, voice, a10, face);
+    scene_msg(ev, kind, actor_by_handle(rec), text, a5, a6, own_name, name, voice, a10, face);
 }
 
 void scene_face(wl_event *ev, void *actor, int32_t dir)
@@ -105,7 +106,7 @@ void scene_face(wl_event *ev, void *actor, int32_t dir)
     st32(ev, 0x20, 4);
 }
 
-void scene_face_rec(wl_event *ev, int32_t rec, int32_t dir) { scene_face(ev, actor_by_record(rec), dir); }
+void scene_face_rec(wl_event *ev, int32_t rec, int32_t dir) { scene_face(ev, actor_by_handle(rec), dir); }
 
 int scene_party_stance(wl_event *ev, int32_t draw, wl_room *room)
 {
@@ -289,7 +290,7 @@ void scene_place_at_door(wl_event *ev, void *actor, int32_t door, int32_t dx, in
 
 void scene_place_rec(wl_event *ev, int32_t rec, int32_t door, int32_t dx, int32_t dy, int32_t facing)
 {
-    scene_place_at_door(ev, actor_by_record(rec), door, dx, dy, facing);
+    scene_place_at_door(ev, actor_by_handle(rec), door, dx, dy, facing);
 }
 
 void room_bgm_restart(wl_roomloop *rl, int32_t a2, int32_t a3)

@@ -16,7 +16,7 @@
  *   FUN_0040c380  script_engine       FUN_0049cb60  script_begin      FUN_0049cd70  script_end
  *   FUN_0041e2f0  script_flag         FUN_00402f20  script_leader     FUN_00402060  script_party_cast
  *   FUN_00401f50  script_cast_add     FUN_00439680  script_wait       FUN_004afda0  script_none
- *   FUN_00556eb0  actor_by_record
+ * (a map record's actor 0x556eb0 is actor_update.h's actor_by_handle)
  */
 #ifndef OSS_SCRIPT_ENGINE_H
 #define OSS_SCRIPT_ENGINE_H
@@ -51,7 +51,5 @@ void script_cast_cmd(uint8_t *a, int32_t type);
 int script_wait(wl_event *ev);
 /* 0x4afda0: the empty chapter script */
 int script_none(void);
-/* 0x556eb0 (stdcall): the actor of map record `id` in world+0x2790 (0 when none) */
-void *actor_by_record(int32_t id);
 
 #endif /* OSS_SCRIPT_ENGINE_H */
