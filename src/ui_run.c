@@ -6,7 +6,9 @@
 
 #include "char_ai.h"      /* cmd_clear 0x411530 */
 #include "engine_calls.h"
+#include "room_load.h"    /* ctrl_geometry_free 0x40e0c0 */
 #include "room_loop.h"    /* timed_sounds_tick 0x43e140, room_input_update 0x468a20 */
+#include "ui_core.h"      /* win_mgr_topmost 0x414080 */
 #include "sound_fx.h"     /* sfx_play 0x411390, vpool_take 0x40b710 */
 #include "world_layout.h"
 #include "world_tick.h"   /* world_tick 0x46cd70 */
@@ -16,6 +18,7 @@ static uint16_t ld16(const void *p, uint32_t off) { uint16_t v; memcpy(&v, (cons
 static void st32(void *p, uint32_t off, int32_t v) { memcpy((uint8_t *)p + off, &v, 4); }
 static void st16(void *p, uint32_t off, uint16_t v) { memcpy((uint8_t *)p + off, &v, 2); }
 static void *ldp(const void *p, uint32_t off) { void *v; memcpy(&v, (const uint8_t *)p + off, sizeof v); return v; }
+static void stp(void *p, uint32_t off, const void *v) { memcpy((uint8_t *)p + off, &v, sizeof v); }
 static void *sysp(uint32_t off) { return ldp(g_eng.sys, off); }
 
 /* a window's last taken control */
@@ -468,5 +471,131 @@ int32_t menu_run(uint8_t *m, uint8_t *c, uint8_t *msgwin, int32_t cue, int32_t l
         }
         if (world != 0) world_tick(rl, 1);
         g_eng.h499ab0(rl);
+    }
+}
+
+/* ── the window's open / close animation (chip 5a) ─────────────────────────────── */
+
+/* the slide speeds (+0x40 / +0x44) grow 50 a frame inside [+0x30, +0x34] */
+static void win_speeds(uint8_t *w)
+{
+    int32_t lo = ld32(w, 0x30), hi = ld32(w, 0x34);
+    int32_t a = ld32(w, 0x40) + 50;
+    a = hi < a ? hi : a;
+    st32(w, 0x40, lo > a ? lo : a);
+    int32_t b = ld32(w, 0x44) + 50;
+    b = hi < b ? hi : b;
+    st32(w, 0x44, lo > b ? lo : b);
+}
+
+/* one slide step of (+0xc, +0x10) toward (tx, ty), the direction set by where it came from (fx, fy) */
+static void win_slide_step(uint8_t *w, int32_t fx, int32_t fy, int32_t tx, int32_t ty)
+{
+    if (fx < tx) {
+        int32_t x = 32 * ld32(w, 0x40) / 1000 + ld32(w, 0xc);
+        st32(w, 0xc, tx < x ? tx : x);
+    }
+    if (fx > tx) {
+        int32_t x = ld32(w, 0xc) - 32 * ld32(w, 0x40) / 1000;
+        st32(w, 0xc, tx > x ? tx : x);
+    }
+    if (fy < ty) {
+        int32_t y = 32 * ld32(w, 0x44) / 1000 + ld32(w, 0x10);
+        st32(w, 0x10, ty < y ? ty : y);
+    }
+    if (fy > ty) {
+        int32_t y = ld32(w, 0x10) - 32 * ld32(w, 0x44) / 1000;
+        st32(w, 0x10, ty > y ? ty : y);
+    }
+    win_speeds(w);
+}
+
+int32_t win_slide(uint8_t *w, int32_t fx, int32_t fy, int32_t tx, int32_t ty)
+{
+    if (ld32(w, 0xc) == tx && ld32(w, 0x10) == ty) return 1;
+    win_slide_step(w, fx, fy, tx, ty);
+    return 0;
+}
+
+intptr_t mgr_win_to_back(uint8_t *mgr, uint16_t i)
+{
+    uint8_t **list = ldp(mgr, 0);
+    uint8_t *w = list[i];
+    for (; (int32_t)i < ld16(mgr, 6) - 1; i++) list[i] = list[i + 1];
+    list[ld16(mgr, 6) - 1] = w;
+    return ld16(mgr, 6);
+}
+
+void win_ctrls_free(uint8_t *w)
+{
+    if (ldp(w, 0x48) == NULL) return;
+    for (uint16_t i = 0; i < ld16(w, 0x4c); i++) {
+        uint8_t *c = ((uint8_t **)ldp(w, 0x48))[i];
+        if (c == NULL) continue;
+        ctrl_geometry_free(c);   /* (retail inlines 0x40e0c0's body here, the text node's through 0x49a6e0) */
+        g_eng.op_delete(c);
+        ((uint8_t **)ldp(w, 0x48))[i] = NULL;
+    }
+    if (ldp(w, 0x48) != NULL) {
+        g_eng.op_delete(ldp(w, 0x48));
+        stp(w, 0x48, NULL);
+    }
+}
+
+/* the closed window leaves its manager (rotated to the end, the count shrunk) and frees its controls */
+static int32_t win_drop(uint8_t *w)
+{
+    uint8_t *mgr = ldp(w, 0);
+    for (int32_t i = 0; i < ld16(mgr, 6); i++) {
+        if (((uint8_t **)ldp(mgr, 0))[i] != w) continue;
+        mgr_win_to_back(mgr, (uint16_t)i);
+        st16(mgr, 6, (uint16_t)(ld16(mgr, 6) - 1));
+        win_mgr_topmost(mgr);
+        break;
+    }
+    st32(w, 4, 0);
+    win_ctrls_free(w);
+    return 0;
+}
+
+int32_t win_anim(uint8_t *w)
+{
+    if (ld32(w, 4) == 0) return 0;
+    switch (ld32(w, 0x1c)) {
+    case 0:   /* at once */
+        if (ld32(w, 0x50) != 0) {
+            st32(w, 0x54, 1000);
+            return 0;
+        }
+        st32(w, 0x54, 0);
+        return win_drop(w);
+    case 1:   /* fade: in 50, out 40 a frame */
+        if (ld32(w, 0x50) != 0) {
+            int32_t a = ld32(w, 0x54);
+            if (a >= 1000) return 0;
+            a += 50;
+            st32(w, 0x54, a > 1000 ? 1000 : a);
+            return 1;
+        }
+        if (ld32(w, 0x54) > 0) {
+            int32_t a = ld32(w, 0x54) - 40;
+            st32(w, 0x54, a < 0 ? 0 : a);
+            return 1;
+        }
+        return win_drop(w);
+    case 2:   /* slide: in from (+0x20, +0x24) to (+0x38, +0x3c), out to (+0x28, +0x2c) */
+        if (ld32(w, 0x50) != 0) {
+            if (ld32(w, 0xc) == ld32(w, 0x38) && ld32(w, 0x10) == ld32(w, 0x3c)) {
+                st32(w, 0x54, 1000);
+                return 0;
+            }
+            win_slide_step(w, ld32(w, 0x20), ld32(w, 0x24), ld32(w, 0x38), ld32(w, 0x3c));
+            return 1;
+        }
+        if (win_slide(w, ld32(w, 0x38), ld32(w, 0x3c), ld32(w, 0x28), ld32(w, 0x2c)) == 0) return 1;
+        st32(w, 0x54, 0);
+        return win_drop(w);
+    default:
+        return 0;
     }
 }

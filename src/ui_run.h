@@ -9,6 +9,8 @@
  *   FUN_0043ce50  ctrl_key            FUN_0043c650  ctrl_tick           FUN_0043c2e0  win_tick
  *   FUN_0043b980  msg_update          FUN_0043bca0  ctrl_input          FUN_0043c170  jobs_busy
  *   FUN_0055f550  menu_pace           FUN_0055f190  menu_run
+ *   FUN_0049a060  win_anim            FUN_0049a340  win_slide           FUN_0049a2f0  mgr_win_to_back
+ *   FUN_0049a470  win_ctrls_free
  *
  * Keys (the control-level codes): 0 / 1 up / down, 2 / 3 page back / on, 4 / 6 held down / up (repeat after
  * 300 ms, then every 100), 5 / 7 their release, 8 skip, 9 confirm, 10 cancel.  Results: grid_nav 1 moved,
@@ -49,5 +51,17 @@ int32_t menu_pace(uint8_t *p);                                                  
 /* the menu frame loop on the menu context {+4 the room loop, +8 the input manager} */
 int32_t menu_run(uint8_t *m, uint8_t *c, uint8_t *msgwin, int32_t cue, int32_t lr, int32_t hot17,
                  int32_t world, int32_t anykey, int32_t ud_ends, int32_t ud);          /* 0x55f190 */
+
+/* a window's open / close animation (+0x1c: 0 at once, 1 fade, 2 slide) toward +0x50 (open) / closed; +0x54
+ * the open level 0..1000 (keys reach a window only at 1000).  A closed window leaves its manager and frees its
+ * controls.  1 while animating. */
+int32_t win_anim(uint8_t *w);                                                          /* 0x49a060 */
+/* one slide step from (fx, fy)'s side toward (tx, ty) at the speeds +0x40 / +0x44 (32 x speed / 1000 px, the
+ * speeds growing 50 a frame inside [+0x30, +0x34]); 1 = already there */
+int32_t win_slide(uint8_t *w, int32_t fx, int32_t fy, int32_t tx, int32_t ty);        /* 0x49a340 */
+/* the manager's window i rotated to the end of its list; returns the count */
+intptr_t mgr_win_to_back(uint8_t *mgr, uint16_t i);                                    /* 0x49a2f0 */
+/* every control of the window (cap +0x4c) freed with its geometry, then the list */
+void win_ctrls_free(uint8_t *w);                                                       /* 0x49a470 */
 
 #endif /* OSS_UI_RUN_H */

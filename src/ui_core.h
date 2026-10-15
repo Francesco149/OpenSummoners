@@ -15,7 +15,8 @@
  *   FUN_00415860  cell_icon_set       FUN_00412c40  win_title_add       FUN_0040f1c0  sys_win_open
  *   FUN_004103d0  sys_page_arrows     FUN_00412330  grid_gauge_clamp    FUN_004173f0  cell_color_set
  *   FUN_00412160  grid_row_text_add   FUN_00411940  sys_list_open       FUN_0043d470  cell_icon_alpha
- *   FUN_0043e0e0  sys_balloon_style   FUN_0043e080  sys_box_style
+ *   FUN_0043e0e0  sys_balloon_style   FUN_0043e080  sys_box_style       FUN_0041c280  win_ctrl_to_back
+ *   FUN_0049c620  win_anim_set
  */
 #ifndef OSS_UI_CORE_H
 #define OSS_UI_CORE_H
@@ -75,6 +76,10 @@ void cell_icon_alpha(uint8_t *c, int32_t row, int32_t col, int32_t v);          
 /* the cutscene message styles: the balloon (sys+0xba8 frames {0,0,1..8}) / the plain box (sys+0xb88, {64,0,1..8}) */
 uint8_t *sys_balloon_style(void *sys, uint8_t *st);                                   /* 0x43e0e0 */
 uint8_t *sys_box_style(void *sys, uint8_t *st);                                       /* 0x43e080 */
+/* the window's control i moved to the end of its list (the indices +4 renumbered); returns it */
+uint8_t *win_ctrl_to_back(uint8_t *win, uint16_t i);                                  /* 0x41c280 */
+/* the window opens with animation `mode` (+0x1c; +0x50 = 1, +0x54 = 0, +0x58 = a3) */
+int32_t win_anim_set(uint8_t *win, int32_t mode, int32_t a3);                         /* 0x49c620 */
 /* records */
 int32_t ui_ref_set(uint8_t *r, int32_t a, uint16_t b);                                 /* 0x40f5a0 */
 uint8_t *ui_link_drop(uint8_t *o);                                                     /* 0x412570 */

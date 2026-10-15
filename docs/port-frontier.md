@@ -7,8 +7,8 @@ own engine callees ported, so it can land today with zero new dependencies. Sort
 
 For the *forward* port path (the title-menu scene runner and what it calls) and the semantic milestone order, see `ROADMAP.md` — some of that path isn't yet reachable from ported code so won't appear here.
 
-- frontier functions: **368**
-- of those, zero-dependency **leaves: 147** (recommended order below)
+- frontier functions: **362**
+- of those, zero-dependency **leaves: 144** (recommended order below)
 
 ## Leaf shortlist — portable today (top 40 by ported-caller count)
 
@@ -225,7 +225,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x48ef40 | 4389 | 1 | 7 |  |
 | 0x4895c0 | 8605 | 1 | 10 |  |
 
-### tile/sprite grid render + spell fx + battle UI + palette (29)
+### tile/sprite grid render + spell fx + battle UI + palette (23)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
@@ -234,22 +234,16 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x495e40 | 411 | 2 | 0 | ✓ |
 | 0x496170 | 42 | 1 | 0 | ✓ |
 | 0x4961a0 | 63 | 1 | 0 | ✓ |
-| 0x49a2f0 | 76 | 1 | 0 | ✓ |
+| 0x49a6e0 | 82 | 1 | 0 | ✓ |
 | 0x4961e0 | 95 | 1 | 0 | ✓ |
 | 0x496240 | 95 | 1 | 0 | ✓ |
 | 0x495dc0 | 119 | 1 | 0 | ✓ |
 | 0x499070 | 142 | 1 | 0 | ✓ |
-| 0x49abd0 | 168 | 1 | 0 | ✓ |
-| 0x49a340 | 291 | 1 | 0 | ✓ |
 | 0x498820 | 319 | 1 | 0 | ✓ |
 | 0x495fe0 | 394 | 1 | 0 | ✓ |
 | 0x4963a0 | 446 | 1 | 1 |  |
-| 0x49a470 | 622 | 1 | 1 |  |
-| 0x49a060 | 651 | 1 | 3 |  |
-| 0x49ac80 | 664 | 1 | 0 | ✓ |
 | 0x491820 | 696 | 1 | 0 | ✓ |
 | 0x497c20 | 788 | 1 | 1 |  |
-| 0x49c2f0 | 808 | 1 | 2 |  |
 | 0x496560 | 1028 | 1 | 2 |  |
 | 0x4975e0 | 1054 | 1 | 2 |  |
 | 0x498960 | 1449 | 1 | 0 | ✓ |
@@ -384,13 +378,13 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x5642e0 | 440 | 1 | 7 |  |
 | 0x5644a0 | 483 | 1 | 5 |  |
 | 0x565b00 | 528 | 1 | 1 |  |
-| 0x566350 | 540 | 1 | 2 |  |
+| 0x566350 | 540 | 1 | 1 |  |
 | 0x568780 | 554 | 1 | 2 |  |
 | 0x5658c0 | 565 | 1 | 9 |  |
 | 0x568b40 | 659 | 1 | 1 |  |
 | 0x56c640 | 690 | 1 | 2 |  |
 | 0x568de0 | 998 | 1 | 3 |  |
-| 0x56a670 | 1011 | 1 | 11 |  |
+| 0x56a670 | 1011 | 1 | 10 |  |
 | 0x561d20 | 1259 | 1 | 5 |  |
 | 0x5624c0 | 1355 | 1 | 9 |  |
 
@@ -415,7 +409,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x590480 | 465 | 1 | 3 |  |
 | 0x590230 | 478 | 1 | 5 |  |
 | 0x590f20 | 498 | 1 | 0 | ✓ |
-| 0x59ec30 | 531 | 1 | 4 |  |
+| 0x59ec30 | 531 | 1 | 3 |  |
 | 0x590ca0 | 592 | 1 | 3 |  |
 | 0x59ad60 | 615 | 1 | 5 |  |
 | 0x59d160 | 644 | 1 | 1 |  |

@@ -60,6 +60,7 @@
 #include "scene_box.h"
 #include "scene_cast.h"
 #include "scene_run.h"
+#include "screen_fx.h"
 #include "ui_run.h"
 #include "glyph_text.h"
 #include "engine_calls.h"
@@ -190,6 +191,11 @@ typedef struct {
     X(H_SC_NEAR, "body_near_x", 0x441f00u) X(H_SC_FCMD, "cast_face_cmd", 0x442600u) X(H_SC_DFS, "path_dfs", 0x43f370u) \
     X(H_SC_PATH, "path_search", 0x43ef20u) X(H_SC_STEP, "cast_step", 0x43e5b0u) \
     X(H_SRUN, "scene_run", 0x439690u) \
+    X(H_UW_ANIM, "win_anim", 0x49a060u) X(H_UW_SLIDE, "win_slide", 0x49a340u) X(H_UW_BACK, "mgr_win_to_back", 0x49a2f0u) \
+    X(H_UW_FREE, "win_ctrls_free", 0x49a470u) X(H_FX_CO, "fx_rows_center_out", 0x49a890u) X(H_FX_EI, "fx_rows_edges_in", 0x49a740u) \
+    X(H_FX_SD, "fx_rows_sweep_down", 0x49aa00u) X(H_FX_SU, "fx_rows_sweep_up", 0x49aae0u) X(H_OV_FADE, "overlay_fade", 0x49abd0u) \
+    X(H_OV_TICK, "overlay_tick", 0x49ac80u) \
+    X(H_UC_TOBACK, "win_ctrl_to_back", 0x41c280u) X(H_UC_ANIMSET, "win_anim_set", 0x49c620u) X(H_NOTICE, "notice_tick", 0x49c2f0u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
 
@@ -3668,6 +3674,20 @@ TC_HOOK(H_SC_DFS, "path_dfs", 7, 1, return path_dfs(self, a1, a2, a3, (uint16_t 
 TC_HOOK(H_SC_PATH, "path_search", 12, 1,
         return path_search(self, a1, a2, a3, a4, a5, a6, a7, a8, (uint8_t *)a9, (uint16_t *)a10, (path_rec *)a11, a12))
 TC_HOOK0(H_SC_STEP, "cast_step", 1, return cast_step(self))
+/* chip 5a: the window animation (src/ui_run.c) + the screen effects' leaves (src/screen_fx.c) */
+TC_HOOK0(H_UW_ANIM, "win_anim", 1, return win_anim(self))
+TC_HOOK(H_UW_SLIDE, "win_slide", 4, 1, return win_slide(self, a1, a2, a3, a4))
+TC_HOOK(H_UW_BACK, "mgr_win_to_back", 1, 1, return mgr_win_to_back(self, U16(a1)))
+TC_HOOK0(H_UW_FREE, "win_ctrls_free", 0, win_ctrls_free(self); return 0)
+TC_HOOK(H_FX_CO, "fx_rows_center_out", 2, 0, fx_rows_center_out(self, U16(a1), U16(a2)); return 0)
+TC_HOOK(H_FX_EI, "fx_rows_edges_in", 2, 0, fx_rows_edges_in(self, U16(a1), U16(a2)); return 0)
+TC_HOOK(H_FX_SD, "fx_rows_sweep_down", 2, 0, fx_rows_sweep_down(self, U16(a1), U16(a2)); return 0)
+TC_HOOK(H_FX_SU, "fx_rows_sweep_up", 2, 0, fx_rows_sweep_up(self, U16(a1), U16(a2)); return 0)
+TC_HOOK(H_OV_FADE, "overlay_fade", 3, 1, return overlay_fade(self, a1, a2, a3))
+TC_HOOK0(H_OV_TICK, "overlay_tick", 0, overlay_tick(self); return 0)
+TC_HOOK(H_UC_TOBACK, "win_ctrl_to_back", 1, 1, return (intptr_t)win_ctrl_to_back(self, U16(a1)))
+TC_HOOK(H_UC_ANIMSET, "win_anim_set", 2, 1, return win_anim_set(self, a1, a2))
+TC_HOOK0(H_NOTICE, "notice_tick", 0, notice_tick(self); return 0)
 /* 0x490b90 (thiscall view, 9 args): the screen point lands in the caller's (stack) out-params */
 typedef intptr_t (__attribute__((thiscall)) *vproj_t)(void *, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t,
                                                       intptr_t, intptr_t, intptr_t);

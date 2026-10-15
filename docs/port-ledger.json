@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 449,
-  "unported": 1126,
+  "ported": 458,
+  "unported": 1117,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 698,
-  "pct_touched": 44.7,
+  "touched": 707,
+  "pct_touched": 45.3,
   "pct_tested": 15.7,
-  "engine_proper_touched": 685,
+  "engine_proper_touched": 694,
   "bytes_total": 1776526,
-  "bytes_touched": 586912,
-  "pct_bytes_touched": 33.0
+  "bytes_touched": 590335,
+  "pct_bytes_touched": 33.2
  },
  "orphan_refs": [],
  "functions": [
@@ -2200,8 +2200,10 @@
    "name": "sub_41C280",
    "size": 112,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x41c2f0",
@@ -7064,32 +7066,40 @@
    "name": "sub_49A060",
    "size": 651,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_run.h"
+   ]
   },
   {
    "va": "0x49a2f0",
    "name": "sub_49A2F0",
    "size": 76,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_run.h"
+   ]
   },
   {
    "va": "0x49a340",
    "name": "sub_49A340",
    "size": 291,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_run.h"
+   ]
   },
   {
    "va": "0x49a470",
    "name": "sub_49A470",
    "size": 622,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_run.h"
+   ]
   },
   {
    "va": "0x49a6e0",
@@ -7107,7 +7117,8 @@
    "status": "tested",
    "src": [
     "src/scene_fade.c",
-    "src/scene_fade.h"
+    "src/scene_fade.h",
+    "src/screen_fx.h"
    ]
   },
   {
@@ -7118,7 +7129,8 @@
    "status": "tested",
    "src": [
     "src/scene_fade.c",
-    "src/scene_fade.h"
+    "src/scene_fade.h",
+    "src/screen_fx.h"
    ]
   },
   {
@@ -7129,7 +7141,8 @@
    "status": "tested",
    "src": [
     "src/scene_fade.c",
-    "src/scene_fade.h"
+    "src/scene_fade.h",
+    "src/screen_fx.h"
    ]
   },
   {
@@ -7140,7 +7153,8 @@
    "status": "tested",
    "src": [
     "src/scene_fade.c",
-    "src/scene_fade.h"
+    "src/scene_fade.h",
+    "src/screen_fx.h"
    ]
   },
   {
@@ -7148,16 +7162,20 @@
    "name": "sub_49ABD0",
    "size": 168,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/screen_fx.h"
+   ]
   },
   {
    "va": "0x49ac80",
    "name": "sub_49AC80",
    "size": 664,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/screen_fx.h"
+   ]
   },
   {
    "va": "0x49af40",
@@ -7222,16 +7240,20 @@
    "name": "sub_49C2F0",
    "size": 808,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/screen_fx.h"
+   ]
   },
   {
    "va": "0x49c620",
    "name": "sub_49C620",
    "size": 31,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x49c640",

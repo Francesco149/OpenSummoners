@@ -459,7 +459,10 @@ VERIFY_HOOKS = ["rand", "input_poll", "mover_v", "sweep_h", "ent_move_h", "ent_m
                 "grid_gauge_clamp", "cell_color_set", "grid_row_text_add", "sys_list_open", "item_def", "room_views_mark",
                 "member_rows_add", "stat_row_set", "member_sprite", "equip_panel_fill",
                 "cell_icon_alpha", "sys_balloon_style", "sys_box_style", "view_project", "box_place", "box_fade_tick",
-                "body_near_x", "cast_face_cmd", "path_dfs", "path_search", "cast_step"]
+                "body_near_x", "cast_face_cmd", "path_dfs", "path_search", "cast_step",
+                "win_anim", "win_slide", "mgr_win_to_back", "win_ctrls_free", "fx_rows_center_out", "fx_rows_edges_in",
+                "fx_rows_sweep_down", "fx_rows_sweep_up", "overlay_fade", "overlay_tick", "win_ctrl_to_back", "win_anim_set",
+                "notice_tick"]
 # REPLACE-only hooks (a whole room per call / DirectInput): proven by `corpus --check --hook replace:…`
 REPLACE_ONLY_HOOKS = ["room_loop", "input_repoll_flush", "load_room", "scene_loop", "menu_pace", "menu_run",
                       "shop_run", "shop_buy", "shop_who", "menu_ctx_clear", "scene_run",

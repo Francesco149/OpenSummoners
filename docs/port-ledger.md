@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **698** (44.7% of engine-proper) — tested 249, ported 449
-- code bytes touched: **33.0%** (586,912 / 1,776,526 B of engine-proper)
-- unported: **1126**
+- touched: **707** (45.3% of engine-proper) — tested 249, ported 458
+- code bytes touched: **33.2%** (590,335 / 1,776,526 B of engine-proper)
+- unported: **1117**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -110,10 +110,10 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x498f10 | sub_498F10 | 344 | hud.h, main.c |
 | 0x499560 | parallax_strip_499560 | 271 | color_grade.h, parallax.c, parallax.h |
 | 0x499ab0 | scene_cinematic_step_499AB0 | 1356 | camera_follow.h |
-| 0x49a740 | sf_pattern_edges_in_49A740 | 336 | scene_fade.c, scene_fade.h |
-| 0x49a890 | sf_pattern_center_out_49A890 | 361 | scene_fade.c, scene_fade.h |
-| 0x49aa00 | sf_pattern_sweep_down_49AA00 | 216 | scene_fade.c, scene_fade.h |
-| 0x49aae0 | sf_pattern_sweep_up_49AAE0 | 234 | scene_fade.c, scene_fade.h |
+| 0x49a740 | sf_pattern_edges_in_49A740 | 336 | scene_fade.c, scene_fade.h, screen_fx.h |
+| 0x49a890 | sf_pattern_center_out_49A890 | 361 | scene_fade.c, scene_fade.h, screen_fx.h |
+| 0x49aa00 | sf_pattern_sweep_down_49AA00 | 216 | scene_fade.c, scene_fade.h, screen_fx.h |
+| 0x49aae0 | sf_pattern_sweep_up_49AAE0 | 234 | scene_fade.c, scene_fade.h, screen_fx.h |
 | 0x49c640 | sub_49C640 | 720 | dialogue.c, scene_box.h |
 | 0x4c5350 | map_resolve_room_key_4C5350 | 1169 | game_map.c, game_map.h, party_member.h |
 | 0x4cc820 | sub_4CC820 | 508 | party.c, party.h, party_member.h |
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (449) — reimplemented, no host test yet
+## ported (458) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -381,6 +381,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x419c00 | sub_419C00 | 110 | scene_loop.h |
 | 0x41a140 | sub_41A140 | 28 | room_loop.h |
 | 0x41a7f0 | sub_41A7F0 | 152 | scene_loop.h |
+| 0x41c280 | sub_41C280 | 112 | ui_core.h |
 | 0x41d190 | sub_41D190 | 779 | scene_cmd.h |
 | 0x41dc40 | sub_41DC40 | 75 | party_member.h |
 | 0x41dc90 | sub_41DC90 | 890 | room_load.h |
@@ -571,7 +572,15 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x48bb30 | sub_48BB30 | 632 | char_status.h |
 | 0x491740 | sub_491740 | 38 | sprite_slot.h |
 | 0x49a050 | sub_49A050 | 13 | sprite_slot.h |
+| 0x49a060 | sub_49A060 | 651 | ui_run.h |
+| 0x49a2f0 | sub_49A2F0 | 76 | ui_run.h |
+| 0x49a340 | sub_49A340 | 291 | ui_run.h |
+| 0x49a470 | sub_49A470 | 622 | ui_run.h |
+| 0x49abd0 | sub_49ABD0 | 168 | screen_fx.h |
+| 0x49ac80 | sub_49AC80 | 664 | screen_fx.h |
 | 0x49be60 | sub_49BE60 | 290 | room_loop.h |
+| 0x49c2f0 | sub_49C2F0 | 808 | screen_fx.h |
+| 0x49c620 | sub_49C620 | 31 | ui_core.h |
 | 0x49c910 | sub_49C910 | 588 | scene_box.h |
 | 0x49cb60 | sub_49CB60 | 527 | script_engine.h |
 | 0x49cd70 | sub_49CD70 | 254 | script_engine.h |

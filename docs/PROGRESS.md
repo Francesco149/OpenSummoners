@@ -6,6 +6,17 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-16 — the screen effects, chip 5a: window animation, dissolve patterns, overlays, notices
+
+- `src/ui_run.c`: the window open / close animation `0x49a060` (at once / fade / slide; a closed window leaves its
+  manager — `0x49a2f0` rotates it to the end — and frees its controls `0x49a470`, the per-control body being
+  `0x40e0c0`'s), the slide step `0x49a340`.  `src/ui_core.c`: the control reorder `0x41c280`, the anim set-up
+  `0x49c620`.  `src/screen_fx.c` (new): the dissolve row patterns `0x49a890` / `0x49a740` / `0x49aa00` / `0x49aae0`,
+  the overlay fades `0x49abd0` / `0x49ac80`, the notice popup `0x49c2f0`.  Quirk #155.
+- rhost: the patterns 987 calls, win_anim 820 (sampled), the control free 61, list rotate 62, overlay_tick 1,083 and
+  notice_tick 2,169 (sampled; idle paths) — 0 divergences; win_slide, overlay_fade and the notice's open path
+  unreached.  Hybrid gate 454 PASS.  Next (5b): the HUD animator `0x49af40`, then the screen step `0x499ab0`.
+
 ## 2026-10-16 — the cutscene runner, chip 4c: the scene command runner itself (`src/scene_run.c`)
 
 - `0x439690` (8.8 KB), every cutscene beat's frame loop, as port code: the box build (balloon / strip /

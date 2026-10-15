@@ -4787,6 +4787,29 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   with R+0xb24 a black fill on even world ticks, and the demo captions (0x8552ac / 0x855294) while a waiting
   event's +0x64.  On exit: the BGM restored, the choice window closed (R+0x584 = 0), input re-polled.
 
+### #155 — windows animate open / closed; the screen dissolve; overlays; the notice popup (port 2026-10-16)
+- **Window animation** (`0x49a060`, per frame for every window of the room loop's manager): +0x1c the mode, +0x50
+  open / closed, +0x54 the open level 0..1000 (the controls take keys only at 1000, #150).  Mode 0: at once; 1:
+  fade (in +50, out −40 a frame); 2: slide — in from (+0x20, +0x24)'s side to (+0x38, +0x3c), out to (+0x28,
+  +0x2c) (`0x49a340`), moving 32 x speed / 1000 px a frame with the speeds +0x40 / +0x44 growing 50 a frame inside
+  [+0x30, +0x34].  Closed: the window is rotated to the end of its manager's list (`0x49a2f0`), the count drops,
+  the topmost flags are redone, +4 = 0 and every control is freed with its geometry (`0x49a470`).  Opening with
+  `0x49c620(mode, a3)`: +0x50 = 1, +0x54 = 0, +0x58 = a3.
+- **Screen dissolve** (world+0x1040, the cells 12 B {state, clock, col, row}): the patterns mark the next rows'
+  cells fading, each row i of the batch staggered (rows − i − 1) x (step / rows) on its clock — centre-out
+  (`0x49a890`: rows mid ± r), edges-in (`0x49a740`: r and H − r), sweep down / up (`0x49aa00` / `0x49aae0`: r /
+  H − r − 1); the reached count +0x14 grows to H / 2 (H for the sweeps).
+- **Overlays** (room loop +0x118 / +0x11c / +0x120: kind, u16 phase, u16 hold, alpha, u16 +0x10 hold length, +0x20
+  live): `0x49abd0(in, out, hold)` and `0x49ac80` — in phases 0 and 1 the hold clock runs every frame (also while
+  fading in), the fade-in to 1000 restarts it; kind 1 frees the sys+0xbb4 frames as it starts and ends (in 20,
+  hold +0x10, out 20), kinds 2 / 3 / 4: 40 / 200 / 40, 20 / 300 / 20, 20 / 600 / 20, the sys+0xbb8 frames freed
+  at the end.
+- **Notice popup** (`0x49c2f0`, room loop +0xec): the world keeps 8 log lines (516 B from world+4: +0 pending, +4
+  the text; world+0x1024 the round-robin index); with none shown, the next pending one opens a (160, 384) 320 x 80
+  window (sys+0xbac frames, the +0x20 extra sys+0x27d0 when the config's +0x94, else none) that slides in from x
+  640 and out to −480, its text at (40, 24) 40 x 2 white / 0x808080 / 0xc0c0c0, held 120 frames — 50 when
+  another line waits — then closed (no free window: the line stays pending).
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

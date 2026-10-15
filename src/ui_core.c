@@ -688,3 +688,27 @@ uint8_t *sys_box_style(void *sys, uint8_t *st)
     st32(st, 0x20, 0);
     return st;
 }
+
+/* ── chip 5: the window's control order + its animation set-up ───────────────────── */
+
+uint8_t *win_ctrl_to_back(uint8_t *win, uint16_t i)
+{
+    uint8_t **list = ldp(win, 0x48);
+    uint8_t *c = list[i];
+    for (; (int32_t)i < ld16(win, 0x4e) - 1; i++) {
+        list[i] = list[i + 1];
+        st16(list[i], 4, i);
+    }
+    list[ld16(win, 0x4e) - 1] = c;
+    st16(list[ld16(win, 0x4e) - 1], 4, (uint16_t)(ld16(win, 0x4e) - 1));
+    return list[ld16(win, 0x4e) - 1];
+}
+
+int32_t win_anim_set(uint8_t *win, int32_t mode, int32_t a3)
+{
+    st32(win, 0x1c, mode);
+    st32(win, 0x50, 1);
+    st32(win, 0x54, 0);
+    st32(win, 0x58, a3);
+    return mode;
+}
