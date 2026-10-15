@@ -212,6 +212,9 @@ typedef struct engine_calls {
     eng_tc1 h439690; eng_tc6 h4081d0; eng_tc1 h408730; eng_tc2 h407970; eng_tc0 h40a340;
     eng_tc2 h402d40; eng_tc4 h406210; eng_tc0 h411610; eng_tc2 h4031c0;
     eng_tc3 h5bcfb0; eng_tc1 h5bbc60; eng_tc1 h5bbc90; eng_tc1 h5bbcd0; eng_tc0 h5bbc20; eng_tc5 h5bcb80;
+    /* the attack pipeline's (src/char_attack.c): a hit's on-spawn effect 0x5b3890 (thiscall char, rect), the
+     * damage application 0x5b5600 (thiscall attacker, target, 0) */
+    eng_tc1 h5b3890;   /* (h5b5600: with the apply pass's, above) */
     /* the status pass's: the shot init 0x55d140 (thiscall shot, 17 args) */
     eng_tc17 h55d140;
     /* the room's item use: the effect value 0x47ae00 (thiscall char, 12 args), the use 0x5b1f10 (thiscall room) */

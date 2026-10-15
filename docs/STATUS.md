@@ -7,15 +7,15 @@
 ## Port coverage (engine-proper functions of `sotes.exe`)
 
 ```
-█████████░░░░░░░░░░░  47.3% touched   (15.7% host-tested, 34.2% of code bytes)
+██████████░░░░░░░░░░  47.8% touched   (15.7% host-tested, 34.4% of code bytes)
 ```
 
 | status      | count | what it means                                          |
 |-------------|------:|--------------------------------------------------------|
 | tested      |   249 | ported + module covered by the host unit suite       |
-| ported      |   488 | reimplemented in src/, no host test for that module  |
-| **touched** | **737** | tested + ported (FUN_ provenance ref in src/)    |
-| unported    |  1087 | exists in engine, never referenced from src/         |
+| ported      |   496 | reimplemented in src/, no host test for that module  |
+| **touched** | **745** | tested + ported (FUN_ provenance ref in src/)    |
+| unported    |  1079 | exists in engine, never referenced from src/         |
 
 **Denominator note (read this before judging the %):** the headline % is over
 **engine-proper** functions — the **1532** below
@@ -26,7 +26,7 @@ those like retail rather than porting them (PLAN.md §2-3), so counting them
 would bury real progress. Full table is **1824** non-thunk
 functions (of 1824 incl. thunks).
 
-Code-byte coverage (34.2% of engine-proper bytes) is the truer progress
+Code-byte coverage (34.4% of engine-proper bytes) is the truer progress
 signal: the engine has a long tail of tiny leaf helpers, so function count
 understates how much actual instruction volume is ported.
 
@@ -119,7 +119,8 @@ understates how much actual instruction volume is ported.
   | the STORAGE BOX (Item Storage → Deposit / Withdraw: the stored flag, the 128 / 48 limits) + the item list (filters, sort, icons, "E:" wearer, count / sell price, cursor) + the message windows (centred box, paged box + style), the menu text set, party window close, item counts, key-token replace | `0x411610` `0x413130` `0x414cb0` / `0x414490` / `0x413b70` `0x4140c0` `0x414410` `0x412590` `0x4129a0` `0x407880` `0x407900` `0x4139d0` `0x412800` | REPLACE: 2 / 4 / 5; shadow: 13 / 9 / – / – / 23 / REPLACE 2 / 3 / 2 / 2 / 1,056 (rh-errands-items) — the sort toggle, refusals and paged box unreached | 0 |
   | the FINDS (coins / items "You found…", the inventory add, put back) + the furniture search | `0x4081d0` / `0x407970` | REPLACE: 2 (copper coins + an item) / 6 — silver / gold / full / empty / the chest 70220 unreached | – |
   | the story scripts' COMMANDS: cast walk-to (map actor / record / relative), cast clear, the party gather, Yes / No, device spawn, character unload, gifts ("You obtained…"), the script switch | `0x402330` `0x4d64b0` `0x402730` `0x4061d0` `0x405e80` / `0x41a2a0` / `0x431d10` `0x41e360` / `0x407500` / `0x40a810` | 1 / 1 / 4 / 30 / 33 / REPLACE 2 / 18 / 1 / REPLACE 1 / 14 | 0 |
-  Hybrid gate: with all of the above REPLACING retail (486 hooks) (the whole character tick, driver → tile
+  | the ATTACK pipeline: power rolls (physical / skill) + magic sum, the lunge, a skill's hit boxes (+ twin side hits), the hit box spawn, the target search | `0x4481f0` `0x447f30` `0x4483a0` / `0x447ed0` / `0x447900` / `0x5b15e0` / `0x5b1c50` `0x4478e0` | 3,318 / 801 / 801 / 621 / 8,827 / 4,119 / 554 / 33 — no foe struck yet (`0x5b3890` / `0x5b5600` slots) | 0 |
+  Hybrid gate: with all of the above REPLACING retail (494 hooks) (the whole character tick, driver → tile
   movers, + the room loop's passes and per-tick calls, runs as port code), every corpus scenario ends byte-identical.
   Shadow guard (rhost): a port phase that reaches an external effect retail already performed (surface free,
   buffer release, DeleteObject, DirectInput, a mode-0/2 script) aborts its comparison (counted skipped); those

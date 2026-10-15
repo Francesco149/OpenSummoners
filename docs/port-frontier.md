@@ -7,7 +7,7 @@ own engine callees ported, so it can land today with zero new dependencies. Sort
 
 For the *forward* port path (the title-menu scene runner and what it calls) and the semantic milestone order, see `ROADMAP.md` — some of that path isn't yet reachable from ported code so won't appear here.
 
-- frontier functions: **357**
+- frontier functions: **358**
 - of those, zero-dependency **leaves: 146** (recommended order below)
 
 ## Leaf shortlist — portable today (top 40 by ported-caller count)
@@ -131,20 +131,20 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x441de0 | 274 | 1 | 0 | ✓ |
 | 0x4466b0 | 276 | 1 | 0 | ✓ |
 | 0x442710 | 374 | 1 | 0 | ✓ |
-| 0x44bf60 | 751 | 1 | 7 |  |
-| 0x44bc10 | 819 | 1 | 6 |  |
-| 0x44a200 | 1338 | 1 | 10 |  |
-| 0x44d2e0 | 1528 | 1 | 8 |  |
-| 0x4484b0 | 1894 | 1 | 7 |  |
-| 0x44d8f0 | 2164 | 1 | 7 |  |
-| 0x448dc0 | 2221 | 1 | 14 |  |
-| 0x449810 | 2221 | 1 | 8 |  |
-| 0x44b160 | 2523 | 1 | 7 |  |
-| 0x44a740 | 2552 | 1 | 11 |  |
-| 0x44c250 | 2972 | 1 | 13 |  |
-| 0x44e8d0 | 3428 | 1 | 9 |  |
-| 0x44f690 | 3586 | 1 | 21 |  |
-| 0x446900 | 3869 | 1 | 14 |  |
+| 0x44bf60 | 751 | 1 | 5 |  |
+| 0x44bc10 | 819 | 1 | 4 |  |
+| 0x44a200 | 1338 | 1 | 7 |  |
+| 0x44d2e0 | 1528 | 1 | 5 |  |
+| 0x4484b0 | 1894 | 1 | 4 |  |
+| 0x44d8f0 | 2164 | 1 | 4 |  |
+| 0x448dc0 | 2221 | 1 | 12 |  |
+| 0x449810 | 2221 | 1 | 4 |  |
+| 0x44b160 | 2523 | 1 | 6 |  |
+| 0x44a740 | 2552 | 1 | 6 |  |
+| 0x44c250 | 2972 | 1 | 8 |  |
+| 0x44e8d0 | 3428 | 1 | 6 |  |
+| 0x44f690 | 3586 | 1 | 17 |  |
+| 0x446900 | 3869 | 1 | 9 |  |
 
 ### master dialogue runner + action/frame dispatch + sprite batch (17)
 
@@ -156,17 +156,17 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x467260 | 208 | 1 | 0 | ✓ |
 | 0x4675c0 | 387 | 1 | 0 | ✓ |
 | 0x467750 | 406 | 1 | 0 | ✓ |
-| 0x4512d0 | 1012 | 1 | 6 |  |
-| 0x450810 | 1485 | 1 | 7 |  |
-| 0x452020 | 1649 | 1 | 12 |  |
-| 0x4516e0 | 2336 | 1 | 11 |  |
-| 0x455d80 | 3175 | 1 | 16 |  |
-| 0x452730 | 4119 | 1 | 13 |  |
+| 0x4512d0 | 1012 | 1 | 5 |  |
+| 0x450810 | 1485 | 1 | 3 |  |
+| 0x452020 | 1649 | 1 | 7 |  |
+| 0x4516e0 | 2336 | 1 | 6 |  |
+| 0x455d80 | 3175 | 1 | 11 |  |
+| 0x452730 | 4119 | 1 | 8 |  |
 | 0x456d30 | 4581 | 1 | 5 |  |
-| 0x4539b0 | 8699 | 1 | 18 |  |
-| 0x45e830 | 9388 | 1 | 19 |  |
-| 0x45a300 | 14079 | 1 | 16 |  |
-| 0x461790 | 19423 | 1 | 25 |  |
+| 0x4539b0 | 8699 | 1 | 13 |  |
+| 0x45e830 | 9388 | 1 | 14 |  |
+| 0x45a300 | 14079 | 1 | 14 |  |
+| 0x461790 | 19423 | 1 | 18 |  |
 
 ### battle phase controller + NPC AI + particle fx + damage UI (18)
 
@@ -187,9 +187,9 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x47f670 | 861 | 1 | 0 | ✓ |
 | 0x47f9d0 | 874 | 1 | 0 | ✓ |
 | 0x479f90 | 875 | 1 | 1 |  |
-| 0x47ecd0 | 2303 | 1 | 7 |  |
+| 0x47ecd0 | 2303 | 1 | 6 |  |
 | 0x47ae00 | 2364 | 1 | 3 |  |
-| 0x4710c0 | 20681 | 1 | 37 |  |
+| 0x4710c0 | 20681 | 1 | 36 |  |
 
 ### char anim + hit-test/knockback + GDI glyph + sfx trigger (25)
 
@@ -336,12 +336,12 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x552f60 | 590 | 1 | 4 |  |
 | 0x54ed80 | 592 | 1 | 4 |  |
 | 0x552c70 | 748 | 1 | 4 |  |
-| 0x553ec0 | 1681 | 1 | 5 |  |
-| 0x554570 | 1724 | 1 | 7 |  |
-| 0x54f140 | 2094 | 1 | 3 |  |
+| 0x553ec0 | 1681 | 1 | 4 |  |
+| 0x554570 | 1724 | 1 | 6 |  |
+| 0x54f140 | 2094 | 1 | 2 |  |
 | 0x554c40 | 2187 | 1 | 5 |  |
 | 0x553520 | 2458 | 1 | 4 |  |
-| 0x55d140 | 8040 | 1 | 2 |  |
+| 0x55d140 | 8040 | 1 | 1 |  |
 | 0x546670 | 22187 | 1 | 28 |  |
 | 0x5402e0 | 25033 | 1 | 14 |  |
 
@@ -412,7 +412,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x59e5d0 | 1033 | 1 | 8 |  |
 | 0x591120 | 1096 | 1 | 8 |  |
 
-### launcher config parse + spell fx + bitmap/ZDD render + RNG (77)
+### launcher config parse + spell fx + bitmap/ZDD render + RNG (78)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
@@ -444,6 +444,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x5bcb30 | 70 | 2 | 1 |  |
 | 0x5ba120 | 154 | 2 | 1 |  |
 | 0x5a3670 | 499 | 2 | 1 |  |
+| 0x5b5600 | 701 | 2 | 1 |  |
 | 0x5b4d00 | 792 | 2 | 4 |  |
 | 0x5ba3f0 | 17 | 1 | 0 | ✓ |
 | 0x5ba520 | 21 | 1 | 0 | ✓ |
@@ -486,8 +487,8 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x5bbeb0 | 527 | 1 | 1 |  |
 | 0x5b7970 | 539 | 1 | 0 | ✓ |
 | 0x5b5af0 | 595 | 1 | 0 | ✓ |
+| 0x5b3890 | 615 | 1 | 5 |  |
 | 0x5afc90 | 623 | 1 | 8 |  |
-| 0x5b5600 | 701 | 1 | 1 |  |
 | 0x5a3870 | 828 | 1 | 0 | ✓ |
 | 0x5bc7c0 | 880 | 1 | 3 |  |
 | 0x5b0890 | 961 | 1 | 0 | ✓ |

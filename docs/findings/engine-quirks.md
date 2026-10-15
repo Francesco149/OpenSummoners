@@ -4885,6 +4885,25 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   rand pitch, dust, shots, glow, warp) + the state-1 record; off = `0x40afe0`(0, quiet).  **Unload**
   `0x41e360` = `0x4467d0` with the voice lines stopped through `0x41e440`.
 
+### #159 — the attack pipeline: power rolls, hit boxes, target search (port 2026-10-15)
+- **Power roll** (`0x4481f0`, `0x447f30` the same from a skill record): base v = w × (power + stats / 2) / 1000
+  (32-bit products, truncating divides), spread s = min(100, min(v × 50 / 100, max(2, v × 20 / 100))), result =
+  v − s + r × s / 1000 with r = rand × 1000 / 32768 — so a hit lands in [v − s, v).  Stats: physical = party
+  +0x64 + +0x74 + +0x8c + char +0xc7d8 (element 6: +0x64 + +0x8c only); magic (skill +0x2dc) = +0x6c + +0x7c +
+  +0x94 + char +0xc7e4 (`0x4483a0`; the attack itself rolls it through the jitter `0x426e00`).  Weight w = atk ×
+  skill +0x2c4 / 1000, power = skill +0x2c8.  ONE rand per attack (`0x447900`), drawn first.
+- **Hit boxes** (`0x5b15e0`): a body holds 8 (u16 +0x80, 64 B each at +0x84); x mirrors by facing (left: x − dx;
+  right: x + w − box w + dx); the knock-back rule `mode` 0..12 (facing / its back / 1 / 3 / none, kind 0 / 2;
+  7 = by the body angle +0x34 in 45° sectors; 8..10 = away from the box centre).  A plain physical skill (no
+  element, not magic, +0x2e8 0) takes the weapon's element fields from the party block +0x124..+0x134.  With
+  char +0xc7f4 the attack spawns two more boxes at ±+0xc7f8 (same roll).
+- **Target search** (`0x5b1c50`): the 32 chars alive, body kind 1, party +0x44a 0, not already struck this tick
+  (+0x26e), body +0x7d 0, not the attacker; faction relation (`0x4416c0`, with the attacker's +0x1f0 folding
+  2 → 1) must equal the requested one; skipped when hit by the same attack id (+0x3c) with its record time
+  (+0x15af0) > part + 30.  Overlap by the frame boxes (`0x4411e0`) or the plain rect (`0x4804b0`); the nearest
+  by |dx| + |dy| of centres.  Nothing struck → a switch may be (`0x5b1aa0`, the party side only, not in a
+  two-room world).
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

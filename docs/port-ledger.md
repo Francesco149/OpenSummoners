@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **737** (47.3% of engine-proper) — tested 249, ported 488
-- code bytes touched: **34.2%** (607,182 / 1,776,526 B of engine-proper)
-- unported: **1087**
+- touched: **745** (47.8% of engine-proper) — tested 249, ported 496
+- code bytes touched: **34.4%** (611,031 / 1,776,526 B of engine-proper)
+- unported: **1079**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (488) — reimplemented, no host test yet
+## ported (496) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -528,6 +528,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x446580 | sub_446580 | 185 | sound_fx.h |
 | 0x446640 | sub_446640 | 112 | char_integrate.h |
 | 0x4467d0 | sub_4467D0 | 289 | entity_life.h |
+| 0x4478e0 | sub_4478E0 | 18 | char_attack.h |
+| 0x447900 | sub_447900 | 772 | char_attack.h |
+| 0x447ed0 | sub_447ED0 | 89 | char_attack.h |
+| 0x447f30 | sub_447F30 | 692 | char_attack.h |
+| 0x4481f0 | sub_4481F0 | 424 | char_attack.h |
+| 0x4483a0 | sub_4483A0 | 31 | char_attack.h |
 | 0x448c80 | sub_448C80 | 47 | particle_init.h |
 | 0x448cb0 | sub_448CB0 | 264 | entity_fx.c, entity_fx.h |
 | 0x44bbc0 | sub_44BBC0 | 66 | entity_fx.c, entity_fx.h |
@@ -752,7 +758,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5a4200 | sub_5A4200 | 276 | scene_loop.h |
 | 0x5a4460 | sub_5A4460 | 30 | scene_loop.h |
 | 0x5a4480 | sub_5A4480 | 312 | scene_loop.h |
+| 0x5b15e0 | sub_5B15E0 | 1124 | char_attack.h |
 | 0x5b1aa0 | sub_5B1AA0 | 405 | arche_pose.h |
+| 0x5b1c50 | sub_5B1C50 | 699 | char_attack.h |
 | 0x5b4510 | sub_5B4510 | 26 | arche_pose.h |
 | 0x5b4530 | sub_5B4530 | 1209 | party_member.h |
 | 0x5b4a10 | sub_5B4A10 | 741 | party_member.h |

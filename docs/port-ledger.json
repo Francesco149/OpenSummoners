@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 488,
-  "unported": 1087,
+  "ported": 496,
+  "unported": 1079,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 737,
-  "pct_touched": 47.3,
+  "touched": 745,
+  "pct_touched": 47.8,
   "pct_tested": 15.7,
-  "engine_proper_touched": 724,
+  "engine_proper_touched": 732,
   "bytes_total": 1776526,
-  "bytes_touched": 607182,
-  "pct_bytes_touched": 34.2
+  "bytes_touched": 611031,
+  "pct_bytes_touched": 34.4
  },
  "orphan_refs": [],
  "functions": [
@@ -4201,16 +4201,20 @@
    "name": "sub_4478E0",
    "size": 18,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_attack.h"
+   ]
   },
   {
    "va": "0x447900",
    "name": "sub_447900",
    "size": 772,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_attack.h"
+   ]
   },
   {
    "va": "0x447c10",
@@ -4225,32 +4229,40 @@
    "name": "sub_447ED0",
    "size": 89,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_attack.h"
+   ]
   },
   {
    "va": "0x447f30",
    "name": "sub_447F30",
    "size": 692,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_attack.h"
+   ]
   },
   {
    "va": "0x4481f0",
    "name": "sub_4481F0",
    "size": 424,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_attack.h"
+   ]
   },
   {
    "va": "0x4483a0",
    "name": "sub_4483A0",
    "size": 31,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_attack.h"
+   ]
   },
   {
    "va": "0x4483c0",
@@ -11989,8 +12001,10 @@
    "name": "sub_5B15E0",
    "size": 1124,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_attack.h"
+   ]
   },
   {
    "va": "0x5b1aa0",
@@ -12007,8 +12021,10 @@
    "name": "sub_5B1C50",
    "size": 699,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_attack.h"
+   ]
   },
   {
    "va": "0x5b1f10",

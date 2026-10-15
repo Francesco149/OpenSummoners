@@ -467,7 +467,9 @@ VERIFY_HOOKS = ["rand", "input_poll", "mover_v", "sweep_h", "ent_move_h", "ent_m
                 "item_kind", "room_items_of_kind", "room_items_stored", "key_token_replace", "menu_msg_set",
                 "msg_window_open", "sys_msg_style", "item_list_fill",
                 "cast_cmd_clear", "scene_cast_to", "scene_cast_to_rec", "scene_cast_step", "scene_party_gather",
-                "scene_device_spawn", "char_unload", "script_switch"]
+                "scene_device_spawn", "char_unload", "script_switch",
+                "facing_back", "char_mag_sum", "char_atk_roll", "char_skill_roll", "char_lunge", "char_attack_hits",
+                "body_hit_spawn", "char_hit_target"]
 # REPLACE-only hooks (a whole room per call / DirectInput): proven by `corpus --check --hook replace:…`
 REPLACE_ONLY_HOOKS = ["room_loop", "input_repoll_flush", "load_room", "scene_loop", "menu_pace", "menu_run",
                       "shop_run", "shop_buy", "shop_who", "menu_ctx_clear", "scene_run",

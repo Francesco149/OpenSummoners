@@ -6,6 +6,17 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-15 — combat chip 1: the attack pipeline (8 functions)
+
+- `src/char_attack.c` (new): the power rolls `0x4481f0` / `0x447f30` + the magic sum `0x4483a0`, the lunge
+  `0x447ed0`, the attack's hit boxes `0x447900` (+ the twin side hits), the hit box spawn `0x5b15e0`, the target
+  search `0x5b1c50`, `0x4478e0`.  Slots: the hit's on-spawn effect `0x5b3890` + the damage application
+  `0x5b5600` (unreached: no foe struck in the corpus).  Quirk #159.
+- rhost shadow: char_attack_hits 8,827, body_hit_spawn 4,119 (sampled of 12,946), char_atk_roll 3,318,
+  char_skill_roll 801, char_mag_sum 801, char_lunge 621, char_hit_target 554, facing_back 33 — 0 divergences (the
+  USER's sword swings in the errands / my-play).  Hybrid gate 494 PASS.  The struck-char path waits for the
+  combat recording.
+
 ## 2026-10-15 — the story scripts' commands (10 functions)
 
 - `src/scene_cmd.c`: the cast walk-to `0x402330` / by record `0x4d64b0` / relative `0x402730`, the cast clear

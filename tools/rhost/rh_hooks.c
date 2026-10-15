@@ -53,6 +53,7 @@
 #include "script_engine.h"
 #include "scene_cmd.h"
 #include "char_status.h"
+#include "char_attack.h"
 #include "room_tick.h"
 #include "ui_core.h"
 #include "ui_text.h"
@@ -211,6 +212,9 @@ typedef struct {
     X(H_SC_STEP2, "scene_cast_step", 0x402730u) X(H_SC_GATHER, "scene_party_gather", 0x405e80u) \
     X(H_SC_YN, "scene_yes_no", 0x41a2a0u) X(H_SC_DEV, "scene_device_spawn", 0x431d10u) X(H_CUNLOAD, "char_unload", 0x41e360u) \
     X(H_IGIVE, "item_give", 0x407500u) X(H_SSWITCH, "script_switch", 0x40a810u) \
+    X(H_AT_BACK, "facing_back", 0x4478e0u) X(H_AT_MAG, "char_mag_sum", 0x4483a0u) X(H_AT_ROLL, "char_atk_roll", 0x4481f0u) \
+    X(H_AT_SROLL, "char_skill_roll", 0x447f30u) X(H_AT_LUNGE, "char_lunge", 0x447ed0u) X(H_AT_HITS, "char_attack_hits", 0x447900u) \
+    X(H_AT_SPAWN, "body_hit_spawn", 0x5b15e0u) X(H_AT_TGT, "char_hit_target", 0x5b1c50u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
 
@@ -3171,7 +3175,7 @@ static void __attribute__((thiscall)) w_sndfree(wl_entity *e)
 /* ---- the character definition helpers (src/char_def.c) — full state, generic wrappers: a
  * thiscall / stdcall helper of N stack words; the adapter returns what retail returns where a
  * caller reads it (CMP = compared) ---- */
-typedef struct { void *self; intptr_t a[22]; intptr_t rr, rp; } gx_ctx;
+typedef struct { void *self; intptr_t a[23]; intptr_t rr, rp; } gx_ctx;
 #define GP1 intptr_t a1
 #define GP2 GP1, intptr_t a2
 #define GP3 GP2, intptr_t a3
@@ -3194,6 +3198,7 @@ typedef struct { void *self; intptr_t a[22]; intptr_t rr, rp; } gx_ctx;
 #define GP20 GP19, intptr_t a20
 #define GP21 GP20, intptr_t a21
 #define GP22 GP21, intptr_t a22
+#define GP23 GP22, intptr_t a23
 #define GA1 a1
 #define GA2 GA1, a2
 #define GA3 GA2, a3
@@ -3216,6 +3221,7 @@ typedef struct { void *self; intptr_t a[22]; intptr_t rr, rp; } gx_ctx;
 #define GA20 GA19, a20
 #define GA21 GA20, a21
 #define GA22 GA21, a22
+#define GA23 GA22, a23
 #define GX1 x->a[0]
 #define GX2 GX1, x->a[1]
 #define GX3 GX2, x->a[2]
@@ -3238,6 +3244,7 @@ typedef struct { void *self; intptr_t a[22]; intptr_t rr, rp; } gx_ctx;
 #define GX20 GX19, x->a[19]
 #define GX21 GX20, x->a[20]
 #define GX22 GX21, x->a[21]
+#define GX23 GX22, x->a[22]
 #define GX_TAIL(ID, NAME, CMP)                                                                       \
     if (h->mode == 2) { h->calls++; ID##_p(&x); return x.rp; }                                        \
     if (!sample(h)) { ID##_r(&x); return x.rr; }                                                      \
@@ -3884,6 +3891,19 @@ TC_HOOK(H_SC_DEV, "scene_device_spawn", 6, 1, return (intptr_t)scene_device_spaw
 ST_HOOK(H_CUNLOAD, "char_unload", 1, 0, char_unload((wl_char *)a1); return 0)
 TC_HOOK(H_IGIVE, "item_give", 4, 1, return item_give(self, a1, a2, a3, (int32_t *)a4))
 ST_HOOK(H_SSWITCH, "script_switch", 2, 1, return script_switch(a1, a2))
+/* the attack pipeline (src/char_attack.c) */
+ST_HOOK(H_AT_BACK, "facing_back", 1, 1, return facing_back(a1))
+TC_HOOK0(H_AT_MAG, "char_mag_sum", 1, return char_mag_sum(self))
+TC_HOOK(H_AT_ROLL, "char_atk_roll", 4, 1, return char_atk_roll(self, a1, a2, a3, a4))
+TC_HOOK(H_AT_SROLL, "char_skill_roll", 3, 1, return char_skill_roll(self, CP(a1), a2, a3))
+TC_HOOK(H_AT_LUNGE, "char_lunge", 4, 1, return char_lunge(self, (wl_body *)a1, a2, a3, a4))
+TC_HOOK(H_AT_HITS, "char_attack_hits", 10, 1,
+        return char_attack_hits(self, (wl_body *)a1, a2, a3, a4, a5, a6, a7, CP(a8), a9, a10))
+TC_HOOK(H_AT_SPAWN, "body_hit_spawn", 23, 1,
+        return body_hit_spawn(self, (wl_char *)a1, (wl_body *)a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14,
+                              a15, a16, a17, a18, a19, a20, a21, a22, a23))
+TC_HOOK(H_AT_TGT, "char_hit_target", 6, 1,
+        return (intptr_t)char_hit_target(self, CP(a1), U16(a2), CP(a3), a4, a5, (int32_t *)a6))
 /* 0x412800 rewrites its caller's (stack) string in place: retail and the port each run on a copy, compared */
 typedef intptr_t (__attribute__((stdcall)) *ktok_t)(char *, const void *);
 static intptr_t __attribute__((stdcall)) H_UT_KTOK_w(char *s, const void *e)
@@ -4150,7 +4170,7 @@ static void bind_engine_calls(void)
     B(56dc20); B(41a890); B(5bf3ee); B(426110); B(560900); B(5bf5db);
     B(428c00); B(429060); B(429db0); B(42a500); B(42a9a0); B(42b9a0); B(42c130); B(42c510); B(42c970);
     B(42cce0); B(42d3c0); B(42da50); B(42e290); B(42f840); B(42fbf0); B(42ff00); B(430400);
-    B(5bcfb0); B(55d140); B(47ae00); B(5b1f10); B(4034f0); B(4051d0); B(415ae0); B(4192f0); B(418ec0); B(441de0); B(442710); B(442640);
+    B(5bcfb0); B(55d140); B(5b3890); B(47ae00); B(5b1f10); B(4034f0); B(4051d0); B(415ae0); B(4192f0); B(418ec0); B(441de0); B(442710); B(442640);
     B(5bcfa0); B(43c1b0); B(5b94e0); B(5b9500); B(5b5ef0); B(43e250); B(43d540); B(43d4b0); B(43dd30); B(43d830);
     B(442920); B(4428f0); B(468970);
     B(561d20); B(409150); B(55fdb0); B(41d780); B(4e6520); B(4e61d0); B(41b670); B(4c5af0); B(52fd80); B(5a3870); B(5a00c0);
