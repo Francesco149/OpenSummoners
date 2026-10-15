@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 250,
-  "ported": 173,
-  "unported": 1401,
+  "ported": 186,
+  "unported": 1388,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 423,
-  "pct_touched": 26.8,
+  "touched": 436,
+  "pct_touched": 27.6,
   "pct_tested": 15.8,
-  "engine_proper_touched": 410,
+  "engine_proper_touched": 423,
   "bytes_total": 1776526,
-  "bytes_touched": 439182,
-  "pct_bytes_touched": 24.7
+  "bytes_touched": 439991,
+  "pct_bytes_touched": 24.8
  },
  "orphan_refs": [],
  "functions": [
@@ -307,8 +307,10 @@
    "name": "sub_4022D0",
    "size": 88,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_load.h"
+   ]
   },
   {
    "va": "0x402330",
@@ -3229,8 +3231,10 @@
    "name": "sub_43C9B0",
    "size": 130,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_load.h"
+   ]
   },
   {
    "va": "0x43ca40",
@@ -6186,8 +6190,10 @@
    "name": "sub_491740",
    "size": 38,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_load.h"
+   ]
   },
   {
    "va": "0x491770",
@@ -6673,8 +6679,10 @@
    "name": "sub_49A050",
    "size": 13,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_load.h"
+   ]
   },
   {
    "va": "0x49a060",
@@ -10003,7 +10011,8 @@
     "src/game_world.h",
     "src/main.c",
     "src/map_data.h",
-    "src/map_decode.h"
+    "src/map_decode.h",
+    "src/room_load.h"
    ]
   },
   {
@@ -10035,32 +10044,40 @@
    "name": "sub_587CE0",
    "size": 71,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_load.h"
+   ]
   },
   {
    "va": "0x587d30",
    "name": "sub_587D30",
    "size": 28,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_load.h"
+   ]
   },
   {
    "va": "0x587d50",
    "name": "sub_587D50",
    "size": 96,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_load.h"
+   ]
   },
   {
    "va": "0x587db0",
    "name": "sub_587DB0",
    "size": 76,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_load.h"
+   ]
   },
   {
    "va": "0x587e00",
@@ -10137,40 +10154,50 @@
    "name": "sub_58CF60",
    "size": 83,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_load.h"
+   ]
   },
   {
    "va": "0x58cfc0",
    "name": "sub_58CFC0",
    "size": 27,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_load.h"
+   ]
   },
   {
    "va": "0x58cfe0",
    "name": "sub_58CFE0",
    "size": 63,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_load.h"
+   ]
   },
   {
    "va": "0x58d020",
    "name": "sub_58D020",
    "size": 51,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_load.h"
+   ]
   },
   {
    "va": "0x58d060",
    "name": "sub_58D060",
    "size": 45,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_load.h"
+   ]
   },
   {
    "va": "0x58d090",

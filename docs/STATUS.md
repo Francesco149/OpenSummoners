@@ -7,15 +7,15 @@
 ## Port coverage (engine-proper functions of `sotes.exe`)
 
 ```
-█████░░░░░░░░░░░░░░░  26.8% touched   (15.8% host-tested, 24.7% of code bytes)
+██████░░░░░░░░░░░░░░  27.6% touched   (15.8% host-tested, 24.8% of code bytes)
 ```
 
 | status      | count | what it means                                          |
 |-------------|------:|--------------------------------------------------------|
 | tested      |   250 | ported + module covered by the host unit suite       |
-| ported      |   173 | reimplemented in src/, no host test for that module  |
-| **touched** | **423** | tested + ported (FUN_ provenance ref in src/)    |
-| unported    |  1401 | exists in engine, never referenced from src/         |
+| ported      |   186 | reimplemented in src/, no host test for that module  |
+| **touched** | **436** | tested + ported (FUN_ provenance ref in src/)    |
+| unported    |  1388 | exists in engine, never referenced from src/         |
 
 **Denominator note (read this before judging the %):** the headline % is over
 **engine-proper** functions — the **1532** below
@@ -26,7 +26,7 @@ those like retail rather than porting them (PLAN.md §2-3), so counting them
 would bury real progress. Full table is **1824** non-thunk
 functions (of 1824 incl. thunks).
 
-Code-byte coverage (24.7% of engine-proper bytes) is the truer progress
+Code-byte coverage (24.8% of engine-proper bytes) is the truer progress
 signal: the engine has a long tail of tiny leaf helpers, so function count
 understates how much actual instruction volume is ported.
 
@@ -77,7 +77,9 @@ understates how much actual instruction volume is ported.
   | KEYBOARD input producer (DIK events → ring records in retail's test order, held axes) | `0x46a880` | 1,694 compared (every call with events: 1,164 events, title / menus / free roam) | 0 |
   | ENCOUNTER pass (roam / battle / strong-foe modes, foe-near flag, battle linger, room BGM restore) + threat scans, slot check, BGM pick | `0x58e780` / `0x58eeb0` / `0x58f0b0` / `0x412db0` / `0x40d9b0` | 1,471 (every call) / 1.4k / 1.4k / 63k / 1.4k — idle path (no foes in the corpus) | 0 |
   | the ROOM LOOP itself (pacing machine, update, keys / menus, passes, render + Flip) + input re-poll / flush | `0x58f360` / `0x49be60` | REPLACE only: every room of the corpus (rh-my-play 9 runs) | – |
-  Hybrid gate: with all of the above REPLACING retail (136 hooks) (the whole character tick, driver → tile
+  | the ROOM SETUP `load_room` (new world, pools, gate, map load, palette, NPC entry roll, party, result loop) | `0x586010` | REPLACE only: all 16 room loads of the corpus | – |
+  | its helpers: body arrays, char links, draw pools, shake clear, volume fade, map-NPC id / test, slot status, gate actor, slot ready / tint, timed-sound fade, fill lookup | `0x58cf60` `0x58d020` `0x587d50` `0x587d30` `0x43c9b0` `0x58cfe0` `0x58cfc0` `0x58d060` `0x4022d0` `0x49a050` `0x491740` `0x587ce0` `0x587db0` | 1,446 (@16) / 512 / 16 / 32 / 61 / 72 / 72 / 16 / – / 19 / – / – / 78 | 0 |
+  Hybrid gate: with all of the above REPLACING retail (150 hooks) (the whole character tick, driver → tile
   movers, + the room loop's passes and per-tick calls, runs as port code), every corpus scenario ends byte-identical.
   Shadow guard (rhost): a port phase that reaches an external effect retail already performed (surface free,
   buffer release, DeleteObject, DirectInput, a mode-0/2 script) aborts its comparison (counted skipped); those
@@ -93,6 +95,12 @@ understates how much actual instruction volume is ported.
   ahead, `0x4418e0`, `0x440e40`, `0x441700`, `0x43ee30`, …; scratch bodies from retail's heap via
   `g_eng.op_new`). Hybrid gate with all 12 movement functions replacing retail: PASS.
 - **Next (port side):**
+  000. `load_room 0x586010` RUNS AS PORT CODE (`src/room_load.c`, REPLACE-verified; quirk #138). Slots left under
+     it: the world ctor / dtor `0x4017d0` / `0x54bfb0`, the map load / decode / free `0x587970` / `0x587e00` (the port
+     decode exists but takes `map_data`: wire the port parse) / `0x5878a0` / `0x59db70`, the room population `0x58d460`
+     (3.3 KB), the party member create `0x58e170`, the formation `0x41dc90`, `0x58d210`, `0x58d0b0`, `0x58e330`,
+     `0x41e600`, the palette chain (`0x4178e0` / `0x417bc0` / `0x4182d0` / `0x491770` / `0x418470` / `0x417c40`),
+     `0x56dc20`, `0x41a890`, the room-start script `0x40c380`. Next: those leaves + the scene loop `0x59f2c0`.
   00. the ROOM LOOP `0x58f360` RUNS AS PORT CODE (`room_loop_run`, REPLACE-verified; Flip / the camera
      easer go through rhost's own stubs). Left under it as slots: the pickups `0x59ca90` (+ the world
      message log world+4 / +0x1024, "You got %s!"), the warp countdown `0x59c750`, the leader swap

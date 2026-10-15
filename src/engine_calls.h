@@ -158,6 +158,31 @@ typedef struct engine_calls {
     eng_tc7 h482380; eng_tc7 h484530;
     eng_tc8 h47e7c0;
     eng_tc9 h47ecd0;
+    /* the room setup 0x586010's roots: the world pointer 0x8a9b50 (it deletes and re-creates the
+     * world), the loading-log flag 0x8a6b54 (0 = every setup step is logged; set after the first
+     * room loop), the loading log 0x8a6620 (0x406440 / 0x408b90 `this`), the palette tinter 0x8a6610
+     * (0x4182d0 `this`) */
+    wl_world  **world;
+    int32_t    *quiet;
+    void       *dlog;
+    void       *tint;
+    /* ... and its callees: the world destructor 0x54bfb0 / constructor 0x4017d0, the pool head's
+     * deleting destructor 0x562d50, the joystick create 0x5ba120 / acquire 0x5ba290 (DirectInput),
+     * the map resource load 0x587970 / decode 0x587e00 / free 0x5878a0 / deleting destructor
+     * 0x59db70, the room population 0x58d460, the actor fill 0x41e600, the map sprite's palette
+     * (read 0x4178e0, swap table 0x417bc0, tint 0x4182d0, copy 0x491770, rebuild 0x418470), the
+     * parallax grade 0x417c40, the party member create 0x58e170, the formation 0x41dc90, the
+     * partner's view record 0x58d210, the zone-state leader 0x58d0b0, the room end 0x58e330, 0x56dc20,
+     * the scene runner's stop 0x41a890; the fatal paths: the sprintf 0x5bf3ee, the error box
+     * 0x426110, the log reset 0x560900, exit 0x5bf5db */
+    eng_tc0 h54bfb0; eng_tc0 h4017d0; eng_tc1 h562d50; eng_tc3 h5ba120; eng_tc0 h5ba290;
+    eng_tc2 h587970; eng_tc4 h587e00; eng_tc0 h5878a0; eng_tc1 h59db70; eng_tc2 h58d460; eng_tc1 h41e600;
+    eng_tc1 h4178e0; eng_tc2 h417bc0; eng_tc6 h4182d0; eng_tc1 h491770; eng_tc1 h418470; eng_tc2 h417c40;
+    eng_tc5 h58e170; eng_tc0 h41dc90; eng_tc2 h58d210; eng_tc1 h58d0b0; eng_tc1 h58e330; eng_tc3 h56dc20;
+    eng_tc4 h41a890;
+    int (*h5bf3ee)(char *buf, const char *fmt, ...);
+    eng_tc3 h426110; eng_tc0 h560900;
+    void (*h5bf5db)(int code);
 } engine_calls;
 
 extern engine_calls g_eng;

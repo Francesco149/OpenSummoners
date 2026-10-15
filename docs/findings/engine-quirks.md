@@ -4243,6 +4243,44 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   scene, -40 when released, fires at 10000). `world+0x2768` locks: no zone fires. A fire returns 1 with (event,
   arg, zone id) for the scene start. rh-my-play: 8 fires.
 
+### #138 — the room setup `load_room 0x586010`: a NEW world per room, the entry roll, the result loop (port 2026-10-15)
+- **Every room load deletes the world (`0x54bfb0` + delete) and `new`s a fresh 0x27b8-byte one (`0x4017d0`)**; the
+  room loop object survives (its +0x14..+0x3f / +0x40..+0xcb / zone state / BGM pin are cleared, camera leads
+  -30000 / -27200). Every entity band then gets a fresh body array (`0x58cf60`: delete +0x40, `new(n * 0x294)`,
+  +0x44 = n, alive = 0): 64 bodies for band64 / the 32 characters / the 128 actors, 1 for the 1024 particles /
+  band 96 / the 128 at world+0x2560. The view's 27 draw pools (+0x54, 8-byte {u16 count, u16 cap, buffer of
+  60-byte nodes}; record 0 unused) are freed and re-`new`ed every room with fixed caps (0x80 / 0x1b8 / 0x400 /
+  0x60 / 0xe0 / 0x94 / 0xc8 / 0x40 — `src/room_load.c` POOLS, in allocation order).
+- **Entry gate**: the caller's gate id is matched (u16) in the room record's zone table (+0x1c, 20 x 12 B); its
+  +4 is looked up in the area table (world+0x103c, 336-byte records from +4, u16 count +0x54004): an area whose
+  map (+4) differs from this room record's +4 and whose id is not 999999 sets room loop +0x24 = 1. The GATE ACTOR
+  = the first live actor with a zone kind (+0x278) and zone id (+0x274) == gate (gate 0: any); fallback the first
+  with any zone kind; none → "The gate is not found." + exit(0).
+- **Map NPCs present at entry** (every live character with `0x58cfe0` != 0 — alive, part 0 active, party +0x44a
+  == 0, +0x1f8 == 1 → its +0x1fc id — and `0x58cfc0`: +0x1f8 == 1, faction 2): with a keep list (+4 ids, u16
+  count +0x84) one not on it is released (`0x4467d0`); without one a roll `(rand() * 1000 / 0x8000) % 100 > pct`
+  releases it, pct by its presence class char+0x15b58 (set by the room population `0x58d460`): 0 → 70, 1 / 9 →
+  100, 2 → 25, **3..8 → the previous character's pct (one stack local; uninitialized before the first)**. A kept
+  one (not class 9) within 24000 x 16000 of the gate (68000 x 24000 with the `wide` argument; `0x47b7c0`, dy
+  -8000) is released too. The corpus never reaches this pass (0 hits at 0x587288 / 0x587250).
+- **The map resource id goes to `0x587970` as `mov dx,[rinfo+0xc]` over the fd4 still in edx** (upper half =
+  room loop +0xd4's); the loader reads the word.
+- **The result**: the start event (`0x40b8f0` mode 0) 1..3 / 6 end the room without running it; else the room
+  loop runs, and after EVERY run the loading log flag 0x8a6b54 = 1 (the "Start StartArea" … "Start Area Loop"
+  lines are written only until the first room has run). Room-loop result 1 → the zone script (room +0x4024 /
+  +0x4028, mode 1): 11 = run the room again, 1 / 2 / 6 replace the result, anything else keeps 1; 2 / 6 / 10 end;
+  4 → the mode-5 script (6 → 6, else 4); 5 → BGM change 27 (`0x40a5d0(…, 1)`); 3 / 7..9 / other → run again.
+  Then `0x58e330(room +0x40ac)`, `0x56dc20`, and for results 1 / 2 with no wait record the scene runner gets
+  `0x41a890(10020)` and is deleted.
+- **The map sprite's palette** (unless `0x49a050`: already built): descriptor sys+0x1b0c kind 3 = per-channel
+  tint `0x491740` by time of day 0x8a93fc (0: 1000/1000/1000, 1: 1000/700/600, 2..5: 300/300/400, + the gamma
+  LUT 0x8a9410 when 0x8a9510 != 0 || 0x8a9514 != 1000); otherwise the descriptor's palette (+0xc) or the sprite's
+  own (`0x4178e0`, via the swap table +0x8 → `0x417bc0`), kinds 1 / 2 tinted per entry (`0x4182d0`: time 0
+  100/100/100, 1 100/80/70, 2-3 70/70/80, 4 60/60/75, 5 80/80/85; kind 2 at time 3 90/90/90), gamma-mapped,
+  copied by `0x491770` (byte 3 of each entry never written). The corpus: kind != 3 on all 16 loads.
+- `0x587ce0` (sys+0xaa8 timed sounds → state 3, fade 400) is the same loop `0x40b8f0` inlines; `0x4022d0` (a
+  stdcall; load_room passes ecx anyway) repeats the gate-actor search for the wait record's +0x68.
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

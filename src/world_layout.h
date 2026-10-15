@@ -342,20 +342,25 @@ typedef struct wl_world {
     int32_t    f1034;        /* +0x1034  != 0 => no fall damage                        */
     uint8_t   *roominfo;     /* +0x1038  the room's record: +0x1c the zone table (20 x 12 B,
                               *           0x59a1f0), +0x110 the BGM kind, u16 +0x144 BGM override */
-    uint8_t    _p103c[0x1040 - 0x103c];
-    uint8_t   *f1040;        /* +0x1040  +0x28 = the effects volume (per mille)        */
-    uint8_t   *f1044;        /* +0x1044  +0xce u16 = the particle slot cursor (0x557370) */
+    uint8_t   *areas;        /* +0x103c  the area table: 336-byte records from +4 (+0 the area
+                              *           id, +4 its map), u16 +0x54004 the count, +0x54008 the
+                              *           module the maps load from (0x586010)              */
+    uint8_t   *f1040;        /* +0x1040  the effects-volume fader: +0x28 the volume (per mille),
+                              *           +0x20 its state (0x43c9b0)                       */
+    uint8_t   *f1044;        /* +0x1044  the room loop: +0xce u16 = the particle slot cursor
+                              *           (0x557370)                                       */
     uint8_t   *grid;         /* +0x1048  the 0x2cb044-byte runtime grid (map_grid.h)   */
     struct camera_view *view; /* +0x104c  the camera/view (camera_follow.h)           */
     uint8_t    _p1050[0x1054 - 0x1050];
     struct wl_event *event;  /* +0x1054  the event-script runner (0x40b8f0's `this`)    */
-    uint8_t    _p1058[0x1060 - 0x1058];
+    uint8_t    _p1058[0x105c - 0x1058];
+    int32_t    f105c;        /* +0x105c  (0x586010's last argument)                     */
     wl_entity *band64[64];   /* +0x1060  0x258-byte entities (shots / projectiles)      */
     struct wl_char *chars[32]; /* +0x1160  the full characters (0x15bb0 B each)        */
     wl_entity *actors[128];  /* +0x11e0  0x2fc-byte actors (townsfolk props, NPC cast)  */
     wl_entity *particles[1024]; /* +0x13e0 0x284-byte particles                         */
     wl_entity *band96[96];   /* +0x23e0  0x20c-byte entities                            */
-    uint8_t    _p2560[0x2760 - 0x2560];
+    wl_entity *band2560[128]; /* +0x2560 (one body each, like the particles: 0x586010)   */
     int32_t    f2760;        /* +0x2760  != 0 => no idle anims                         */
     int32_t    f2764;        /* +0x2764  == 1 => (0x47d740) a scene is running          */
     int32_t    f2768;        /* +0x2768  != 0 => no warp request (0x54ecf0)            */
@@ -375,7 +380,8 @@ typedef struct wl_world {
     wl_list   *list_2798;    /* +0x2798 */
     int32_t    f279c;        /* +0x279c  (-3 per tick to 0) */
     int32_t    action_serial; /* +0x27a0  bumped (mod 0xffffff) per action start         */
-    uint8_t    _p27a4[0x27a8 - 0x27a4];
+    uint16_t   f27a4;        /* +0x27a4  (135 at room start)                            */
+    uint16_t   _p27a6;
     int32_t    busy;         /* +0x27a8  != 0 => the ambient emitters hold (scene lock)  */
     uint8_t   *f27ac;        /* +0x27ac  a waiting event: +0x68 a zone id that may fire
                               *           unpressed (0x59a1f0); +0x60 / +0x74 a tick budget,
@@ -475,6 +481,8 @@ typedef struct wl_pslot {
     struct wl_room *room;      /* +0x9ec  the room it belongs to                          */
     int32_t    id;             /* +0x9f0  (100000104: not flushed by the gimmick pass)     */
     struct wl_char *ch;        /* +0x9f4  the member's character                         */
+    uint8_t    _p9f8[0xe58 - 0x9f8];
+    uint16_t   fe58[18];       /* +0xe58  (cleared at room entry where 0x628768's row is set) */
 } wl_pslot;
 
 /* A ROOM (operator_new(0x4120); world+0x2784 points at the current one): the map object
@@ -487,16 +495,25 @@ typedef struct wl_room {
     uint16_t   nflags;         /* +0x2008 */
     uint16_t   _p200a;
     wl_pslot  *leader;         /* +0x200c */
-    uint8_t    _p2010[0x4030 - 0x2010];
+    uint8_t    _p2010[0x4018 - 0x2010];
+    int32_t    f4018;          /* +0x4018  (0x58e170's last argument)                    */
+    uint8_t    _p401c[0x4024 - 0x401c];
+    int32_t    f4024;          /* +0x4024  the script a zone result runs: its id, arg (0x586010) */
+    int32_t    f4028;          /* +0x4028 */
+    uint8_t    _p402c[0x4030 - 0x402c];
     wl_pslot  *slot[8];        /* +0x4030 */
     uint8_t    _p4050[0x4058 - 0x4050];
     int32_t    lead_mode;      /* +0x4058  the camera lead (0x59d3f0): 0 centred, 1 the partner
                                 *          gap, 2 the facing (ring id 11 cycles it)           */
-    uint8_t    _p405c[0x4080 - 0x405c];
+    uint8_t    _p405c[0x4070 - 0x405c];
+    int32_t    f4070[4];       /* +0x4070  (zeroed with +0x4080 at room start)            */
     int32_t    f4080;          /* +0x4080  != 0 => no warp request (0x54ecf0)             */
-    uint8_t    _p4084[0x40a8 - 0x4084];
+    uint8_t    _p4084[0x40a4 - 0x4084];
+    int32_t    f40a4;          /* +0x40a4  != 0 => the partner's view record is set up (0x58d210) */
     uint16_t   partner;        /* +0x40a8  the room loop's view record holding the partner  */
-    uint8_t    _p40aa[0x40d0 - 0x40aa];
+    uint16_t   _p40aa;
+    int32_t    f40ac;          /* +0x40ac  (0x58e330's argument at room end)              */
+    uint8_t    _p40b0[0x40d0 - 0x40b0];
     int32_t    f40d0;          /* +0x40d0  == 0 => no warp request (0x54ecf0)             */
     uint8_t    _p40d4[0x4120 - 0x40d4];
 } wl_room;
@@ -525,36 +542,52 @@ typedef struct wl_roomloop {
     uint16_t   _p6;
     int32_t    lead;           /* +0x8  the leader's camera lead (-52000..-8000, 0x59d3f0) */
     int32_t    lead_y;         /* +0xc  the vertical lead (ids 40 / 41: -40000 / -27200 / -4000) */
-    uint8_t    _p10[0x18 - 0x10];
+    int32_t    f10;            /* +0x10 */
+    int32_t    f14;            /* +0x14 */
     int32_t    paused;         /* +0x18 */
     int32_t    in_menu;        /* +0x1c */
     uint16_t   enc_ctr;        /* +0x20  the encounter pass runs every 5th update          */
-    uint8_t    _p22[0x28 - 0x22];
+    uint16_t   _p22;
+    int32_t    f24;            /* +0x24  1 = the entry gate leads from another map (0x586010) */
     uint16_t   ui_lock;        /* +0x28  != 0 => no keys, no passes                         */
-    uint8_t    _p2a[0x34 - 0x2a];
+    uint16_t   _p2a;
+    int32_t    f2c;            /* +0x2c */
+    int32_t    f30;            /* +0x30 */
     int32_t    f34;            /* +0x34  set by ring id 19                                  */
     uint16_t   hit_ph;         /* +0x38  hitstop: every other update is skipped             */
     uint16_t   hit_n;          /* +0x3a  ... for this many                                  */
     int32_t    hitstop;        /* +0x3c */
-    uint8_t    _p40[0xd4 - 0x40];
+    int32_t    f40[5];         /* +0x40 */
+    int32_t    f54[15];        /* +0x54 */
+    int32_t    f90[15];        /* +0x90 */
+    uint16_t   fcc;            /* +0xcc */
+    uint16_t   pcursor;        /* +0xce  the particle slot cursor (0x557370)               */
+    uint16_t   fd0, fd2;       /* +0xd0 */
     int32_t    fd4;            /* +0xd4  (40 / 50 / 60 / 61: the BGM pick's variants)     */
     int32_t    bgm_fixed;      /* +0xd8  != 0 => the BGM is bgm_id                         */
     uint16_t   bgm_id;         /* +0xdc */
     uint16_t   bgm_wait;       /* +0xde  ticks before a wrong BGM is replaced (10)         */
     void      *scene;          /* +0xe0  the scene runner (operator_new(0xe290), 0x41a7f0)  */
-    uint8_t    _pe4[0xf0 - 0xe4];
+    uint8_t    _pe4[0xe8 - 0xe4];
+    uint8_t   *fe8;            /* +0xe8  a 16-byte pool head: +0 32 pointers to 0x84-byte
+                                *        records, u16 +4 their count (0x586010)           */
+    int32_t    fec;            /* +0xec */
     wl_zonestate zones;        /* +0xf0  the event zones (0x59a1f0)                         */
     void      *f11c;           /* +0x11c +0x20 == 0 => both +0x128 records get 1            */
-    uint8_t    _p120[0x128 - 0x120];
+    void      *f120;           /* +0x120 */
+    void      *f124;           /* +0x124 */
     struct {
         int32_t  f0;           /* +0x000 */
-        uint8_t  _p4[0x398 - 0x4];
+        int32_t  f4;           /* +0x004 */
+        int32_t  f8;           /* +0x008  (0 at room start) */
+        uint8_t  _pc[0x398 - 0xc];
         struct wl_char *partner; /* +0x398  the camera lead's partner (0x59d3f0 mode 1)     */
         uint8_t  _p39c[0x3ec - 0x39c];
     } view[2];                 /* +0x128 */
     int32_t    scene_ev;       /* +0x900  the zone that fired: its event, arg              */
     int32_t    scene_arg;      /* +0x904 */
     int32_t    scene_face;     /* +0x908  the leader's facing then (0x4842c0)               */
+    int32_t    f90c;           /* +0x90c */
 } wl_roomloop;
 
 /* The EVENT-SCRIPT runner *(world+0x1054): 0x40b8f0 fills it and runs the script
@@ -573,7 +606,7 @@ typedef struct wl_event {
 typedef struct wl_char {
     wl_entity  base;
     int32_t    f1f8;           /* +0x001f8  1 => the regen ticks (with faction 2)        */
-    uint8_t    _p1fc[0x200 - 0x1fc];
+    int32_t    f1fc;           /* +0x001fc  the map record's id while +0x1f8 == 1 (0x58cfe0) */
     int32_t    f200;           /* +0x00200  0 player AI, 1 NPC behaviour, >1 idle        */
     uint32_t   flags204;       /* +0x00204  lo16 = the +0x66 timer phase, hi16 = a tick
                                 *           counter; 0x30000 / 0x1f0000: no dust          */
@@ -830,7 +863,8 @@ typedef struct wl_char {
     int32_t    idle_i;         /* +0x15b4c */
     int32_t    idle_t;         /* +0x15b50 */
     wl_voiceset *voice;        /* +0x15b54  the character's voice set (0x4099a0)          */
-    uint8_t    _p15b58[0x15b5c - 0x15b58];
+    int32_t    presence;       /* +0x15b58  the map record's presence class (0x58d460): the room
+                                *           entry keeps it 0: 70%, 1 / 9: always, 2: 25% (0x586010) */
     int32_t    f15b5c;         /* +0x15b5c */
     struct wl_char *leash;     /* +0x15b60 */
     uint8_t    _p15b64[0x15ba8 - 0x15b64];
@@ -1035,6 +1069,21 @@ _Static_assert(offsetof(wl_roomloop, hitstop) == 0x3c, "room loop +0x3c");
 _Static_assert(offsetof(wl_roomloop, zones)  == 0xf0,  "room loop zone state");
 _Static_assert(offsetof(wl_roomloop, view[1].partner) == 0x4c0 + 0x3ec, "room loop partners");
 _Static_assert(offsetof(wl_roomloop, scene_face) == 0x908, "room loop +0x908");
+_Static_assert(offsetof(wl_roomloop, f2c)    == 0x2c,  "room loop +0x2c");
+_Static_assert(offsetof(wl_roomloop, pcursor) == 0xce, "room loop +0xce");
+_Static_assert(offsetof(wl_roomloop, fd4)    == 0xd4,  "room loop +0xd4");
+_Static_assert(offsetof(wl_roomloop, fe8)    == 0xe8,  "room loop +0xe8");
+_Static_assert(offsetof(wl_roomloop, view[1].f8) == 0x130 + 0x3ec, "room loop view +0x8");
+_Static_assert(offsetof(wl_roomloop, f90c)   == 0x90c, "room loop +0x90c");
+_Static_assert(offsetof(wl_room, f4018)      == 0x4018, "room +0x4018");
+_Static_assert(offsetof(wl_room, f4070)      == 0x4070, "room +0x4070");
+_Static_assert(offsetof(wl_room, f40ac)      == 0x40ac, "room +0x40ac");
+_Static_assert(offsetof(wl_pslot, fe58)      == 0xe58, "slot +0xe58");
+_Static_assert(offsetof(wl_world, f105c)     == 0x105c, "world +0x105c");
+_Static_assert(offsetof(wl_world, band2560)  == 0x2560, "world +0x2560");
+_Static_assert(offsetof(wl_world, f27a4)     == 0x27a4, "world +0x27a4");
+_Static_assert(offsetof(wl_char, f1fc)       == 0x1fc, "char +0x1fc");
+_Static_assert(offsetof(wl_char, presence)   == 0x15b58, "char +0x15b58");
 _Static_assert(offsetof(wl_actor, f2ec)      == 0x2ec, "actor +0x2ec");
 _Static_assert(offsetof(wl_zonestate, fired) == 0x28,  "zone state +0x28");
 _Static_assert(offsetof(wl_actor, zone_kind) == 0x278, "actor +0x278");

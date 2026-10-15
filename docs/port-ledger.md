@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **423** (26.8% of engine-proper) — tested 250, ported 173
-- code bytes touched: **24.7%** (439,182 / 1,776,526 B of engine-proper)
-- unported: **1401**
+- touched: **436** (27.6% of engine-proper) — tested 250, ported 186
+- code bytes touched: **24.8%** (439,991 / 1,776,526 B of engine-proper)
+- unported: **1388**
 - orphan refs in src/ not in this table: 0
 
 ## tested (250) — ported + host unit suite
@@ -171,7 +171,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x582d10 | sub_582D10 | 379 | asset_register.c, asset_register.h |
 | 0x582e90 | sub_582E90 | 3560 | cs_dispatch.c, cs_dispatch.h, main.c (+2) |
 | 0x585000 | gw_cross_reference_585000 | 413 | game_world.c, game_world.h, world_tables_data.c (+1) |
-| 0x586010 | load_room_586010 | 6133 | asset_register.c, asset_register.h, game_world.h (+3) |
+| 0x586010 | load_room_586010 | 6133 | asset_register.c, asset_register.h, game_world.h (+4) |
 | 0x587970 | sub_587970 | 866 | main.c, map_data.c, map_data.h (+4) |
 | 0x587e00 | sub_587E00 | 18059 | asset_register.h, collision.h, game_world.h (+6) |
 | 0x58c910 | game_bank_dims_58C910 | 347 | main.c, map_decode.c, map_grid.c (+1) |
@@ -274,11 +274,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (173) — reimplemented, no host test yet
+## ported (186) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
 | 0x4022a0 | sub_4022A0 | 47 | npc_ai.h |
+| 0x4022d0 | sub_4022D0 | 88 | room_load.h |
 | 0x402a60 | sub_402A60 | 435 | char_state.h |
 | 0x4060d0 | sub_4060D0 | 241 | char_state.h |
 | 0x407320 | sub_407320 | 190 | char_integrate.h |
@@ -320,6 +321,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x426fa0 | sub_426FA0 | 45 | npc_ai.h |
 | 0x4272e0 | sub_4272E0 | 79 | particle_init.h |
 | 0x4385c0 | sub_4385C0 | 19 | particle_init.h |
+| 0x43c9b0 | sub_43C9B0 | 130 | room_load.h |
 | 0x43e140 | sub_43E140 | 266 | room_loop.h |
 | 0x43e3a0 | sub_43E3A0 | 516 | event.c, event.h |
 | 0x43ee30 | sub_43EE30 | 228 | npc_ai.h |
@@ -399,6 +401,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x487570 | sub_487570 | 437 | char_state.h |
 | 0x487730 | sub_487730 | 366 | char_state.h |
 | 0x489280 | sub_489280 | 818 | sound_fx.h |
+| 0x491740 | sub_491740 | 38 | room_load.h |
+| 0x49a050 | sub_49A050 | 13 | room_load.h |
 | 0x49be60 | sub_49BE60 | 290 | room_loop.h |
 | 0x54c640 | sub_54C640 | 812 | grid_refresh.c, grid_refresh.h |
 | 0x54c9d0 | sub_54C9D0 | 214 | grid_refresh.c, grid_refresh.h |
@@ -426,6 +430,15 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x55cd50 | sub_55CD50 | 85 | particle_init.h |
 | 0x55cdb0 | sub_55CDB0 | 145 | particle_init.h |
 | 0x55ce50 | sub_55CE50 | 18 | particle_init.h |
+| 0x587ce0 | sub_587CE0 | 71 | room_load.h |
+| 0x587d30 | sub_587D30 | 28 | room_load.h |
+| 0x587d50 | sub_587D50 | 96 | room_load.h |
+| 0x587db0 | sub_587DB0 | 76 | room_load.h |
+| 0x58cf60 | sub_58CF60 | 83 | room_load.h |
+| 0x58cfc0 | sub_58CFC0 | 27 | room_load.h |
+| 0x58cfe0 | sub_58CFE0 | 63 | room_load.h |
+| 0x58d020 | sub_58D020 | 51 | room_load.h |
+| 0x58d060 | sub_58D060 | 45 | room_load.h |
 | 0x58d090 | sub_58D090 | 18 | room_loop.h |
 | 0x58e780 | sub_58E780 | 1823 | room_loop.h |
 | 0x58eeb0 | sub_58EEB0 | 479 | room_loop.h |

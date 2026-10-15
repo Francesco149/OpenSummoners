@@ -444,9 +444,12 @@ VERIFY_HOOKS = ["rand", "input_poll", "mover_v", "sweep_h", "ent_move_h", "ent_m
                 "sys_unload", "zone_pass@8", "zone_hit@16", "band96_near",
                 "room_input_update@16", "room_char_step@32", "room_actor_step@64", "room_grid_anim@16", "room_party_down",
                 "room_lead@16", "timed_sounds_tick@16", "input_dik_produce@16",
-                "encounter_tick@4", "foes_near@16", "party_foes_near@4", "pslot_ok@16", "bgm_pick@4"]
+                "encounter_tick@4", "foes_near@16", "party_foes_near@4", "pslot_ok@16", "bgm_pick@4",
+                "entity_bodies_alloc@16", "char_links_clear", "view_pools_free", "shake_clear", "volume_fade", "char_map_id",
+                "char_map_npc", "pslot_status_clear", "gate_actor", "sprite_slot_ready", "sprite_slot_tint", "timed_sounds_fade",
+                "fill_lookup"]
 # REPLACE-only hooks (a whole room per call / DirectInput): proven by `corpus --check --hook replace:…`
-REPLACE_ONLY_HOOKS = ["room_loop", "input_repoll_flush"]
+REPLACE_ONLY_HOOKS = ["room_loop", "input_repoll_flush", "load_room"]
 # name@N = shadow every Nth call (the full-state shadows cost ~10-20 ms per compared call)
 
 
