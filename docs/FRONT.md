@@ -112,17 +112,20 @@
      #142) is ported; its slots: the level-up stats `0x409150`, the cue `0x55fdb0`, the level / status sync `0x41d780`, the start gear `0x4e6520` / `0x4e61d0`. Next: `0x41a890`
      (the save writer, every room start).
   00. the ROOM LOOP `0x58f360` RUNS AS PORT CODE (`room_loop_run`, REPLACE-verified; Flip / the camera
-     easer go through rhost's own stubs). Left under it as slots: the scene runner `0x59ad60` / start `0x59cfc0` (+ `0x41a7f0`), the camera
-     snap `0x58e6a0`, the screen effects `0x499ab0`, the menus (`0x59d540` / `0x591120` / `0x590480` /
-     `0x590f20` / `0x590ca0`), the shots `0x590230` / band 96 `0x46da00`, the render `0x48c150` + Flip
-     (platform). Next: `load_room 0x586010` (the room setup around the loop) and the scene loop
-     `0x59f2c0`, so the port binary can run free roam on the retail-layout world (item 2).
-     Slots left in the passes: the key use `0x54ed80`, the input
-     re-poll `0x40fe00`, the shot emitters `0x40ac90` / `0x55cfc0`.
+     easer go through rhost's own stubs), with the script engine / scene commands (`src/script_engine.c`,
+     `src/scene_cmd.c`), the status pass (`src/char_status.c`) and the party chores (`src/room_tick.c`). Left
+     under it as slots: the scene runner `0x59ad60`, the screen effects `0x499ab0` (+ `0x49af40` 3.3 KB), the
+     menus (`0x59d540` / `0x591120` / `0x590480` / `0x590f20` / `0x590ca0` — the UI widget toolkit below them
+     is the next big subsystem), the shots' band `0x590230` (+ `0x4710c0` 20 KB) / band 96 `0x46da00`, the
+     render `0x48c150` + Flip (platform), `0x409520` `0x468b10` `0x415350` `0x495e40` `0x59d160` `0x5bc0c0`;
+     in the passes: the key use `0x54ed80`, the input re-poll `0x40fe00`, the shot emitter `0x40ac90`, the
+     shot init `0x55d140` (8 KB), the fall `0x5b4d00`, the item use `0x5b1f10` + effect value `0x47ae00`;
+     under the scripts: the scene command runner `0x439690` (8.8 KB, the cutscene frame loop) + the ~65 story
+     scripts (`script_call`).
   0. the Arche handlers: the POSE handler `0x457ff0` is ported (`src/arche_pose.c`, quirk #143; the knockdowns /
      status inflict unreached: no combat in the corpus); left: `0x45a300` (14 KB, the skill casts; also 0x446900 /
      0x4484b0), `0x461790` (19 KB, Arche's sword skills 10101..; its helpers 0x4665d0 0x447900 0x5b15e0 0x447ed0
-     0x447f30 0x4483a0 0x450590 ...) and the apply-pass status tick `0x487dc0` (5 KB) / sink `0x4878b0`; the DirectSound
+     0x447f30 0x4483a0 0x450590 ...); the apply pass's status tick `0x487dc0` / fade `0x4878b0` are ported; the DirectSound
      calls `0x5bb250`..`0x5bb8e0` + `0x5b9390` stay platform slots (PORT-DEBT(engine-call-slots)).
   1. the band updaters under the tick driver `0x46cd70` (`src/world_tick.c`): ALL ported except shots `0x4710c0` (20 KB)
      + the 96-band `0x46da00` never run in the corpus (no combat yet). Arms ported but NOT yet exercised by
