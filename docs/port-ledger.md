@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **671** (43.0% of engine-proper) — tested 249, ported 422
-- code bytes touched: **31.7%** (562,903 / 1,776,526 B of engine-proper)
-- unported: **1153**
+- touched: **677** (43.3% of engine-proper) — tested 249, ported 428
+- code bytes touched: **31.8%** (564,982 / 1,776,526 B of engine-proper)
+- unported: **1147**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -57,12 +57,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x426f50 | sub_426F50 | 26 | char_integrate.h, character.c |
 | 0x426fd0 | sub_426FD0 | 781 | base_stat_table.c, base_stat_table.h, char_def.h (+2) |
 | 0x4385e0 | sub_4385E0 | 45 | char_physics.c, char_physics.h |
-| 0x43b980 | sub_43B980 | 783 | cutscene.c, dialogue.h |
-| 0x43bca0 | sub_43BCA0 | 1105 | cutscene.c, dialogue.h, newgame_drive.c (+1) |
+| 0x43b980 | sub_43B980 | 783 | cutscene.c, dialogue.h, ui_run.h |
+| 0x43bca0 | sub_43BCA0 | 1105 | cutscene.c, dialogue.h, newgame_drive.c (+2) |
 | 0x43c110 | sub_43C110 | 84 | input.c, input.h, newgame_scene.h (+1) |
-| 0x43c2e0 | sub_43C2E0 | 795 | main.c |
-| 0x43ca40 | menu_list_nav_43CA40 | 970 | cutscene.c, dialogue.c, dialogue.h (+2) |
-| 0x43ce50 | menu_list_latch_43CE50 | 220 | cutscene.c, dialogue.h, menu_list.c (+1) |
+| 0x43c2e0 | sub_43C2E0 | 795 | main.c, ui_run.h |
+| 0x43ca40 | menu_list_nav_43CA40 | 970 | cutscene.c, dialogue.c, dialogue.h (+3) |
+| 0x43ce50 | menu_list_latch_43CE50 | 220 | cutscene.c, dialogue.h, menu_list.c (+2) |
 | 0x43d1d0 | camera_follow_step_43D1D0 | 366 | camera_follow.c, camera_follow.h, main.c |
 | 0x43d340 | camera_shake_apply_43D340 | 299 | camera_follow.c, camera_follow.h |
 | 0x43e250 | sub_43E250 | 334 | main.c |
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (422) — reimplemented, no host test yet
+## ported (428) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -449,6 +449,10 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x438740 | sub_438740 | 555 | device_init.h |
 | 0x438a60 | sub_438A60 | 2639 | particle_init.h |
 | 0x439680 | sub_439680 | 9 | script_engine.h |
+| 0x43c170 | sub_43C170 | 53 | ui_run.h |
+| 0x43c610 | sub_43C610 | 52 | ui_run.h |
+| 0x43c650 | sub_43C650 | 696 | ui_run.h |
+| 0x43c920 | sub_43C920 | 143 | ui_run.h |
 | 0x43c9b0 | sub_43C9B0 | 130 | room_load.h |
 | 0x43cf30 | sub_43CF30 | 82 | ui_text.h |
 | 0x43cf90 | sub_43CF90 | 564 | ui_text.h |
@@ -614,6 +618,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x55cdb0 | sub_55CDB0 | 145 | particle_init.h |
 | 0x55ce50 | sub_55CE50 | 18 | particle_init.h |
 | 0x55cfc0 | sub_55CFC0 | 358 | char_status.h |
+| 0x55f190 | sub_55F190 | 936 | ui_run.h |
+| 0x55f550 | sub_55F550 | 199 | ui_run.h |
 | 0x55f790 | sub_55F790 | 1558 | scene_loop.h |
 | 0x560e90 | sub_560E90 | 700 | scene_loop.h |
 | 0x561150 | sub_561150 | 126 | scene_loop.h |

@@ -57,6 +57,7 @@
 #include "ui_core.h"
 #include "ui_text.h"
 #include "ui_menu.h"
+#include "ui_run.h"
 #include "glyph_text.h"
 #include "engine_calls.h"
 
@@ -172,6 +173,9 @@ typedef struct {
     X(H_UI_ARROWS, "sys_page_arrows", 0x4103d0u) X(H_UM_MSG, "menu_msg_open", 0x4123a0u) X(H_UM_POPEN, "menu_party_open", 0x4129b0u) \
     X(H_UM_PFILL, "menu_party_fill", 0x412df0u) X(H_UM_HAVE, "menu_have_counts", 0x415a10u) X(H_UM_FITS, "menu_item_fits", 0x417480u) \
     X(H_UM_SPRF, "menu_sprites_free", 0x415350u) \
+    X(H_UR_ICON, "icon_tick", 0x43c610u) X(H_UR_TKEY, "text_key", 0x43c920u) X(H_UR_NAV, "grid_nav", 0x43ca40u) \
+    X(H_UR_KEY, "ctrl_key", 0x43ce50u) X(H_UR_TICK, "ctrl_tick", 0x43c650u) X(H_UR_WTICK, "win_tick", 0x43c2e0u) \
+    X(H_UR_MSG, "msg_update", 0x43b980u) X(H_UR_INPUT, "ctrl_input", 0x43bca0u) X(H_UR_JOBS, "jobs_busy", 0x43c170u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
 
@@ -190,7 +194,7 @@ enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_D
        H_PARTS_FREE, H_SET_ANGLE, H_FX_RESET, H_SKILL_AVAIL, H_PARTY_FIND, H_FLOOR_BELOW,
        H_GPASS, H_GSTEP, H_SWSET, H_SWLINK, H_EVRUN, H_UNLOAD, H_UNLIST_ALL, H_GLOW, H_RECT_HIT, H_CHARS_COUNT, H_CHAR_IN, H_RIDING,
        H_PART_FIND, H_SERIAL, H_SHOT, H_WARP, H_GATHER, H_TPASS, H_TACTOR, H_RFLUSH, H_PROBE_RECT, H_NEAR,
-       H_ZPASS, H_ZHIT, H_B96_NEAR, H_RIN, H_RCHAR, H_RACT, H_RANIM, H_RDOWN, H_RLEAD, H_TSOUNDS, H_DIK, H_ENC, H_FOES, H_PFOES, H_PSLOT, H_BGM, H_RLOOP, H_REPOLL,
+       H_ZPASS, H_ZHIT, H_B96_NEAR, H_RIN, H_RCHAR, H_RACT, H_RANIM, H_RDOWN, H_RLEAD, H_TSOUNDS, H_DIK, H_ENC, H_FOES, H_PFOES, H_PSLOT, H_BGM, H_RLOOP, H_REPOLL, H_MPACE, H_MRUN,
        H_LROOM, H_BODIES, H_LINKS, H_VPOOLS, H_SHAKECLR, H_VFADE, H_MAPID, H_MAPNPC, H_PSCLR, H_GATE, H_SREADY, H_STINT, H_TSFADE, H_FILL,
        H_WNEW, H_WFREE, H_EFREE, H_AFREE, H_CFREE, H_CBLK, H_WLEAD, H_CSNAP, H_ZRESET, H_QSTATE, H_VREC, H_RSAVE, H_MFREE, H_MDEL, H_PHDEL,
        H_FORM, H_FOLLOW, H_ASTATE, H_PTINT, H_MLOAD,
@@ -2584,6 +2588,25 @@ static void __attribute__((thiscall)) w_repoll(wl_roomloop *rl)
     if (h->mode == 2) { port_world(); input_repoll_flush(rl); return; }
     ((rflush2_t)(uintptr_t)h->va)(rl);
 }
+/* ---- the menu frame loop (src/ui_run.c): frames per call (render + Flip, the message pump) — REPLACE only ---- */
+typedef int32_t (__attribute__((thiscall)) *mpace_t)(uint8_t *);
+static int32_t __attribute__((thiscall)) w_mpace(uint8_t *p)
+{
+    hook_t *h = &H[H_MPACE];
+    h->calls++;
+    if (h->mode == 2) { port_world(); return menu_pace(p); }
+    return ((mpace_t)(uintptr_t)h->va)(p);
+}
+typedef int32_t (__attribute__((thiscall)) *mrun_t)(uint8_t *, uint8_t *, uint8_t *, int32_t, int32_t, int32_t, int32_t, int32_t,
+                                                   int32_t, int32_t);
+static int32_t __attribute__((thiscall)) w_mrun(uint8_t *m, uint8_t *c, uint8_t *msg, int32_t cue, int32_t lr, int32_t hot17,
+                                                int32_t world, int32_t anykey, int32_t ud_ends, int32_t ud)
+{
+    hook_t *h = &H[H_MRUN];
+    h->calls++;
+    if (h->mode == 2) { port_world(); return menu_run(m, c, msg, cue, lr, hot17, world, anykey, ud_ends, ud); }
+    return ((mrun_t)(uintptr_t)h->va)(m, c, msg, cue, lr, hot17, world, anykey, ud_ends, ud);
+}
 
 /* ---- the room setup (src/room_load.c): a room per call — REPLACE only (the corpus hash) ---- */
 typedef int (__attribute__((thiscall)) *lroom_t)(wl_roomloop *, wl_room *, uint32_t, uint8_t *, uint8_t *, int32_t, int32_t,
@@ -3475,6 +3498,16 @@ TC_HOOK0(H_UM_PFILL, "menu_party_fill", 0, menu_party_fill(self); return 0)
 TC_HOOK(H_UM_HAVE, "menu_have_counts", 1, 1, return menu_have_counts(self, (uint8_t *)a1))
 TC_HOOK(H_UM_FITS, "menu_item_fits", 2, 1, return menu_item_fits(self, a1, CP(a2)))
 TC_HOOK0(H_UM_SPRF, "menu_sprites_free", 0, return menu_sprites_free(self))
+/* the toolkit's runtime (src/ui_run.c) */
+ST_HOOK(H_UR_ICON, "icon_tick", 1, 1, return (intptr_t)icon_tick((uint8_t *)a1))
+TC_HOOK(H_UR_TKEY, "text_key", 1, 1, return text_key(self, a1))
+TC_HOOK(H_UR_NAV, "grid_nav", 1, 1, return grid_nav(self, a1))
+TC_HOOK(H_UR_KEY, "ctrl_key", 1, 1, return ctrl_key(self, a1))
+TC_HOOK0(H_UR_TICK, "ctrl_tick", 1, return ctrl_tick(self))
+TC_HOOK0(H_UR_WTICK, "win_tick", 1, return win_tick(self))
+TC_HOOK(H_UR_MSG, "msg_update", 6, 1, return msg_update(self, (uint32_t)a1, (uint8_t *)a2, a3, a4, a5, (int32_t *)a6))
+TC_HOOK(H_UR_INPUT, "ctrl_input", 6, 1, return ctrl_input(self, (uint8_t *)a1, (uint32_t)a2, a3, a4, a5, a6))
+TC_HOOK0(H_UR_JOBS, "jobs_busy", 1, return jobs_busy(self))
 TC_HOOK(H_CS_SHOT, "shot_spawn", 19, 1,
         return (intptr_t)shot_spawn(self, a1, a2, a3, (wl_body *)a4, a5, a6, a7, a8, (int16_t)a9, a10, a11, a12, a13, a14,
                                     a15, a16, a17, a18, a19))
@@ -3660,6 +3693,8 @@ static hook_t H[H_N] = {
     [H_BGM]        = { "bgm_pick",       0x40d9b0u, (void *)w_bgm,    0, 1, 0, 0, 0, 0, "" },
     [H_RLOOP]      = { "room_loop",      0x58f360u, (void *)w_rloop,  0, 1, 0, 0, 0, 0, "" },
     [H_REPOLL]     = { "input_repoll_flush", 0x49be60u, (void *)w_repoll, 0, 1, 0, 0, 0, 0, "" },
+    [H_MPACE]      = { "menu_pace",      0x55f550u, (void *)w_mpace,  0, 1, 0, 0, 0, 0, "" },
+    [H_MRUN]       = { "menu_run",       0x55f190u, (void *)w_mrun,   0, 1, 0, 0, 0, 0, "" },
     [H_LROOM]      = { "load_room",      0x586010u, (void *)w_lroom,  0, 1, 0, 0, 0, 0, "" },
     [H_BODIES]     = { "entity_bodies_alloc", 0x58cf60u, (void *)w_bodies, 0, 1, 0, 0, 0, 0, "" },
     [H_LINKS]      = { "char_links_clear", 0x58d020u, (void *)w_links, 0, 1, 0, 0, 0, 0, "" },
@@ -3827,7 +3862,7 @@ void rh_hooks_install(void)
         H[H_ZPASS].va = H[H_ZHIT].va = H[H_B96_NEAR].va =
         H[H_RIN].va = H[H_RCHAR].va = H[H_RACT].va = H[H_RANIM].va = H[H_RDOWN].va = H[H_RLEAD].va = H[H_TSOUNDS].va = H[H_DIK].va =
         H[H_ENC].va = H[H_FOES].va = H[H_PFOES].va = H[H_PSLOT].va = H[H_BGM].va =
-        H[H_RLOOP].va = H[H_REPOLL].va =
+        H[H_RLOOP].va = H[H_REPOLL].va = H[H_MPACE].va = H[H_MRUN].va =
         H[H_LROOM].va = H[H_BODIES].va = H[H_LINKS].va = H[H_VPOOLS].va = H[H_SHAKECLR].va = H[H_VFADE].va = H[H_MAPID].va =
         H[H_MAPNPC].va = H[H_PSCLR].va = H[H_GATE].va = H[H_SREADY].va = H[H_STINT].va = H[H_TSFADE].va = H[H_FILL].va =
         H[H_WNEW].va = H[H_WFREE].va = H[H_EFREE].va = H[H_AFREE].va = H[H_CFREE].va = H[H_CBLK].va = H[H_WLEAD].va =
@@ -3849,7 +3884,7 @@ void rh_hooks_install(void)
         h->mode = !strcmp(mode, "shadow") ? 1 : !strcmp(mode, "replace") ? 2 : 0;
         h->every = every;
         if (!h->mode) continue;
-        if ((h == &H[H_RLOOP] || h == &H[H_REPOLL] || h == &H[H_LROOM] || h == &H[H_SLOOP]) && h->mode == 1)
+        if ((h == &H[H_RLOOP] || h == &H[H_REPOLL] || h == &H[H_LROOM] || h == &H[H_SLOOP] || h == &H[H_MPACE] || h == &H[H_MRUN]) && h->mode == 1)
             rh_fatal("%s: replace only (it runs a room / repolls DirectInput)", h->name);
         if (h == &H[H_MAP_DECODE]) {
             if (h->mode == 2) rh_fatal("map_decode: shadow only (the port decode needs the recorded resource)");

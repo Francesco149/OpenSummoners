@@ -6,6 +6,19 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-16 — the UI widget toolkit, chip 3b: the runtime + the menu frame loop (`src/ui_run.c`)
+
+- The layer every menu and message box runs on: the list cursor `0x43ca40` (modes 0 page-wrap / 2 paged / 3
+  scrolling / wrap, page turns, the 300 + 100 ms key repeat on the virtual clock), the message advance
+  `0x43c920` / the focused-window key `0x43ce50`, the per-frame control tick `0x43c650` (the typewriter by
+  break class, the cell-icon / arrow / cursor clocks `0x43c610`) and window tick `0x43c2e0`, the message
+  window update `0x43b980` (confirm / cancel / held skip, the typing blip on a pooled voice, the
+  auto-advance), the list input handler `0x43bca0`, and the menu frame loop `0x55f190` (+ its pacer
+  `0x55f550` — the same machine the room loop inlines) as REPLACE-only port code.  Quirk #150.
+- rhost: ctrl_tick 25,730, icon_tick 6,842, msg_update 4,445, win_tick 4,433, ctrl_key 2,637, grid_nav
+  2,397, ctrl_input 1,234, text_key 115 — 0 divergences; menu_run 11 / menu_pace 39 as REPLACE.  Hybrid
+  gate: 415 hooks, PASS (the two loop hooks zeroed for SE like the room loop).
+
 ## 2026-10-16 — the UI widget toolkit, chip 3a: builders + the shop's screens (`src/ui_menu.c`)
 
 - `src/ui_core.c` +7: the grid init `0x40f5c0` (rows x cols of 32-px columns; the old `menu_list.c` reduction

@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 422,
-  "unported": 1153,
+  "ported": 428,
+  "unported": 1147,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 671,
-  "pct_touched": 43.0,
+  "touched": 677,
+  "pct_touched": 43.3,
   "pct_tested": 15.7,
-  "engine_proper_touched": 658,
+  "engine_proper_touched": 664,
   "bytes_total": 1776526,
-  "bytes_touched": 562903,
-  "pct_bytes_touched": 31.7
+  "bytes_touched": 564982,
+  "pct_bytes_touched": 31.8
  },
  "orphan_refs": [],
  "functions": [
@@ -3429,7 +3429,8 @@
    "status": "tested",
    "src": [
     "src/cutscene.c",
-    "src/dialogue.h"
+    "src/dialogue.h",
+    "src/ui_run.h"
    ]
   },
   {
@@ -3442,7 +3443,8 @@
     "src/cutscene.c",
     "src/dialogue.h",
     "src/newgame_drive.c",
-    "src/newgame_drive.h"
+    "src/newgame_drive.h",
+    "src/ui_run.h"
    ]
   },
   {
@@ -3463,8 +3465,10 @@
    "name": "sub_43C170",
    "size": 53,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_run.h"
+   ]
   },
   {
    "va": "0x43c1b0",
@@ -3481,7 +3485,8 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/main.c"
+    "src/main.c",
+    "src/ui_run.h"
    ]
   },
   {
@@ -3489,24 +3494,30 @@
    "name": "sub_43C610",
    "size": 52,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_run.h"
+   ]
   },
   {
    "va": "0x43c650",
    "name": "sub_43C650",
    "size": 696,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_run.h"
+   ]
   },
   {
    "va": "0x43c920",
    "name": "sub_43C920",
    "size": 143,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_run.h"
+   ]
   },
   {
    "va": "0x43c9b0",
@@ -3529,7 +3540,8 @@
     "src/dialogue.c",
     "src/dialogue.h",
     "src/menu_list.c",
-    "src/menu_list.h"
+    "src/menu_list.h",
+    "src/ui_run.h"
    ]
   },
   {
@@ -3542,7 +3554,8 @@
     "src/cutscene.c",
     "src/dialogue.h",
     "src/menu_list.c",
-    "src/menu_list.h"
+    "src/menu_list.h",
+    "src/ui_run.h"
    ]
   },
   {
@@ -9104,16 +9117,20 @@
    "name": "sub_55F190",
    "size": 936,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_run.h"
+   ]
   },
   {
    "va": "0x55f550",
    "name": "sub_55F550",
    "size": 199,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_run.h"
+   ]
   },
   {
    "va": "0x55f620",

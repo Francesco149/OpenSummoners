@@ -4633,6 +4633,32 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
 - **Framed window** `0x40f1c0`: a title costs one more control (cap + 1) and swaps the top frames 0..2 → 9..11;
   `plain` drops frame 0's corner (16 → 0).  Titles are 1 x 1 grids at (32, 7), white on 0x455f7b.
 
+### #150 — the UI runtime: list cursor, key repeat, typewriter, message box, the menu frame loop (port 2026-10-16)
+- **Control keys** (`0x43ca40` / `0x43c920`, dispatched by `0x43ce50` only while the window has +0x54 == 1000):
+  0 / 1 up / down, 2 / 3 page back / on (same column; clamped to the last row), 4 / 6 held down / up — the first
+  repeat 300 ms after the press, then every 100 ms, by GetTickCount deadlines in the grid info +0x1c / +0x20
+  (5 / 7 clear them) — 8 skip, 9 confirm (control +0x1c = 3), 10 cancel (4).  Up / down by the grid info's
+  mode (+0): 0 wraps inside the shown page, 2 inside the cursor's page (a page turn returns 2), 3 scrolls the
+  page top with the cursor, else wraps the whole list.  The paged mode's cursor page is found by stepping
+  from 0 by the page size.
+- **Typewriter** (`0x43c650`, text mode +0xc == 1): the next glyph after T+6 frames reach the last glyph's
+  delay by break class (#148): 1 → T+0x20, 2 / 5 → T+0x24, 3 → T+0x28, 4 → none and no blip, else T+0x10
+  (`0x40e2f0` sets them to 2 / 3 / 5 x the base).  All shown: T+0x18 hold frames, then 7 (T+0x14: auto-close)
+  or 8 (done).  The advance key reveals the rest (6) or ends (8).  Mode 0 shows everything at once.
+- **Message window** (`0x43b980`): a confirm (36) / cancel (39) press under 100 ms old advances the LAST
+  control, the held button axis[6] (+0x12c) skips; on 5 / 6 a blip plays on the pooled voice sys+0x384
+  (volume config+0x210, the caller's frequency); 7 counts the caller's auto-advance down (unless a job of
+  sys+0xaa8 is in state 2), then confirms; 8 = done.
+- **List input** (`0x43bca0`): left / right turn pages (or move, horizontal lists), up / down move with the
+  held axes repeating; cues: 9 move, 5 confirm (only with `cue`), 6 a disabled row (row +8 == 0, the confirm
+  is dropped), 7 cancel.
+- **Menu frame loop** (`0x55f190`): the room loop's 16 ms pacer (`0x55f550`); per update: the timed sounds,
+  the input re-poll, every room's input (ring 19 → room loop +0x34), then the hotkeys — 34 → 6, 17 → 20 (opt),
+  16 → 8 (cue 7), left / right → 16 / 17 (opt), up / down → 18 / 19 (opt) — the list (1 / 2 → 13, 3 → 12,
+  4 → 11 with cue 7), any confirm / cancel → 0 (opt, cue 5), the message window (done → 12), every other
+  window's tick, the world tick (opt: every character's command cleared first) and the screen effects; render
+  (with the pacer's address) + Flip on the render state.
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

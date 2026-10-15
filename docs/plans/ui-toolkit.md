@@ -2,7 +2,9 @@
 
 Status: chip 1 DONE 2026-10-16 (`src/ui_core.c`, 24 functions, hybrid 379); chip 2 DONE 2026-10-16
 (`src/ui_text.c`, 12 functions, hybrid 391; quirk #148 — the SJIS wrap / ruby paths are JP-only: unexercised).
-Chip 3a DONE 2026-10-16: the builders (`src/ui_core.c` +7) + the shop's screens (`src/ui_menu.c`, 6), hybrid 404.  Shadow note: a function whose
+Chip 3a DONE 2026-10-16: the builders (`src/ui_core.c` +7) + the shop's screens (`src/ui_menu.c`, 6), hybrid 404.
+Chip 3b DONE 2026-10-16: the runtime (`src/ui_run.c`, 11: keys, ticks, message update, list input, the menu
+frame loop `0x55f190` + pacer as REPLACE-only), hybrid 415; quirk #150.  Shadow note: a function whose
 `this` is a caller's stack object can show a false divergence (the shadow restores only below ESP between its
 retail and port phases) — confirm with REPLACE (`0x412570` did).  Owner: the porting loop (rhost shadow per function, REPLACE in the hybrid).
 
@@ -38,8 +40,8 @@ names for the runner were 4 bytes off past +0x2e0, quirk #144)
    (3 KB) — need a JP-text scenario (ense-jp) before porting.
 3. the menus.  3a DONE: grid init `0x40f5c0`, grid new `0x4134f0`, row add `0x40f800`, cell icon `0x415860`, title
    `0x412c40`, framed window `0x40f1c0`, page arrows `0x4103d0`; the shop's message window `0x4123a0`, party status
-   `0x4129b0` / `0x412df0`, "You have N" `0x415a10`, item fit `0x417480`, sprite set release `0x415350`.  3b next:
-   the shop driver `0x415060` (Buy / Sell; `0x439680` the talk wait), its buy list `0x415460` (+ `0x415ae0`), the
+   `0x4129b0` / `0x412df0`, "You have N" `0x415a10`, item fit `0x417480`, sprite set release `0x415350`.  3b DONE: the runtime (`src/ui_run.c`, above).  3c next:
+   the shop driver `0x415060` (Buy / Sell; `0x439680` the talk wait; its loop `0x55f190` is now port code), its buy list `0x415460` (+ `0x415ae0`), the
    sell list `0x415f60` (+ `0x4167a0`, `0x4169e0` 2.5 KB + `0x4175a0`, `0x418c90`, `0x418ec0`), the equip menu
    `0x4192f0` (+ `0x4199b0` `0x419c70` `0x419eb0` `0x4190d0`); the input re-poll `0x40fe00` (DirectInput) stays a slot.
 4. the cutscene runner `0x439690` on top (its other callees: `0x43c650` `0x43d830` `0x43e5b0` …).
