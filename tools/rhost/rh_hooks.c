@@ -65,7 +65,7 @@ enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_D
        H_PARTS_FREE, H_SET_ANGLE, H_FX_RESET, H_SKILL_AVAIL, H_PARTY_FIND, H_FLOOR_BELOW,
        H_GPASS, H_GSTEP, H_SWSET, H_SWLINK, H_EVRUN, H_UNLOAD, H_UNLIST_ALL, H_GLOW, H_RECT_HIT, H_CHARS_COUNT, H_CHAR_IN, H_RIDING,
        H_PART_FIND, H_SERIAL, H_SHOT, H_WARP, H_GATHER, H_TPASS, H_TACTOR, H_RFLUSH, H_PROBE_RECT, H_NEAR,
-       H_ZPASS, H_ZHIT, H_B96_NEAR, H_RIN, H_RCHAR, H_RACT, H_RANIM, H_RDOWN, H_RLEAD, H_TSOUNDS, H_DIK, H_ENC, H_FOES, H_PFOES, H_PSLOT, H_BGM, H_N };
+       H_ZPASS, H_ZHIT, H_B96_NEAR, H_RIN, H_RCHAR, H_RACT, H_RANIM, H_RDOWN, H_RLEAD, H_TSOUNDS, H_DIK, H_ENC, H_FOES, H_PFOES, H_PSLOT, H_BGM, H_RLOOP, H_REPOLL, H_N };
 
 static void diverged(hook_t *h, const char *fmt, ...)
 {
@@ -2413,6 +2413,24 @@ static uint32_t __attribute__((thiscall)) w_bgm(const wl_roomloop *rl)
     return r;
 }
 
+/* ---- the room loop (src/room_loop.c): a whole room per call — REPLACE only (the corpus hash) ---- */
+typedef int (__attribute__((thiscall)) *rloop_t)(wl_roomloop *);
+static int __attribute__((thiscall)) w_rloop(wl_roomloop *rl)
+{
+    hook_t *h = &H[H_RLOOP];
+    h->calls++;
+    if (h->mode == 2) { port_world(); return room_loop_run(rl); }
+    return ((rloop_t)(uintptr_t)h->va)(rl);
+}
+typedef void (__attribute__((thiscall)) *rflush2_t)(wl_roomloop *);
+static void __attribute__((thiscall)) w_repoll(wl_roomloop *rl)
+{
+    hook_t *h = &H[H_REPOLL];
+    h->calls++;
+    if (h->mode == 2) { port_world(); input_repoll_flush(rl); return; }
+    ((rflush2_t)(uintptr_t)h->va)(rl);
+}
+
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
     [H_POLL] = { "input_poll", 0x43c110u, (void *)w_poll, 0, 1, 0, 0, 0, 0, "" },
@@ -2549,6 +2567,8 @@ static hook_t H[H_N] = {
     [H_PFOES]      = { "party_foes_near", 0x58f0b0u, (void *)w_pfoes, 0, 1, 0, 0, 0, 0, "" },
     [H_PSLOT]      = { "pslot_ok",       0x412db0u, (void *)w_pslot,  0, 1, 0, 0, 0, 0, "" },
     [H_BGM]        = { "bgm_pick",       0x40d9b0u, (void *)w_bgm,    0, 1, 0, 0, 0, 0, "" },
+    [H_RLOOP]      = { "room_loop",      0x58f360u, (void *)w_rloop,  0, 1, 0, 0, 0, 0, "" },
+    [H_REPOLL]     = { "input_repoll_flush", 0x49be60u, (void *)w_repoll, 0, 1, 0, 0, 0, 0, "" },
 };
 
 static const void *rh_data_identity(uint32_t va) { return (const void *)(uintptr_t)va; }
@@ -2595,6 +2615,11 @@ static void bind_engine_calls(void)
     B(4710c0); B(46da00);
     B(408b90); B(54f140);
     B(40ac90); B(55cfc0); B(54ed80); B(468b10); B(5bc0c0); B(409520);
+    B(5b1030); B(48c150); B(495e40); B(59d160); B(59aa40); B(58ffa0); B(590480); B(590f20); B(590ca0); B(59d540);
+    B(591120); B(562a70); B(58ffc0); B(59a910); B(415350); B(590230); B(59c750); B(59ca90); B(59ad60); B(5908a0);
+    B(58e6a0); B(499ab0); B(4842c0); B(41a7f0); B(59cfc0);
+    *(void **)&g_eng.flip_5b8fc0  = g_rh_flip_stub;    /* the virtual clock steps there */
+    *(void **)&g_eng.easer_43d1d0 = g_rh_easer_stub;   /* the tick count (+ a camera hook chained behind) */
     B(552c70); B(552f60); B(5534d0); B(553520); B(553ec0); B(554570); B(554c40); B(5556d0);
     B(556e50);
     B(47da60); B(482240); B(482460); B(482ac0); B(47de50); B(47f670); B(47f9d0);
@@ -2642,7 +2667,8 @@ void rh_hooks_install(void)
         H[H_TPASS].va = H[H_TACTOR].va = H[H_RFLUSH].va = H[H_PROBE_RECT].va = H[H_NEAR].va =
         H[H_ZPASS].va = H[H_ZHIT].va = H[H_B96_NEAR].va =
         H[H_RIN].va = H[H_RCHAR].va = H[H_RACT].va = H[H_RANIM].va = H[H_RDOWN].va = H[H_RLEAD].va = H[H_TSOUNDS].va = H[H_DIK].va =
-        H[H_ENC].va = H[H_FOES].va = H[H_PFOES].va = H[H_PSLOT].va = H[H_BGM].va = 0;
+        H[H_ENC].va = H[H_FOES].va = H[H_PFOES].va = H[H_PSLOT].va = H[H_BGM].va =
+        H[H_RLOOP].va = H[H_REPOLL].va = 0;
     if (!O.hooks) return;
     char b[4096]; snprintf(b, sizeof b, "%s", O.hooks);
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {
@@ -2656,6 +2682,8 @@ void rh_hooks_install(void)
         h->mode = !strcmp(mode, "shadow") ? 1 : !strcmp(mode, "replace") ? 2 : 0;
         h->every = every;
         if (!h->mode) continue;
+        if ((h == &H[H_RLOOP] || h == &H[H_REPOLL]) && h->mode == 1)
+            rh_fatal("%s: replace only (it runs a room / repolls DirectInput)", h->name);
         if (h == &H[H_MAP_DECODE]) {
             if (h->mode == 2) rh_fatal("map_decode: shadow only (the port decode needs the recorded resource)");
             rh_log("hook map_decode: parse recorder %d call sites\n", redirect_calls(0x587970u, w_map_parse));

@@ -150,6 +150,7 @@ int redirect_calls_chain(uint32_t va, void *hook)
 /* ---- call stubs: any calling convention, args untouched ----
  * [inc dword [counter]] [pushad; pushfd; call pre; popfd; popad] jmp orig
  * Lives at a fixed VA (deterministic: retail .text holds rel32s to it). */
+void *g_rh_flip_stub, *g_rh_easer_stub;
 static void *make_stub(volatile uint32_t *counter, void (*pre)(void), uint32_t orig)
 {
     if (!g_stub_top) {
@@ -917,8 +918,10 @@ int main(int argc, char **argv)
     rh_gdi_install();
     rh_dinput_install();
     rh_media_install();
-    int nf = redirect_calls(g_ed->flip, make_stub(NULL, pre_flip, g_ed->flip));
-    int ne = redirect_calls(g_ed->easer, make_stub(&g_ticks, NULL, g_ed->easer));
+    g_rh_flip_stub = make_stub(NULL, pre_flip, g_ed->flip);
+    g_rh_easer_stub = make_stub(&g_ticks, NULL, g_ed->easer);
+    int nf = redirect_calls(g_ed->flip, g_rh_flip_stub);
+    int ne = redirect_calls(g_ed->easer, g_rh_easer_stub);
     int ns = redirect_calls(g_ed->srand, my_srand);
     if (!nf || !ne || ns != 1) rh_fatal("engine call sites flip=%d easer=%d srand=%d (want >0/>0/1)", nf, ne, ns);
     rh_log("hooks: flip %d sites, easer %d, srand %d\n", nf, ne, ns);

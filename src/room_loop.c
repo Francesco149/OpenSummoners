@@ -20,6 +20,9 @@
 #include "input.h"
 #include "input_dik.h"
 #include "char_state.h"
+#include "char_apply.h"
+#include "particle_tick.h"
+#include "sound_fx.h"
 #include "npc_ai.h"
 
 #define IP(p) ((intptr_t)(p))
@@ -479,4 +482,321 @@ bgm:
         default: break;
         }
     g_eng.h40a5d0(g_eng.sys, bgm_pick(rl), 1, flag, fade, 1);
+}
+
+/* ── the loop ──────────────────────────────────────────────────────────────── */
+
+wl_char *room_leader(const wl_room *r) { return r->leader != NULL ? r->leader->ch : NULL; }
+
+void menu_ctx_clear(void *ctx)
+{
+    uint8_t *c = ctx;
+    uint32_t z = 0;
+    uint16_t z16 = 0;
+    static const uint8_t offs[] = { 0x0, 0x4, 0xc, 0x8, 0x1c, 0x20, 0x24, 0x28 };
+    for (size_t k = 0; k < sizeof offs; k++) memcpy(c + offs[k], &z, 4);
+    memcpy(c + 0x18, &z16, 2);
+    memcpy(c + 0x30, &z, 4);
+}
+
+void input_repoll_flush(wl_roomloop *rl)
+{
+    g_eng.h5ba4c0(sysp(0x2878));
+    g_eng.h5ba2d0(sysp(0x2878));
+    for (uint32_t j = 0; j < 2; j++) {
+        void *joy = sysp(0x287c + 4 * j);
+        if (joy == NULL) continue;
+        g_eng.h5ba650(joy);
+        int32_t v = (**g_eng.keycfg)->joy_f53c;
+        g_eng.h49bf90(joy, (int32_t)((uint32_t)v * 1000u) / 1000);
+    }
+    for (uint16_t j = 0; j < rl->nrooms; j++) room_input_flush(&rl->rooms[j]);
+}
+
+/* the pacing locals in retail's stack order (the render 0x48c150 gets their address) */
+typedef struct room_pace {
+    uint32_t last;     /* the last pump */
+    uint32_t budget;   /* ms of updates owed */
+    uint32_t wait;     /* the last update */
+    int32_t  state;    /* 0 pump, 1 render, 2 update */
+    uint32_t step;     /* 16 */
+    uint32_t fps_t0;
+    uint32_t fps_n;
+    uint32_t elapsed;
+    uint32_t now;
+    uint32_t fps;
+} room_pace;
+
+/* a result that ends the room */
+static int ends(int r) { return r == 1 || r == 2 || r == 4 || r == 5 || r == 6; }
+
+/* the keys of an update (ring ids on the room's first input manager); 0 = go on */
+static int room_keys(wl_roomloop *rl, wl_room *room, uint32_t now)
+{
+    uint32_t ctx[16];   /* the main menu's context (retail: a stack object with a destructor) */
+    int res = 0;
+    menu_ctx_clear(ctx);
+    for (int k = 0; k < 8; k++) {
+        const wl_pslot *s = room->slot[k];
+        if (!pslot_ok(s, 0, 0)) continue;
+        input_mgr *in = s->in;
+        if (in == NULL || rl->paused != 0) continue;
+        if (in->field_16c != 0) {
+            in->field_16c--;
+            if (g_eng.h59aa40(rl, IP(room), 0, IP(s)) != 0) in->field_16c = 0;
+        }
+        if (input_poll_consume(in, now, 20) && g_eng.h59aa40(rl, IP(room), 0, IP(s)) == 0) in->field_16c = 40;
+    }
+    input_mgr *in = room->in;
+    if (in == NULL) goto done;
+    if (input_poll_consume(in, now, 18)) {
+        sfx_play(g_eng.sys, 5, 0, 0);
+        if (rl->paused == 1) {
+            g_eng.h58ffa0(g_eng.sys, 0);
+            rl->paused = 0;
+        } else {
+            g_eng.h58ffa0(g_eng.sys, 1);
+            rl->paused = 1;
+        }
+    }
+    if (input_poll_consume(in, now, 42)) {
+        rl->lead = rl->lead != -8000 ? -52000 : -30000;
+        room->lead_mode = 0;
+    }
+    if (input_poll_consume(in, now, 43)) {
+        rl->lead = rl->lead != -52000 ? -8000 : -30000;
+        room->lead_mode = 0;
+    }
+    if (input_poll_consume(in, now, 40)) rl->lead_y = rl->lead_y != -4000 ? -40000 : -27200;
+    if (input_poll_consume(in, now, 41)) rl->lead_y = rl->lead_y != -40000 ? -4000 : -27200;
+    if (input_poll_consume(in, now, 11)) {
+        sfx_play(g_eng.sys, 5, 0, 0);
+        if (room->lead_mode == 0) room->lead_mode = 1;
+        else if (room->lead_mode == 1) room->lead_mode = 2;
+        else {
+            room->lead_mode = 0;
+            rl->lead = -30000;
+        }
+    }
+    if (input_poll_consume(in, now, 34)) { res = 6; goto done; }
+    if (input_poll_consume(in, now, 21)) g_eng.h590480(room);
+    if (input_poll_consume(in, now, 22) && g_eng.h590f20(room, 0) != 0) sfx_play(g_eng.sys, 5, 0, 0);
+    if (input_poll_consume(in, now, 23) && g_eng.h590ca0(room) != 0) sfx_play(g_eng.sys, 5, 0, 0);
+    if (rl->paused != 0 || g_world->f27b4 == 2) goto done;
+    if (input_poll_consume(in, now, 16)) {
+        input_repoll_flush(rl);
+        sfx_play(g_eng.sys, 5, 0, 0);
+        rl->in_menu = 1;
+        g_eng.h59d540(rl, IP(room), IP(ctx));
+        res = g_eng.h591120(ctx);
+        rl->in_menu = 0;
+        g_eng.h562a70(sysp(0x2754));
+        input_repoll_flush(rl);
+        g_eng.h58ffc0(g_world);
+        g_eng.h59a910(rl);
+        goto done;
+    }
+    {
+        int32_t pressed = input_poll_consume(in, now, 38) != 0;
+        if (input_poll_consume(in, now, 37) || pressed) {
+            int r = touch_pass(rl, room_leader(room), pressed);
+            if (r > 0 && (r <= 2 || r == 6)) res = r;
+        }
+    }
+done:
+    g_eng.h415350(ctx);
+    return res;
+}
+
+int room_loop_run(wl_roomloop *rl)
+{
+    room_pace p;
+    uint16_t blink_n = 0;
+    int32_t blink = 0;
+    p.step = 16;
+    p.last = 0;
+    p.budget = 17;
+    p.wait = 0;
+    p.elapsed = 0;
+    p.state = 0;
+    p.fps = 0;
+    p.fps_n = 0;
+    p.fps_t0 = g_eng.tick();
+    for (;;) {
+        uint32_t now = g_eng.tick();
+        p.now = now;
+        switch (p.state) {
+        case 0:
+            p.last = now;
+            g_eng.h5b1030();
+            p.state = 2;
+            break;
+        case 1: {
+            uint32_t b = p.budget - p.last + now;
+            if (b > 100) b = 100;
+            p.budget = b;
+            p.last = now;
+            g_eng.h5b1030();
+            if (p.budget > p.step) p.state = 2;
+            break;
+        }
+        case 2:
+            p.elapsed = now - p.wait;
+            if (p.elapsed > p.budget) {
+                p.budget = 0;
+                p.state = 1;
+            } else {
+                p.budget -= p.step;
+                if (p.budget <= p.step) p.state = 1;
+            }
+            break;
+        default: break;
+        }
+        if (p.state == 1) {
+            if (now - p.fps_t0 > 1000) {
+                p.fps = p.fps_n;
+                p.fps_n = 0;
+                p.fps_t0 = now;
+            } else p.fps_n++;
+        } else if (p.state == 2) p.wait = now;
+        if (p.state == 1) {   /* render + Flip */
+            void *zdd = sysp(0x286c), *surf;
+            memcpy(&surf, (const uint8_t *)zdd + 0x16c, sizeof surf);
+            g_eng.h48c150(rl, IP(surf), 1, IP(&p));
+            if (rl->paused != 0 && blink != 0) {
+                memcpy(&surf, (const uint8_t *)sysp(0x286c) + 0x16c, sizeof surf);
+                g_eng.h495e40(g_eng.sys, IP(surf), IP(g_eng.data(0x8a2668u)), 1, 9, 0x118, 8, 1);   /* "Pause" */
+            }
+            if (g_world->f27ac != NULL) g_eng.h59d160(rl);
+            g_eng.flip_5b8fc0(sysp(0x286c), IP(sysp(0x288c)));
+            continue;
+        }
+        if (p.state != 2) continue;
+
+        /* ── one update ── */
+        timed_sounds_tick(g_eng.sys);
+        g_eng.h40fe00(g_eng.sys);
+        for (uint16_t j = 0; j < rl->nrooms; j++) {
+            room_input_update(&rl->rooms[j]);
+            input_mgr *in = rl->rooms[j].in;
+            if (in != NULL && input_poll_consume(in, now, 19)) rl->f34 = 1;
+        }
+        wl_room *room = g_world->room;
+        if (room != NULL) {
+            uint8_t *ev = g_world->f27ac;
+            if (ev != NULL) {   /* a waiting event: any fresh key, or its tick budget, ends it */
+                input_mgr *in = room->in;
+                if (in != NULL)
+                    for (int i = INPUT_RING_LEN - 1; i >= 0; i--) {
+                        input_event *r = in->ring[i];
+                        if (r->id != 0 && r->flag == 1 && now - r->ts <= 100) {
+                            in->ring[i]->id = 0;
+                            int32_t one = 1;
+                            memcpy(ev + 0x78, &one, 4);
+                            return 6;
+                        }
+                    }
+                uint32_t n, k;
+                memcpy(&n, ev + 0x60, 4);
+                if (n != 0) {
+                    memcpy(&k, ev + 0x74, 4);
+                    if (k >= n) return 6;
+                    k++;
+                    memcpy(ev + 0x74, &k, 4);
+                }
+            } else if (rl->ui_lock == 0) {
+                int r = room_keys(rl, room, now);
+                if (ends(r)) return r;
+            }
+        }
+
+        if (rl->paused != 0) {   /* the "Pause" blink */
+            if (blink_n < 30) blink_n++;
+            else {
+                blink_n = 0;
+                blink = blink == 0;
+            }
+            continue;
+        }
+        if (rl->hitstop != 0) {
+            if (rl->hit_ph < 1) {
+                rl->hit_ph++;
+                goto passes;
+            }
+            rl->hit_ph = 0;
+            if (rl->hit_n != 0 && --rl->hit_n == 0) rl->hitstop = 0;
+        }
+        g_world->tick15 = (uint16_t)((g_world->tick15 + 1) % 0x8000);
+        for (int i = 0; i < 32; i++)
+            if (g_world->chars[i]->base.alive != 0) room_char_step(g_world->chars[i], 0);
+        { uint32_t z = 0; memcpy(g_world->grid + 0x2cb040, &z, 4); }
+        if (g_world->f279c > 0) g_world->f279c = g_world->f279c - 3 < 0 ? 0 : g_world->f279c - 3;
+        for (int i = 0; i < 32; i++)
+            if (g_world->chars[i]->base.alive != 0) char_apply(g_world->chars[i]);
+        for (int i = 0; i < 64; i++)
+            if (g_world->band64[i]->alive != 0) g_eng.h590230(g_world->band64[i]);
+        for (int i = 0; i < 1024; i++)
+            if (g_world->particles[i]->alive != 0) particle_tick((wl_particle *)g_world->particles[i]);
+        for (int i = 0; i < 96; i++)
+            if (g_world->band96[i]->alive != 0) g_eng.h46da00(g_world->band96[i]);
+        for (int i = 0; i < 128; i++)
+            if (g_world->actors[i]->alive != 0) room_actor_step((wl_actor *)g_world->actors[i]);
+        room_grid_anim(g_world->grid);
+    passes:
+        for (uint16_t j = 0; j < rl->nrooms; j++) {
+            wl_room *r = &rl->rooms[j];
+            wl_pslot *ld = r->leader;
+            if (ld == NULL || !pslot_ok(ld, 0, 0) || !char_targetable(ld->ch, 0, 1)) g_eng.h59aa40(rl, IP(r), 1, IP(ld));
+        }
+        if (g_world->f27b4 == 2 && room_party_down(&rl->rooms[0]) == 0 && room_party_down(&rl->rooms[1]) == 0) {
+            int32_t v; memcpy(&v, g_world->f27b0 + 4, 4);
+            v += 16;
+            if (v > 0x5aa320) v = 0x5aa320;
+            memcpy(g_world->f27b0 + 4, &v, 4);
+        }
+        if (g_world->room != NULL) {
+            wl_room *r = g_world->room;
+            const wl_char *partner = rl->view[r->partner].partner;
+            room_lead(rl, r->leader != NULL ? r->leader->ch : NULL, partner, r->lead_mode);
+            int d = room_party_down(g_world->room);
+            if (d != 0) return d;
+            d = g_eng.h59c750(rl, IP(g_world->room));
+            if (d != 0) return d;
+        }
+        if (g_world->room != NULL && rl->ui_lock == 0) {
+            g_eng.h59ca90(g_world->room);
+            const wl_pslot *ld = g_world->room->leader;
+            if (ld != NULL) {
+                int r = gimmick_pass(rl, ld->ch);
+                if (r > 0 && (r <= 2 || r == 6)) return r;
+            }
+            if (g_world->f2764 != 0) {
+                int r = g_eng.h59ad60(rl, IP(g_world->room->leader->ch));
+                if (r > 0 && (r <= 2 || r == 6)) return r;
+            } else if (rl->enc_ctr < 5) rl->enc_ctr++;
+            else {
+                rl->enc_ctr = 0;
+                if (g_world->f27b4 == 3) g_world->f2770 = 2;
+                else encounter_tick(rl, g_world->room, 0);
+            }
+            int32_t zone;
+            if (zone_pass(&rl->zones, now, g_world->room, &rl->scene_ev, &rl->scene_arg, &zone, g_world->f2768) != 0) {
+                rl->scene_face = g_eng.h4842c0(g_world->room->leader->ch, 0);
+                if (rl->scene == NULL) {
+                    void *o = g_eng.op_new(0xe290);
+                    rl->scene = o != NULL ? (void *)(intptr_t)g_eng.h41a7f0(o) : NULL;
+                }
+                g_eng.h59cfc0(rl->scene, g_world->room, zone, g_world->scene_kind == 2);
+                return 1;
+            }
+        }
+        for (uint16_t j = 0; j < rl->nrooms; j++) g_eng.h5908a0(&rl->rooms[j]);
+        g_eng.h58e6a0(rl, 0);
+        g_eng.easer_43d1d0(g_world->view);
+        {
+            int32_t f; memcpy(&f, (const uint8_t *)rl->f11c + 0x20, 4);
+            if (f == 0) rl->view[0].f0 = rl->view[1].f0 = 1;
+        }
+        g_eng.h499ab0(rl);
+    }
 }

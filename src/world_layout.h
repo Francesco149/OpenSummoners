@@ -377,8 +377,11 @@ typedef struct wl_world {
     int32_t    action_serial; /* +0x27a0  bumped (mod 0xffffff) per action start         */
     uint8_t    _p27a4[0x27a8 - 0x27a4];
     int32_t    busy;         /* +0x27a8  != 0 => the ambient emitters hold (scene lock)  */
-    uint8_t   *f27ac;        /* +0x27ac  +0x68 = a zone id that may fire unpressed (0x59a1f0) */
-    uint8_t    _p27b0[0x27b8 - 0x27b0];
+    uint8_t   *f27ac;        /* +0x27ac  a waiting event: +0x68 a zone id that may fire
+                              *           unpressed (0x59a1f0); +0x60 / +0x74 a tick budget,
+                              *           +0x78 = 1 when a key ends it (the room loop)      */
+    uint8_t   *f27b0;        /* +0x27b0  +0x4 grows 16 per tick in two-room play          */
+    int32_t    f27b4;        /* +0x27b4  2 = two rooms (no menus), 3 = no encounters      */
 } wl_world;
 
 /* A world PARTICLE (world+0x13e0, 1024 slots; 0x284 bytes): the entity base + the per-code
@@ -486,9 +489,14 @@ typedef struct wl_room {
     wl_pslot  *leader;         /* +0x200c */
     uint8_t    _p2010[0x4030 - 0x2010];
     wl_pslot  *slot[8];        /* +0x4030 */
-    uint8_t    _p4050[0x4080 - 0x4050];
+    uint8_t    _p4050[0x4058 - 0x4050];
+    int32_t    lead_mode;      /* +0x4058  the camera lead (0x59d3f0): 0 centred, 1 the partner
+                                *          gap, 2 the facing (ring id 11 cycles it)           */
+    uint8_t    _p405c[0x4080 - 0x405c];
     int32_t    f4080;          /* +0x4080  != 0 => no warp request (0x54ecf0)             */
-    uint8_t    _p4084[0x40d0 - 0x4084];
+    uint8_t    _p4084[0x40a8 - 0x4084];
+    uint16_t   partner;        /* +0x40a8  the room loop's view record holding the partner  */
+    uint8_t    _p40aa[0x40d0 - 0x40aa];
     int32_t    f40d0;          /* +0x40d0  == 0 => no warp request (0x54ecf0)             */
     uint8_t    _p40d4[0x4120 - 0x40d4];
 } wl_room;
@@ -516,11 +524,37 @@ typedef struct wl_roomloop {
     uint16_t   nrooms;         /* +0x4 */
     uint16_t   _p6;
     int32_t    lead;           /* +0x8  the leader's camera lead (-52000..-8000, 0x59d3f0) */
-    uint8_t    _p0c[0xd4 - 0xc];
+    int32_t    lead_y;         /* +0xc  the vertical lead (ids 40 / 41: -40000 / -27200 / -4000) */
+    uint8_t    _p10[0x18 - 0x10];
+    int32_t    paused;         /* +0x18 */
+    int32_t    in_menu;        /* +0x1c */
+    uint16_t   enc_ctr;        /* +0x20  the encounter pass runs every 5th update          */
+    uint8_t    _p22[0x28 - 0x22];
+    uint16_t   ui_lock;        /* +0x28  != 0 => no keys, no passes                         */
+    uint8_t    _p2a[0x34 - 0x2a];
+    int32_t    f34;            /* +0x34  set by ring id 19                                  */
+    uint16_t   hit_ph;         /* +0x38  hitstop: every other update is skipped             */
+    uint16_t   hit_n;          /* +0x3a  ... for this many                                  */
+    int32_t    hitstop;        /* +0x3c */
+    uint8_t    _p40[0xd4 - 0x40];
     int32_t    fd4;            /* +0xd4  (40 / 50 / 60 / 61: the BGM pick's variants)     */
     int32_t    bgm_fixed;      /* +0xd8  != 0 => the BGM is bgm_id                         */
     uint16_t   bgm_id;         /* +0xdc */
     uint16_t   bgm_wait;       /* +0xde  ticks before a wrong BGM is replaced (10)         */
+    void      *scene;          /* +0xe0  the scene runner (operator_new(0xe290), 0x41a7f0)  */
+    uint8_t    _pe4[0xf0 - 0xe4];
+    wl_zonestate zones;        /* +0xf0  the event zones (0x59a1f0)                         */
+    void      *f11c;           /* +0x11c +0x20 == 0 => both +0x128 records get 1            */
+    uint8_t    _p120[0x128 - 0x120];
+    struct {
+        int32_t  f0;           /* +0x000 */
+        uint8_t  _p4[0x398 - 0x4];
+        struct wl_char *partner; /* +0x398  the camera lead's partner (0x59d3f0 mode 1)     */
+        uint8_t  _p39c[0x3ec - 0x39c];
+    } view[2];                 /* +0x128 */
+    int32_t    scene_ev;       /* +0x900  the zone that fired: its event, arg              */
+    int32_t    scene_arg;      /* +0x904 */
+    int32_t    scene_face;     /* +0x908  the leader's facing then (0x4842c0)               */
 } wl_roomloop;
 
 /* The EVENT-SCRIPT runner *(world+0x1054): 0x40b8f0 fills it and runs the script
@@ -990,10 +1024,17 @@ _Static_assert(offsetof(wl_pslot, room)      == 0x9ec, "slot room");
 _Static_assert(offsetof(wl_pslot, ch)        == 0x9f4, "slot character");
 _Static_assert(offsetof(wl_room, leader)     == 0x200c, "room leader");
 _Static_assert(offsetof(wl_room, nflags)     == 0x2008, "room flag count");
+_Static_assert(offsetof(wl_room, lead_mode)  == 0x4058, "room +0x4058");
+_Static_assert(offsetof(wl_room, partner)    == 0x40a8, "room +0x40a8");
+_Static_assert(offsetof(wl_world, f27b4)     == 0x27b4, "world +0x27b4");
 _Static_assert(offsetof(wl_room, in)         == 0x4,   "room input managers");
 _Static_assert(sizeof(input_mgr)             == 0x170, "input manager stride");
 _Static_assert(offsetof(wl_roomloop, lead)   == 0x8,   "room loop +0x8");
 _Static_assert(offsetof(wl_roomloop, bgm_wait) == 0xde, "room loop +0xde");
+_Static_assert(offsetof(wl_roomloop, hitstop) == 0x3c, "room loop +0x3c");
+_Static_assert(offsetof(wl_roomloop, zones)  == 0xf0,  "room loop zone state");
+_Static_assert(offsetof(wl_roomloop, view[1].partner) == 0x4c0 + 0x3ec, "room loop partners");
+_Static_assert(offsetof(wl_roomloop, scene_face) == 0x908, "room loop +0x908");
 _Static_assert(offsetof(wl_actor, f2ec)      == 0x2ec, "actor +0x2ec");
 _Static_assert(offsetof(wl_zonestate, fired) == 0x28,  "zone state +0x28");
 _Static_assert(offsetof(wl_actor, zone_kind) == 0x278, "actor +0x278");

@@ -4218,7 +4218,19 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   again unless `+0x28c` is 1..2; 70217 locked (`0x54ed80` uses a key item: "You used %s." / breaks a worn one, else
   "You have no key…" + sound): opens with `0x40afe0(…,1,0)` inlined; 70220 / 70353 / 70357 / 70358 / 70363..70366 on.
   The room loop returns a touch result only when it is 1 / 2 / 6 — a 24 is dropped there (the unload already ran).
-- **Event zones `0x59a1f0`** (room loop +0xec state, every pass): the leader is "able" = pose 0, |vel_x| <= 24000,
+- **The room loop `0x58f360`'s pacing machine, exactly** (locals in this order — the render `0x48c150` gets their
+  address: last pump, budget, last update, state, step 16, fps t0, fps count, elapsed, now, fps; budget starts 17):
+  state 0 pumps (`0x5b1030`) and goes to 2; state 1 = render (+ "Pause" every other 30 updates while paused) + Flip,
+  then on the NEXT pass: budget = budget - last + now (cap 100, unsigned), last = now, pump, 2 once budget > 16;
+  state 2 = one update, then on the next pass: if now - (that update's time) > budget → budget = 0, state 1, else
+  budget -= 16 and state 1 once it is <= 16. GetTickCount: once at entry, once per pass (+ inside the update).
+  The update's keys (the leader's first input manager): 20 leader swap (`0x59aa40`, any member; 40-tick hold at
+  input +0x16c), 18 pause, 42 / 43 the horizontal camera lead (-52000 / -30000 / -8000, room +0x4058 = 0), 40 / 41
+  the vertical one (-40000 / -27200 / -4000), 11 cycles room +0x4058 (0 → 1 → 2 → 0 + lead -30000), 34 exit (6),
+  21 / 22 / 23 the party / item menus, 16 the main menu (not paused, not two-room play world+0x27b4 == 2), 37 / 38
+  the touch pass. A waiting event (world+0x27ac) instead ends on any key pressed in the last 100 ms (+0x78 = 1)
+  or when its tick budget (+0x60, counter +0x74) runs out — result 6.
+- **Event zones `0x59a1f0`** (room loop +0xf0 state, every pass): the leader is "able" = pose 0, |vel_x| <= 24000,
   grounded (the entity mover probe). The FIRST live actor with `+0x274` (zone id) whose box meets the leader's
   (`0x59a7c0`: codes 70101..70103 not in state 2, 70440 / 70610 / 70620 not in state 1) is the zone; its record =
   the world+0x1038 table entry (20 x 12 B at +0x1c: u16 id, the event id +4, u16 arg +8); DONE = the room's flag
