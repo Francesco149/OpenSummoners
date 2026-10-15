@@ -7,15 +7,15 @@
 ## Port coverage (engine-proper functions of `sotes.exe`)
 
 ```
-█████░░░░░░░░░░░░░░░  26.2% touched   (15.8% host-tested, 24.3% of code bytes)
+█████░░░░░░░░░░░░░░░  26.5% touched   (15.8% host-tested, 24.5% of code bytes)
 ```
 
 | status      | count | what it means                                          |
 |-------------|------:|--------------------------------------------------------|
 | tested      |   250 | ported + module covered by the host unit suite       |
-| ported      |   164 | reimplemented in src/, no host test for that module  |
-| **touched** | **414** | tested + ported (FUN_ provenance ref in src/)    |
-| unported    |  1410 | exists in engine, never referenced from src/         |
+| ported      |   169 | reimplemented in src/, no host test for that module  |
+| **touched** | **419** | tested + ported (FUN_ provenance ref in src/)    |
+| unported    |  1405 | exists in engine, never referenced from src/         |
 
 **Denominator note (read this before judging the %):** the headline % is over
 **engine-proper** functions — the **1532** below
@@ -26,7 +26,7 @@ those like retail rather than porting them (PLAN.md §2-3), so counting them
 would bury real progress. Full table is **1824** non-thunk
 functions (of 1824 incl. thunks).
 
-Code-byte coverage (24.3% of engine-proper bytes) is the truer progress
+Code-byte coverage (24.5% of engine-proper bytes) is the truer progress
 signal: the engine has a long tail of tiny leaf helpers, so function count
 understates how much actual instruction volume is ported.
 
@@ -75,7 +75,8 @@ understates how much actual instruction volume is ported.
   | EVENT ZONES (leader in a zone → scene start: walk-in / press-up / hold-up, foe holds) + zone test, band-96 near | `0x59a1f0` / `0x59a7c0` / `0x59a880` | 8.7k (4,474 full-state; 3,868 with a zone under the leader, incl. 8 fires) / 8k / 1 | 0 |
   | ROOM LOOP per-tick calls: input update, character step (probe + AI), actor step, tile-anim phase, party check, camera lead, timed sounds | `0x468a20` `0x590410` `0x58ffd0` `0x58ff50` `0x59ca10` `0x59d3f0` `0x43e140` | 1.4k / 832 / 4.1k / 545 / 8.8k / 545 / 1.5k compared | 0 |
   | KEYBOARD input producer (DIK events → ring records in retail's test order, held axes) | `0x46a880` | 1,694 compared (every call with events: 1,164 events, title / menus / free roam) | 0 |
-  Hybrid gate: with all of the above REPLACING retail (129 hooks) (the whole character tick, driver → tile
+  | ENCOUNTER pass (roam / battle / strong-foe modes, foe-near flag, battle linger, room BGM restore) + threat scans, slot check, BGM pick | `0x58e780` / `0x58eeb0` / `0x58f0b0` / `0x412db0` / `0x40d9b0` | 1,471 (every call) / 1.4k / 1.4k / 63k / 1.4k — idle path (no foes in the corpus) | 0 |
+  Hybrid gate: with all of the above REPLACING retail (134 hooks) (the whole character tick, driver → tile
   movers, + the room loop's passes and per-tick calls, runs as port code), every corpus scenario ends byte-identical.
   Shadow guard (rhost): a port phase that reaches an external effect retail already performed (surface free,
   buffer release, DeleteObject, DirectInput, a mode-0/2 script) aborts its comparison (counted skipped); those
@@ -94,7 +95,7 @@ understates how much actual instruction volume is ported.
   00. the ROOM LOOP `0x58f360` itself (3 KB): its passes (`src/gimmick.c`) and per-tick calls
      (`src/room_loop.c`) are DONE; left under it: the pickups `0x59ca90` (+ the world message log
      world+4 / +0x1024, "You got %s!"), the warp countdown `0x59c750`, `0x59aa40` (a member down),
-     `0x58e780` (every 5 ticks), `0x499ab0`, `0x49be60`, `0x58e6a0`, `0x4842c0` / `0x59cfc0` (scene
+     `0x499ab0`, `0x49be60`, `0x58e6a0`, `0x4842c0` / `0x59cfc0` (scene
      start), the render `0x48c150` + Flip (platform). Then port the loop (pacing machine = the cadence
      model) and verify it in REPLACE.
      Slots left in the passes: the script engine `0x40c380` (5 KB), the key use `0x54ed80`, the input

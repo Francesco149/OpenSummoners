@@ -340,7 +340,8 @@ typedef struct wl_world {
     uint8_t    _p0000[0x1030];
     int32_t    scene_kind;   /* +0x1030  2 => no fall damage / no yawn                 */
     int32_t    f1034;        /* +0x1034  != 0 => no fall damage                        */
-    uint8_t   *zones;        /* +0x1038  the zone table: 20 records of 12 B at +0x1c (0x59a1f0) */
+    uint8_t   *roominfo;     /* +0x1038  the room's record: +0x1c the zone table (20 x 12 B,
+                              *           0x59a1f0), +0x110 the BGM kind, u16 +0x144 BGM override */
     uint8_t    _p103c[0x1040 - 0x103c];
     uint8_t   *f1040;        /* +0x1040  +0x28 = the effects volume (per mille)        */
     uint8_t   *f1044;        /* +0x1044  +0xce u16 = the particle slot cursor (0x557370) */
@@ -361,7 +362,11 @@ typedef struct wl_world {
     uint16_t   tick15;       /* +0x276c  (0x46cd70: +1 & 0x7fff per tick) */
     uint8_t    _p276e[0x2770 - 0x276e];
     int32_t    f2770;        /* +0x2770  != 0 => (0x47d740) a scene is running          */
-    uint8_t    _p2774[0x2784 - 0x2774];
+    int32_t    f2774;        /* +0x2774  a foe is near the party (0x58e780)               */
+    uint16_t   f2778;        /* +0x2778  the battle's linger countdown (50 / 10)          */
+    uint16_t   _p277a;
+    int32_t    f277c;        /* +0x277c  (cleared each encounter pass)                    */
+    int32_t    f2780;        /* +0x2780 */
     struct wl_room *room;    /* +0x2784  the current room (party slots, the leader)      */
     wl_list   *list_2788;    /* +0x2788 */
     wl_list   *collide;      /* +0x278c  entities the movers test against              */
@@ -511,6 +516,11 @@ typedef struct wl_roomloop {
     uint16_t   nrooms;         /* +0x4 */
     uint16_t   _p6;
     int32_t    lead;           /* +0x8  the leader's camera lead (-52000..-8000, 0x59d3f0) */
+    uint8_t    _p0c[0xd4 - 0xc];
+    int32_t    fd4;            /* +0xd4  (40 / 50 / 60 / 61: the BGM pick's variants)     */
+    int32_t    bgm_fixed;      /* +0xd8  != 0 => the BGM is bgm_id                         */
+    uint16_t   bgm_id;         /* +0xdc */
+    uint16_t   bgm_wait;       /* +0xde  ticks before a wrong BGM is replaced (10)         */
 } wl_roomloop;
 
 /* The EVENT-SCRIPT runner *(world+0x1054): 0x40b8f0 fills it and runs the script
@@ -983,10 +993,12 @@ _Static_assert(offsetof(wl_room, nflags)     == 0x2008, "room flag count");
 _Static_assert(offsetof(wl_room, in)         == 0x4,   "room input managers");
 _Static_assert(sizeof(input_mgr)             == 0x170, "input manager stride");
 _Static_assert(offsetof(wl_roomloop, lead)   == 0x8,   "room loop +0x8");
+_Static_assert(offsetof(wl_roomloop, bgm_wait) == 0xde, "room loop +0xde");
 _Static_assert(offsetof(wl_actor, f2ec)      == 0x2ec, "actor +0x2ec");
 _Static_assert(offsetof(wl_zonestate, fired) == 0x28,  "zone state +0x28");
 _Static_assert(offsetof(wl_actor, zone_kind) == 0x278, "actor +0x278");
-_Static_assert(offsetof(wl_world, zones)     == 0x1038, "world +0x1038");
+_Static_assert(offsetof(wl_world, roominfo)  == 0x1038, "world +0x1038");
+_Static_assert(offsetof(wl_world, f2778)     == 0x2778, "world +0x2778");
 _Static_assert(offsetof(wl_world, f27ac)     == 0x27ac, "world +0x27ac");
 _Static_assert(offsetof(wl_room, slot)       == 0x4030, "room slots");
 _Static_assert(offsetof(wl_room, f40d0)      == 0x40d0, "room +0x40d0");

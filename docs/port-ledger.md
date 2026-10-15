@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **414** (26.2% of engine-proper) — tested 250, ported 164
-- code bytes touched: **24.3%** (432,357 / 1,776,526 B of engine-proper)
-- unported: **1410**
+- touched: **419** (26.5% of engine-proper) — tested 250, ported 169
+- code bytes touched: **24.5%** (435,811 / 1,776,526 B of engine-proper)
+- unported: **1405**
 - orphan refs in src/ not in this table: 0
 
 ## tested (250) — ported + host unit suite
@@ -274,7 +274,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (164) — reimplemented, no host test yet
+## ported (169) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -299,8 +299,10 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x40be30 | sub_40BE30 | 1032 | gimmick.c, gimmick.h |
 | 0x40c300 | sub_40C300 | 120 | gimmick.h |
 | 0x40d960 | sub_40D960 | 69 | char_state.h |
+| 0x40d9b0 | sub_40D9B0 | 437 | room_loop.h |
 | 0x411390 | sub_411390 | 413 | sound_fx.h |
 | 0x411560 | sub_411560 | 117 | gimmick.h |
+| 0x412db0 | sub_412DB0 | 57 | room_loop.h |
 | 0x41e180 | sub_41E180 | 244 | char_state.h |
 | 0x41ea70 | sub_41EA70 | 187 | entity_life.h |
 | 0x41ee60 | sub_41EE60 | 252 | char_state.h |
@@ -422,6 +424,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x55cd50 | sub_55CD50 | 85 | particle_init.h |
 | 0x55cdb0 | sub_55CDB0 | 145 | particle_init.h |
 | 0x55ce50 | sub_55CE50 | 18 | particle_init.h |
+| 0x58e780 | sub_58E780 | 1823 | room_loop.h |
+| 0x58eeb0 | sub_58EEB0 | 479 | room_loop.h |
+| 0x58f0b0 | sub_58F0B0 | 658 | room_loop.h |
 | 0x58ff50 | sub_58FF50 | 66 | room_loop.h |
 | 0x58ffd0 | sub_58FFD0 | 595 | room_loop.h |
 | 0x590410 | sub_590410 | 112 | room_loop.h |

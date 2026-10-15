@@ -768,7 +768,7 @@ int zone_pass(wl_zonestate *zs, uint32_t now, wl_room *room, int32_t *scene, int
     int32_t kind = z->zone_kind, id = z->zone;
     const zone_rec *rec = NULL;
     for (uint16_t k = 0; k < 20; k++) {
-        const zone_rec *r = (const zone_rec *)(g_world->zones + 0x1c) + k;
+        const zone_rec *r = (const zone_rec *)(g_world->roominfo + 0x1c) + k;
         if (r->zone == (uint32_t)id) { rec = r; break; }
     }
     if (rec == NULL) return 0;

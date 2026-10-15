@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 250,
-  "ported": 164,
-  "unported": 1410,
+  "ported": 169,
+  "unported": 1405,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 414,
-  "pct_touched": 26.2,
+  "touched": 419,
+  "pct_touched": 26.5,
   "pct_tested": 15.8,
-  "engine_proper_touched": 401,
+  "engine_proper_touched": 406,
   "bytes_total": 1776526,
-  "bytes_touched": 432357,
-  "pct_bytes_touched": 24.3
+  "bytes_touched": 435811,
+  "pct_bytes_touched": 24.5
  },
  "orphan_refs": [],
  "functions": [
@@ -929,8 +929,10 @@
    "name": "sub_40D9B0",
    "size": 437,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_loop.h"
+   ]
   },
   {
    "va": "0x40dbc0",
@@ -1367,8 +1369,10 @@
    "name": "sub_412DB0",
    "size": 57,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_loop.h"
+   ]
   },
   {
    "va": "0x412df0",
@@ -10233,24 +10237,30 @@
    "name": "sub_58E780",
    "size": 1823,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_loop.h"
+   ]
   },
   {
    "va": "0x58eeb0",
    "name": "sub_58EEB0",
    "size": 479,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_loop.h"
+   ]
   },
   {
    "va": "0x58f0b0",
    "name": "sub_58F0B0",
    "size": 658,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_loop.h"
+   ]
   },
   {
    "va": "0x58f360",

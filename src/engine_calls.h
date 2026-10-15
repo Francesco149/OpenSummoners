@@ -103,6 +103,9 @@ typedef struct engine_calls {
     eng_tc0 h40fe00; eng_tc0 h54ed80;
     /* the room loop's: the joystick input producer 0x468b10, the BGM manager update 0x5bc0c0 */
     eng_tc2 h468b10; eng_tc0 h5bc0c0;
+    /* the encounter pass 0x58e780's: the battle voice line 0x409520 (`this` = the room), the BGM
+     * change 0x40a5d0 (`this` = sys) */
+    eng_tc9 h409520; eng_tc5 h40a5d0;
     /* the integrator 0x442a70's callees: per-type behaviour handlers + helpers (by VA) */
     eng_tc3 h467260; eng_tc6 h44a740; eng_tc8 h45a300;
     eng_tc4 h44bc10; eng_tc4 h44c250; eng_tc4 h44bf60; eng_tc7 h446900; eng_tc7 h452020;

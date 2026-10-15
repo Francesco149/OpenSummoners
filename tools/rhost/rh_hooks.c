@@ -65,7 +65,7 @@ enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_D
        H_PARTS_FREE, H_SET_ANGLE, H_FX_RESET, H_SKILL_AVAIL, H_PARTY_FIND, H_FLOOR_BELOW,
        H_GPASS, H_GSTEP, H_SWSET, H_SWLINK, H_EVRUN, H_UNLOAD, H_UNLIST_ALL, H_GLOW, H_RECT_HIT, H_CHARS_COUNT, H_CHAR_IN, H_RIDING,
        H_PART_FIND, H_SERIAL, H_SHOT, H_WARP, H_GATHER, H_TPASS, H_TACTOR, H_RFLUSH, H_PROBE_RECT, H_NEAR,
-       H_ZPASS, H_ZHIT, H_B96_NEAR, H_RIN, H_RCHAR, H_RACT, H_RANIM, H_RDOWN, H_RLEAD, H_TSOUNDS, H_DIK, H_N };
+       H_ZPASS, H_ZHIT, H_B96_NEAR, H_RIN, H_RCHAR, H_RACT, H_RANIM, H_RDOWN, H_RLEAD, H_TSOUNDS, H_DIK, H_ENC, H_FOES, H_PFOES, H_PSLOT, H_BGM, H_N };
 
 static void diverged(hook_t *h, const char *fmt, ...)
 {
@@ -1952,6 +1952,8 @@ static int __attribute__((thiscall)) gd_40fe00(void *s) { GUARD("the input re-po
 static int __attribute__((thiscall)) gd_5ba4c0(void *d) { GUARD("DirectInput 0x5ba4c0") return ((eng_tc0)(uintptr_t)0x5ba4c0u)(d); }
 static int __attribute__((thiscall)) gd_5ba2d0(void *d) { GUARD("DirectInput 0x5ba2d0") return ((eng_tc0)(uintptr_t)0x5ba2d0u)(d); }
 static int __attribute__((thiscall)) gd_5ba650(void *d) { GUARD("DirectInput 0x5ba650") return ((eng_tc0)(uintptr_t)0x5ba650u)(d); }
+static int __attribute__((thiscall)) gd_40a5d0(void *s, intptr_t id, intptr_t a, intptr_t f, intptr_t fade, intptr_t b)
+{ GUARD("the BGM change 0x40a5d0") return ((eng_tc5)(uintptr_t)0x40a5d0u)(s, id, a, f, fade, b); }
 static int __attribute__((thiscall)) gd_49bf90(void *d, intptr_t v) { GUARD("the joystick read 0x49bf90") return ((eng_tc1)(uintptr_t)0x49bf90u)(d, v); }
 /* the script engine: the room-start (mode 0) and touch (mode 2) scripts drive DirectShow /
  * DirectDraw (BGM, room changes) — running them a second time perturbs the run; the switch /
@@ -2341,6 +2343,76 @@ static void __attribute__((thiscall)) w_dik(input_mgr *m, const void *kb)
     full_shadow(h, "input_dik_produce", dik_retail, dik_port, &x, what);
 }
 
+/* ---- the encounter pass (src/room_loop.c) ---- */
+typedef void (__attribute__((thiscall)) *enc_t)(wl_roomloop *, wl_room *, int32_t);
+typedef struct { wl_roomloop *rl; wl_room *room; int32_t quiet; } enc_ctx;
+static void enc_retail(void *c) { enc_ctx *x = c; ((enc_t)(uintptr_t)H[H_ENC].va)(x->rl, x->room, x->quiet); }
+static void enc_port(void *c) { enc_ctx *x = c; port_world(); encounter_tick(x->rl, x->room, x->quiet); }
+static void __attribute__((thiscall)) w_enc(wl_roomloop *rl, wl_room *room, int32_t quiet)
+{
+    hook_t *h = &H[H_ENC];
+    enc_ctx x = { rl, room, quiet };
+    if (h->mode == 2) { h->calls++; enc_port(&x); return; }
+    if (!sample(h)) { enc_retail(&x); return; }
+    char what[64]; snprintf(what, sizeof what, "mode %d quiet %d", *(int32_t *)((uint8_t *)*(void **)(uintptr_t)WORLD_PTR_VA + 0x2770), quiet);
+    full_shadow(h, "encounter_tick", enc_retail, enc_port, &x, what);
+}
+typedef int (__attribute__((thiscall)) *foes_t)(const wl_char *, int32_t, int32_t, int32_t, uint16_t *, int32_t, const wl_char *, int32_t);
+static int __attribute__((thiscall)) w_foes(const wl_char *c, int32_t ranged, int32_t rx, int32_t ry, uint16_t *sc, int32_t ai, const wl_char *ref, int32_t lvl)
+{
+    hook_t *h = &H[H_FOES];
+    if (h->mode == 2) { h->calls++; port_world(); return foes_near(c, ranged, rx, ry, sc, ai, ref, lvl); }
+    uint16_t pre = sc ? *sc : 0;
+    int r = ((foes_t)(uintptr_t)h->va)(c, ranged, rx, ry, sc, ai, ref, lvl);
+    if (!sample(h)) return r;
+    uint16_t rs = sc ? *sc : 0, ps = pre;
+    port_world();
+    int p = foes_near(c, ranged, rx, ry, sc ? &ps : NULL, ai, ref, lvl);
+    h->compared++;
+    if (p != r || ps != rs) diverged(h, "f%u char %p: retail %d/%u port %d/%u", g_frame, (void *)c, r, rs, p, ps);
+    return r;
+}
+typedef int (__stdcall *pfoes_t)(const wl_room *, const wl_char *, uint16_t *, int32_t, int32_t, int32_t, uint32_t, int32_t);
+static int __stdcall w_pfoes(const wl_room *room, const wl_char *ref, uint16_t *best, int32_t rx, int32_t ry, int32_t ai, uint32_t min, int32_t lvl)
+{
+    hook_t *h = &H[H_PFOES];
+    if (h->mode == 2) { h->calls++; port_world(); return party_foes_near(room, ref, best, rx, ry, ai, (uint16_t)min, lvl); }
+    uint16_t pre = best ? *best : 0;
+    int r = ((pfoes_t)(uintptr_t)h->va)(room, ref, best, rx, ry, ai, min, lvl);
+    if (!sample(h)) return r;
+    uint16_t rb = best ? *best : 0, pb = pre;
+    port_world();
+    int p = party_foes_near(room, ref, best ? &pb : NULL, rx, ry, ai, (uint16_t)min, lvl);
+    h->compared++;
+    if (p != r || pb != rb) diverged(h, "f%u: retail %d/%u port %d/%u", g_frame, r, rb, p, pb);
+    return r;
+}
+typedef int (__attribute__((thiscall)) *pslot_t)(const wl_pslot *, int32_t, int32_t);
+static int __attribute__((thiscall)) w_pslot(const wl_pslot *s, int32_t any, int32_t inactive)
+{
+    hook_t *h = &H[H_PSLOT];
+    if (h->mode == 2) { h->calls++; return pslot_ok(s, any, inactive); }
+    int r = ((pslot_t)(uintptr_t)h->va)(s, any, inactive);
+    if (!sample(h)) return r;
+    int p = pslot_ok(s, any, inactive);
+    h->compared++;
+    if (p != r) diverged(h, "f%u slot %p: retail %d port %d", g_frame, (void *)s, r, p);
+    return r;
+}
+typedef uint32_t (__attribute__((thiscall)) *bgm_t)(const wl_roomloop *);
+static uint32_t __attribute__((thiscall)) w_bgm(const wl_roomloop *rl)
+{
+    hook_t *h = &H[H_BGM];
+    if (h->mode == 2) { h->calls++; port_world(); return bgm_pick(rl); }
+    uint32_t r = ((bgm_t)(uintptr_t)h->va)(rl);
+    if (!sample(h)) return r;
+    port_world();
+    uint16_t p = bgm_pick(rl);
+    h->compared++;
+    if (p != (uint16_t)r) diverged(h, "f%u: retail %u port %u", g_frame, r & 0xffffu, p);
+    return r;
+}
+
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
     [H_POLL] = { "input_poll", 0x43c110u, (void *)w_poll, 0, 1, 0, 0, 0, 0, "" },
@@ -2472,6 +2544,11 @@ static hook_t H[H_N] = {
     [H_RLEAD]      = { "room_lead",      0x59d3f0u, (void *)w_rlead,  0, 1, 0, 0, 0, 0, "" },
     [H_TSOUNDS]    = { "timed_sounds_tick", 0x43e140u, (void *)w_tsnd, 0, 1, 0, 0, 0, 0, "" },
     [H_DIK]        = { "input_dik_produce", 0x46a880u, (void *)w_dik, 0, 1, 0, 0, 0, 0, "" },
+    [H_ENC]        = { "encounter_tick", 0x58e780u, (void *)w_enc,    0, 1, 0, 0, 0, 0, "" },
+    [H_FOES]       = { "foes_near",      0x58eeb0u, (void *)w_foes,   0, 1, 0, 0, 0, 0, "" },
+    [H_PFOES]      = { "party_foes_near", 0x58f0b0u, (void *)w_pfoes, 0, 1, 0, 0, 0, 0, "" },
+    [H_PSLOT]      = { "pslot_ok",       0x412db0u, (void *)w_pslot,  0, 1, 0, 0, 0, 0, "" },
+    [H_BGM]        = { "bgm_pick",       0x40d9b0u, (void *)w_bgm,    0, 1, 0, 0, 0, 0, "" },
 };
 
 static const void *rh_data_identity(uint32_t va) { return (const void *)(uintptr_t)va; }
@@ -2517,7 +2594,7 @@ static void bind_engine_calls(void)
    
     B(4710c0); B(46da00);
     B(408b90); B(54f140);
-    B(40ac90); B(55cfc0); B(54ed80); B(468b10); B(5bc0c0);
+    B(40ac90); B(55cfc0); B(54ed80); B(468b10); B(5bc0c0); B(409520);
     B(552c70); B(552f60); B(5534d0); B(553520); B(553ec0); B(554570); B(554c40); B(5556d0);
     B(556e50);
     B(47da60); B(482240); B(482460); B(482ac0); B(47de50); B(47f670); B(47f9d0);
@@ -2527,6 +2604,7 @@ static void bind_engine_calls(void)
     /* the external-effect calls go through the shadow guards */
     *(void **)&g_eng.h5b9390 = (void *)gd_5b9390;
     *(void **)&g_eng.h40c380 = (void *)gd_40c380;
+    *(void **)&g_eng.h40a5d0 = (void *)gd_40a5d0;
     *(void **)&g_eng.h40fe00 = (void *)gd_40fe00;
     *(void **)&g_eng.h5ba4c0 = (void *)gd_5ba4c0;
     *(void **)&g_eng.h5ba2d0 = (void *)gd_5ba2d0;
@@ -2563,7 +2641,8 @@ void rh_hooks_install(void)
         H[H_SERIAL].va = H[H_SHOT].va = H[H_WARP].va = H[H_GATHER].va =
         H[H_TPASS].va = H[H_TACTOR].va = H[H_RFLUSH].va = H[H_PROBE_RECT].va = H[H_NEAR].va =
         H[H_ZPASS].va = H[H_ZHIT].va = H[H_B96_NEAR].va =
-        H[H_RIN].va = H[H_RCHAR].va = H[H_RACT].va = H[H_RANIM].va = H[H_RDOWN].va = H[H_RLEAD].va = H[H_TSOUNDS].va = H[H_DIK].va = 0;
+        H[H_RIN].va = H[H_RCHAR].va = H[H_RACT].va = H[H_RANIM].va = H[H_RDOWN].va = H[H_RLEAD].va = H[H_TSOUNDS].va = H[H_DIK].va =
+        H[H_ENC].va = H[H_FOES].va = H[H_PFOES].va = H[H_PSLOT].va = H[H_BGM].va = 0;
     if (!O.hooks) return;
     char b[4096]; snprintf(b, sizeof b, "%s", O.hooks);
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {
