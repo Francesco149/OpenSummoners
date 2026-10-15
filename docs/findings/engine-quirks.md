@@ -4696,23 +4696,25 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   previewed item's, frames rebuilt (`0x417c40`); the bank is kept in context +0x18 (the previous one's
   frames freed first).
 
-### #152 — the cutscene message box: balloon placement over the speaker, the tail, the fade (port 2026-10-16)
+### #152 — the cutscene message box: balloon placement over the speaker, the tail, the portrait fade (port 2026-10-16)
 - **Records**: the room loop's two 0x3c-B box slots, +0x54 (current) and +0x90 (previous, fading out); a new
-  box moves the current one to +0x90 (its window's +0x50 cleared first).  B: +0 the window, +0x10 / +0x14 two
-  1 x 1 tail grids, u16 +0x2e the fade state (1 in, 2 / 3 out), +0x30 the clock 0..1000, +0x34 its step.
+  box moves the current one to +0x90 (its window's +0x50 cleared first).  B: +0 the window, +4 the kind, +8 /
+  +0xc the two tail pieces (1 x 1 grids), +0x10 / +0x14 the speaker's portrait now / before, +0x18 the name
+  icon, +0x1c the name, +0x20 the text control, +0x24 the speaker, +0x28 / u16 +0x2c the portrait bank /
+  frame, u16 +0x2e the fade state (1 in, 2 / 3 out), +0x30 the clock 0..1000, +0x34 its step, +0x38 the
+  bottom-strip flag.
 - **Placement** `0x49c640`: with a speaker, the box is centred on the speaker's body (`0x490b90`, the
   projector without shake), x clamped to 32..608 − w; y = body +0x14 / 100 + entity +0x1c − box h + screen y
-  − 48 (above the head); if that is under 24 px (64 with the "high" flag) it goes below: body h / 100 +
-  entity +0x20 + screen y.  The tail sits under the speaker's centre, clamped 32 px inside the box; its pieces
-  are sys+0xba8 frames — above: 9 (on +0x10, at box h − 32) + 10 (on +0x14, at box h); below: 11 (+0x10 at 0)
-  + 12 (+0x14 at −32); the single-piece mode uses +0x14 only: 13 above / 14 below.  No speaker: centred,
-  y 80.
-- **Fade** `0x49c910` (only while the box window is live with +0x54 == 1000): in (1) — the clock's first half
-  ramps the +0x10 piece's alpha (sys+0x27a8, 20 steps: step 20t / 500), the second half the +0x14 piece
-  (20 (1000 − t) / 500); at 1000 both opaque, +0x14's icon cleared, state 0.  Out (2 / 3): the +0x10 piece by
-  20t / 1000 while the clock runs down; at 0 its icon cleared, state 0.
+  − 48 (above the head); if that is under 24 px (64 with the "high" flag: a portrait) it goes below: body h /
+  100 + entity +0x20 + screen y.  The tail sits under the speaker's centre, clamped 32 px inside the box; its
+  pieces are sys+0xba8 frames — above: 9 (on +8, at box h − 32) + 10 (on +0xc, at box h); below: 11 (+8 at 0)
+  + 12 (+0xc at −32); the single-piece mode uses +0xc only: 13 above / 14 below.  No speaker: centred, y 80.
+- **Portrait cross-fade** `0x49c910` (only while the box window is live with +0x54 == 1000): in (1) — the
+  clock's first half ramps the new portrait (+0x10) in over the sys+0x27a8 20-step alpha table (step 20t /
+  500), the second half the old one (+0x14) out (20 (1000 − t) / 500); at 1000 the new one opaque, the old
+  cleared, state 0.  Out (2 / 3): the portrait by 20t / 1000 while the clock runs down; at 0 cleared, state 0.
 - **Styles**: the balloon `0x43e0e0` = sys+0xba8 frames {0,0,1..8}; the plain box `0x43e080` = sys+0xb88
-  {64,0,1..8} (unreached by the corpus).
+  {64,0,1..8}.
 - **Projector** `0x490b90` (view = world+0x104c): screen x = dx + x / 100 − (cur_x [+ shake x]) / 100, screen y
   = dy + y / 100 − (cur_y [+ shake y] + 100 · view +0x74) / 100; visible when the w x h box overlaps the
   viewport (+0x64 / +0x68).
@@ -4745,6 +4747,45 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   else only its links), horizontal steps toward the goal first (a slope cell moves the row), link jumps cost
   4; the closest cell reached is searched instead when the goal is unreachable.  Output: the steps with
   consecutive same-direction walks merged.
+
+### #154 — the scene command runner: a cutscene beat's frame loop (port 2026-10-16)
+- **Per beat** (`0x439690`, `this` = the room loop, the event runner R; script_wait `0x439680`): nothing when R+0x20
+  (the wait mode) is 0.  Set-up: the letterbox R+0x6c (1 / 2 / 3: room loop +0x40 = 1, +0x50 = 0 / −64 / +64;
+  4: off; unless R+0x70 the bars jump: +0x44 / +0x48 = 64 / +0x4c = +0x50, or 0); R+0x2e4 retires the box
+  (and unloads group 5); every timed sound still starting or playing fades out (state 3, 400 a tick).
+- **A new message** (R+0x78): kind R+0x7c, voice R+0x2e8 (a voice or kind 2 mutes the typing blip; else the blip
+  frequency R+0x80); the box is rebuilt when its kind, its speaker R+0x2e0 or the portrait's presence changes.
+  Kinds 0 / 1 / 2 / 4 — the balloon: a 368 x 112 window (408 with a portrait R+0x84; the bottom strip R+0x2f0:
+  640 at y 368, the plain box style), the tail pieces, the portrait pair at (−24, −72), the name R+0x28a at w −
+  128 (w − 192 past 12 chars) with the name tag icon sys+0xbb0 frame 1 / 0, white on 0x455f7b (the strip:
+  0xf08080), the text control (28, 20) 44 x 3 glyphs (portrait: 136, 36 wide; strip: (176, 48) 60 x 2), the key
+  tokens (`0x410610`), the "more" cursor (`0x410560`, −8 / 12); other kinds — narration: (128, 32) 384 x 128
+  (strip: (0, 392) 640 x 88) with the text at (36, 32) 44 x 3 ((100, 24) 62 x 2).  Text: key tokens expanded,
+  laid out at the control's width; the typewriter at the config's speed +0x248 (x 2 / 3 / 5 for the break
+  classes; voiced: 6 / 18 / 24 / 36), auto-close when R+0x2dc is 0.
+- **The portrait** (box kinds 0..2): a new bank / frame R+0x84 / R+0x88 goes on +0x64 (alpha step 0), the
+  previous on +0x68, fade in (state 1, step 50); none: fade out (state 2, step 100).  The previous box's
+  portrait fades out (3, 100).
+- **Effects**: R+0x24 starts the screen effect (world+0x1040: +0xc = R+0x28, +0x1c = R+0x2c, +0x10 = 3 · rand /
+  32768, its cell grid reset); R+0x30 the fades (`0x43c9b0` with R+0x38, then R+0x34 / R+0x3c); R+0x40 snaps the
+  camera to (R+0x44, R+0x48) clamped to the map, R+0x4c pans to (R+0x50, R+0x54) at speed R+0x58; the sound
+  listener is fixed at (R+0x64, R+0x68).  Choices R+0x584 (records from R+0x5a0, 0x58 B {text, +0x50 a, +0x54
+  b}): a window (R+0x598, R+0x59c) R+0x594 wide, 28 n + 64 high, the cursor on the row with b == R+0x588.  The
+  room views' +0 = R+0x74; room loop +0x3c = R+0xb20.  Auto-advance: with a waiting event world+0x27ac 40
+  (voiced) / 50 frames; else, voiced with the config's +0x1e4 == 1, 40 (60 for voice 0x7fff).
+- **Each 16 ms update** (the menu pacer's machine): the timed sounds, input (ring 19 → room loop +0x34), the BGM
+  ducked (−300 over 50) while a voice job plays unless R+0x2ec, else restored; the skip — key 34 (any key while
+  world+0x27ac waits, which also gets +0x78 = 1) pressed in the last 100 ms → 6; the cast steps (`0x43e5b0`; a
+  done temporary character, record +0x10, is released); the sound R+0x580 (pool sys+0x3c0 / +0x3bc by the
+  grid's +0x20, volume config+0x168 + 2000, frequency −2000); the picture R+0xb28; the choices (confirm: R+0x588 =
+  the row's b, cancel: R+0x58c; wait mode 5 ends); the old box's fade; the box: its voice line once shown
+  (`0x43c1b0`, volume config+0x1bc), placement (kinds 0 / 1 / 4 / 2), fade, update (wait mode 1 ends when it
+  closes); the countdown R+0x57c; the listener / camera following R+0x60 / R+0x5c (camera: x + 0x78 + R+0x50 −
+  30000, y + R+0x54 − 27200); the world tick unless R+0x1c; the camera easer; the screen effects (their +0x18
+  ends R+0x24).  Wait modes: 2 the effect, 3 the camera at its target, 4 every cast record with +4 == 1 done, 6
+  the countdown, 7 the letterbox fully in / out, 9 the room loop's +0x11c+0x20.  Render + Flip per the pacer:
+  with R+0xb24 a black fill on even world ticks, and the demo captions (0x8552ac / 0x855294) while a waiting
+  event's +0x64.  On exit: the BGM restored, the choice window closed (R+0x584 = 0), input re-polled.
 
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)

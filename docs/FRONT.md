@@ -59,6 +59,7 @@
   | the SHOP: the driver (Buy / Sell choice, input reset, menu context), the stock list, "On who?" (member list + the equip preview loop) | `0x415060` / `0x415460` / `0x415f60` | REPLACE only: 2 / 1 / 1 (rh-my-play; each also replaced alone under retail's callers) | – |
   | the equip preview (worn >> new, price, the stat rows, the sprite pair + its recolour clone) + member rows, stat row, sprite get; the toolkit leaves (list window open, row + text, gauge clamp, cell colour), item lookup, room views mark | `0x4169e0` `0x4167a0` `0x418c90` `0x4175a0` / `0x411940` `0x412160` `0x412330` `0x4173f0` `0x4078a0` `0x41a140` | 1 / 1 / 6 / 2 / 1 / 3 / – / – / 9 / 1 — the recolour path (an item with a swap table) and the buy confirm `0x415ae0` unreached | 0 |
   | the CUTSCENE MESSAGE BOX: balloon placement over the speaker + tail, the fade in / out, the balloon / box styles, the cell-icon alpha; the world → screen projector | `0x49c640` `0x49c910` `0x43e0e0` `0x43e080` `0x43d470` / `0x490b90` | 8,207 / 8,857 / 63 / – / 86 / 16,287 sampled of 8.2M | 0 |
+  | the SCENE COMMAND RUNNER — every cutscene beat's frame loop (message box build / text / portraits, effects, fades, camera, choices, the cast, voice, skip, wait modes; render + Flip) | `0x439690` | REPLACE only: 200 beats (rh-my-play 120 / rh-intro-errands 38 / rh-errands-walk 42) | – |
   | the CUTSCENE CAST STEP (walk-to with path planning + teleport fallback, face, wait for the action, stance / pose skills) + the path search (DFS over grid regions D / E) + near-x, face key | `0x43e5b0` / `0x43ef20` `0x43f370` / `0x441f00` `0x442600` | 635 / 220 (the DFS inside) / 359 / 139 — walk / face / wait reached; stance, pose, timeout and no-path branches not | 0 |
   | KEYBOARD input producer (DIK events → ring records in retail's test order, held axes) | `0x46a880` | 1,694 compared (every call with events: 1,164 events, title / menus / free roam) | 0 |
   | ENCOUNTER pass (roam / battle / strong-foe modes, foe-near flag, battle linger, room BGM restore) + threat scans, slot check, BGM pick | `0x58e780` / `0x58eeb0` / `0x58f0b0` / `0x412db0` / `0x40d9b0` | 1,471 (every call) / 1.4k / 1.4k / 63k / 1.4k — idle path (no foes in the corpus) | 0 |
@@ -87,7 +88,7 @@
   | the party POSE handler (turn-around, hit reactions + voice, stagger, knockdowns, blown-back falls, get-up, revive) + knockdown, status inflict, drift, switch touch, particle live, hitstop | `0x457ff0` (+ `0x459990` `0x4593e0` `0x4678f0` `0x467ae0` `0x459ed0` `0x5b1aa0` `0x459370` `0x54d060` `0x5b4510`) | 1.43M (72,685 full-state: every non-zero pose) / – / – / – / – / – / 414 / – / – / – | 0 |
   | the SCRIPT ENGINE (chapter scripts by area / flag, then the default event: room arrival + BGM + area title, doors, switched furniture / chest / save statue / talk records, time of day) + scene begin / end, room flag, leader, party cast, cast add, scene wait, actor by record | `0x40c380` (+ `0x49cb60` `0x49cd70` `0x41e2f0` `0x402f20` `0x402060` `0x401f50` `0x439680` `0x556eb0`) | 61 (11 full-state; 49 guarded: the BGM / frame loop) / 31 / 30 / 251 / 29 / 13 / 13 / – (REPLACE: 146) / 129; REPLACE: every event of the corpus | 0 |
   | the scene COMMAND builders (message box + voice row, face, weapon stance, talk turn, flag set, camera, fades / waits / pause, area title, door place / spawn / by record, next event, room BGM restart) | `0x49d6e0` `0x4a5ee0` `0x401e60` `0x4a5e20` `0x402d40` `0x406210` `0x41d190` `0x4a5f50` `0x401d40` `0x4a5f30` `0x4a5f90` `0x4cc060` `0x4cc080` `0x4cc0a0` `0x4cc0c0` `0x403100` `0x41ec20` `0x41f0e0` `0x4cbf80` `0x4cca70` | 101 / 34 / 7 / 1 / 13 / 13 / 8 / 18 / 6 / 1 / 5 / 1 / 2 / 2 / 1 / 3 (guarded: the title text) / 1 / 15 / 1 / 2 (guarded: the BGM) — from retail's chapter scripts | 0 |
-  Hybrid gate: with all of the above REPLACING retail (440 hooks) (the whole character tick, driver → tile
+  Hybrid gate: with all of the above REPLACING retail (441 hooks) (the whole character tick, driver → tile
   movers, + the room loop's passes and per-tick calls, runs as port code), every corpus scenario ends byte-identical.
   Shadow guard (rhost): a port phase that reaches an external effect retail already performed (surface free,
   buffer release, DeleteObject, DirectInput, a mode-0/2 script) aborts its comparison (counted skipped); those
@@ -124,13 +125,12 @@
      easer go through rhost's own stubs), with the script engine / scene commands (`src/script_engine.c`,
      `src/scene_cmd.c`), the status pass (`src/char_status.c`) and the party chores (`src/room_tick.c`). Left
      under it as slots: the scene runner `0x59ad60`, the screen effects `0x499ab0` (+ `0x49af40` 3.3 KB), the
-     menus (`0x59d540` / `0x591120` / `0x590480` / `0x590f20` / `0x590ca0` — the UI widget toolkit below them
-     is the next big subsystem), the shots' band `0x590230` (+ `0x4710c0` 20 KB) / band 96 `0x46da00`, the
+     menus (`0x59d540` / `0x591120` / `0x590480` / `0x590f20` / `0x590ca0` — on the now-ported UI toolkit), the shots' band `0x590230` (+ `0x4710c0` 20 KB) / band 96 `0x46da00`, the
      render `0x48c150` + Flip (platform), `0x409520` `0x468b10` `0x415350` `0x495e40` `0x59d160` `0x5bc0c0`;
      in the passes: the key use `0x54ed80`, the input re-poll `0x40fe00`, the shot emitter `0x40ac90`, the
      shot init `0x55d140` (8 KB), the fall `0x5b4d00`, the item use `0x5b1f10` + effect value `0x47ae00`;
-     under the scripts: the scene command runner `0x439690` (8.8 KB, the cutscene frame loop) + the ~65 story
-     scripts (`script_call`).
+     under the scripts: the ~65 story scripts (`script_call`; the scene command runner `0x439690` is ported:
+     `src/scene_run.c`).
   0. the Arche handlers: the POSE handler `0x457ff0` is ported (`src/arche_pose.c`, quirk #143; the knockdowns /
      status inflict unreached: no combat in the corpus); left: `0x45a300` (14 KB, the skill casts; also 0x446900 /
      0x4484b0), `0x461790` (19 KB, Arche's sword skills 10101..; its helpers 0x4665d0 0x447900 0x5b15e0 0x447ed0

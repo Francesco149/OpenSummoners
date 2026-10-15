@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 448,
-  "unported": 1127,
+  "ported": 449,
+  "unported": 1126,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 697,
-  "pct_touched": 44.6,
+  "touched": 698,
+  "pct_touched": 44.7,
   "pct_tested": 15.7,
-  "engine_proper_touched": 684,
+  "engine_proper_touched": 685,
   "bytes_total": 1776526,
-  "bytes_touched": 578046,
-  "pct_bytes_touched": 32.5
+  "bytes_touched": 586912,
+  "pct_bytes_touched": 33.0
  },
  "orphan_refs": [],
  "functions": [
@@ -3442,8 +3442,10 @@
    "name": "sub_439690",
    "size": 8866,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_run.h"
+   ]
   },
   {
    "va": "0x43b980",

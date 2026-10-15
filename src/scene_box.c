@@ -81,9 +81,9 @@ int32_t box_fade_tick(uint8_t *bx)
     const uint8_t *win = ldp(bx, 0);
     if (ld32(win, 0x54) != 1000 || ld32(win, 4) == 0) return (int32_t)(intptr_t)win;
     uint16_t st = ld16(bx, 0x2e);
-    uint8_t *ta = ldp(bx, 0x10), *tb = ldp(bx, 0x14);
+    uint8_t *ta = ldp(bx, 0x10), *tb = ldp(bx, 0x14);   /* the portrait now / before */
     int32_t t = ld32(bx, 0x30);
-    if (st == 1) {   /* fading in: the first half on `ta`, the second on `tb` */
+    if (st == 1) {   /* fading in: the new portrait over the first half, the old one out over the second */
         if (t >= 1000) {
             cell_icon_alpha(ta, 0, 0, 0);
             cell_icon_set(tb, 0, 0, 0, 0, NULL, 0, 0);

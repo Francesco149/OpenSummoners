@@ -59,6 +59,7 @@
 #include "ui_menu.h"
 #include "scene_box.h"
 #include "scene_cast.h"
+#include "scene_run.h"
 #include "ui_run.h"
 #include "glyph_text.h"
 #include "engine_calls.h"
@@ -188,6 +189,7 @@ typedef struct {
     X(H_SB_FADE, "box_fade_tick", 0x49c910u) \
     X(H_SC_NEAR, "body_near_x", 0x441f00u) X(H_SC_FCMD, "cast_face_cmd", 0x442600u) X(H_SC_DFS, "path_dfs", 0x43f370u) \
     X(H_SC_PATH, "path_search", 0x43ef20u) X(H_SC_STEP, "cast_step", 0x43e5b0u) \
+    X(H_SRUN, "scene_run", 0x439690u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
 
@@ -2109,8 +2111,7 @@ static int rh_script_call(uint32_t va, wl_event *ev)
     EV_GUARD(ev, "a chapter script (mode != 3/4)")
     return ((eng_tc0)(uintptr_t)va)(ev);
 }
-static int __attribute__((thiscall)) gd_439690(void *rl, intptr_t ev)
-{ EV_GUARD((wl_event *)ev, "the scene command run 0x439690 (mode != 3/4)") return ((eng_tc1)(uintptr_t)0x439690u)(rl, ev); }
+static int __attribute__((thiscall)) gd_439690(void *rl, intptr_t ev);   /* (below: it dispatches to scene_run) */
 static int __attribute__((thiscall)) gd_4081d0(void *ev, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5,
                                                intptr_t a6)
 { GUARD("the chest 0x4081d0") return ((eng_tc6)(uintptr_t)0x4081d0u)(ev, a1, a2, a3, a4, a5, a6); }
@@ -3694,6 +3695,25 @@ static intptr_t __attribute__((thiscall)) H_VPROJ_w(void *self, GP9)
     *(int32_t *)a7 = (int32_t)x.out_r[0]; *(int32_t *)a8 = (int32_t)x.out_r[1];
     return x.rr;
 }
+/* the scene command runner (src/scene_run.c): a cutscene beat's frame loop — REPLACE only.  The ported
+ * script_wait reaches it through the h439690 slot, which dispatches here in replace mode too. */
+typedef int32_t (__attribute__((thiscall)) *srun_t)(void *, intptr_t);
+static int32_t __attribute__((thiscall)) H_SRUN_w(void *rl, intptr_t ev)
+{
+    hook_t *h = &H[H_SRUN];
+    h->calls++;
+    if (h->mode == 2) { port_world(); return scene_run(rl, (wl_event *)ev); }
+    return ((srun_t)(uintptr_t)h->va)(rl, ev);
+}
+static int __attribute__((thiscall)) gd_439690(void *rl, intptr_t ev)
+{
+    if (H[H_SRUN].mode == 2 && !rh_shadow_port_phase()) return H_SRUN_w(rl, ev);
+    if (((wl_event *)ev)->mode != 3 && ((wl_event *)ev)->mode != 4 && rh_shadow_port_phase()) {
+        rh_shadow_abort("the scene command run 0x439690 (mode != 3/4)");
+        return 0;
+    }
+    return ((eng_tc1)(uintptr_t)0x439690u)(rl, ev);
+}
 /* the shop's loops (menus: render + Flip) + the menu context clear (its `this` is a stack object) — REPLACE only */
 typedef int32_t (__attribute__((thiscall)) *shop_t)(void *, intptr_t, intptr_t, intptr_t);
 static int32_t __attribute__((thiscall)) H_UM_SHOP_w(void *ev, intptr_t a1, intptr_t a2, intptr_t a3)
@@ -4011,6 +4031,7 @@ static void bind_engine_calls(void)
     B(5ba120); B(5ba290);
     g_eng.tod = (int32_t *)(uintptr_t)0x8a93fcu;
     B(4178e0); B(418470); B(417c40);
+    *(void **)&g_eng.select_obj = iat_lookup("SelectObject");
     *(void **)&g_eng.find_res = iat_lookup("FindResourceA");
     *(void **)&g_eng.load_res = iat_lookup("LoadResource");
     *(void **)&g_eng.lock_res = iat_lookup("LockResource");
@@ -4018,6 +4039,8 @@ static void bind_engine_calls(void)
     B(428c00); B(429060); B(429db0); B(42a500); B(42a9a0); B(42b9a0); B(42c130); B(42c510); B(42c970);
     B(42cce0); B(42d3c0); B(42da50); B(42e290); B(42f840); B(42fbf0); B(42ff00); B(430400);
     B(5bcfb0); B(405e80); B(55d140); B(47ae00); B(5b1f10); B(4034f0); B(4051d0); B(415ae0); B(4192f0); B(418ec0); B(441de0); B(442710); B(442640);
+    B(5bcfa0); B(43c1b0); B(5b94e0); B(5b9500); B(5b5ef0); B(43e250); B(43d540); B(43d4b0); B(43dd30); B(43d830);
+    B(442920); B(4428f0); B(468970);
     B(561d20); B(409150); B(55fdb0); B(41d780); B(4e6520); B(4e61d0); B(41b670); B(4c5af0); B(52fd80); B(5a3870); B(5a00c0);
     B(5a3670); B(56c640); B(5b6060); B(5b60d0); B(5b61b0); B(5b6200); B(5b6bc0); B(5b6340); B(5b64b0);
     B(41cfd0);

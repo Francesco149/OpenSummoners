@@ -6,6 +6,24 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-16 — the cutscene runner, chip 4c: the scene command runner itself (`src/scene_run.c`)
+
+- `0x439690` (8.8 KB), every cutscene beat's frame loop, as port code: the box build (balloon / strip /
+  narration, name, portrait pair, the key tokens, the "more" cursor), its text (typewriter speeds, voiced
+  speeds), the portrait cross-fade start, the screen effect / fades / camera snap + pan / listener, the choice
+  list, the picture, then the 16 ms loop on the menu pacer (`menu_pace`): input, BGM ducking, the skip key,
+  the cast steps (+ temporary character release), sounds, choices, the box (voice line, placement, fade,
+  update), the countdown, camera / listener following, the world tick, the easer and screen effects, the wait
+  modes; render + Flip (letterbox fill, demo captions).  The h439690 slot (the ported script_wait's) now
+  dispatches to it in REPLACE mode.  Slots: the render / Flip / pump / screen effects (existing), the voice
+  line `0x43c1b0`, GDI (`0x5b94e0` / `0x5b9500` / `0x5b5ef0` / SelectObject / `0x43e250`), the picture
+  (`0x43d540` / `0x43d4b0` / `0x43dd30` / `0x43d830`), the release helpers (`0x442920` / `0x4428f0` /
+  `0x468970`).  Quirk #154; quirk #152 corrected (box +0x10 / +0x14 are the portraits: the fade is their
+  cross-fade, not the tail's).
+- rhost REPLACE: 200 beats over the corpus byte-identical (alone and in the hybrid gate, 441 hooks PASS).
+  Branch coverage (traps): balloons 63, narration 1, choices 2, portraits 78, effect / fades 29, camera snap 3;
+  the bottom strip, picture, letterbox fill, demo captions and cast release unreached.
+
 ## 2026-10-16 — the cutscene runner, chip 4b: the cast step + the path search (`src/scene_cast.c`)
 
 - The per-frame step of every scripted cast character `0x43e5b0` (walk to a point: plan with the path search,

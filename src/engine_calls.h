@@ -228,6 +228,16 @@ typedef struct engine_calls {
     /* the cast step's (`this` = the character): the walk-off 0x441de0 (body, loose), the link jump 0x442710
      * (step index), the swimmer / flyer's walk 0x442640 (body, loose, x, y, facing) */
     eng_tc2 h441de0; eng_tc1 h442710; eng_tc5 h442640;
+    /* the scene runner 0x439690's: the BGM level read 0x5bcfa0, the voice line start 0x43c1b0 (jobs, module,
+     * voice, volume), the surface DC get / release 0x5b94e0 / 0x5b9500, the fill 0x5b5ef0 (`this` 0x8a6610: dc,
+     * x, y, w, h), the outlined caption 0x43e250 (stdcall: font, paint, text, x, y, bold), SelectObject (GDI32
+     * through the import table), the picture 0x43d540 / 0x43d4b0 / 0x43dd30 / 0x43d830, a temporary cast
+     * character's carry release 0x442920, links release 0x4428f0, voice set delete 0x468970 */
+    eng_tc0 h5bcfa0; eng_tc3 h43c1b0; eng_tc1 h5b94e0; eng_tc1 h5b9500; eng_tc5 h5b5ef0;
+    int (ENG_STDCALL *h43e250)(intptr_t font, void *paint, const char *text, int32_t x, int32_t y, int32_t bold);
+    void *(ENG_STDCALL *select_obj)(void *hdc, void *obj);
+    eng_tc0 h43d540; eng_tc2 h43d4b0; eng_tc2 h43dd30; eng_tc0 h43d830;
+    eng_tc1 h442920; eng_tc0 h4428f0; eng_tc1 h468970;
 } engine_calls;
 
 extern engine_calls g_eng;

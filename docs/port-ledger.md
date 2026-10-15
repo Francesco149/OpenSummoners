@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **697** (44.6% of engine-proper) — tested 249, ported 448
-- code bytes touched: **32.5%** (578,046 / 1,776,526 B of engine-proper)
-- unported: **1127**
+- touched: **698** (44.7% of engine-proper) — tested 249, ported 449
+- code bytes touched: **33.0%** (586,912 / 1,776,526 B of engine-proper)
+- unported: **1126**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (448) — reimplemented, no host test yet
+## ported (449) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -460,6 +460,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x438740 | sub_438740 | 555 | device_init.h |
 | 0x438a60 | sub_438A60 | 2639 | particle_init.h |
 | 0x439680 | sub_439680 | 9 | script_engine.h |
+| 0x439690 | sub_439690 | 8866 | scene_run.h |
 | 0x43c170 | sub_43C170 | 53 | ui_run.h |
 | 0x43c610 | sub_43C610 | 52 | ui_run.h |
 | 0x43c650 | sub_43C650 | 696 | ui_run.h |

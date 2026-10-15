@@ -54,7 +54,7 @@ names for the runner were 4 bytes off past +0x2e0, quirk #144)
    `0x49c640`, fade `0x49c910`), styles `0x43e0e0` / `0x43e080`, cell alpha `0x43d470`, the projector `0x490b90`;
    hybrid 435, quirk #152.  4b DONE: the cast step `0x43e5b0` + the path search `0x43ef20` / `0x43f370` +
    `0x441f00` `0x442600` (`src/scene_cast.c`); slots `0x442710` `0x441de0` `0x442640` `0x441f50`; hybrid 440, quirk
-   #153.  4c next: the
-   runner itself (REPLACE-only: render `0x48c150`, Flip, the pump `0x5b1030`, the GDI name label `0x43e250` stay
-   slots; the unreached `0x43d830` `0x43dd30` `0x43d540` `0x43c1b0` `0x468970` `0x442920` too).
+   #153.  4c DONE: the runner itself (`src/scene_run.c`, REPLACE-only; 200 beats), hybrid 441, quirk #154.
+5. next: the room loop's menus (`0x59d540` / `0x591120` main menu, `0x590480` / `0x590f20` / `0x590ca0`), the
+   save writer `0x41a890`, the shop's remaining paths (buy confirm / sell list: a scenario first).
 Render / DirectDraw (`0x4178e0` `0x417c40` `0x418470` `0x4184a0` `0x4188b0`) stay platform slots.
