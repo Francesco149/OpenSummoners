@@ -450,7 +450,7 @@ VERIFY_HOOKS = ["rand", "input_poll", "mover_v", "sweep_h", "ent_move_h", "ent_m
                 "fill_lookup", "world_leader@4", "camera_snap@4", "zones_reset", "quest_state", "view_record_init", "room_state_save",
                 "map_res_free", "map_res_delete", "pool_head_delete", "entity_free@16", "actor_free@4", "char_free", "char_block_init",
                 "room_formation", "char_follow_set", "actor_state_restore", "palette_tint@16", "map_res_load",
-                "slot_frames_free@4", "slot_frames_free_all", "slots_free_graded", "pal_swap_apply"]
+                "slot_frames_free@4", "slot_frames_free_all", "slots_free_graded", "pal_swap_apply", "room_populate"]
 # REPLACE-only hooks (a whole room per call / DirectInput): proven by `corpus --check --hook replace:…`
 REPLACE_ONLY_HOOKS = ["room_loop", "input_repoll_flush", "load_room",
                       "world_new", "world_free"]   # (their shadows skip: the grid's 2.9 MB block moves the arena commit)

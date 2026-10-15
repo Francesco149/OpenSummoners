@@ -72,7 +72,7 @@ enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_D
        H_LROOM, H_BODIES, H_LINKS, H_VPOOLS, H_SHAKECLR, H_VFADE, H_MAPID, H_MAPNPC, H_PSCLR, H_GATE, H_SREADY, H_STINT, H_TSFADE, H_FILL,
        H_WNEW, H_WFREE, H_EFREE, H_AFREE, H_CFREE, H_CBLK, H_WLEAD, H_CSNAP, H_ZRESET, H_QSTATE, H_VREC, H_RSAVE, H_MFREE, H_MDEL, H_PHDEL,
        H_FORM, H_FOLLOW, H_ASTATE, H_PTINT, H_MLOAD,
-       H_SFREE, H_SFREEALL, H_SGRADED, H_PSWAP, H_N };
+       H_SFREE, H_SFREEALL, H_SGRADED, H_PSWAP, H_POPULATE, H_N };
 
 static void diverged(hook_t *h, const char *fmt, ...)
 {
@@ -2855,6 +2855,21 @@ static void __attribute__((thiscall)) w_pswap(void *sys, const uint8_t *t, uint8
     full_shadow(h, "pal_swap_apply", pswap_retail, pswap_port, &x, "palette");
 }
 
+/* ---- the room population (src/room_load.c) — full state ---- */
+typedef void (__attribute__((thiscall)) *popul_t)(wl_roomloop *, int32_t, const uint8_t *);
+typedef struct { wl_roomloop *rl; int32_t map; const uint8_t *m; } popul_ctx;
+static void popul_retail(void *c) { popul_ctx *x = c; ((popul_t)(uintptr_t)H[H_POPULATE].va)(x->rl, x->map, x->m); }
+static void popul_port(void *c) { popul_ctx *x = c; port_world(); room_populate(x->rl, x->map, x->m); }
+static void __attribute__((thiscall)) w_popul(wl_roomloop *rl, int32_t map, const uint8_t *m)
+{
+    hook_t *h = &H[H_POPULATE];
+    popul_ctx x = { rl, map, m };
+    if (h->mode == 2) { h->calls++; popul_port(&x); return; }
+    if (!sample(h)) { popul_retail(&x); return; }
+    char what[48]; snprintf(what, sizeof what, "map %d", map);
+    full_shadow(h, "room_populate", popul_retail, popul_port, &x, what);
+}
+
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
     [H_POLL] = { "input_poll", 0x43c110u, (void *)w_poll, 0, 1, 0, 0, 0, 0, "" },
@@ -3031,6 +3046,7 @@ static hook_t H[H_N] = {
     [H_SFREEALL]   = { "slot_frames_free_all", 0x4118b0u, (void *)w_sfreeall, 0, 1, 0, 0, 0, 0, "" },
     [H_SGRADED]    = { "slots_free_graded", 0x56df10u, (void *)w_sgraded, 0, 1, 0, 0, 0, 0, "" },
     [H_PSWAP]      = { "pal_swap_apply", 0x417bc0u, (void *)w_pswap,  0, 1, 0, 0, 0, 0, "" },
+    [H_POPULATE]   = { "room_populate",  0x58d460u, (void *)w_popul,  0, 1, 0, 0, 0, 0, "" },
 };
 
 static const void *rh_data_identity(uint32_t va) { return (const void *)(uintptr_t)va; }
@@ -3082,7 +3098,7 @@ static void bind_engine_calls(void)
     B(499ab0); B(4842c0); B(41a7f0); B(59cfc0);
     *(void **)&g_eng.flip_5b8fc0  = g_rh_flip_stub;    /* the virtual clock steps there */
     *(void **)&g_eng.easer_43d1d0 = g_rh_easer_stub;   /* the tick count (+ a camera hook chained behind) */
-    B(5ba120); B(5ba290); B(58d460);
+    B(5ba120); B(5ba290); B(41f200); B(431e30); B(438a60);
     g_eng.tod = (int32_t *)(uintptr_t)0x8a93fcu;
     B(4178e0); B(418470); B(417c40); B(58e170);
     *(void **)&g_eng.find_res = iat_lookup("FindResourceA");
@@ -3146,7 +3162,7 @@ void rh_hooks_install(void)
         H[H_WNEW].va = H[H_WFREE].va = H[H_EFREE].va = H[H_AFREE].va = H[H_CFREE].va = H[H_CBLK].va = H[H_WLEAD].va =
         H[H_CSNAP].va = H[H_ZRESET].va = H[H_QSTATE].va = H[H_VREC].va = H[H_RSAVE].va = H[H_MFREE].va = H[H_MDEL].va =
         H[H_PHDEL].va = H[H_FORM].va = H[H_FOLLOW].va = H[H_ASTATE].va = H[H_PTINT].va = H[H_MLOAD].va =
-        H[H_SFREE].va = H[H_SFREEALL].va = H[H_SGRADED].va = H[H_PSWAP].va = 0;
+        H[H_SFREE].va = H[H_SFREEALL].va = H[H_SGRADED].va = H[H_PSWAP].va = H[H_POPULATE].va = 0;
     if (!O.hooks) return;
     char b[4096]; snprintf(b, sizeof b, "%s", O.hooks);
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {

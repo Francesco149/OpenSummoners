@@ -59,6 +59,7 @@
  *   FUN_0041dc90  room_formation       FUN_0041e020  char_follow_set
  *   FUN_004182d0  palette_tint         FUN_00587970  map_res_load
  *   FUN_00587e00  map_decode_room      (the grid: map_decode.c)
+ *   FUN_0058d460  room_populate
  */
 #ifndef OSS_ROOM_LOAD_H
 #define OSS_ROOM_LOAD_H
@@ -142,5 +143,13 @@ int map_res_load(uint8_t *m, void *hmod, int32_t id);
  * world+0x27a4 = 136 / 137 / 138), the time of day 0x8a93fc (0x56df10 on a change), the tileset
  * banks sys+0x302 / +0x304 / +0x306 (the old one's frames flushed) */
 void map_decode_room(uint8_t *grid, uint8_t *mres, int32_t type, int32_t scene, int32_t tileset);
+
+/* 0x58d460 (thiscall room loop): create the map resource's objects by code: 50000..59999 a
+ * character (the next free of the 32, round robin from room loop +0xcc; 0x41f200, then +0x15b58 =
+ * its presence class), 80000..89999 an effect (the next free particle from +0xce, else the
+ * lowest-prio one under 20 is released; the particle init), 70000..79999 but 71020 / 71030 a device
+ * (the first free actor; 0x431e30), 60000..69999 a structure (the first free of world +0x2560;
+ * 0x438a60).  Ids below 1000 are local to map `map` */
+void room_populate(wl_roomloop *rl, int32_t map, const uint8_t *mres);
 
 #endif /* OSS_ROOM_LOAD_H */

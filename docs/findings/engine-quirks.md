@@ -4304,6 +4304,15 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   bytes, a 0x34-byte head into the object (+0x20 / +0x24 / +0x28 the dims, +0x2c the object count), the cells
   (28 B x the three dims), then per object a 60-byte record + four arrays (counts at +0x1c / +0x20 / +0x24 /
   +0x28 of 4 / 12 / 256 / 8 bytes).
+- **The room population `0x58d460`** walks the map's objects by code (rec +0x10): 50000..59999 = a character
+  into the next free of the 32 (round robin from room loop +0xcc, 32 tries; `0x41f200`, then +0x15b58 = array A
+  [6]); 80000..89999 = an effect into the next free particle (from +0xce, 1024 tries), else **the lowest +0x280
+  priority under 20 is evicted** (`0x556180`, scan from the cursor's start; the first candidate is taken
+  regardless of the initial 10); 70000..79999 except 71020 / 71030 = a device in the first free actor
+  (`0x431e30`, 25 args incl. the area: the point widened by B's points 0 / 1 when set); 60000..69999 = a structure
+  in the first free of world +0x2560 (`0x438a60`; kind 8 for rec +0x30 0, 15 for 1, **else the previous
+  structure's** — one stack local). Ids (A[1], A[3]) below 1000 and not 0 get + 1000 x the map id. The record's
+  u16 +0x18 goes to the inits as a word pushed over a register's stale upper half.
 
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)

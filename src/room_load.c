@@ -19,6 +19,7 @@
 #include "map_data.h"
 #include "map_decode.h"
 #include "npc_ai.h"
+#include "particle_init.h"
 #include "rng.h"
 #include "room_loop.h"
 #include "sprite_slot.h"
@@ -353,6 +354,112 @@ static void log_fatal(uint32_t msg)
     strcat(t, S(TRAILER));
     g_eng.log_fail_406440(g_eng.log, S(msg), S(TRAILER));
     g_eng.h5bf5db(0);
+}
+
+/* a map object's id: below 1000 (and not 0) it is local to the map: + 1000 x the map id */
+static int32_t map_id(uint32_t v, int32_t map)
+{
+    return v < 1000 && v != 0 ? (int32_t)(v + 1000u * (uint32_t)map) : (int32_t)v;
+}
+
+void room_populate(wl_roomloop *rl, int32_t map, const uint8_t *mres)
+{
+    /* one local across the loop: a structure whose +0x30 is neither 0 nor 1 keeps the previous
+     * one's kind (uninitialized before the first) */
+    int32_t skind = 0;
+    for (uint32_t i = 0; i < (uint32_t)ld32(mres, 0x2c); i++) {
+        const uint8_t *rec = (const uint8_t *)ldp(mres, 0x38) + 60u * i;
+        const uint8_t *arr = (const uint8_t *)ldp(mres, 0x3c) + 16u * i;
+        int32_t x = ld32(rec, 0x4) * 100, y = ld32(rec, 0x8) * 100;
+        int32_t r2c = ld32(rec, 0x2c), r30 = ld32(rec, 0x30);
+        const uint8_t *A = ldp(arr, 0x0), *B = ldp(arr, 0x4);
+        int32_t id1 = map_id((uint32_t)ld32(A, 0x4), map);
+        int32_t a0 = ld32(A, 0x0), a2 = ld32(A, 0x8), a5 = ld32(A, 0x14), a6 = ld32(A, 0x18), a7 = ld32(A, 0x1c);
+        int32_t a8 = ld32(A, 0x20), a9 = ld32(A, 0x24), a11 = ld32(A, 0x2c);
+        int32_t id2 = map_id((uint32_t)ld32(A, 0xc), map);
+        int32_t facing = ld32(A, 0x10) != 0 ? 3 : 1;
+        /* the area: the object's point widened by up to two points of B */
+        int32_t x0 = x, x1 = x, y0 = y, y1 = y;
+        if (ld32(B, 0x8) != 0) {
+            int32_t c = ld32(B, 0x0) * 100;
+            if (x < c) x1 = c;
+            else { x0 = c; if (!(x > c)) x1 = c; }
+            c = ld32(B, 0x4) * 100;
+            if (y < c) y1 = c;
+            else { y0 = c; if (!(y > c)) y1 = c; }
+        }
+        if (ld32(B, 0x14) != 0) {
+            int32_t c = ld32(B, 0xc) * 100;
+            if (!(x0 < c)) x0 = c;
+            if (!(x1 > c)) x1 = c;
+            c = ld32(B, 0x10) * 100;
+            if (!(y0 < c)) y0 = c;
+            if (!(y1 > c)) y1 = c;
+        }
+        int32_t b7 = ld32(B, 0x1c) * 100, b6 = ld32(B, 0x18) * 100;
+        int32_t code = ld32(rec, 0x10);
+        /* the u16 at +0x18 is pushed as a word over the register's stale upper half */
+        uint16_t w18 = ld16(rec, 0x18);
+        if (code > 50000 && code < 60000) {   /* a CHARACTER: the next free of the 32 (round robin) */
+            wl_char *c = NULL;
+            for (uint16_t n = 0;;) {
+                wl_char *t = g_world->chars[rl->fcc];
+                rl->fcc = (uint16_t)((rl->fcc + 1) & 0x1f);
+                if (t->base.alive == 0) { c = t; break; }
+                if (++n >= 32) break;
+            }
+            if (c == NULL) log_fatal(0x8a2e64u);   /* "Character object ..." */
+            g_eng.h41f200(c, x, y, 1, 1, ld32(rec, 0x0), code, (intptr_t)(((uint32_t)r2c & 0xffff0000u) | w18), facing,
+                          id1, r30, r2c, a5, id2, a11);
+            c->presence = a6;
+        }
+        code = ld32(rec, 0x10);
+        if (code > 80000 && code < 90000) {   /* an EFFECT: a free particle, else evict the lowest prio < 20 */
+            uint16_t start = rl->pcursor;
+            wl_entity *p = NULL;
+            for (uint16_t n = 0; n < 1024; n++) {
+                wl_entity *t = g_world->particles[rl->pcursor];
+                rl->pcursor = (uint16_t)((rl->pcursor + 1) & 0x3ff);
+                if (t->alive == 0) { p = t; break; }
+            }
+            if (p == NULL) {
+                wl_particle *best = NULL;
+                int32_t bp = 10;
+                uint16_t k = start;
+                for (int n = 0; n < 1024; n++) {
+                    wl_particle *t = (wl_particle *)g_world->particles[k];
+                    k = (uint16_t)((k + 1) & 0x3ff);
+                    if (t->prio >= 20) continue;
+                    if (best != NULL && bp <= t->prio) continue;
+                    best = t;
+                    bp = t->prio;
+                }
+                if (best == NULL) log_fatal(0x8a2e48u);   /* "Effect object ..." */
+                entity_release(&best->base, 1);
+                p = &best->base;
+            }
+            particle_init((wl_particle *)p, ld32(rec, 0x10), x, y, 99, 0, 1, NULL, 0, 20, 0);
+        }
+        code = ld32(rec, 0x10);
+        if (code > 70000 && code < 80000 && code != 71020 && code != 71030) {   /* a DEVICE: the first free actor */
+            wl_entity *a = NULL;
+            for (uint16_t n = 0; n < 128; n++)
+                if (g_world->actors[n]->alive == 0) { a = g_world->actors[n]; break; }
+            if (a == NULL) log_fatal(0x8a2e2cu);   /* "Device object ..." */
+            g_eng.h431e30(a, x, y, 1, code, r2c, (intptr_t)(((uint32_t)id1 & 0xffff0000u) | w18), id1, a0, a2, a5,
+                          facing, x0, x1, y0, y1, a6, a7, a8, a9, b6, b7, id2, a11, map, 0);
+        }
+        code = ld32(rec, 0x10);
+        if (code > 60000 && code < 70000) {   /* a STRUCTURE: the first free of world +0x2560 */
+            wl_entity *s = NULL;
+            for (uint16_t n = 0; n < 128; n++)
+                if (g_world->band2560[n]->alive == 0) { s = g_world->band2560[n]; break; }
+            if (s == NULL) log_fatal(0x8a2e0cu);   /* "Structure object ..." */
+            if (r30 == 0) skind = 8;
+            else if (r30 == 1) skind = 15;
+            g_eng.h438a60(s, x, y, 1, code, (intptr_t)(((uint32_t)id1 & 0xffff0000u) | w18), skind, id1);
+        }
+    }
 }
 
 void room_state_save(uint8_t *t)
@@ -983,7 +1090,7 @@ int load_room(wl_roomloop *rl, wl_room *rooms, uint16_t nrooms, uint8_t *areas, 
         g_eng.h5bf5db(0);
     }
     map_decode_room(W->grid, mr, ld32(rinfo, 0x110), loc, ld32(rinfo, 0x10c));
-    g_eng.h58d460(rl, ld32(rinfo, 0), IP(mr));
+    room_populate(rl, ld32(rinfo, 0), mr);
     grid_refresh(W->grid, 1);
     map_res_free(mr);
     if (mr != NULL) map_res_delete(mr, 1);

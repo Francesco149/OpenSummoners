@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **457** (29.0% of engine-proper) — tested 250, ported 207
-- code bytes touched: **25.2%** (448,047 / 1,776,526 B of engine-proper)
-- unported: **1367**
+- touched: **458** (29.0% of engine-proper) — tested 250, ported 208
+- code bytes touched: **25.4%** (451,388 / 1,776,526 B of engine-proper)
+- unported: **1366**
 - orphan refs in src/ not in this table: 0
 
 ## tested (250) — ported + host unit suite
@@ -274,7 +274,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (207) — reimplemented, no host test yet
+## ported (208) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -458,6 +458,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x58d0b0 | sub_58D0B0 | 337 | room_load.h |
 | 0x58d210 | sub_58D210 | 403 | room_load.h |
 | 0x58d3b0 | sub_58D3B0 | 165 | room_load.h |
+| 0x58d460 | sub_58D460 | 3341 | room_load.h |
 | 0x58e330 | sub_58E330 | 873 | room_load.h |
 | 0x58e6a0 | sub_58E6A0 | 218 | room_load.h |
 | 0x58e780 | sub_58E780 | 1823 | room_loop.h |
