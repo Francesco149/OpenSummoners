@@ -47,6 +47,7 @@
 #include "device_init.h"
 #include "char_def.h"
 #include "char_init.h"
+#include "party_member.h"
 #include "engine_calls.h"
 
 typedef struct {
@@ -79,6 +80,11 @@ typedef struct {
     X(H_CD_BOXES, "ai_skill_boxes_add", 0x428950u) X(H_CD_VOICE, "char_voice_init", 0x4289f0u) \
     X(H_CD_NPCDEF, "char_npc_default", 0x431930u) X(H_CD_FORM0, "char_form0_set", 0x431b90u) \
     X(H_CD_PMODE, "char_party_mode_set", 0x431ba0u) X(H_CD_IVOICE, "char_idle_voice_set", 0x431cb0u) \
+    X(H_PM_CREATE, "member_create", 0x58e170u) X(H_PM_ATTACH, "member_attach", 0x5b4530u) \
+    X(H_PM_CODE, "pslot_code", 0x4094d0u) X(H_PM_PAL, "member_palette", 0x5b4a10u) \
+    X(H_PM_SKREF, "char_skills_refresh", 0x406ec0u) X(H_PM_USABLE, "char_skill_usable", 0x407320u) \
+    X(H_PM_SKAT, "member_skill_at", 0x4071f0u) X(H_SS_EFREE, "slot_entries_free", 0x417b50u) \
+    X(H_SS_CLONE, "slot_clone", 0x4179b0u) X(H_CTRL_FREE, "ctrl_geometry_free", 0x40e0c0u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
 
@@ -3122,6 +3128,17 @@ TC_HOOK(H_CD_NPCDEF, "char_npc_default", 2, 1, char_npc_default(self, a1, CP(a2)
 TC_HOOK(H_CD_FORM0, "char_form0_set", 1, 0, char_form0_set(self, U16(a1)); return 0)
 TC_HOOK(H_CD_PMODE, "char_party_mode_set", 1, 0, char_party_mode_set(self, a1); return 0)
 TC_HOOK(H_CD_IVOICE, "char_idle_voice_set", 2, 0, char_idle_voice_set(self, a1, U16(a2)); return 0)
+/* the party member create / attach (src/party_member.c) + the sprite slot clone (src/sprite_slot.c) */
+TC_HOOK(H_PM_CREATE, "member_create", 5, 1, return (intptr_t)member_create(self, a1, CP(a2), (wl_pslot *)a3, a4, a5))
+TC_HOOK(H_PM_ATTACH, "member_attach", 2, 1, return member_attach(self, (wl_pslot *)a1, a2))
+TC_HOOK0(H_PM_CODE, "pslot_code", 1, return pslot_code(self))
+TC_HOOK0(H_PM_PAL, "member_palette", 0, member_palette(self); return 0)
+TC_HOOK(H_PM_SKREF, "char_skills_refresh", 1, 1, return char_skills_refresh(self, a1))
+TC_HOOK(H_PM_USABLE, "char_skill_usable", 2, 1, return char_skill_usable(self, CP(a1), a2))
+ST_HOOK(H_PM_SKAT, "member_skill_at", 3, 1, return (intptr_t)member_skill_at(CP(a1), a2, U16(a3)))
+TC_HOOK0(H_SS_EFREE, "slot_entries_free", 0, slot_entries_free(self); return 0)
+TC_HOOK(H_SS_CLONE, "slot_clone", 2, 1, return (intptr_t)slot_clone(self, U16(a1), U16(a2)))
+TC_HOOK0(H_CTRL_FREE, "ctrl_geometry_free", 0, ctrl_geometry_free(self); return 0)
 
 /* ---- the character init (src/char_init.c) — full state, per-code coverage ---- */
 typedef void (__attribute__((thiscall)) *cinit_t)(wl_char *, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t,
@@ -3350,7 +3367,6 @@ static void bind_engine_calls(void)
     g_eng.keycfg = (wl_keycfg ***)(uintptr_t)0x8a6e80u;
     g_eng.log    = (void *)(uintptr_t)0x8a9530u;
     *(void **)&g_eng.integrate_442a70    = (void *)(uintptr_t)0x442a70u;
-    *(void **)&g_eng.party_slot_ok_4071f0 = (void *)(uintptr_t)0x4071f0u;
     *(void **)&g_eng.skill_479f90        = (void *)(uintptr_t)0x479f90u;
     *(void **)&g_eng.skill_47a300        = (void *)(uintptr_t)0x47a300u;
     *(void **)&g_eng.skill_47a420        = (void *)(uintptr_t)0x47a420u;
@@ -3392,11 +3408,11 @@ static void bind_engine_calls(void)
     *(void **)&g_eng.easer_43d1d0 = g_rh_easer_stub;   /* the tick count (+ a camera hook chained behind) */
     B(5ba120); B(5ba290);
     g_eng.tod = (int32_t *)(uintptr_t)0x8a93fcu;
-    B(4178e0); B(418470); B(417c40); B(58e170);
+    B(4178e0); B(418470); B(417c40);
     *(void **)&g_eng.find_res = iat_lookup("FindResourceA");
     *(void **)&g_eng.load_res = iat_lookup("LoadResource");
     *(void **)&g_eng.lock_res = iat_lookup("LockResource");
-    B(56dc20); B(41a890); B(40e0c0); B(5bf3ee); B(426110); B(560900); B(5bf5db);
+    B(56dc20); B(41a890); B(5bf3ee); B(426110); B(560900); B(5bf5db);
     B(428c00); B(429060); B(429db0); B(42a500); B(42a9a0); B(42b9a0); B(42c130); B(42c510); B(42c970);
     B(42cce0); B(42d3c0); B(42da50); B(42e290); B(42eb20); B(42f840); B(42fbf0); B(42ff00); B(430400);
     g_eng.world = (wl_world **)(uintptr_t)WORLD_PTR_VA;
@@ -3459,7 +3475,8 @@ void rh_hooks_install(void)
         H[H_SFREE].va = H[H_SFREEALL].va = H[H_SGRADED].va = H[H_PSWAP].va = H[H_POPULATE].va = H[H_SINIT].va = H[H_SETH].va = H[H_DINIT].va = H[H_SNDFREE].va = 0;
     if (strcmp(g_ed->tag, "enold")) for (int i = H_CD_SKFIND; i <= H_CINIT; i++) H[i].va = 0;
     if (!O.hooks) return;
-    char b[4096]; snprintf(b, sizeof b, "%s", O.hooks);
+    char *b = strdup(O.hooks);   /* (a fixed 4 KB buffer silently dropped the tail of a long spec) */
+    if (!b) rh_fatal("hook spec: out of memory");
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {
         char *c = strchr(t, ':'); if (!c) rh_fatal("bad hook spec %s", t);
         *c = 0; const char *mode = t; char *name = c + 1;

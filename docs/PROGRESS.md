@@ -6,6 +6,21 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-15 (late night 2) — the party member create / attach run as port code
+
+- `member_create` 0x58e170 / `member_attach` 0x5b4530 (`src/party_member.c`): the next free character,
+  the init at the gate's feet, the slot's stat block, the pacing re-roll, the brain, respawn, Arche's
+  look-up; the equipment recolour 0x5b4a10 (+ the sprite slot clone 0x4179b0 / entry free 0x417b50 in
+  `src/sprite_slot.c`), the skill refresh 0x406ec0, skill usable 0x407320, the member skill find
+  0x4071f0 (its slot retired: char_ai calls it directly), the slot code 0x4094d0.  quirk #140.
+  The controller geometry free 0x40e0c0 on retail's heap (`ctrl_geometry_free`, 542 shadowed).
+- rhost shadow: member_create 16 / attach 16 / palette 16 / skill refresh 16, skill usable 1,536,
+  slot clone 564, entry free 1,182 — 0 divergences.
+- rhost FIX: the hook spec was parsed through a 4 KB buffer, so a long spec silently dropped its tail —
+  the "222-hook" hybrid of the previous entry really installed ~190.  Now strdup'ed; the hybrid gate
+  installs all 232 hooks (232 hook-results per scenario) and every corpus scenario ends byte-identical;
+  the full `verify` (every hook shadowed): 7/7 scenarios, 0 divergences.
+
 ## 2026-10-15 (late night) — the CHARACTER INIT 0x41f200 runs as port code
 
 - `char_init` (`src/char_init.c`, 27 KB retail): the dramatist override (0x6b6ea8), the per-character

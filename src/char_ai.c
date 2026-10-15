@@ -12,6 +12,7 @@
 #include "char_state.h"
 #include "char_integrate.h"
 #include "engine_calls.h"
+#include "party_member.h"
 #include "input.h"
 #include "sound_fx.h"
 
@@ -282,7 +283,7 @@ combos_done:
         for (int k = 0; k < 5; k++)
             if (input_ring_hit(self->input, now, 0, 200, 1, 24 + k, 1) &&
                 party_slot_get(self->party) != k &&
-                g_eng.party_slot_ok_4071f0(self->party, self->party->slot_mode, k) != 0) {
+                member_skill_at((const uint8_t *)self->party, self->party->slot_mode, (uint16_t)k) != NULL) {
                 party_slot_set(self->party, (int16_t)k);
                 used_skill = 1;
             }

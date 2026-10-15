@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **513** (32.6% of engine-proper) — tested 250, ported 263
-- code bytes touched: **29.1%** (516,210 / 1,776,526 B of engine-proper)
-- unported: **1311**
+- touched: **519** (33.0% of engine-proper) — tested 250, ported 269
+- code bytes touched: **29.3%** (519,681 / 1,776,526 B of engine-proper)
+- unported: **1305**
 - orphan refs in src/ not in this table: 0
 
 ## tested (250) — ported + host unit suite
@@ -28,7 +28,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x408b90 | sub_408B90 | 419 | wnd_proc.h |
 | 0x40a540 | sub_40A540 | 133 | char_integrate.h, character.h |
 | 0x40dee0 | sub_40DEE0 | 85 | main.c |
-| 0x40e0c0 | menu_ctrl_clear_40E0C0 | 555 | menu_list.c, menu_list.h |
+| 0x40e0c0 | menu_ctrl_clear_40E0C0 | 555 | menu_list.c, menu_list.h, room_load.h |
 | 0x40e360 | sub_40E360 | 636 | main.c |
 | 0x40e5e0 | wrap_class_40E5E0 | 2553 | glyph_wrap.c, glyph_wrap.h, main.c |
 | 0x40f040 | wrap_parse_40F040 | 379 | glyph_wrap.c, glyph_wrap.h |
@@ -44,8 +44,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x414080 | sub_414080 | 63 | obj_container.c, obj_container.h |
 | 0x417870 | sub_417870 | 106 | map_decode.h, sprite_slot.h |
 | 0x4178e0 | sub_4178E0 | 194 | asset_register.c, asset_register.h, bitmap_session.c (+1) |
-| 0x4179b0 | sub_4179B0 | 415 | asset_register.c, asset_register.h, wnd_proc.h |
-| 0x417b50 | sub_417B50 | 109 | asset_register.c, asset_register.h |
+| 0x4179b0 | sub_4179B0 | 415 | asset_register.c, asset_register.h, sprite_slot.h (+1) |
+| 0x417b50 | sub_417B50 | 109 | asset_register.c, asset_register.h, sprite_slot.h |
 | 0x417bc0 | ar_pal_swap_table_for_va_417BC0 | 123 | asset_register.c, asset_register.h, sprite_slot.h |
 | 0x417c40 | game_arm_parallax_grade_417C40 | 1625 | actor_render.h, actor_spawn.c, color_grade.c (+2) |
 | 0x418470 | sub_418470 | 40 | asset_register.c, asset_register.h, color_grade.h (+4) |
@@ -274,7 +274,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (263) — reimplemented, no host test yet
+## ported (269) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -285,11 +285,14 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4022d0 | sub_4022D0 | 88 | room_load.h |
 | 0x402a60 | sub_402A60 | 435 | char_state.h |
 | 0x4060d0 | sub_4060D0 | 241 | char_state.h |
+| 0x406ec0 | sub_406EC0 | 813 | party_member.h |
+| 0x4071f0 | sub_4071F0 | 196 | party_member.h |
 | 0x4072c0 | sub_4072C0 | 85 | char_def.h |
-| 0x407320 | sub_407320 | 190 | char_integrate.h |
+| 0x407320 | sub_407320 | 190 | char_integrate.h, party_member.h |
 | 0x407b80 | sub_407B80 | 32 | char_integrate.h |
 | 0x407ba0 | sub_407BA0 | 907 | sound_fx.h |
 | 0x408100 | sub_408100 | 205 | gimmick.h |
+| 0x4094d0 | sub_4094D0 | 71 | party_member.h |
 | 0x4099a0 | sub_4099A0 | 1251 | sound_fx.h |
 | 0x409e90 | sub_409E90 | 375 | sound_fx.h |
 | 0x40a010 | sub_40A010 | 645 | sound_fx.h |
@@ -514,6 +517,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x58d210 | sub_58D210 | 403 | room_load.h |
 | 0x58d3b0 | sub_58D3B0 | 165 | room_load.h |
 | 0x58d460 | sub_58D460 | 3341 | room_load.h |
+| 0x58e170 | sub_58E170 | 441 | party_member.h |
 | 0x58e330 | sub_58E330 | 873 | room_load.h |
 | 0x58e6a0 | sub_58E6A0 | 218 | room_load.h |
 | 0x58e780 | sub_58E780 | 1823 | room_loop.h |
@@ -533,6 +537,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x59ca10 | sub_59CA10 | 114 | room_loop.h |
 | 0x59d3f0 | sub_59D3F0 | 323 | room_loop.h |
 | 0x59db70 | sub_59DB70 | 227 | room_load.h |
+| 0x5b4530 | sub_5B4530 | 1209 | party_member.h |
+| 0x5b4a10 | sub_5B4A10 | 741 | party_member.h |
 | 0x5b54d0 | sub_5B54D0 | 166 | char_state.h |
 | 0x5b5580 | sub_5B5580 | 121 | char_state.h |
 | 0x5b5990 | sub_5B5990 | 202 | char_state.h |

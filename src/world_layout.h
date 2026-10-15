@@ -475,7 +475,8 @@ typedef struct wl_actor {
 struct wl_room;
 typedef struct wl_pslot {
     input_mgr *in;             /* +0x000  the member's input manager                      */
-    uint8_t    _p004[0x9c4 - 0x4];
+    int32_t    code;           /* +0x004  its character code (when no dramatist row: 0x4094d0) */
+    uint8_t    _p008[0x9c4 - 0x8];
     int32_t    active;         /* +0x9c4  1 = in use                                     */
     uint8_t    _p9c8[0x9ec - 0x9c8];
     struct wl_room *room;      /* +0x9ec  the room it belongs to                          */
@@ -484,7 +485,9 @@ typedef struct wl_pslot {
     int32_t    order;          /* +0x9f8  its place in the formation (0x41dc90)            */
     int32_t    follow;         /* +0x9fc  its follow mode for slot id matches (255 = the room's) */
     int32_t    form;           /* +0xa00  its formation kind (255 = the room's)            */
-    uint8_t    _pa04[0xe58 - 0xa04];
+    int32_t    pace;           /* +0xa04  the AI pacing kind it re-rolls at attach (0x5b4530) */
+    uint8_t    _pa08[0xa10 - 0xa08];
+    uint8_t    stats[0xe58 - 0xa10]; /* +0xa10  its stat block (the attached char's +0x750)  */
     uint16_t   fe58[18];       /* +0xe58  (cleared at room entry where 0x628768's row is set) */
 } wl_pslot;
 
@@ -1065,6 +1068,9 @@ _Static_assert(offsetof(wl_world, room)      == 0x2784, "world +0x2784");
 _Static_assert(offsetof(wl_pslot, active)    == 0x9c4, "slot active");
 _Static_assert(offsetof(wl_pslot, room)      == 0x9ec, "slot room");
 _Static_assert(offsetof(wl_pslot, ch)        == 0x9f4, "slot character");
+_Static_assert(offsetof(wl_pslot, code)      == 0x004, "slot code");
+_Static_assert(offsetof(wl_pslot, pace)      == 0xa04, "slot pace");
+_Static_assert(offsetof(wl_pslot, stats)     == 0xa10, "slot stats");
 _Static_assert(offsetof(wl_room, leader)     == 0x200c, "room leader");
 _Static_assert(offsetof(wl_room, nflags)     == 0x2008, "room flag count");
 _Static_assert(offsetof(wl_room, lead_mode)  == 0x4058, "room +0x4058");

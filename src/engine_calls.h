@@ -77,7 +77,6 @@ typedef struct engine_calls {
     /* unported callees */
     int (ENG_THISCALL *integrate_442a70)(wl_char *self, wl_cmd *cmd, wl_body *in, wl_body *out,
                                          int32_t mode, int32_t n);
-    int (ENG_STDCALL  *party_slot_ok_4071f0)(wl_party *p, int32_t mode, int32_t slot);
     int (ENG_THISCALL *skill_479f90)(wl_char *self, wl_body *b, int32_t a3);
     int (ENG_THISCALL *skill_47a300)(wl_char *self, int32_t a2, int32_t a3);
     int (ENG_THISCALL *skill_47a420)(wl_char *self, int32_t a2, int32_t a3);
@@ -170,20 +169,19 @@ typedef struct engine_calls {
     wl_world  **world;
     int32_t    *quiet;
     void       *dlog;
-    /* ... and its callees: the joystick create 0x5ba120 / acquire 0x5ba290 (DirectInput), the map
+    /* ... and its callees: the joystick create 0x5ba120 / acquire 0x5ba290 (DirectInput), the
      * map sprite's palette read 0x4178e0 (the bitmap resource)
-     * and frames 0x418470 (DirectDraw surfaces), the parallax grade 0x417c40, the party
-     * member create 0x58e170, 0x56dc20, the scene runner's stop 0x41a890, the pool-head record
-     * clear 0x40e0c0; the fatal paths: the sprintf 0x5bf3ee, the error box 0x426110, the log reset
+     * and frames 0x418470 (DirectDraw surfaces), the parallax grade 0x417c40,
+     * 0x56dc20, the scene runner's stop 0x41a890, the fatal paths: the sprintf 0x5bf3ee, the error box 0x426110, the log reset
      * 0x560900, exit 0x5bf5db; KERNEL32's resource calls (the map resource reader) */
     eng_tc3 h5ba120; eng_tc0 h5ba290;
     eng_tc1 h4178e0; eng_tc1 h418470; eng_tc2 h417c40;
-    eng_tc5 h58e170; eng_tc3 h56dc20;
+    eng_tc3 h56dc20;
     void *(ENG_STDCALL *find_res)(void *mod, const char *name, const char *type);
     void *(ENG_STDCALL *load_res)(void *mod, void *res);
     void *(ENG_STDCALL *lock_res)(void *glob);
     int32_t *tod;                         /* &0x8a93fc, the time of day (the palette tint's selector) */
-    eng_tc4 h41a890; eng_tc0 h40e0c0;
+    eng_tc4 h41a890;
     int (*h5bf3ee)(char *buf, const char *fmt, ...);
     eng_tc3 h426110; eng_tc0 h560900;
     void (*h5bf5db)(int code);

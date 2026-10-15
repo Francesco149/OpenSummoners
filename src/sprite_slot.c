@@ -85,3 +85,62 @@ void sprite_slot_tint(void *slot, int32_t r, int32_t g, int32_t b, const uint8_t
     s->f_14 = (uint32_t)b;
     stp(slot, 0x18, lut);
 }
+
+void slot_entries_free(ar_sprite_slot *s)
+{
+    if (s->aux_buf != NULL) {
+        g_eng.op_delete(s->aux_buf);
+        s->aux_buf = NULL;
+    }
+    if (s->entries == NULL) return;
+    for (uint16_t i = 0; i < s->entry_count; i++) {
+        if (s->entries[i].b != NULL) {
+            g_eng.op_delete(s->entries[i].b);
+            s->entries[i].b = NULL;
+        }
+    }
+    g_eng.op_delete(s->entries);
+    s->entries = NULL;
+}
+
+void *slot_clone(void *sys, uint16_t dst, uint16_t src)
+{
+    const ar_sprite_slot *f = ldp(sys, 0xaac + 4u * src);
+    ar_sprite_slot *t = ldp(sys, 0xaac + 4u * dst);
+    void *zdd = f->zdd, *settings = f->settings;
+    uint32_t type = f->type, scale = f->scale_flag, h = f->height, ck = f->colorkey, w = f->width;
+    uint16_t grp = f->group, res = f->resource_id;
+    slot_entries_free(t);
+    t->zdd = zdd;
+    t->entry_count = 1;
+    t->entries = g_eng.op_new(8);
+    for (uint16_t i = 0; i < t->entry_count; i++) {
+        t->entries[i].frames = NULL;
+        t->entries[i].b = NULL;
+    }
+    t->settings = settings;
+    t->resource_id = res;
+    t->width = w;
+    t->height = h;
+    t->colorkey = ck;
+    t->scale_flag = scale;
+    t->f_08 = 0;
+    t->f_18 = 0;
+    t->type = type;
+    t->group = grp;
+    t->f_38 = 0;
+    const uint8_t *aux = f->aux_buf;
+    if (aux != NULL && t->aux_buf == NULL) {
+        uint32_t n = f->f_38;
+        t->aux_buf = g_eng.op_new(24 * n);
+        for (uint32_t i = 0; i < n; i++) memcpy((uint8_t *)t->aux_buf + 24 * i, aux + 24 * i, 24);
+    }
+    uint8_t *d = ldp(sys, 0x18e0 + 4u * dst);
+    memset(d, 0, 2);
+    memset(d + 4, 0, 12);
+    const uint8_t *e = ldp(sys, 0x18e0 + 4u * src);
+    memcpy(ldp(sys, 0x18e0 + 4u * dst), e, 2);
+    e = ldp(sys, 0x18e0 + 4u * src);
+    memcpy((uint8_t *)ldp(sys, 0x18e0 + 4u * dst) + 4, e + 4, 4);
+    return ldp(sys, 0x18e0 + 4u * src);
+}

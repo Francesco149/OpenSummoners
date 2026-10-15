@@ -23,6 +23,7 @@
 #include "device_init.h"
 #include "rng.h"
 #include "char_init.h"
+#include "party_member.h"
 #include "room_loop.h"
 #include "sprite_slot.h"
 #include "world_alloc.h"
@@ -535,6 +536,59 @@ void *map_res_delete(uint8_t *m, int32_t flags)
     return m;
 }
 
+/* free the pointer at p+off (when set) and clear it */
+static void del_at(void *p, uint32_t off)
+{
+    void *v = ldp(p, off);
+    if (v == NULL) return;
+    g_eng.op_delete(v);
+    stp(p, off, NULL);
+}
+
+void ctrl_geometry_free(uint8_t *c)
+{
+    uint8_t *l2 = ldp(c, 0x170);
+    if (l2 != NULL) {
+        uint8_t *src = ldp(l2, 0);
+        if (src != NULL) {
+            void **cap = ldp(src, 0xc);
+            if (cap != NULL) {
+                g_eng.op_delete(*cap);   /* (no NULL check: retail) */
+                g_eng.op_delete(cap);
+                stp(src, 0xc, NULL);
+            }
+            del_at(src, 0);
+            del_at(src, 8);
+            g_eng.op_delete(src);
+            stp(ldp(c, 0x170), 0, NULL);
+        }
+    }
+    del_at(c, 0x170);
+    del_at(c, 0x164);
+    del_at(c, 0x178);
+    if (ldp(c, 0x17c) != NULL) {
+        for (uint16_t r = 0; (int32_t)r < ld32(ldp(c, 0x174), 4); r++) {
+            uint32_t ro = 16u * r;
+            if (ldp((uint8_t *)ldp(c, 0x17c) + ro, 0xc) != NULL) {
+                for (uint16_t k = 0; (int32_t)k < ld32(ldp(c, 0x174), 8); k++) {
+                    uint8_t *cell = (uint8_t *)ldp((uint8_t *)ldp(c, 0x17c) + ro, 0xc) + 24u * k;
+                    void **o = ldp(cell, 0);
+                    if (o != NULL) {
+                        g_eng.op_delete(*o);
+                        g_eng.op_delete(o);
+                        stp(cell, 0, NULL);
+                    }
+                    del_at(cell, 4);
+                    del_at(cell, 8);
+                }
+            }
+            del_at((uint8_t *)ldp(c, 0x17c) + ro, 0xc);
+        }
+        del_at(c, 0x17c);
+    }
+    del_at(c, 0x174);
+}
+
 void *pool_head_delete(uint8_t *h, int32_t flags)
 {
     for (uint16_t i = 0; i < ld16(h, 4); i++) {
@@ -544,7 +598,7 @@ void *pool_head_delete(uint8_t *h, int32_t flags)
             for (uint16_t j = 0; j < ld16(r, 0x4c); j++) {
                 void *o = ldp((uint8_t *)ldp(r, 0x48) + 4u * j, 0);
                 if (o == NULL) continue;
-                g_eng.h40e0c0(o);
+                ctrl_geometry_free(o);
                 g_eng.op_delete(o);
                 stp((uint8_t *)ldp(r, 0x48) + 4u * j, 0, NULL);
             }
@@ -1211,7 +1265,7 @@ int load_room(wl_roomloop *rl, wl_room *rooms, uint16_t nrooms, uint8_t *areas, 
             pslot_status_clear(s);
             step_log2(0x8a2d10u);   /* "CreatePartyCharacter Bf" */
             wl_room *r = &rl->rooms[j];
-            g_eng.h58e170(rl, IP(r), IP(gt), IP(s), a7, r->f4018);
+            member_create(rl, (int32_t)(intptr_t)r, &gt->base, s, a7, r->f4018);
             step_log2(0x8a2cf8u);   /* "CreatePartyCharacter Af" */
         }
         room_formation(&rl->rooms[j]);

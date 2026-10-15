@@ -12,7 +12,8 @@
  *   FUN_00417870  slot_frames_free     FUN_004118b0  slot_frames_free_all
  *   FUN_0056df10  slots_free_graded    FUN_00491770  slot_palette_set
  *   FUN_00417bc0  pal_swap_apply       FUN_0049a050  sprite_slot_ready
- *   FUN_00491740  sprite_slot_tint
+ *   FUN_00491740  sprite_slot_tint     FUN_00417b50  slot_entries_free
+ *   FUN_004179b0  slot_clone
  */
 #ifndef OSS_SPRITE_SLOT_H
 #define OSS_SPRITE_SLOT_H
@@ -35,5 +36,11 @@ void pal_swap_apply(void *sys, const uint8_t *tbl, uint8_t *pal);
 int sprite_slot_ready(const void *slot);
 /* 0x491740 (thiscall slot): the per-channel tint (per mille) + the gamma LUT */
 void sprite_slot_tint(void *slot, int32_t r, int32_t g, int32_t b, const uint8_t *lut);
+
+/* 0x417b50 (thiscall slot): free the aux buffer, every entry's palette and the entries */
+void slot_entries_free(ar_sprite_slot *s);
+/* 0x4179b0 (thiscall sys): bank `dst` becomes a one-entry copy of bank `src`'s descriptor (no frames,
+ * its aux records copied) and takes `src`'s palette descriptor kind (+0) / +4; returns src's */
+void *slot_clone(void *sys, uint16_t dst, uint16_t src);
 
 #endif /* OSS_SPRITE_SLOT_H */

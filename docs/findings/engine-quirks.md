@@ -4362,6 +4362,30 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   y = part 0's bottom; for anchor 3 body 0 is lifted by +0x1f4 unless +0x1f8 == 1.  0x555f00 takes ONE argument
   (the handle; the decompile shows two).
 
+### #140 — the party member create / attach `0x58e170` / `0x5b4530` (port 2026-10-15)
+- **Every room entry re-creates each party member from its slot**: the next free of the 32 characters (round robin
+  from room loop +0xcc, like the map population; none free → retail inits NULL), `0x41f200` at the gate entity's
+  body-0 FEET (x, y + h; anchor 3, +0x1f8 = 2, handle = slot id +0x9f0, code = the dramatist row's for that id,
+  else slot +4), then the attach: slot +0x9f4 = the character, its stat block = **the slot's +0xa10** (so the stats
+  live in the party slot and survive rooms; 0x41f200's own block at char+0x274 is only the scratch it was built in),
+  the pacing re-rolled by slot +0xa04 (0x427670's switch inlined: 5 draws for kinds 2..5), +0x1dc = the room's
+  +0x4018, the handle, the brain (slot +0 = the input manager → +0x158a4, else +0x200 = 1), respawn on at body 0
+  (x, part bottom), Arche's party-mode look-up again, +0x15900 = 40 (0 in two-room play, where codes 50010..50013
+  also get the member pose 107 / 112 / 6000).
+- **Equipment recolour `0x5b4a10`**: base bank = track 0's (+0x270 keeps it; a track already in the clone range
+  884..908 keeps the old base); its palette is recoloured by every item of the slot's room whose owner (+0x2014
+  records, 16 B, count u16 room+0x4010) is the slot id, with +0x78 set and a swap table +0x2b4 (`0x417bc0` inlined).
+  Only when something recoloured (or the track was already a clone): each live track (+0x48, 8 x 20 B: bank, -,
+  on) not yet a clone takes the first clone bank whose descriptor sys+0x18e0[b]+0x10 is 0 (marked 1; `0x4179b0`
+  copies the descriptor, one entry, no frames, the aux records, the palette kind + +4), its frames are freed, and the
+  clone's palette buffer (descriptor +0xc, 1 KB, allocated once) takes the recoloured palette.
+- **Skill refresh `0x406ec0`** (attach: cycle 0 = only the modes): every skill's mode +0x2f8 = 1 when its +0x2fc is
+  set, else the member record's mode (stat +0x148: 12-byte {skill id, mode/class, u16 slot}, count u16 +0x144;
+  `0x426fd0` sets every slot to 255).  Cycle != 0: the class (stat +0x140) steps 1 → 2 → 3 → 1 until one has a
+  member skill whose table row has +0xa8 (2 tries, else 1), then the class's slot cursor (u16 stat +0x138 + 2 x
+  class) advances (mod 10, 9 tries) to the next member skill that is learnt, has +0xa8 and passes `0x407320`; none →
+  the cursor is 0.  The first try passes 0x4071f0 the cursor over a register's stale upper half (it compares u16).
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

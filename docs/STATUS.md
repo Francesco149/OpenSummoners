@@ -7,15 +7,15 @@
 ## Port coverage (engine-proper functions of `sotes.exe`)
 
 ```
-███████░░░░░░░░░░░░░  32.6% touched   (15.8% host-tested, 29.1% of code bytes)
+███████░░░░░░░░░░░░░  33.0% touched   (15.8% host-tested, 29.3% of code bytes)
 ```
 
 | status      | count | what it means                                          |
 |-------------|------:|--------------------------------------------------------|
 | tested      |   250 | ported + module covered by the host unit suite       |
-| ported      |   263 | reimplemented in src/, no host test for that module  |
-| **touched** | **513** | tested + ported (FUN_ provenance ref in src/)    |
-| unported    |  1311 | exists in engine, never referenced from src/         |
+| ported      |   269 | reimplemented in src/, no host test for that module  |
+| **touched** | **519** | tested + ported (FUN_ provenance ref in src/)    |
+| unported    |  1305 | exists in engine, never referenced from src/         |
 
 **Denominator note (read this before judging the %):** the headline % is over
 **engine-proper** functions — the **1532** below
@@ -26,7 +26,7 @@ those like retail rather than porting them (PLAN.md §2-3), so counting them
 would bury real progress. Full table is **1824** non-thunk
 functions (of 1824 incl. thunks).
 
-Code-byte coverage (29.1% of engine-proper bytes) is the truer progress
+Code-byte coverage (29.3% of engine-proper bytes) is the truer progress
 signal: the engine has a long tail of tiny leaf helpers, so function count
 understates how much actual instruction volume is ported.
 
@@ -89,7 +89,9 @@ understates how much actual instruction volume is ported.
   | the DEVICE init (~95 codes: box, track, collision, steps, zones, lists) + sound-channel reset, step add, zone, link state, night glow, grid mark D, parts copy, sub-device spawn | `0x431e30` (+ `0x426490` `0x438630` `0x438670` `0x4386a0` `0x4386f0` `0x438520` `0x438740` `0x556ef0`) | 425 (34 codes) / 418 | 0 |
   | the CHARACTER INIT (dramatist override, resets, base stats + difficulty, pacing, ~150 codes: Arche / Sana / townsfolk / animals in place, the rest → 18 per-type inits as slots) | `0x41f200` | 103 (all full-state; 17 codes incl. the dramatist path) | 0 |
   | its 42 definition helpers: skill find / learn / define / by code, AI skill records + boxes, approach records, combos, base stats `0x426fd0` + jitter `0x426e00`, voice set init / free, pacing, idle, clips / walk / run / jump / crouch / hit / carry / move / nav setters, party mode, idle voice | `0x4072c0` `0x4282f0` `0x4285f0` `0x427fb0` `0x4287d0` `0x428950` `0x427f00` `0x427430` `0x426fd0` `0x426e00` `0x4289f0` `0x426380` `0x427670` `0x427360` … `0x431cb0` | 320 learn / 288 combo / 224 ai / 206 jitter / 103 stats … (33 of 42 reached; via retail's 0x41f200) | 0 |
-  Hybrid gate: with all of the above REPLACING retail (222 hooks) (the whole character tick, driver → tile
+  | the PARTY MEMBER create / attach (next free char, init at the gate's feet, the slot's stat block, pacing, brain, respawn) + equipment recolour, skill refresh, skill usable, member skill find, slot code + the sprite-slot clone / entry free | `0x58e170` / `0x5b4530` `0x5b4a10` `0x406ec0` `0x407320` `0x4071f0` `0x4094d0` `0x4179b0` `0x417b50` | 16 / 16 / 16 / 16 / 1,536 / – / – / 564 / 1,182 | 0 |
+  | menu / dialog controller geometry free (retail heap; `menu_list.c` keeps the port-heap twin) | `0x40e0c0` | 542 | 0 |
+  Hybrid gate: with all of the above REPLACING retail (232 hooks) (the whole character tick, driver → tile
   movers, + the room loop's passes and per-tick calls, runs as port code), every corpus scenario ends byte-identical.
   Shadow guard (rhost): a port phase that reaches an external effect retail already performed (surface free,
   buffer release, DeleteObject, DirectInput, a mode-0/2 script) aborts its comparison (counted skipped); those
@@ -108,16 +110,17 @@ understates how much actual instruction volume is ported.
   000. `load_room 0x586010` RUNS AS PORT CODE (`src/room_load.c`, REPLACE-verified; quirk #138), the world it makes /
      frees too (`src/world_alloc.c`), the map decode (`map_decode_room`), the population + device / structure
      inits, and now the CHARACTER INIT `0x41f200` (`src/char_init.c` + 42 helpers `src/char_def.c`; quirk #139).
+     The party member create `0x58e170` / attach `0x5b4530` too (`src/party_member.c`; quirk #140).
      Slots left under it: the 18 per-type inits `0x428c00` `0x429060` `0x429db0` `0x42a500` `0x42a9a0` `0x42b9a0`
      `0x42c130` `0x42c510` `0x42c970` `0x42cce0` `0x42d3c0` `0x42da50` `0x42e290` `0x42eb20` `0x42f840` `0x42fbf0`
      `0x42ff00` `0x430400` (monsters / bosses / party allies; ~30 KB, built from the char_def helpers + 0x41e020 /
      0x426db0 / 0x556380 + a few leaves 0x429d00 0x429d50 0x42b550.. 0x42da20 0x42ea50) — **the corpus reaches NONE
      of them** (no dungeon / monster room: 17 townsfolk / party codes only), so porting them needs a monster-room
-     scenario first (USER `rhost.py record`); the party member create `0x58e170` (→ `0x5b4530`), the palette read
-     `0x4178e0` + frames `0x418470` / `0x417c40` (DirectDraw), `0x56dc20` (Now Loading + Flip), `0x41a890`,
-     `0x40e0c0`, the room-start script `0x40c380`, the joysticks `0x5ba120` / `0x5ba290` (platform). Next: the
-     party member create `0x58e170` + `0x5b4530` (reached by every room load), then the scene loop `0x59f2c0`
-     (its save-load half needs a save scenario).
+     scenario first (USER `rhost.py record`); the palette read `0x4178e0` + frames `0x418470` / `0x417c40`
+     (DirectDraw), `0x56dc20` (Now Loading + Flip), `0x41a890`, the room-start script `0x40c380`, the
+     joysticks `0x5ba120` / `0x5ba290` (platform). Next: the scene loop `0x59f2c0` (its save-load half needs a save
+     scenario; ~40 callees, the session record 0x4120 + 8 slots, the area table copy, the load_room loop), or the
+     scene runner stop `0x41a890` (the save writer) under load_room.
   00. the ROOM LOOP `0x58f360` RUNS AS PORT CODE (`room_loop_run`, REPLACE-verified; Flip / the camera
      easer go through rhost's own stubs). Left under it as slots: the pickups `0x59ca90` (+ the world
      message log world+4 / +0x1024, "You got %s!"), the warp countdown `0x59c750`, the leader swap

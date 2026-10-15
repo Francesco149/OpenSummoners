@@ -55,7 +55,7 @@
  *   FUN_0058d0b0  zones_reset          FUN_0058d3b0  quest_state
  *   FUN_0058d210  view_record_init     FUN_0058e330  room_state_save
  *   FUN_005878a0  map_res_free         FUN_0059db70  map_res_delete
- *   FUN_00562d50  pool_head_delete
+ *   FUN_00562d50  pool_head_delete     FUN_0040e0c0  ctrl_geometry_free
  *   FUN_0041dc90  room_formation       FUN_0041e020  char_follow_set
  *   FUN_004182d0  palette_tint         FUN_00587970  map_res_load
  *   FUN_00587e00  map_decode_room      (the grid: map_decode.c)
@@ -124,6 +124,11 @@ void *map_res_delete(uint8_t *m, int32_t flags);
 /* 0x562d50 (thiscall pool head): free its records (their +0x48 objects through 0x40e0c0), + itself
  * when flags & 1 */
 void *pool_head_delete(uint8_t *h, int32_t flags);
+/* 0x40e0c0 (thiscall menu / dialog controller): free its geometry — the confirm source (+0x170: its
+ * caption record +0xc, +0 / +8 buffers), +0x164, +0x178, the rows (+0x17c, 16 B, cells +0xc of 24 B:
+ * +0 a record with an owned buffer, +4, +8; the counts from the header +0x174: rows +4, cells +8),
+ * the header — through retail's allocator (menu_list.c's menu_ctrl_clear is the port-heap twin) */
+void ctrl_geometry_free(uint8_t *c);
 
 /* 0x41dc90 (thiscall room): each active member's formation parameters (char +0x14828, by the
  * formation kind: the member's slot +0xa00 / room +0x4054) and follow set-up: the leader (or every

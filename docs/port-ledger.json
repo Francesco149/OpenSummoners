@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 250,
-  "ported": 263,
-  "unported": 1311,
+  "ported": 269,
+  "unported": 1305,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 513,
-  "pct_touched": 32.6,
+  "touched": 519,
+  "pct_touched": 33.0,
   "pct_tested": 15.8,
-  "engine_proper_touched": 500,
+  "engine_proper_touched": 506,
   "bytes_total": 1776526,
-  "bytes_touched": 516210,
-  "pct_bytes_touched": 29.1
+  "bytes_touched": 519681,
+  "pct_bytes_touched": 29.3
  },
  "orphan_refs": [],
  "functions": [
@@ -518,16 +518,20 @@
    "name": "sub_406EC0",
    "size": 813,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/party_member.h"
+   ]
   },
   {
    "va": "0x4071f0",
    "name": "sub_4071F0",
    "size": 196,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/party_member.h"
+   ]
   },
   {
    "va": "0x4072c0",
@@ -546,7 +550,8 @@
    "is_thunk": false,
    "status": "ported",
    "src": [
-    "src/char_integrate.h"
+    "src/char_integrate.h",
+    "src/party_member.h"
    ]
   },
   {
@@ -698,8 +703,10 @@
    "name": "sub_4094D0",
    "size": 71,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/party_member.h"
+   ]
   },
   {
    "va": "0x409520",
@@ -979,7 +986,8 @@
    "status": "tested",
    "src": [
     "src/menu_list.c",
-    "src/menu_list.h"
+    "src/menu_list.h",
+    "src/room_load.h"
    ]
   },
   {
@@ -1721,6 +1729,7 @@
    "src": [
     "src/asset_register.c",
     "src/asset_register.h",
+    "src/sprite_slot.h",
     "src/wnd_proc.h"
    ]
   },
@@ -1732,7 +1741,8 @@
    "status": "tested",
    "src": [
     "src/asset_register.c",
-    "src/asset_register.h"
+    "src/asset_register.h",
+    "src/sprite_slot.h"
    ]
   },
   {
@@ -10405,8 +10415,10 @@
    "name": "sub_58E170",
    "size": 441,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/party_member.h"
+   ]
   },
   {
    "va": "0x58e330",
@@ -11632,16 +11644,20 @@
    "name": "sub_5B4530",
    "size": 1209,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/party_member.h"
+   ]
   },
   {
    "va": "0x5b4a10",
    "name": "sub_5B4A10",
    "size": 741,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/party_member.h"
+   ]
   },
   {
    "va": "0x5b4d00",
