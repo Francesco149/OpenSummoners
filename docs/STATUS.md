@@ -7,15 +7,15 @@
 ## Port coverage (engine-proper functions of `sotes.exe`)
 
 ```
-█████████░░░░░░░░░░░  46.6% touched   (15.7% host-tested, 34.0% of code bytes)
+█████████░░░░░░░░░░░  47.3% touched   (15.7% host-tested, 34.2% of code bytes)
 ```
 
 | status      | count | what it means                                          |
 |-------------|------:|--------------------------------------------------------|
 | tested      |   249 | ported + module covered by the host unit suite       |
-| ported      |   478 | reimplemented in src/, no host test for that module  |
-| **touched** | **727** | tested + ported (FUN_ provenance ref in src/)    |
-| unported    |  1097 | exists in engine, never referenced from src/         |
+| ported      |   488 | reimplemented in src/, no host test for that module  |
+| **touched** | **737** | tested + ported (FUN_ provenance ref in src/)    |
+| unported    |  1087 | exists in engine, never referenced from src/         |
 
 **Denominator note (read this before judging the %):** the headline % is over
 **engine-proper** functions — the **1532** below
@@ -26,7 +26,7 @@ those like retail rather than porting them (PLAN.md §2-3), so counting them
 would bury real progress. Full table is **1824** non-thunk
 functions (of 1824 incl. thunks).
 
-Code-byte coverage (34.0% of engine-proper bytes) is the truer progress
+Code-byte coverage (34.2% of engine-proper bytes) is the truer progress
 signal: the engine has a long tail of tiny leaf helpers, so function count
 understates how much actual instruction volume is ported.
 
@@ -118,7 +118,8 @@ understates how much actual instruction volume is ported.
   | the scene COMMAND builders (message box + voice row, face, weapon stance, talk turn, flag set, camera, fades / waits / pause, area title, door place / spawn / by record, next event, room BGM restart) | `0x49d6e0` `0x4a5ee0` `0x401e60` `0x4a5e20` `0x402d40` `0x406210` `0x41d190` `0x4a5f50` `0x401d40` `0x4a5f30` `0x4a5f90` `0x4cc060` `0x4cc080` `0x4cc0a0` `0x4cc0c0` `0x403100` `0x41ec20` `0x41f0e0` `0x4cbf80` `0x4cca70` | 101 / 34 / 7 / 1 / 13 / 13 / 8 / 18 / 6 / 1 / 5 / 1 / 2 / 2 / 1 / 3 (guarded: the title text) / 1 / 15 / 1 / 2 (guarded: the BGM) — from retail's chapter scripts | 0 |
   | the STORAGE BOX (Item Storage → Deposit / Withdraw: the stored flag, the 128 / 48 limits) + the item list (filters, sort, icons, "E:" wearer, count / sell price, cursor) + the message windows (centred box, paged box + style), the menu text set, party window close, item counts, key-token replace | `0x411610` `0x413130` `0x414cb0` / `0x414490` / `0x413b70` `0x4140c0` `0x414410` `0x412590` `0x4129a0` `0x407880` `0x407900` `0x4139d0` `0x412800` | REPLACE: 2 / 4 / 5; shadow: 13 / 9 / – / – / 23 / REPLACE 2 / 3 / 2 / 2 / 1,056 (rh-errands-items) — the sort toggle, refusals and paged box unreached | 0 |
   | the FINDS (coins / items "You found…", the inventory add, put back) + the furniture search | `0x4081d0` / `0x407970` | REPLACE: 2 (copper coins + an item) / 6 — silver / gold / full / empty / the chest 70220 unreached | – |
-  Hybrid gate: with all of the above REPLACING retail (476 hooks) (the whole character tick, driver → tile
+  | the story scripts' COMMANDS: cast walk-to (map actor / record / relative), cast clear, the party gather, Yes / No, device spawn, character unload, gifts ("You obtained…"), the script switch | `0x402330` `0x4d64b0` `0x402730` `0x4061d0` `0x405e80` / `0x41a2a0` / `0x431d10` `0x41e360` / `0x407500` / `0x40a810` | 1 / 1 / 4 / 30 / 33 / REPLACE 2 / 18 / 1 / REPLACE 1 / 14 | 0 |
+  Hybrid gate: with all of the above REPLACING retail (486 hooks) (the whole character tick, driver → tile
   movers, + the room loop's passes and per-tick calls, runs as port code), every corpus scenario ends byte-identical.
   Shadow guard (rhost): a port phase that reaches an external effect retail already performed (surface free,
   buffer release, DeleteObject, DirectInput, a mode-0/2 script) aborts its comparison (counted skipped); those

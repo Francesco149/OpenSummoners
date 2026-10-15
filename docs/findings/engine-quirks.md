@@ -4864,6 +4864,27 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
 - `0x412590` (the menu message text) = `0x40e360`'s steps with the key tokens through `0x412800` (one table entry
   per call; `0x40e360` inlines the same loop) — the same result.
 
+### #158 — the story scripts' cast / gift / switch commands (port 2026-10-15)
+- **Cast walk** (cast command 1 on the actor's char: +0x15b6c x, +0x15b70 y, +0x15b74 / +0x15b78 / +0x15b88 the
+  caller's, +0x15b7c..+0x15b84 0; the cast record via the runner's 32-slot table, +0x20 = 4): `0x402330` to a
+  map actor of code X (the first live one with +0x278 set and +0x274 == X; any when 0) + (dx, dy) — its x and
+  its part-0 bottom (`0x4022a0`), the cast record's +0x10 = the last arg; `0x4d64b0` the same by map record;
+  `0x402730` relative to the walker itself (x + dx, its feet +0x1f4 + y + h − 1 + dy).
+- **The party gather** `0x405e80` (after a talk turn, the save statue): every active member walks to the
+  leader's floor (what the leader stands on, body +0x284, else the grid row below × 3200 + 3199) facing `dir`
+  (also char +0xc77c), x = the leader's (or the given x) + its follow offset (+0x14254 when +0x1424c, negated
+  unless facing 3) or 4000 apart when spread (+ facing 3, − otherwise); speed 150; the leader leads, the others
+  by the flag.  Returns 0 (the spent counter).  `0x4061d0` = cast command 0.
+- **Yes / No** `0x41a2a0`: two choice records ("Yes", "No"; +0x588 the pick, box 160 × 240) → 14 yes / 15 no.
+- **Gifts** `0x407500` ("You obtained %d %s." / "You obtained %s."): coins over the cap are dropped SILENTLY
+  (no message, *got = 0) — unlike a find (#157), which says so in the speaker's box; a full inventory says
+  "However, your inventory is full, and you could not bring it with you."; any spoken gift sets the scene mark
+  +0x2e4.  **Device spawn** `0x431d10`: the first free actor slot (+0x1d0 == 0) gets `0x431e30` at (dx, dy), or
+  relative to map actor N (its x, its bottom), anchor 3, facing 99, the room's map id.  **Switch**
+  `0x40a810`(code, on): on = the switch step's per-code effect (#152's `0x59b170` path: sounds 241 / 242 with
+  rand pitch, dust, shots, glow, warp) + the state-1 record; off = `0x40afe0`(0, quiet).  **Unload**
+  `0x41e360` = `0x4467d0` with the voice lines stopped through `0x41e440`.
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

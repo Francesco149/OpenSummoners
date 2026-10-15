@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **727** (46.6% of engine-proper) — tested 249, ported 478
-- code bytes touched: **34.0%** (603,376 / 1,776,526 B of engine-proper)
-- unported: **1097**
+- touched: **737** (47.3% of engine-proper) — tested 249, ported 488
+- code bytes touched: **34.2%** (607,182 / 1,776,526 B of engine-proper)
+- unported: **1087**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (478) — reimplemented, no host test yet
+## ported (488) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -287,17 +287,22 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x402060 | sub_402060 | 62 | script_engine.h |
 | 0x4022a0 | sub_4022A0 | 47 | npc_ai.h |
 | 0x4022d0 | sub_4022D0 | 88 | room_load.h |
+| 0x402330 | sub_402330 | 431 | scene_cmd.h |
+| 0x402730 | sub_402730 | 344 | scene_cmd.h |
 | 0x402a60 | sub_402A60 | 435 | char_state.h |
 | 0x402d40 | sub_402D40 | 470 | scene_cmd.h |
 | 0x402f20 | sub_402F20 | 21 | script_engine.h |
 | 0x403100 | sub_403100 | 181 | scene_cmd.h |
+| 0x405e80 | sub_405E80 | 577 | scene_cmd.h |
 | 0x4060d0 | sub_4060D0 | 241 | char_state.h |
+| 0x4061d0 | sub_4061D0 | 55 | scene_cmd.h |
 | 0x406210 | sub_406210 | 555 | scene_cmd.h |
 | 0x4066d0 | sub_4066D0 | 989 | party_member.h |
 | 0x406ec0 | sub_406EC0 | 813 | party_member.h |
 | 0x4071f0 | sub_4071F0 | 196 | party_member.h |
 | 0x4072c0 | sub_4072C0 | 85 | char_def.h |
 | 0x407320 | sub_407320 | 190 | char_integrate.h, party_member.h |
+| 0x407500 | sub_407500 | 886 | script_engine.h |
 | 0x407880 | sub_407880 | 23 | ui_menu.h |
 | 0x4078a0 | sub_4078A0 | 81 | party_member.h |
 | 0x407900 | sub_407900 | 99 | ui_menu.h |
@@ -314,6 +319,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4099a0 | sub_4099A0 | 1251 | sound_fx.h |
 | 0x409e90 | sub_409E90 | 375 | sound_fx.h |
 | 0x40a010 | sub_40A010 | 645 | sound_fx.h |
+| 0x40a810 | sub_40A810 | 691 | gimmick.h |
 | 0x40ab80 | sub_40AB80 | 136 | actor_ops.h |
 | 0x40ac10 | sub_40AC10 | 127 | gimmick.h |
 | 0x40afe0 | sub_40AFE0 | 1640 | gimmick.c, gimmick.h |
@@ -395,6 +401,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x418c90 | sub_418C90 | 547 | ui_menu.h |
 | 0x419c00 | sub_419C00 | 110 | scene_loop.h |
 | 0x41a140 | sub_41A140 | 28 | room_loop.h |
+| 0x41a2a0 | sub_41A2A0 | 254 | scene_cmd.h |
 | 0x41a7f0 | sub_41A7F0 | 152 | scene_loop.h |
 | 0x41c280 | sub_41C280 | 112 | ui_core.h |
 | 0x41d190 | sub_41D190 | 779 | scene_cmd.h |
@@ -404,6 +411,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x41e180 | sub_41E180 | 244 | char_state.h |
 | 0x41e280 | sub_41E280 | 47 | char_def.h |
 | 0x41e2f0 | sub_41E2F0 | 66 | script_engine.h |
+| 0x41e360 | sub_41E360 | 219 | entity_life.h |
 | 0x41e440 | sub_41E440 | 125 | char_def.h |
 | 0x41e600 | sub_41E600 | 907 | actor_ops.h |
 | 0x41ea70 | sub_41EA70 | 187 | entity_life.h |
@@ -465,6 +473,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x431b90 | sub_431B90 | 15 | char_def.h |
 | 0x431ba0 | sub_431BA0 | 266 | char_def.h |
 | 0x431cb0 | sub_431CB0 | 87 | char_def.h |
+| 0x431d10 | sub_431D10 | 287 | scene_cmd.h |
 | 0x431e30 | sub_431E30 | 25293 | device_init.c, device_init.h |
 | 0x438520 | sub_438520 | 153 | device_init.h |
 | 0x4385c0 | sub_4385C0 | 19 | device_init.h, particle_init.h |
@@ -629,6 +638,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4cc0c0 | sub_4CC0C0 | 28 | scene_cmd.h |
 | 0x4cc5a0 | sub_4CC5A0 | 628 | scene_loop.h |
 | 0x4cca70 | sub_4CCA70 | 453 | scene_cmd.h |
+| 0x4d64b0 | sub_4D64B0 | 62 | scene_cmd.h |
 | 0x4e1950 | sub_4E1950 | 135 | scene_loop.h |
 | 0x4e6030 | sub_4E6030 | 54 | party_member.h |
 | 0x4e6070 | sub_4E6070 | 299 | party_member.h |

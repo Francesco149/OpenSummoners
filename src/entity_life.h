@@ -11,7 +11,7 @@
  * whose +0x284 is it) the same distance, recursively.
  *
  *   FUN_00555fc0  entity_unlist          FUN_00556180  entity_release
- *   FUN_0041ea70  actor_release          FUN_004467d0  char_release
+ *   FUN_0041ea70  actor_release          FUN_004467d0  char_release           FUN_0041e360  char_unload
  *   FUN_00556380  entity_set_collide     FUN_005563d0  entity_carry_riders
  *   FUN_0040bd90  wl_list_remove         FUN_00555f00  entity_set_handle
  */
@@ -29,6 +29,9 @@ void entity_unlist(wl_entity *e);
 void entity_release(wl_entity *e, int32_t listed);
 void actor_release(wl_actor *a);
 void char_release(wl_char *c);
+/* 0x41e360 (stdcall): a story script's character removal — char_release with the voice lines stopped
+ * through 0x41e440 (NULL: nothing) */
+void char_unload(wl_char *c);
 /* Set the collision mode / kind; a solid one (mode != 0, kind 1..3) joins the collide
  * list when it has room. */
 void entity_set_collide(wl_entity *e, int32_t mode, int32_t kind);

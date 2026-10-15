@@ -21,7 +21,7 @@
  *   FUN_005567a0  char_in_rect        FUN_005568e0  char_riding
  *   FUN_00556de0  particle_find       FUN_0040be00  world_next_serial
  *   FUN_0040ac10  actor_shot          FUN_0054ecf0  warp_request
- *   FUN_0054efd0  party_gather
+ *   FUN_0054efd0  party_gather        FUN_0040a810  script_switch
  * (+ actor_switch_off: the switch-off 0x59b170 and the actor update inline.)
  *
  * The TOUCH pass 0x59bdd0 runs when the player presses up / talk (key 37; key 38 =
@@ -70,6 +70,9 @@ int switch_set(wl_actor *a, int32_t v, int32_t quiet);
 int switch_link(wl_actor *a, int32_t v, int32_t quiet);
 /* the switch-off both 0x59b170 and the actor update 0x54f980 inline: 1 = switched off */
 int actor_switch_off(wl_actor *a);
+/* 0x40a810 (stdcall): a script switches the first live map actor of `code` (any when 0): off = switch_set(0,
+ * quiet); on = the per-code effect (as the step's) + its state-1 record; 0 without such an actor */
+int script_switch(int32_t code, int32_t on);
 /* 0x40c300: off the hittable list (+0x2798) and every entity list */
 void actor_unlist_all(wl_actor *a);
 /* 0x408100: the glow of codes 70251 / 70252 / 70371 (on when off; `burst` sparks when on) */

@@ -16,7 +16,7 @@
  *   FUN_0040c380  script_engine       FUN_0049cb60  script_begin      FUN_0049cd70  script_end
  *   FUN_0041e2f0  script_flag         FUN_00402f20  script_leader     FUN_00402060  script_party_cast
  *   FUN_00401f50  script_cast_add     FUN_00439680  script_wait       FUN_004afda0  script_none
- *   FUN_004081d0  item_find           FUN_00407970  furniture_search
+ *   FUN_004081d0  item_find           FUN_00407970  furniture_search    FUN_00407500  item_give
  * (a map record's actor 0x556eb0 is actor_update.h's actor_by_handle)
  * The chest / furniture / storage talk are reached through their g_eng slots (h4081d0 / h407970 /
  * h411610) although ported: the slots are rhost's shadow-guard points (they run frame loops), and
@@ -39,6 +39,10 @@ int item_find(wl_event *ev, wl_entity *a, int32_t what, int32_t n, int32_t *back
 /* 0x407970 (thiscall runner): searching a piece of furniture `a` (its +0x2cc / +0x2d0 find) as a scene;
  * when the find is put back the furniture shuts again */
 int furniture_search(wl_event *ev, wl_entity *a, const char *where);
+/* 0x407500 (thiscall runner): a story gift — `what` 1 / 2 / 3 coins (n, 10 n, 100 n CP; nothing at the cap),
+ * else item `what` (n: the count, 0 = its own; refused at 512 records / 48 normal items).  `say`: "You
+ * obtained ..." (or the full message), then the scene mark +0x2e4.  *got = 1 when taken.  6 = the scene ended. */
+int item_give(wl_event *ev, int32_t what, int32_t n, int32_t say, int32_t *got);
 /* 0x49cb60 (thiscall runner): clear the scene command block, the characters' scene state */
 void script_begin(wl_event *ev);
 /* 0x49cd70 (thiscall runner): stop the voice track, clear the room loop's scene state */

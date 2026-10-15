@@ -7,7 +7,7 @@ own engine callees ported, so it can land today with zero new dependencies. Sort
 
 For the *forward* port path (the title-menu scene runner and what it calls) and the semantic milestone order, see `ROADMAP.md` — some of that path isn't yet reachable from ported code so won't appear here.
 
-- frontier functions: **358**
+- frontier functions: **357**
 - of those, zero-dependency **leaves: 146** (recommended order below)
 
 ## Leaf shortlist — portable today (top 40 by ported-caller count)
@@ -57,22 +57,21 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 
 ## Full frontier by address band
 
-### object-pool ctor + game-loop FSM + font/glyph + msg fmt (12)
+### object-pool ctor + game-loop FSM + font/glyph + msg fmt (11)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
 | 0x40fe00 | 596 | 9 | 5 |  |
 | 0x40a5d0 | 568 | 7 | 5 |  |
+| 0x40ac90 | 834 | 4 | 4 |  |
 | 0x40bb70 | 30 | 3 | 0 | ✓ |
-| 0x40ac90 | 834 | 3 | 4 |  |
 | 0x407f30 | 453 | 2 | 0 | ✓ |
 | 0x4051d0 | 3244 | 2 | 0 | ✓ |
 | 0x4034f0 | 7330 | 2 | 0 | ✓ |
 | 0x40a340 | 498 | 1 | 6 |  |
-| 0x405e80 | 577 | 1 | 1 |  |
 | 0x409150 | 881 | 1 | 1 |  |
 | 0x409520 | 1093 | 1 | 1 |  |
-| 0x408730 | 1114 | 1 | 11 |  |
+| 0x408730 | 1114 | 1 | 8 |  |
 
 ### menu/dialog controller + char init + shop/NPC + save path (9)
 
@@ -247,7 +246,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x497f40 | 1750 | 1 | 2 |  |
 | 0x496ec0 | 1756 | 1 | 2 |  |
 | 0x49d930 | 2296 | 1 | 2 |  |
-| 0x49f7c0 | 5270 | 1 | 6 |  |
+| 0x49f7c0 | 5270 | 1 | 5 |  |
 
 ### scene-event dispatch (narrative scripting) + party/inventory (30)
 
@@ -261,28 +260,28 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x4b3c70 | 697 | 1 | 3 |  |
 | 0x4a63d0 | 706 | 1 | 0 | ✓ |
 | 0x4ae150 | 712 | 1 | 4 |  |
-| 0x4bdbe0 | 937 | 1 | 5 |  |
+| 0x4bdbe0 | 937 | 1 | 4 |  |
 | 0x4bd820 | 960 | 1 | 3 |  |
-| 0x4bd2e0 | 968 | 1 | 7 |  |
+| 0x4bd2e0 | 968 | 1 | 6 |  |
 | 0x4c29c0 | 1020 | 1 | 2 |  |
-| 0x4a5fa0 | 1057 | 1 | 6 |  |
+| 0x4a5fa0 | 1057 | 1 | 5 |  |
 | 0x4a66a0 | 1244 | 1 | 2 |  |
-| 0x4c2310 | 1701 | 1 | 7 |  |
-| 0x4c3ee0 | 1727 | 1 | 4 |  |
-| 0x4c1c20 | 1774 | 1 | 7 |  |
+| 0x4c2310 | 1701 | 1 | 6 |  |
+| 0x4c3ee0 | 1727 | 1 | 3 |  |
+| 0x4c1c20 | 1774 | 1 | 6 |  |
 | 0x4ccc90 | 2610 | 1 | 4 |  |
-| 0x4c45a0 | 3423 | 1 | 11 |  |
-| 0x4c2dc0 | 4360 | 1 | 4 |  |
-| 0x4bbef0 | 5004 | 1 | 4 |  |
-| 0x4ae420 | 6478 | 1 | 7 |  |
-| 0x4ac6d0 | 6756 | 1 | 4 |  |
-| 0x4be220 | 14286 | 1 | 7 |  |
-| 0x4cd6d0 | 14951 | 1 | 24 |  |
-| 0x4afdb0 | 15577 | 1 | 12 |  |
-| 0x4a0c90 | 20785 | 1 | 12 |  |
-| 0x4c6b40 | 21496 | 1 | 27 |  |
-| 0x4a6b80 | 23051 | 1 | 8 |  |
-| 0x4b4d40 | 28488 | 1 | 18 |  |
+| 0x4c45a0 | 3423 | 1 | 9 |  |
+| 0x4c2dc0 | 4360 | 1 | 3 |  |
+| 0x4bbef0 | 5004 | 1 | 2 |  |
+| 0x4ae420 | 6478 | 1 | 5 |  |
+| 0x4ac6d0 | 6756 | 1 | 3 |  |
+| 0x4be220 | 14286 | 1 | 6 |  |
+| 0x4cd6d0 | 14951 | 1 | 20 |  |
+| 0x4afdb0 | 15577 | 1 | 10 |  |
+| 0x4a0c90 | 20785 | 1 | 10 |  |
+| 0x4c6b40 | 21496 | 1 | 22 |  |
+| 0x4a6b80 | 23051 | 1 | 6 |  |
+| 0x4b4d40 | 28488 | 1 | 16 |  |
 
 ### narrative scene FSM + dungeon/encounter driver (sparse) (36)
 
@@ -297,33 +296,33 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x525ae0 | 899 | 1 | 1 |  |
 | 0x4e1d10 | 1685 | 1 | 9 |  |
 | 0x522310 | 3316 | 1 | 8 |  |
-| 0x4ee690 | 3574 | 1 | 11 |  |
-| 0x535520 | 3936 | 1 | 10 |  |
+| 0x4ee690 | 3574 | 1 | 10 |  |
+| 0x535520 | 3936 | 1 | 9 |  |
 | 0x536480 | 4023 | 1 | 13 |  |
-| 0x53ec40 | 5788 | 1 | 14 |  |
-| 0x4d64f0 | 6202 | 1 | 15 |  |
-| 0x533580 | 8094 | 1 | 11 |  |
-| 0x4ef4e0 | 9352 | 1 | 14 |  |
-| 0x523300 | 9965 | 1 | 13 |  |
-| 0x537440 | 10805 | 1 | 13 |  |
-| 0x530080 | 13474 | 1 | 14 |  |
+| 0x53ec40 | 5788 | 1 | 9 |  |
+| 0x4d64f0 | 6202 | 1 | 13 |  |
+| 0x533580 | 8094 | 1 | 9 |  |
+| 0x4ef4e0 | 9352 | 1 | 10 |  |
+| 0x523300 | 9965 | 1 | 12 |  |
+| 0x537440 | 10805 | 1 | 11 |  |
+| 0x530080 | 13474 | 1 | 12 |  |
 | 0x4e23d0 | 13606 | 1 | 13 |  |
-| 0x4f6a10 | 14027 | 1 | 19 |  |
-| 0x4e6a60 | 15415 | 1 | 18 |  |
-| 0x4ea7b0 | 15468 | 1 | 24 |  |
-| 0x4fec40 | 17841 | 1 | 15 |  |
-| 0x515a00 | 18142 | 1 | 15 |  |
-| 0x4d7d80 | 18166 | 1 | 15 |  |
-| 0x4fa2a0 | 18188 | 1 | 26 |  |
-| 0x5034b0 | 18747 | 1 | 20 |  |
-| 0x539e80 | 19641 | 1 | 23 |  |
-| 0x4d13a0 | 20018 | 1 | 21 |  |
-| 0x4f19e0 | 20437 | 1 | 24 |  |
-| 0x4dc510 | 21461 | 1 | 28 |  |
-| 0x510100 | 22636 | 1 | 9 |  |
-| 0x51a1d0 | 32877 | 1 | 22 |  |
-| 0x507e70 | 32899 | 1 | 18 |  |
-| 0x525e70 | 40515 | 1 | 17 |  |
+| 0x4f6a10 | 14027 | 1 | 18 |  |
+| 0x4e6a60 | 15415 | 1 | 15 |  |
+| 0x4ea7b0 | 15468 | 1 | 20 |  |
+| 0x4fec40 | 17841 | 1 | 11 |  |
+| 0x515a00 | 18142 | 1 | 12 |  |
+| 0x4d7d80 | 18166 | 1 | 10 |  |
+| 0x4fa2a0 | 18188 | 1 | 23 |  |
+| 0x5034b0 | 18747 | 1 | 17 |  |
+| 0x539e80 | 19641 | 1 | 18 |  |
+| 0x4d13a0 | 20018 | 1 | 17 |  |
+| 0x4f19e0 | 20437 | 1 | 21 |  |
+| 0x4dc510 | 21461 | 1 | 23 |  |
+| 0x510100 | 22636 | 1 | 8 |  |
+| 0x51a1d0 | 32877 | 1 | 18 |  |
+| 0x507e70 | 32899 | 1 | 15 |  |
+| 0x525e70 | 40515 | 1 | 13 |  |
 
 ### cutscene dispatcher + sprite copy + tilemap collision + camera (16)
 
@@ -343,8 +342,8 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x554c40 | 2187 | 1 | 5 |  |
 | 0x553520 | 2458 | 1 | 4 |  |
 | 0x55d140 | 8040 | 1 | 2 |  |
-| 0x546670 | 22187 | 1 | 29 |  |
-| 0x5402e0 | 25033 | 1 | 18 |  |
+| 0x546670 | 22187 | 1 | 28 |  |
+| 0x5402e0 | 25033 | 1 | 14 |  |
 
 ### title + gameplay scene runners + engine init + options + input init (33)
 

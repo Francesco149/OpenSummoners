@@ -11,6 +11,7 @@
 #include "entity_fx.h"
 #include "entity_move.h"
 #include "sound_fx.h"
+#include "char_def.h"   /* voice_set_stop 0x41e440 */
 
 /* the multi-part table at entity+0x8 (0x445e50 builds it) */
 typedef struct parts_tbl {
@@ -117,6 +118,43 @@ void char_release(wl_char *c)
         if (vs->grp != NULL) {
             for (uint16_t i = 0; i < vs->n; i++)
                 for (uint16_t k2 = 0; k2 < vs->grp[i].n; k2++) vline_stop(&vs->grp[i].line[k2], 1);
+            g_eng.op_delete(vs->grp);
+            vs->grp = NULL;
+        }
+        vs->n = 0;
+        g_eng.op_delete(vs);
+        c->voice = NULL;
+    }
+}
+
+void char_unload(wl_char *c)
+{
+    if (c == NULL) return;
+    /* as 0x4467d0, but the voice lines stop through 0x41e440 */
+    wl_char *k = c->carrier;
+    if (k != NULL && k->can_carry != 0 && k->held != NULL) {
+        k->held->carrier = NULL;
+        k->held = NULL;
+    }
+    if (c->held != NULL && c->can_carry != 0) {
+        c->held->carrier = NULL;
+        c->held = NULL;
+    }
+    for (int j = 0; j < 2; j++)
+        if (c->fc824[j] != 0) {
+            entity_release((wl_entity *)(intptr_t)c->fc824[j], 1);
+            c->fc824[j] = 0;
+        }
+    for (int j = 0; j < 10; j++)
+        if (c->linked[j] != NULL) {
+            entity_release(c->linked[j], 0);
+            c->linked[j] = NULL;
+        }
+    entity_release(&c->base, 0);
+    wl_voiceset *vs = c->voice;
+    if (vs != NULL) {
+        if (vs->grp != NULL) {
+            voice_set_stop(vs);
             g_eng.op_delete(vs->grp);
             vs->grp = NULL;
         }

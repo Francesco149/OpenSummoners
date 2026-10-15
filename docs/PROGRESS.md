@@ -6,6 +6,16 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-15 — the story scripts' commands (10 functions)
+
+- `src/scene_cmd.c`: the cast walk-to `0x402330` / by record `0x4d64b0` / relative `0x402730`, the cast clear
+  `0x4061d0`, the party gather `0x405e80` (its slot retired: `scene_talk_face` calls it), Yes / No `0x41a2a0`, the
+  device spawn `0x431d10`; `src/entity_life.c`: the character unload `0x41e360`; `src/script_engine.c`: the gift
+  `0x407500`; `src/gimmick.c`: the script switch `0x40a810` (on its step's effect + record).  Quirk #158.
+- rhost shadow: scene_party_gather 33, cast_cmd_clear 30, scene_device_spawn 18, script_switch 14,
+  scene_cast_step 4, scene_cast_to 1, scene_cast_to_rec 1, char_unload 1 / corpus — 0 divergences; replace:
+  scene_yes_no 2, item_give 1 — corpus --check PASS.  Hybrid gate 486 PASS.
+
 ## 2026-10-15 — rhost GDI fix + the storage box and the finds (14 functions)
 
 - rhost: the USER's `record combat` died at flip 16,309 ("more than 16384 GDI handles"): retail does a

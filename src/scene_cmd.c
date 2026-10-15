@@ -9,6 +9,9 @@
 
 #include "actor_update.h"
 #include "char_init.h"
+#include "char_state.h"   /* grid_floor_below 0x4060d0 */
+#include "device_init.h"
+#include "npc_ai.h"       /* part_bottom 0x4022a0 */
 #include "engine_calls.h"
 #include "room_loop.h"
 #include "scene_loop.h"
@@ -162,7 +165,7 @@ int scene_talk_face(wl_event *ev, int32_t a2, void *target, int32_t face_back, i
         parts_check(&ld->base);
         dir = ld->base.body->facing;
     }
-    return g_eng.h405e80(ev, a2, dir, 0, back, to);   /* (`to` unread unless `back`) */
+    return scene_party_gather(ev, a2, dir, 0, back, to);   /* (`to` unread unless `back`) */
 }
 
 void script_flag_set(wl_event *ev, int32_t id, int32_t v, int32_t v2)
@@ -318,4 +321,151 @@ wl_char *scene_spawn_at_door(wl_event *ev, int32_t handle, int32_t code, int32_t
     const wl_body *db = d->body;
     char_init(c, db->x + dx, db->y + db->h + dy, 3, 3, 0, code, 0, facing, handle, 0, a9, a8, 0, 0);
     return c;
+}
+
+/* ---- the cast's walk commands + the party gather ---- */
+
+void cast_cmd_clear(uint8_t *a)
+{
+    script_cast_cmd(a, 0);
+}
+
+/* cast command 1: walk to (x, y) — +0x15b74 / +0x15b78 / +0x15b88 the caller's (the facing, the speed...) */
+static void cast_walk(uint8_t *a, int32_t x, int32_t y, int32_t f74, int32_t f78, int32_t f88)
+{
+    script_cast_cmd(a, 1);
+    st32(a, 0x15b6c, x);
+    st32(a, 0x15b70, y);
+    st32(a, 0x15b74, f74);
+    st32(a, 0x15b78, f78);
+    st32(a, 0x15b7c, 0);
+    st32(a, 0x15b80, 0);
+    st32(a, 0x15b84, 0);
+    st32(a, 0x15b88, f88);
+}
+
+void scene_cast_to(wl_event *ev, void *actor, int32_t code, int32_t dx, int32_t dy, int32_t f74, int32_t f88,
+                   int32_t f78, int32_t r10)
+{
+    if (actor == NULL || ev->f00 == NULL) return;
+    const wl_entity *t = door_actor(code, 1);
+    if (t == NULL) return;
+    int32_t x = t->body->x + dx;
+    int32_t y = part_bottom(t, 0) + dy;
+    uint8_t *rec = script_cast_rec(ev, actor, 1);
+    uint8_t *a = script_cast_actor(rec);
+    st32(rec, 0x10, r10);
+    cast_walk(a, x, y, f74, f78, f88);
+    st32(ev, 0x20, 4);
+}
+
+void scene_cast_to_rec(wl_event *ev, int32_t rec, int32_t code, int32_t dx, int32_t dy, int32_t f74, int32_t f88,
+                       int32_t f78, int32_t r10)
+{
+    scene_cast_to(ev, actor_by_handle(rec), code, dx, dy, f74, f88, f78, r10);
+}
+
+void scene_cast_step(wl_event *ev, void *c, int32_t dx, int32_t dy, int32_t f74, int32_t f88, int32_t f78)
+{
+    if (c == NULL) return;
+    const wl_body *b = ((const wl_entity *)c)->body;
+    int32_t x = b->x + dx;
+    int32_t y = b->h + b->y + ld32(c, 0x1f4) + dy - 1;
+    uint8_t *a = script_cast_actor(script_cast_rec(ev, c, 1));
+    cast_walk(a, x, y, f74, f78, f88);
+    st32(ev, 0x20, 4);
+}
+
+int scene_party_gather(wl_event *ev, int32_t lead, int32_t dir, int32_t spread, int32_t use_x, int32_t x)
+{
+    wl_room *room = ev->room;
+    const wl_body *lb = room->leader->ch->base.body;
+    int32_t lx = lb->x, ly = lb->h + lb->y - 1, fy;
+    if (use_x == 0) x = lx;
+    const wl_entity *under = ldp(lb, 0x284);   /* (what the leader stands on) */
+    if (under != NULL) {
+        fy = under->body->h + under->body->y - 1;
+    } else {
+        int32_t row;
+        grid_floor_below(lb, &row);
+        fy = 3200 * row - 3200;
+    }
+    fy += 3199;
+    uint16_t k = 0;
+    for (int i = 0; i < 8; i++) {
+        wl_pslot *s = room->slot[i];
+        if (s->active != 1) continue;
+        uint8_t *a = script_cast_actor(script_cast_rec(ev, s->ch, s == room->leader ? 1 : lead));
+        int32_t off = 0;
+        st32(a, 0xc77c, dir);
+        if (ld32(a, 0x1424c) != 0) off = ld32(a, 0x14254);
+        if (dir == 3) {
+            if (spread != 0) off = 4000 * k;
+        } else if (spread != 0) {
+            off = -4000 * k;
+        } else {
+            off = -off;
+        }
+        cast_cmd_clear(a);
+        st32(a, 0x15b64, 1);
+        st32(a, 0x15b70, fy);
+        st32(a, 0x15b7c, 1);
+        st32(a, 0x15b6c, x + off);
+        st32(a, 0x15b74, dir);
+        st32(a, 0x15b78, 0);
+        st32(a, 0x15b80, lx);
+        st32(a, 0x15b84, ly);
+        st32(a, 0x15b88, 150);
+        k++;
+    }
+    st32(ev, 0x20, 4);
+    return 0;   /* (retail's eax: the spent slot counter) */
+}
+
+int scene_yes_no(wl_event *ev)
+{
+    uint8_t *r = (uint8_t *)ev;
+    st16(r, 0x584, 0);
+    st32(r, 0x588, 1);
+    st32(r, 0x590, 0);
+    st32(r, 0x58c, 0);
+    st32(r, 0x594, 0xa0);
+    st32(r, 0x598, 0xf0);
+    st32(r, 0x59c, 0xf0);
+    st32(r, 0x20, 5);
+    st32(r, 0x5f4, 1);
+    st32(r, 0x5f0, 0);
+    strcpy((char *)r + 0x5a0, S(0x854d04u));   /* "Yes" */
+    uint16_t n = (uint16_t)(ld16(r, 0x584) + 1);
+    st16(r, 0x584, n);
+    st32(r, 0x5f4 + 0x58u * n, 0);
+    st32(r, 0x5f0 + 0x58u * n, 0);
+    strcpy((char *)r + 0x5a0 + 0x58u * n, S(0x854d00u));   /* "No" */
+    st16(r, 0x584, (uint16_t)(ld16(r, 0x584) + 1));
+    int res = script_wait(ev);
+    if (res == 6) return res;
+    return (ld32(r, 0x588) != 1) + 14;
+}
+
+wl_actor *scene_device_spawn(wl_event *ev, int32_t handle, uint32_t code, int32_t near, int32_t dx, int32_t dy,
+                             int32_t kind)
+{
+    if (ev->f00 == NULL) return NULL;
+    wl_actor *a = NULL;
+    for (uint16_t k = 0; k < 128; k++) {
+        a = (wl_actor *)W->actors[k];
+        if (a->base.alive == 0) break;
+        if (k == 127) return NULL;
+    }
+    if (a == NULL) return NULL;
+    int32_t x = dx, y = dy;
+    if (near != 0) {
+        const wl_entity *t = door_actor(near, 0);
+        if (t == NULL) return NULL;
+        x = dx + t->body->x;
+        y = t->body->h + t->body->y + dy;
+    }
+    device_init(a, x, y, 3, code, 0, 0, handle, 0, 0, kind, 99, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ld32(W->roominfo, 0), NULL);
+    return a;
 }

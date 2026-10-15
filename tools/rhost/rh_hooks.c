@@ -207,6 +207,10 @@ typedef struct {
     X(H_UM_PAGES, "msg_pages", 0x4140c0u) X(H_UM_ILIST, "item_list_fill", 0x414490u) \
     X(H_ST_DEP, "storage_deposit", 0x413130u) X(H_ST_WD, "storage_withdraw", 0x414cb0u) X(H_ST_RUN, "storage_run", 0x411610u) \
     X(H_IFIND, "item_find", 0x4081d0u) X(H_FURN, "furniture_search", 0x407970u) \
+    X(H_SC_CLR, "cast_cmd_clear", 0x4061d0u) X(H_SC_TO, "scene_cast_to", 0x402330u) X(H_SC_TOREC, "scene_cast_to_rec", 0x4d64b0u) \
+    X(H_SC_STEP2, "scene_cast_step", 0x402730u) X(H_SC_GATHER, "scene_party_gather", 0x405e80u) \
+    X(H_SC_YN, "scene_yes_no", 0x41a2a0u) X(H_SC_DEV, "scene_device_spawn", 0x431d10u) X(H_CUNLOAD, "char_unload", 0x41e360u) \
+    X(H_IGIVE, "item_give", 0x407500u) X(H_SSWITCH, "script_switch", 0x40a810u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
 
@@ -3868,6 +3872,18 @@ TC_HOOK0(H_ST_RUN, "storage_run", 1, return storage_run(self))
 TC_HOOK(H_IFIND, "item_find", 6, 1,
         return item_find(self, (wl_entity *)a1, a2, a3, (int32_t *)a4, (const char *)a5, a6))
 TC_HOOK(H_FURN, "furniture_search", 2, 1, return furniture_search(self, (wl_entity *)a1, (const char *)a2))
+/* the story scripts' commands (src/scene_cmd.c, src/entity_life.c, src/script_engine.c, src/gimmick.c): the
+ * Yes / No choice and the gift wait on the scene runner — REPLACE only */
+TC_HOOK0(H_SC_CLR, "cast_cmd_clear", 1, cast_cmd_clear(self); return 0)
+TC_HOOK(H_SC_TO, "scene_cast_to", 8, 0, scene_cast_to(self, (void *)a1, a2, a3, a4, a5, a6, a7, a8); return 0)
+TC_HOOK(H_SC_TOREC, "scene_cast_to_rec", 8, 0, scene_cast_to_rec(self, a1, a2, a3, a4, a5, a6, a7, a8); return 0)
+TC_HOOK(H_SC_STEP2, "scene_cast_step", 6, 0, scene_cast_step(self, (void *)a1, a2, a3, a4, a5, a6); return 0)
+TC_HOOK(H_SC_GATHER, "scene_party_gather", 5, 1, return scene_party_gather(self, a1, a2, a3, a4, a5))
+TC_HOOK0(H_SC_YN, "scene_yes_no", 1, return scene_yes_no(self))
+TC_HOOK(H_SC_DEV, "scene_device_spawn", 6, 1, return (intptr_t)scene_device_spawn(self, a1, (uint32_t)a2, a3, a4, a5, a6))
+ST_HOOK(H_CUNLOAD, "char_unload", 1, 0, char_unload((wl_char *)a1); return 0)
+TC_HOOK(H_IGIVE, "item_give", 4, 1, return item_give(self, a1, a2, a3, (int32_t *)a4))
+ST_HOOK(H_SSWITCH, "script_switch", 2, 1, return script_switch(a1, a2))
 /* 0x412800 rewrites its caller's (stack) string in place: retail and the port each run on a copy, compared */
 typedef intptr_t (__attribute__((stdcall)) *ktok_t)(char *, const void *);
 static intptr_t __attribute__((stdcall)) H_UT_KTOK_w(char *s, const void *e)
@@ -4134,7 +4150,7 @@ static void bind_engine_calls(void)
     B(56dc20); B(41a890); B(5bf3ee); B(426110); B(560900); B(5bf5db);
     B(428c00); B(429060); B(429db0); B(42a500); B(42a9a0); B(42b9a0); B(42c130); B(42c510); B(42c970);
     B(42cce0); B(42d3c0); B(42da50); B(42e290); B(42f840); B(42fbf0); B(42ff00); B(430400);
-    B(5bcfb0); B(405e80); B(55d140); B(47ae00); B(5b1f10); B(4034f0); B(4051d0); B(415ae0); B(4192f0); B(418ec0); B(441de0); B(442710); B(442640);
+    B(5bcfb0); B(55d140); B(47ae00); B(5b1f10); B(4034f0); B(4051d0); B(415ae0); B(4192f0); B(418ec0); B(441de0); B(442710); B(442640);
     B(5bcfa0); B(43c1b0); B(5b94e0); B(5b9500); B(5b5ef0); B(43e250); B(43d540); B(43d4b0); B(43dd30); B(43d830);
     B(442920); B(4428f0); B(468970);
     B(561d20); B(409150); B(55fdb0); B(41d780); B(4e6520); B(4e61d0); B(41b670); B(4c5af0); B(52fd80); B(5a3870); B(5a00c0);
@@ -4223,7 +4239,7 @@ void rh_hooks_install(void)
         if (!h->mode) continue;
         if ((h == &H[H_RLOOP] || h == &H[H_REPOLL] || h == &H[H_LROOM] || h == &H[H_SLOOP] || h == &H[H_MPACE] || h == &H[H_MRUN] ||
              h == &H[H_UM_PAGES] || h == &H[H_ST_DEP] || h == &H[H_ST_WD] || h == &H[H_ST_RUN] || h == &H[H_IFIND] ||
-             h == &H[H_FURN] || h == &H[H_UM_PCLOSE]) && h->mode == 1)
+             h == &H[H_FURN] || h == &H[H_UM_PCLOSE] || h == &H[H_SC_YN] || h == &H[H_IGIVE]) && h->mode == 1)
             rh_fatal("%s: replace only (it runs a room / repolls DirectInput)", h->name);
         if (h == &H[H_MAP_DECODE]) {
             if (h->mode == 2) rh_fatal("map_decode: shadow only (the port decode needs the recorded resource)");

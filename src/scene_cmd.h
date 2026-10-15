@@ -10,6 +10,9 @@
  *   FUN_004cc080  scene_fade_in        FUN_004cc0a0  scene_wait           FUN_004cc0c0  scene_wait_fade
  *   FUN_00403100  scene_area_title     FUN_0041ec20  scene_place_at_door  FUN_0041f0e0  scene_spawn_at_door
  *   FUN_004cbf80  scene_place_rec      FUN_004cca70  room_bgm_restart
+ *   FUN_004061d0  cast_cmd_clear       FUN_00402330  scene_cast_to        FUN_004d64b0  scene_cast_to_rec
+ *   FUN_00402730  scene_cast_step      FUN_00405e80  scene_party_gather   FUN_0041a2a0  scene_yes_no
+ *   FUN_00431d10  scene_device_spawn
  */
 #ifndef OSS_SCENE_CMD_H
 #define OSS_SCENE_CMD_H
@@ -66,5 +69,28 @@ void room_bgm_restart(wl_roomloop *rl, int32_t a2, int32_t a3);
  * (+ dx, dy) as `code`; 0 without one */
 wl_char *scene_spawn_at_door(wl_event *ev, int32_t handle, int32_t code, int32_t door, int32_t dx, int32_t dy,
                              int32_t facing, int32_t a8, int32_t a9);
+
+/* 0x4061d0 (thiscall char): its cast command cleared (type 0) */
+void cast_cmd_clear(uint8_t *a);
+/* 0x402330 (thiscall runner): `actor` walks (cast command 1) to the first live map actor of `code` (any when 0)
+ * + (dx, dy) (its x, its part-0 bottom); +0x15b74 / +0x15b88 / +0x15b78 = f74 / f88 / f78, the cast record's
+ * +0x10 = r10 (+0x20 = 4) */
+void scene_cast_to(wl_event *ev, void *actor, int32_t code, int32_t dx, int32_t dy, int32_t f74, int32_t f88,
+                   int32_t f78, int32_t r10);
+/* 0x4d64b0: scene_cast_to by map record */
+void scene_cast_to_rec(wl_event *ev, int32_t rec, int32_t code, int32_t dx, int32_t dy, int32_t f74, int32_t f88,
+                       int32_t f78, int32_t r10);
+/* 0x402730 (thiscall runner): `c` walks to its own spot + (dx, dy) (its feet) */
+void scene_cast_step(wl_event *ev, void *c, int32_t dx, int32_t dy, int32_t f74, int32_t f88, int32_t f78);
+/* 0x405e80 (thiscall runner): every active member walks to the leader's floor facing `dir`, at x (the leader's
+ * unless `use_x`) + its follow offset (+0x14254 when +0x1424c; mirrored unless facing 3) or 4000 apart when
+ * `spread`; the leader leads, the others `lead` (+0x20 = 4); returns 0 */
+int scene_party_gather(wl_event *ev, int32_t lead, int32_t dir, int32_t spread, int32_t use_x, int32_t x);
+/* 0x41a2a0 (thiscall runner): the Yes / No choice (+0x20 = 5): 14 yes, 15 no, 6 the scene ended */
+int scene_yes_no(wl_event *ev);
+/* 0x431d10 (thiscall runner): a device `code` / `handle` / `kind` in the first free actor slot at (dx, dy), or
+ * relative to map actor `near` (its x, its bottom); NULL without a free slot / that actor */
+wl_actor *scene_device_spawn(wl_event *ev, int32_t handle, uint32_t code, int32_t near, int32_t dx, int32_t dy,
+                             int32_t kind);
 
 #endif /* OSS_SCENE_CMD_H */

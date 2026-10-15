@@ -442,6 +442,68 @@ found:
     return script_wait(ev);
 }
 
+int item_give(wl_event *ev, int32_t what, int32_t n, int32_t say, int32_t *got)
+{
+    char buf[512], coins[512];
+    int r = 0;
+    uint8_t *room = (uint8_t *)ev->room;
+    if (what == 1 || what == 2 || what == 3) {   /* coins: n, 10 n, 100 n CP */
+        int32_t amt = what == 1 ? n : what == 2 ? 10 * n : 100 * n;
+        strcpy(coins, S(what == 1 ? 0x8545f4u : what == 2 ? 0x854604u : 0x854614u));
+        if (amt > 0 && ld32(room, 0x4020) <= ld32(room, 0x4014)) {   /* at the cap: silently not taken */
+            if (got != NULL) *got = 0;
+            goto out;
+        }
+        int32_t g = ld32(room, 0x4014) + amt;
+        st32(room, 0x4014, g);
+        if (amt > 0) {
+            if (ld32(room, 0x4020) < g) g = ld32(room, 0x4020);
+            st32(room, 0x4014, g);
+            uint32_t t = (uint32_t)amt + (uint32_t)ld32(room, 0x40bc);
+            st32(room, 0x40bc, t > 0x7fffffffu ? 0x7fffffff : (int32_t)t);
+        }
+        if (say != 0) {
+            g_eng.h5bf3ee(buf, S(0x8545e0u), n, coins);   /* "You obtained %d %s." */
+            scene_msg(ev, 3, NULL, buf, 0, 1, 0, NULL, 0, 0, 0);
+            if ((r = script_wait(ev)) == 6) return r;
+        }
+        if (got != NULL) *got = 1;
+        goto out;
+    }
+    {
+        /* (an unknown id: retail reads its record through NULL — an access violation there too) */
+        const volatile uint8_t *def = item_def(what);
+        int32_t id = ld32((const void *)def, 0);
+        uint16_t cnt = ld16(room, 0x4010);
+        const uint8_t *d2 = cnt < 0x200 ? item_def(id) : NULL;
+        if (d2 == NULL || (item_kind(d2) == 1 && room_items_of_kind(ev->room, 1, 1) >= 48)) {
+            if (say != 0) {
+                /* "However, your inventory is full, and you could not bring it with you." */
+                scene_msg(ev, 3, NULL, S(0x854584u), 0, 1, 0, NULL, 0, 0, 0);
+                if ((r = script_wait(ev)) == 6) return r;
+            }
+            if (got != NULL) *got = 0;
+            goto out;
+        }
+        uint8_t *rec = room + 0x2010 + 16u * cnt;
+        st32(rec, 0, id);
+        stp(rec, 0xc, d2);
+        st16(rec, 8, n > 0 ? (uint16_t)n : ld16(d2, 0x64));
+        st32(rec, 4, 0);
+        rec[0xa] = 0;
+        st16(room, 0x4010, (uint16_t)(ld16(room, 0x4010) + 1));
+        if (say != 0) {
+            g_eng.h5bf3ee(buf, S(0x8545ccu), (const char *)def + 4);   /* "You obtained %s." */
+            scene_msg(ev, 3, NULL, buf, 0, 1, 0, NULL, 0, 0, 0);
+            if ((r = script_wait(ev)) == 6) return r;
+        }
+        if (got != NULL) *got = 1;
+    }
+out:
+    if (say != 0) st32(ev, 0x2e4, 1);   /* the scene mark */
+    return r;
+}
+
 int furniture_search(wl_event *ev, wl_entity *a, const char *where)
 {
     if (ld32(a, 0x2cc) == 0) return 0;

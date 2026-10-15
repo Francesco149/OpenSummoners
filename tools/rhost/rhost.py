@@ -465,13 +465,15 @@ VERIFY_HOOKS = ["rand", "input_poll", "mover_v", "sweep_h", "ent_move_h", "ent_m
                 "notice_tick", "hud_ease", "stats_mp_ratio", "hud_status_icon", "hud_status_drop", "hud_view_tick",
                 "view_box_visible", "screen_step",
                 "item_kind", "room_items_of_kind", "room_items_stored", "key_token_replace", "menu_msg_set",
-                "msg_window_open", "sys_msg_style", "item_list_fill"]
+                "msg_window_open", "sys_msg_style", "item_list_fill",
+                "cast_cmd_clear", "scene_cast_to", "scene_cast_to_rec", "scene_cast_step", "scene_party_gather",
+                "scene_device_spawn", "char_unload", "script_switch"]
 # REPLACE-only hooks (a whole room per call / DirectInput): proven by `corpus --check --hook replace:…`
 REPLACE_ONLY_HOOKS = ["room_loop", "input_repoll_flush", "load_room", "scene_loop", "menu_pace", "menu_run",
                       "shop_run", "shop_buy", "shop_who", "menu_ctx_clear", "scene_run",
                       "world_new", "world_free",
                       "menu_party_close", "msg_pages", "storage_deposit", "storage_withdraw", "storage_run",
-                      "item_find", "furniture_search"]   # (their shadows skip: the grid's 2.9 MB block moves the arena commit)
+                      "item_find", "furniture_search", "scene_yes_no", "item_give"]   # (their shadows skip: the grid's 2.9 MB block moves the arena commit)
 # name@N = shadow every Nth call (the full-state shadows cost ~10-20 ms per compared call)
 
 

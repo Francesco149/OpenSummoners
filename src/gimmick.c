@@ -35,6 +35,7 @@ static int32_t iabs(int32_t v) { return v < 0 ? (int32_t)(0u - (uint32_t)v) : v;
 static int32_t sfx_volume(void) { return (**g_eng.keycfg)->sfx_volume; }
 static void *sysp(uint32_t off) { void *p; memcpy(&p, (const uint8_t *)g_eng.sys + off, sizeof p); return p; }
 static void put32(uint8_t *p, uint32_t off, int32_t v) { memcpy(p + off, &v, 4); }
+static int32_t get32(const void *p, uint32_t off) { int32_t v; memcpy(&v, (const uint8_t *)p + off, 4); return v; }
 static wl_pslot *char_slot(const wl_char *c) { return (wl_pslot *)(intptr_t)c->fc794; }
 
 /* is character `c` its room's leader? (the 0x5567a0 / 0x5568e0 check) */
@@ -334,6 +335,28 @@ int actor_switch_off(wl_actor *a)
         }
     }
     apply_step(a, b, 0);
+    return 1;
+}
+
+int script_switch(int32_t code, int32_t on)
+{
+    wl_actor *a = NULL;
+    for (unsigned k = 0; k < 128; k++) {
+        const wl_entity *e = g_world->actors[k];
+        if (e->alive != 0 && get32(e, 0x278) != 0 && (get32(e, 0x274) == code || code == 0)) {
+            a = (wl_actor *)g_world->actors[k];
+            break;
+        }
+    }
+    if (a == NULL) return 0;
+    if (on == 0) {
+        switch_set(a, 0, 1);
+        return 1;
+    }
+    wl_body *b = a->base.body;
+    if (a->base.f00c == 1) return 1;
+    switch_effect(a, b, 1, a->base.f00c, BY_STEP);   /* (the 70230 hold needs state 1: never here) */
+    apply_step(a, b, 1);
     return 1;
 }
 
