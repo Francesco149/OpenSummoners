@@ -42,7 +42,7 @@
  *   FUN_00562ba0  session_end          FUN_00585000  area_xref
  *   FUN_00562a70  frame_cache_clear    FUN_005b6300  file_read_section
  *   FUN_00562e60  pool_obj_delete      FUN_00562e40  world_delete
- *   FUN_0055f790  room_to_scene
+ *   FUN_0055f790  room_to_scene        FUN_0059cfc0  scene_start
  */
 #ifndef OSS_SCENE_LOOP_H
 #define OSS_SCENE_LOOP_H
@@ -93,5 +93,9 @@ void world_delete(wl_world *w, int32_t flags);                       /* 0x562e40
  * (+0x20a4 + 0x11c x k: id, code, leader, stats, skills, ...; its 12-byte skill records and the
  * 16-byte equipment marks of 0x628708's 18 rows at +0x2984 + 0x420 x k), the fill table, the flags */
 void room_to_scene(const wl_room *r, uint8_t *so);
+/* 0x59cfc0 (stdcall): a scene starts in this room: with `zone`, the next area = this map at that gate
+ * with the leader's facing; with `retry`, it is also the retry point (+0x40d0); the room's actor
+ * states saved (the 0x58e330 loop inlined) and the room snapshot into the scene object */
+int scene_start(uint8_t *scene, wl_room *r, int32_t zone, int32_t retry);
 
 #endif /* OSS_SCENE_LOOP_H */

@@ -7,7 +7,7 @@ own engine callees ported, so it can land today with zero new dependencies. Sort
 
 For the *forward* port path (the title-menu scene runner and what it calls) and the semantic milestone order, see `ROADMAP.md` — some of that path isn't yet reachable from ported code so won't appear here.
 
-- frontier functions: **354**
+- frontier functions: **353**
 - of those, zero-dependency **leaves: 183** (recommended order below)
 
 ## Leaf shortlist — portable today (top 40 by ported-caller count)
@@ -216,12 +216,11 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x47ecd0 | 2303 | 1 | 7 |  |
 | 0x4710c0 | 20681 | 1 | 37 |  |
 
-### char anim + hit-test/knockback + GDI glyph + sfx trigger (28)
+### char anim + hit-test/knockback + GDI glyph + sfx trigger (27)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
 | 0x482380 | 217 | 1 | 0 | ✓ |
-| 0x4842c0 | 244 | 1 | 0 | ✓ |
 | 0x48e100 | 246 | 1 | 0 | ✓ |
 | 0x482240 | 310 | 1 | 0 | ✓ |
 | 0x48c6b0 | 359 | 1 | 0 | ✓ |
@@ -234,7 +233,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x48d710 | 550 | 1 | 0 | ✓ |
 | 0x483b50 | 600 | 1 | 1 |  |
 | 0x484530 | 740 | 1 | 3 |  |
-| 0x483fb0 | 784 | 1 | 8 |  |
+| 0x483fb0 | 784 | 1 | 7 |  |
 | 0x485990 | 793 | 1 | 6 |  |
 | 0x482ac0 | 844 | 1 | 3 |  |
 | 0x48cb90 | 1005 | 1 | 0 | ✓ |
@@ -284,7 +283,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x496ec0 | 1756 | 1 | 2 |  |
 | 0x49af40 | 3313 | 1 | 4 |  |
 
-### scene-event dispatch (narrative scripting) + party/inventory (17)
+### scene-event dispatch (narrative scripting) + party/inventory (18)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
@@ -305,6 +304,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x4a5ee0 | 72 | 1 | 1 |  |
 | 0x4cc0e0 | 360 | 1 | 5 |  |
 | 0x4cca70 | 453 | 1 | 1 |  |
+| 0x4a63d0 | 706 | 1 | 0 | ✓ |
 
 ### narrative scene FSM + dungeon/encounter driver (sparse) (7)
 
@@ -390,11 +390,10 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x583c90 | 580 | 1 | 0 | ✓ |
 | 0x583fe0 | 979 | 1 | 13 |  |
 
-### inventory/menu + audio cue mgr + render dispatch + scene load (17)
+### inventory/menu + audio cue mgr + render dispatch + scene load (16)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
-| 0x59cfc0 | 405 | 2 | 1 |  |
 | 0x59a910 | 302 | 1 | 0 | ✓ |
 | 0x59d540 | 334 | 1 | 4 |  |
 | 0x590480 | 465 | 1 | 4 |  |

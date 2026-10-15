@@ -14,6 +14,7 @@
 #include "entity_life.h"
 #include "entity_move.h"
 #include "event.h"
+#include "npc_ai.h"
 #include "party_member.h"
 #include "room_load.h"
 #include "sprite_slot.h"
@@ -774,6 +775,22 @@ void room_to_scene(const wl_room *r, uint8_t *so)
     }
 }
 
+int scene_start(uint8_t *scene, wl_room *r, int32_t zone, int32_t retry)
+{
+    int32_t face = 1;
+    int32_t map = ld32((*g_eng.world)->roominfo, 0);
+    if (r->leader != NULL && r->leader->ch != NULL) face = part_facing(&r->leader->ch->base, 0);
+    if (zone != 0) room_next_set(r, map, zone, face);
+    if (retry != 0) {
+        st32(r, 0x40d0, ld32(r, 0x4024));
+        st32(r, 0x40d4, ld32(r, 0x4028));
+        st32(r, 0x40d8, ld32(r, 0x402c));
+    }
+    room_state_save(ldp(r, 0x40ac));
+    room_to_scene(r, scene);
+    return 0;
+}
+
 /* ---- the save reader ---- */
 
 int file_read_section(void *rd, void *dst, int32_t n, uint32_t cap)
@@ -1000,7 +1017,7 @@ int32_t scene_loop(uint8_t *ss, int32_t save, uint16_t sub, int32_t demo, int32_
             st32(r, 0x40b0, (int32_t)d);
             uint8_t *sc = g_eng.op_new(0xe290);
             if (sc != NULL) sc = scene_obj_init(sc);
-            g_eng.h59cfc0(sc, r, 0, 0);
+            scene_start(sc, r, 0, 0);
             g_eng.h41a890(sc, 10030, 0, 0, 0);
             if (sc != NULL) g_eng.op_delete(sc);
             break; }

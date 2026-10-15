@@ -100,7 +100,7 @@ typedef struct {
     X(H_SL_RLFREE, "roomloop_free", 0x585f00u) X(H_SL_SEND, "session_end", 0x562ba0u) X(H_SL_XREF, "area_xref", 0x585000u) \
     X(H_SL_FCACHE, "frame_cache_clear", 0x562a70u) X(H_SL_FREAD, "file_read_section", 0x5b6300u) \
     X(H_SL_POBJDEL, "pool_obj_delete", 0x562e60u) X(H_SL_WDEL, "world_delete", 0x562e40u) \
-    X(H_SL_TOSC, "room_to_scene", 0x55f790u) \
+    X(H_SL_TOSC, "room_to_scene", 0x55f790u) X(H_SL_SSTART, "scene_start", 0x59cfc0u) \
     X(H_PA_BYID, "pslot_by_id", 0x413b20u) X(H_PA_DRAM, "dramatist_row", 0x409090u) X(H_PA_ALV, "area_level_row", 0x41dc40u) \
     X(H_PA_HEAL, "pslot_heal", 0x408d40u) X(H_PA_LEVEL, "room_party_level", 0x408dc0u) X(H_PA_INIT, "pslot_init", 0x4c5e00u) \
     X(H_PA_SKL, "member_skills_learn", 0x4c6160u) X(H_PA_GRANT, "room_items_grant", 0x4c6990u) \
@@ -112,7 +112,7 @@ typedef struct {
     X(H_PA_LEAVE, "room_member_leave", 0x4c63a0u) X(H_PA_JOIN, "room_member_join", 0x4c6550u) \
     X(H_PA_ADD, "room_member_add", 0x4cc820u) X(H_PA_IADD, "room_item_add", 0x415e20u) \
     X(H_PA_SROW, "stat_row_find", 0x4090e0u) X(H_PA_PROF, "char_profile_find", 0x4c6110u) \
-    X(H_PA_RECOMP, "stats_recompute", 0x4066d0u) \
+    X(H_PA_RECOMP, "stats_recompute", 0x4066d0u) X(H_PFACE, "part_facing", 0x4842c0u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
 
@@ -3202,6 +3202,7 @@ TC_HOOK(H_SL_FREAD, "file_read_section", 3, 0, return file_read_section(self, (v
 TC_HOOK(H_SL_POBJDEL, "pool_obj_delete", 1, 0, pool_obj_delete(self, a1); return (intptr_t)self)
 TC_HOOK(H_SL_WDEL, "world_delete", 1, 0, world_delete(self, a1); return (intptr_t)self)
 TC_HOOK(H_SL_TOSC, "room_to_scene", 1, 0, room_to_scene(self, (uint8_t *)a1); return 0)
+ST_HOOK(H_SL_SSTART, "scene_start", 4, 0, return scene_start((uint8_t *)a1, (wl_room *)a2, a3, a4))
 /* the party API (src/party_member.c) */
 TC_HOOK(H_PA_BYID, "pslot_by_id", 2, 1, return (intptr_t)pslot_by_id(self, a1, a2))
 ST_HOOK(H_PA_DRAM, "dramatist_row", 1, 1, return (intptr_t)dramatist_row(a1))
@@ -3229,6 +3230,7 @@ TC_HOOK(H_PA_IADD, "room_item_add", 5, 1, return room_item_add(self, a1, (uint16
 ST_HOOK(H_PA_SROW, "stat_row_find", 2, 1, return (intptr_t)stat_row_find(a1, a2))
 ST_HOOK(H_PA_PROF, "char_profile_find", 1, 1, return (intptr_t)char_profile_find(a1))
 TC_HOOK(H_PA_RECOMP, "stats_recompute", 3, 0, stats_recompute(self, a1, (uint8_t *)a2, CP(a3)); return 0)
+TC_HOOK(H_PFACE, "part_facing", 1, 1, return part_facing(self, a1))
 /* the scene loop itself — REPLACE only (a whole session per call) */
 typedef int32_t (__attribute__((thiscall)) *scloop_t)(uint8_t *, int32_t, uint32_t, int32_t, int32_t *, int32_t);
 static int32_t __attribute__((thiscall)) w_scloop(uint8_t *ss, int32_t save, uint32_t sub, int32_t demo, int32_t *out, int32_t start)
@@ -3503,7 +3505,7 @@ static void bind_engine_calls(void)
     B(40ac90); B(55cfc0); B(54ed80); B(468b10); B(5bc0c0); B(409520);
     B(5b1030); B(48c150); B(495e40); B(59d160); B(59aa40); B(58ffa0); B(590480); B(590f20); B(590ca0); B(59d540);
     B(591120); B(562a70); B(58ffc0); B(59a910); B(415350); B(590230); B(59c750); B(59ca90); B(59ad60); B(5908a0);
-    B(499ab0); B(4842c0); B(41a7f0); B(59cfc0);
+    B(499ab0);
     *(void **)&g_eng.flip_5b8fc0  = g_rh_flip_stub;    /* the virtual clock steps there */
     *(void **)&g_eng.easer_43d1d0 = g_rh_easer_stub;   /* the tick count (+ a camera hook chained behind) */
     B(5ba120); B(5ba290);

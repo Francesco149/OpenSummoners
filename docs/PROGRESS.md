@@ -17,6 +17,8 @@ specific commits where relevant.
   stat row 6 / init 3 / skills 3 / items 3 / leader 3 / heal 3), 0 divergences; the rest (join /
   leave / equip / add / dismiss) unreached by the corpus.  Hybrid gate: 292 hooks, PASS.
 - + the stats recompute 0x4066d0 (`stats_recompute`, with the equip preview; 1 shadowed); hybrid 293.
+- + the scene start 0x59cfc0 (`scene_start`: room_state_save + room_to_scene reused; 8 shadowed), a part's
+  facing 0x4842c0 (8), the room loop's scene object ctor slot retired (scene_obj_init); hybrid 295.
 
 ## 2026-10-15 (dawn) — the SCENE LOOP 0x59f2c0 runs as port code
 

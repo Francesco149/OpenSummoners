@@ -7,15 +7,15 @@
 ## Port coverage (engine-proper functions of `sotes.exe`)
 
 ```
-███████░░░░░░░░░░░░░  36.7% touched   (15.8% host-tested, 30.1% of code bytes)
+███████░░░░░░░░░░░░░  36.8% touched   (15.8% host-tested, 30.2% of code bytes)
 ```
 
 | status      | count | what it means                                          |
 |-------------|------:|--------------------------------------------------------|
 | tested      |   250 | ported + module covered by the host unit suite       |
-| ported      |   325 | reimplemented in src/, no host test for that module  |
-| **touched** | **575** | tested + ported (FUN_ provenance ref in src/)    |
-| unported    |  1249 | exists in engine, never referenced from src/         |
+| ported      |   327 | reimplemented in src/, no host test for that module  |
+| **touched** | **577** | tested + ported (FUN_ provenance ref in src/)    |
+| unported    |  1247 | exists in engine, never referenced from src/         |
 
 **Denominator note (read this before judging the %):** the headline % is over
 **engine-proper** functions — the **1532** below
@@ -26,7 +26,7 @@ those like retail rather than porting them (PLAN.md §2-3), so counting them
 would bury real progress. Full table is **1824** non-thunk
 functions (of 1824 incl. thunks).
 
-Code-byte coverage (30.1% of engine-proper bytes) is the truer progress
+Code-byte coverage (30.2% of engine-proper bytes) is the truer progress
 signal: the engine has a long tail of tiny leaf helpers, so function count
 understates how much actual instruction volume is ported.
 
@@ -96,7 +96,8 @@ understates how much actual instruction volume is ported.
   | the room → scene snapshot (what a save stores: room fields, play time, items, members, fill table, flags) | `0x55f790` | 11 | 0 |
   | the PARTY API (the story setups by start area, start members from the config, levels, slot init, skills, starting items, leader, join / leave / dismiss, equip + stat refresh, class fit, item add) | `0x4c5350` `0x4e59a0` `0x408dc0` `0x4c5e00` `0x4c6160` `0x4c6990` `0x4c6830` `0x413b20` `0x408d40` … (25) | 6 / 6 / 6 / 3 / 3 / 3 / 3 / 6 / 3 … (11 of 25 reached: the new-game path) | 0 |
   | the member stats recompute (base + items, with an equip-preview item) | `0x4066d0` | 1 | 0 |
-  Hybrid gate: with all of the above REPLACING retail (293 hooks) (the whole character tick, driver → tile
+  | the scene start (next area / retry point, actor states, room snapshot) + a part's facing | `0x59cfc0` / `0x4842c0` | 8 / 8 | 0 |
+  Hybrid gate: with all of the above REPLACING retail (295 hooks) (the whole character tick, driver → tile
   movers, + the room loop's passes and per-tick calls, runs as port code), every corpus scenario ends byte-identical.
   Shadow guard (rhost): a port phase that reaches an external effect retail already performed (surface free,
   buffer release, DeleteObject, DirectInput, a mode-0/2 script) aborts its comparison (counted skipped); those

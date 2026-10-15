@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **575** (36.7% of engine-proper) — tested 250, ported 325
-- code bytes touched: **30.1%** (535,056 / 1,776,526 B of engine-proper)
-- unported: **1249**
+- touched: **577** (36.8% of engine-proper) — tested 250, ported 327
+- code bytes touched: **30.2%** (535,705 / 1,776,526 B of engine-proper)
+- unported: **1247**
 - orphan refs in src/ not in this table: 0
 
 ## tested (250) — ported + host unit suite
@@ -274,7 +274,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (325) — reimplemented, no host test yet
+## ported (327) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -463,6 +463,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x47e790 | sub_47E790 | 37 | npc_ai.h |
 | 0x4804b0 | sub_4804B0 | 207 | gimmick.h |
 | 0x4812c0 | sub_4812C0 | 79 | gimmick.h |
+| 0x4842c0 | sub_4842C0 | 244 | npc_ai.h |
 | 0x484bf0 | sub_484BF0 | 31 | behave_ops.h |
 | 0x484c10 | sub_484C10 | 322 | behave_ops.h |
 | 0x4852c0 | sub_4852C0 | 37 | behave_ops.h |
@@ -579,6 +580,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x59bdd0 | sub_59BDD0 | 1129 | gimmick.h |
 | 0x59c240 | sub_59C240 | 929 | gimmick.h |
 | 0x59ca10 | sub_59CA10 | 114 | room_loop.h |
+| 0x59cfc0 | sub_59CFC0 | 405 | scene_loop.h |
 | 0x59d3f0 | sub_59D3F0 | 323 | room_loop.h |
 | 0x59db70 | sub_59DB70 | 227 | room_load.h |
 | 0x59e1a0 | sub_59E1A0 | 34 | scene_loop.h |

@@ -38,6 +38,18 @@ int32_t part_center_y(const wl_entity *e, uint16_t part)
 int32_t part_width(const wl_entity *e, uint16_t part) { return part_of(e, part)->w; }
 static int32_t part_top(const wl_entity *e, uint16_t part) { const wl_body *p = part_of(e, part); return p->y + p->margin; }
 
+int32_t part_facing(const wl_entity *e, int32_t part)
+{
+    int32_t i = part;
+    if (part >= e->nbody) {   /* "GetHeadLeftRight State Count Over." + the code, to the error log */
+        char buf[256];
+        i = 0;
+        g_eng.h5bf3ee(buf, (const char *)g_eng.data(0x854540u), e->code);
+        g_eng.log_fail_406440(g_eng.log, (const char *)g_eng.data(0x85451cu), buf);
+    }
+    return e->body[i].facing;
+}
+
 int grid_c_query(const uint8_t *grid, int32_t x, int32_t y, int32_t *out)
 {
     int32_t v; memcpy(&v, grid + MG_DIM0, 4);

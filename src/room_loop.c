@@ -13,6 +13,7 @@
 #include "char_behave.h"
 #include "char_physics.h"
 #include "engine_calls.h"
+#include "scene_loop.h"
 #include "entity_fx.h"
 #include "entity_move.h"
 #include "gimmick.h"
@@ -782,12 +783,12 @@ int room_loop_run(wl_roomloop *rl)
             }
             int32_t zone;
             if (zone_pass(&rl->zones, now, g_world->room, &rl->scene_ev, &rl->scene_arg, &zone, g_world->f2768) != 0) {
-                rl->scene_face = g_eng.h4842c0(g_world->room->leader->ch, 0);
+                rl->scene_face = part_facing(&g_world->room->leader->ch->base, 0);
                 if (rl->scene == NULL) {
                     void *o = g_eng.op_new(0xe290);
-                    rl->scene = o != NULL ? (void *)(intptr_t)g_eng.h41a7f0(o) : NULL;
+                    rl->scene = o != NULL ? (void *)scene_obj_init(o) : NULL;
                 }
-                g_eng.h59cfc0(rl->scene, g_world->room, zone, g_world->scene_kind == 2);
+                scene_start(rl->scene, g_world->room, zone, g_world->scene_kind == 2);
                 return 1;
             }
         }

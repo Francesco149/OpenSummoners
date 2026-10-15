@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 250,
-  "ported": 325,
-  "unported": 1249,
+  "ported": 327,
+  "unported": 1247,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 575,
-  "pct_touched": 36.7,
+  "touched": 577,
+  "pct_touched": 36.8,
   "pct_tested": 15.8,
-  "engine_proper_touched": 562,
+  "engine_proper_touched": 564,
   "bytes_total": 1776526,
-  "bytes_touched": 535056,
-  "pct_bytes_touched": 30.1
+  "bytes_touched": 535705,
+  "pct_bytes_touched": 30.2
  },
  "orphan_refs": [],
  "functions": [
@@ -5739,8 +5739,10 @@
    "name": "sub_4842C0",
    "size": 244,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/npc_ai.h"
+   ]
   },
   {
    "va": "0x4843c0",
@@ -11118,8 +11120,10 @@
    "name": "sub_59CFC0",
    "size": 405,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_loop.h"
+   ]
   },
   {
    "va": "0x59d160",
