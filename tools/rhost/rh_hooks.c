@@ -58,6 +58,7 @@
 #include "ui_text.h"
 #include "ui_menu.h"
 #include "scene_box.h"
+#include "scene_cast.h"
 #include "ui_run.h"
 #include "glyph_text.h"
 #include "engine_calls.h"
@@ -185,6 +186,8 @@ typedef struct {
     X(H_UC_IALPHA, "cell_icon_alpha", 0x43d470u) X(H_UC_BSTYLE, "sys_balloon_style", 0x43e0e0u) \
     X(H_UC_XSTYLE, "sys_box_style", 0x43e080u) X(H_VPROJ, "view_project", 0x490b90u) X(H_SB_PLACE, "box_place", 0x49c640u) \
     X(H_SB_FADE, "box_fade_tick", 0x49c910u) \
+    X(H_SC_NEAR, "body_near_x", 0x441f00u) X(H_SC_FCMD, "cast_face_cmd", 0x442600u) X(H_SC_DFS, "path_dfs", 0x43f370u) \
+    X(H_SC_PATH, "path_search", 0x43ef20u) X(H_SC_STEP, "cast_step", 0x43e5b0u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
 
@@ -3657,6 +3660,13 @@ TC_HOOK(H_UC_XSTYLE, "sys_box_style", 1, 1, return (intptr_t)sys_box_style(self,
 ST_HOOK(H_SB_PLACE, "box_place", 8, 0,
         return box_place(a1, (uint8_t *)a2, a3, (uint8_t *)a4, (uint8_t *)a5, CP(a6), a7, a8))
 ST_HOOK(H_SB_FADE, "box_fade_tick", 1, 0, return box_fade_tick((uint8_t *)a1))
+/* chip 4b: the cast step + its path search (src/scene_cast.c) */
+ST_HOOK(H_SC_NEAR, "body_near_x", 2, 1, return body_near_x(CP(a1), a2))
+ST_HOOK(H_SC_FCMD, "cast_face_cmd", 3, 1, return cast_face_cmd(CP(a1), a2, (wl_cmd *)a3))
+TC_HOOK(H_SC_DFS, "path_dfs", 7, 1, return path_dfs(self, a1, a2, a3, (uint16_t *)a4, a5, a6, (uint16_t *)a7))
+TC_HOOK(H_SC_PATH, "path_search", 12, 1,
+        return path_search(self, a1, a2, a3, a4, a5, a6, a7, a8, (uint8_t *)a9, (uint16_t *)a10, (path_rec *)a11, a12))
+TC_HOOK0(H_SC_STEP, "cast_step", 1, return cast_step(self))
 /* 0x490b90 (thiscall view, 9 args): the screen point lands in the caller's (stack) out-params */
 typedef intptr_t (__attribute__((thiscall)) *vproj_t)(void *, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t,
                                                       intptr_t, intptr_t, intptr_t);
@@ -4007,7 +4017,7 @@ static void bind_engine_calls(void)
     B(56dc20); B(41a890); B(5bf3ee); B(426110); B(560900); B(5bf5db);
     B(428c00); B(429060); B(429db0); B(42a500); B(42a9a0); B(42b9a0); B(42c130); B(42c510); B(42c970);
     B(42cce0); B(42d3c0); B(42da50); B(42e290); B(42f840); B(42fbf0); B(42ff00); B(430400);
-    B(5bcfb0); B(405e80); B(55d140); B(47ae00); B(5b1f10); B(4034f0); B(4051d0); B(415ae0); B(4192f0); B(418ec0);
+    B(5bcfb0); B(405e80); B(55d140); B(47ae00); B(5b1f10); B(4034f0); B(4051d0); B(415ae0); B(4192f0); B(418ec0); B(441de0); B(442710); B(442640);
     B(561d20); B(409150); B(55fdb0); B(41d780); B(4e6520); B(4e61d0); B(41b670); B(4c5af0); B(52fd80); B(5a3870); B(5a00c0);
     B(5a3670); B(56c640); B(5b6060); B(5b60d0); B(5b61b0); B(5b6200); B(5b6bc0); B(5b6340); B(5b64b0);
     B(41cfd0);

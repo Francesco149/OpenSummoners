@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 443,
-  "unported": 1132,
+  "ported": 448,
+  "unported": 1127,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 692,
-  "pct_touched": 44.3,
+  "touched": 697,
+  "pct_touched": 44.6,
   "pct_tested": 15.7,
-  "engine_proper_touched": 679,
+  "engine_proper_touched": 684,
   "bytes_total": 1776526,
-  "bytes_touched": 573418,
-  "pct_bytes_touched": 32.3
+  "bytes_touched": 578046,
+  "pct_bytes_touched": 32.5
  },
  "orphan_refs": [],
  "functions": [
@@ -3731,8 +3731,10 @@
    "name": "sub_43E5B0",
    "size": 2120,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_cast.h"
+   ]
   },
   {
    "va": "0x43ee30",
@@ -3749,16 +3751,20 @@
    "name": "sub_43EF20",
    "size": 1091,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_cast.h"
+   ]
   },
   {
    "va": "0x43f370",
    "name": "sub_43F370",
    "size": 1284,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_cast.h"
+   ]
   },
   {
    "va": "0x43f880",
@@ -3878,8 +3884,10 @@
    "name": "sub_441F00",
    "size": 80,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_cast.h"
+   ]
   },
   {
    "va": "0x441f50",
@@ -3913,8 +3921,10 @@
    "name": "sub_442600",
    "size": 53,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_cast.h"
+   ]
   },
   {
    "va": "0x442640",

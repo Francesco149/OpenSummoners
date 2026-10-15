@@ -7,8 +7,8 @@ own engine callees ported, so it can land today with zero new dependencies. Sort
 
 For the *forward* port path (the title-menu scene runner and what it calls) and the semantic milestone order, see `ROADMAP.md` — some of that path isn't yet reachable from ported code so won't appear here.
 
-- frontier functions: **358**
-- of those, zero-dependency **leaves: 139** (recommended order below)
+- frontier functions: **361**
+- of those, zero-dependency **leaves: 142** (recommended order below)
 
 ## Leaf shortlist — portable today (top 40 by ported-caller count)
 
@@ -117,18 +117,21 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
 | 0x430400 | 5039 | 1 | 0 | ✓ |
-| 0x439690 | 8866 | 1 | 15 |  |
+| 0x439690 | 8866 | 1 | 14 |  |
 
-### entity per-frame FSM + action handlers + dialog + skills (18)
+### entity per-frame FSM + action handlers + dialog + skills (21)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
+| 0x441f50 | 1284 | 2 | 1 |  |
 | 0x445ce0 | 67 | 1 | 0 | ✓ |
+| 0x442640 | 200 | 1 | 0 | ✓ |
 | 0x445e50 | 246 | 1 | 0 | ✓ |
+| 0x441de0 | 274 | 1 | 0 | ✓ |
 | 0x4466b0 | 276 | 1 | 0 | ✓ |
+| 0x442710 | 374 | 1 | 0 | ✓ |
 | 0x44bf60 | 751 | 1 | 7 |  |
 | 0x44bc10 | 819 | 1 | 6 |  |
-| 0x441f50 | 1284 | 1 | 1 |  |
 | 0x44a200 | 1338 | 1 | 10 |  |
 | 0x44d2e0 | 1528 | 1 | 8 |  |
 | 0x4484b0 | 1894 | 1 | 7 |  |
@@ -197,13 +200,13 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x48c6b0 | 359 | 1 | 0 | ✓ |
 | 0x4854e0 | 388 | 1 | 0 | ✓ |
 | 0x485350 | 391 | 1 | 0 | ✓ |
-| 0x483de0 | 446 | 1 | 2 |  |
+| 0x483de0 | 446 | 1 | 1 |  |
 | 0x482e10 | 501 | 1 | 7 |  |
 | 0x482880 | 532 | 1 | 5 |  |
 | 0x482460 | 536 | 1 | 5 |  |
 | 0x48d710 | 550 | 1 | 0 | ✓ |
 | 0x483b50 | 600 | 1 | 1 |  |
-| 0x484530 | 740 | 1 | 3 |  |
+| 0x484530 | 740 | 1 | 1 |  |
 | 0x483fb0 | 784 | 1 | 7 |  |
 | 0x485990 | 793 | 1 | 6 |  |
 | 0x482ac0 | 844 | 1 | 3 |  |

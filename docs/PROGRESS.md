@@ -6,6 +6,18 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-16 — the cutscene runner, chip 4b: the cast step + the path search (`src/scene_cast.c`)
+
+- The per-frame step of every scripted cast character `0x43e5b0` (walk to a point: plan with the path search,
+  walk each step with the NPC navigator, teleport when late / pathless; face; wait for the action; stance /
+  pose skills), the path search `0x43ef20` + its cost-bounded DFS `0x43f370` over grid regions D (walls /
+  slopes) and E (link cells) — the path finder object world+0x1050 now a struct (`path_finder`, 0xa52c B), and
+  the small checks `0x441f00` / `0x442600`.  Slots: the walk-off `0x441de0`, the link jump `0x442710`, the
+  swimmer / flyer walk `0x442640` (unreached).  Quirk #153.
+- rhost: cast_step 635 (the subtree inside), path_search 220, body_near_x 359, cast_face_cmd 139 — 0
+  divergences over the three in-game scenarios; REPLACE: cast_step 399 in rh-my-play; hybrid gate 440 PASS.
+  Path coverage (traps): walk-to 579, face 43, wait 13; the stance / pose / timeout / no-path branches unreached.
+
 ## 2026-10-16 — the cutscene runner, chip 4a: the message box (`src/scene_box.c`) + the projector
 
 - Under the scene command runner `0x439690`: the message box's placement over the speaker `0x49c640` (the

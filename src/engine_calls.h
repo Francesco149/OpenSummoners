@@ -225,6 +225,9 @@ typedef struct engine_calls {
     /* the shop's (`this` = the menu context): the buy confirm 0x415ae0 (item, &record, ask), the sell list
      * 0x4192f0 (1), the "you cannot change equipment now" box 0x418ec0 (the slot) */
     eng_tc3 h415ae0; eng_tc1 h4192f0; eng_tc1 h418ec0;
+    /* the cast step's (`this` = the character): the walk-off 0x441de0 (body, loose), the link jump 0x442710
+     * (step index), the swimmer / flyer's walk 0x442640 (body, loose, x, y, facing) */
+    eng_tc2 h441de0; eng_tc1 h442710; eng_tc5 h442640;
 } engine_calls;
 
 extern engine_calls g_eng;

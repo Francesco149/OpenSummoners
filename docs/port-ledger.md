@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **692** (44.3% of engine-proper) — tested 249, ported 443
-- code bytes touched: **32.3%** (573,418 / 1,776,526 B of engine-proper)
-- unported: **1132**
+- touched: **697** (44.6% of engine-proper) — tested 249, ported 448
+- code bytes touched: **32.5%** (578,046 / 1,776,526 B of engine-proper)
+- unported: **1127**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (443) — reimplemented, no host test yet
+## ported (448) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -472,7 +472,10 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x43e0e0 | sub_43E0E0 | 87 | ui_core.h |
 | 0x43e140 | sub_43E140 | 266 | room_loop.h |
 | 0x43e3a0 | sub_43E3A0 | 516 | event.c, event.h |
+| 0x43e5b0 | sub_43E5B0 | 2120 | scene_cast.h |
 | 0x43ee30 | sub_43EE30 | 228 | npc_ai.h |
+| 0x43ef20 | sub_43EF20 | 1091 | scene_cast.h |
+| 0x43f370 | sub_43F370 | 1284 | scene_cast.h |
 | 0x43f880 | sub_43F880 | 5491 | npc_ai.c, npc_ai.h |
 | 0x440e40 | sub_440E40 | 239 | npc_ai.h |
 | 0x441270 | sub_441270 | 84 | npc_ai.h |
@@ -480,7 +483,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x441700 | sub_441700 | 466 | npc_ai.h |
 | 0x4418e0 | sub_4418E0 | 511 | npc_ai.h |
 | 0x441ae0 | sub_441AE0 | 749 | npc_ai.h |
+| 0x441f00 | sub_441F00 | 80 | scene_cast.h |
 | 0x442460 | sub_442460 | 38 | actor_update.c, actor_update.h |
+| 0x442600 | sub_442600 | 53 | scene_cast.h |
 | 0x442890 | sub_442890 | 54 | char_integrate.h |
 | 0x442920 | sub_442920 | 149 | char_integrate.h |
 | 0x4429c0 | sub_4429C0 | 86 | npc_ai.h |

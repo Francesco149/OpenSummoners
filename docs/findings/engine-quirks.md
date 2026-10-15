@@ -4717,6 +4717,35 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   = dy + y / 100 − (cur_y [+ shake y] + 100 · view +0x74) / 100; visible when the w x h box overlaps the
   viewport (+0x64 / +0x68).
 
+### #153 — the cutscene cast step: scripted walk / face / wait / stance / pose + the path search (port 2026-10-16)
+- **Per frame** (`0x43e5b0`, per cast character): the vertical mover runs first (`0x54e5c0`, delta 1; "loose" =
+  it returned 0), the key command is cleared, the time limit +0x15b88 counts +0x15b8c up ("late" at the
+  limit).  An AI state 1 / 7 hands the frame to the path follower `0x441f50` / the walk-off `0x441de0`.
+  "Ground" = move mode 0 (1..3: not; other modes leave it unset in retail — none exist).
+- **Commands** (+0x15b64): 2 face +0x15b74 (99 any): the walk key toward it until the facing matches; 3 wait
+  for the action: an action with under 200 left (act_len / 100 <= 1) is cut (pose 0, act_len 210, the rest
+  zeroed), then done once grounded-and-loose (not ground mode: at once); 4 stance / 5 pose: once (pose 0 and
+  (loose or not +0x15b9c)) or late or a non-ground mode, the skill key (+0x15b98, kind 900 / 210 with key 14
+  for the pose, record +0x15ba0, argument +0x15ba4); the pose then counts +0x15b6a past +0x15b94 completed
+  plays (+0x66 >= 1000) and ends when the body is idle; 1 walk to (+0x15b6c, +0x15b70).
+- **Walk**: late → (once) every AI field cleared and the body teleported to the target (or +0x15b80 / +0x15b84
+  when +0x15b7c), at rest with its region-C flags re-read and the action reset; late again → face, done.  Non
+  ground modes walk straight (`0x442640`).  Step 0 / 2 wait for "loose", 1 / 3 plan: the path (world+0x1050,
+  `0x43ef20`; check region C when the char's +0x15a90, its +0xc7ec is 0 and its party +0x45e is 0) into char
+  +0x142a0 / u16 +0x1429c; no path: a rider of a platform kind 3 (or 0 / 1 not its own +0x14238) walks off it
+  first (AI state 7, walk x = the target, step 2); else teleport to +0x15b80 / +0x15b84 (late phase 1).  Then
+  each walk step: within 1600 of the step's x (`0x441f00`: half the width + 1600 for bodies over 4000 wide) →
+  next step, else the NPC navigator (`0x43f880`, arrive 1600, the no-run flag); a link step → `0x442710`; the
+  last: navigate to the target x (arrive 800), then the facing (`0x442600`), done once under 10000 speed.
+- **Path search** (`0x43ef20` + the DFS `0x43f370`, cells of 3200, grid region D 0 open / 1 wall / 2 / 3
+  slopes / ladders, region E link cells 48 B {u16 count, +4 kind, (col, row) pairs}): start at the feet cell
+  (stepped off a slope top; one body-width right when only there the cell above is open), the goal cell; DFS
+  with a cost bound (64; each found path tightens it to its cost − 1 — the result is a cheapest one), cells
+  re-entered only at a lower cost, a cell needs ground (the cell below solid, not slope 1 here or above —
+  else only its links), horizontal steps toward the goal first (a slope cell moves the row), link jumps cost
+  4; the closest cell reached is searched instead when the goal is unreachable.  Output: the steps with
+  consecutive same-direction walks merged.
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

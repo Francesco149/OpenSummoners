@@ -52,9 +52,9 @@ names for the runner were 4 bytes off past +0x2e0, quirk #144)
    (DirectInput) stays a slot.
 4. the cutscene runner `0x439690` on top.  4a DONE 2026-10-16: the message box (`src/scene_box.c`: placement
    `0x49c640`, fade `0x49c910`), styles `0x43e0e0` / `0x43e080`, cell alpha `0x43d470`, the projector `0x490b90`;
-   hybrid 435, quirk #152.  4b next: the cast step `0x43e5b0` (the scripted walk / turn / stance / pose moves of
-   the cast: +0x15b64 the command, +0x15b68.. its state) + the path search `0x43ef20` / `0x43f370` (DFS over
-   grid region D) + `0x441f00` `0x442600`; slots `0x442710` `0x441de0` `0x442640` `0x441f50` (unreached).  4c: the
+   hybrid 435, quirk #152.  4b DONE: the cast step `0x43e5b0` + the path search `0x43ef20` / `0x43f370` +
+   `0x441f00` `0x442600` (`src/scene_cast.c`); slots `0x442710` `0x441de0` `0x442640` `0x441f50`; hybrid 440, quirk
+   #153.  4c next: the
    runner itself (REPLACE-only: render `0x48c150`, Flip, the pump `0x5b1030`, the GDI name label `0x43e250` stay
    slots; the unreached `0x43d830` `0x43dd30` `0x43d540` `0x43c1b0` `0x468970` `0x442920` too).
 Render / DirectDraw (`0x4178e0` `0x417c40` `0x418470` `0x4184a0` `0x4188b0`) stay platform slots.
