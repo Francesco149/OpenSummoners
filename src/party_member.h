@@ -48,6 +48,7 @@
  *   FUN_004e6070  room_party_dismiss   FUN_004c63a0  room_member_leave
  *   FUN_004c6550  room_member_join     FUN_004cc820  room_member_add
  *   FUN_00415e20  room_item_add        FUN_004066d0  stats_recompute
+ *   FUN_004078a0  item_def
  */
 #ifndef OSS_PARTY_MEMBER_H
 #define OSS_PARTY_MEMBER_H
@@ -87,6 +88,8 @@ void room_leader_set(wl_room *r, wl_pslot *s);                                  
 void room_story_setup(int32_t *key);                                                     /* 0x4c5350 */
 void room_story_setup2(int32_t *key);                                                    /* 0x4e59a0 */
 const uint8_t *skill_row_find(int32_t id);                                               /* 0x429d00 */
+/* 0x4078a0 (stdcall): the item table's (0x6c0cd0) 736-byte row `id` (the scan ends at a 0 key) */
+const uint8_t *item_def(int32_t id);
 int item_fits(const wl_pslot *s, const uint8_t *item);                                   /* 0x416420 */
 void pslot_status_set(wl_pslot *s, int32_t in, void *ch);                                /* 0x4e6030 */
 void pslot_revive_mark(wl_pslot *s);                                                     /* 0x4c6530 */

@@ -13,7 +13,8 @@
  *   FUN_00417440  money_value         FUN_00415990  room_item_count     FUN_00416500  room_party_count
  *   FUN_0040f5c0  ctrl_grid_init      FUN_004134f0  win_grid_new        FUN_0040f800  grid_row_add
  *   FUN_00415860  cell_icon_set       FUN_00412c40  win_title_add       FUN_0040f1c0  sys_win_open
- *   FUN_004103d0  sys_page_arrows
+ *   FUN_004103d0  sys_page_arrows     FUN_00412330  grid_gauge_clamp    FUN_004173f0  cell_color_set
+ *   FUN_00412160  grid_row_text_add   FUN_00411940  sys_list_open
  */
 #ifndef OSS_UI_CORE_H
 #define OSS_UI_CORE_H
@@ -57,6 +58,17 @@ uint8_t *sys_win_open(void *sys, uint8_t *mgr, int32_t x, int32_t y, int32_t w, 
                       const char *title, int32_t plain);                               /* 0x40f1c0 */
 /* a grid's page arrows (sys+0xb8c) at the window's mid-height + the "%d/%d" page counter */
 int32_t sys_page_arrows(void *sys, const uint8_t *win, uint8_t *c);                    /* 0x4103d0 */
+/* a cell's gauge (+8: 0x20 B) value +0x1c = max(+0x14, min(+0x18, v)) */
+void grid_gauge_clamp(uint8_t *c, int32_t row, int32_t col, int32_t v);              /* 0x412330 */
+/* a cell's colour override {+0xc on, +0x10, +0x14}; returns the row's cells */
+intptr_t cell_color_set(uint8_t *c, int32_t row, int32_t col, int32_t on, int32_t a, int32_t b); /* 0x4173f0 */
+/* a row {a, b} + its column-0 text; the row (-1: full) */
+int32_t grid_row_text_add(uint8_t *c, int32_t a, int32_t b, const char *text);       /* 0x412160 */
+/* a framed list window (h 0: fits `rows`; `title`: a control more) + its rows x cols grid at (40, 24 / 56)
+ * with the 4-frame cursor; returns retail's eax (ctrl_out, or the config holder sys+0x320) */
+intptr_t sys_list_open(void *sys, uint8_t *mgr, int32_t x, int32_t y, int32_t w, int32_t h, uint16_t cap,
+                       uint16_t rows, uint16_t cols, uint8_t **win_out, uint8_t **ctrl_out, const char *title,
+                       int32_t plain);                                                 /* 0x411940 */
 /* records */
 int32_t ui_ref_set(uint8_t *r, int32_t a, uint16_t b);                                 /* 0x40f5a0 */
 uint8_t *ui_link_drop(uint8_t *o);                                                     /* 0x412570 */

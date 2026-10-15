@@ -570,3 +570,89 @@ int32_t sys_page_arrows(void *sys, const uint8_t *win, uint8_t *c)
     st32(c, 0x19c, 0x455f7b);
     return 6;
 }
+
+/* ── chip 3c: the leaves under the shop ─────────────────────────────────────────── */
+
+void grid_gauge_clamp(uint8_t *c, int32_t row, int32_t col, int32_t v)
+{
+    const uint8_t *gi = ldp(c, 0x174);
+    if (ld32(gi, 8) <= col || ld32(gi, 0x10) <= row) return;
+    uint8_t *g = ldp(ldp((uint8_t *)ldp(c, 0x17c) + 16 * row, 0xc), 24u * (uint32_t)col + 8);
+    if (g == NULL) return;
+    int32_t hi = ld32(g, 0x18), lo = ld32(g, 0x14);
+    int32_t m = hi >= v ? v : hi;
+    st32(g, 0x1c, lo <= m ? m : lo);
+}
+
+intptr_t cell_color_set(uint8_t *c, int32_t row, int32_t col, int32_t on, int32_t a, int32_t b)
+{
+    uint8_t *cells = ldp((uint8_t *)ldp(c, 0x17c) + 16 * row, 0xc);
+    st32(cells, 24u * (uint32_t)col + 0xc, on);
+    st32(cells, 24u * (uint32_t)col + 0x10, a);
+    st32(cells, 24u * (uint32_t)col + 0x14, b);
+    return (intptr_t)cells;
+}
+
+/* (retail inlines the row add 0x40f800 + 0x411f40; its gauge clamp is the 0x412330 call) */
+int32_t grid_row_text_add(uint8_t *c, int32_t a, int32_t b, const char *text)
+{
+    int32_t row = grid_row_add(c, a, b);
+    grid_cell_text(c, row, 0, text);
+    return row;
+}
+
+intptr_t sys_list_open(void *sys, uint8_t *mgr, int32_t x, int32_t y, int32_t w, int32_t h, uint16_t cap,
+                       uint16_t rows, uint16_t cols, uint8_t **win_out, uint8_t **ctrl_out, const char *title,
+                       int32_t plain)
+{
+    int32_t ty = 24;
+    int t = 0;
+    if (h == 0) {
+        h = 28 * rows + 40;
+        if (title != NULL) h += 32;
+    }
+    if (title != NULL) {
+        ty = 56;
+        t = 1;
+        cap++;
+    }
+    uint8_t st[0x24];
+    const uint16_t fr[10] = { (uint16_t)(plain ? 0 : 16), (uint16_t)(t ? 9 : 0), (uint16_t)(t ? 10 : 1),
+                              (uint16_t)(t ? 11 : 2), 3, 4, 5, 6, 7, 8 };
+    st32(st, 0, ld32(sys, 0xb88));
+    memcpy(st + 4, fr, sizeof fr);
+    st32(st, 0x18, 32);
+    st32(st, 0x1c, 32);
+    st32(st, 0x20, 0);
+    uint8_t *win = win_mgr_open(mgr, x, y, w, h, cap, st);
+    if (title != NULL) {
+        uint8_t *tc = win_grid_add(win, 32, 7, 0, 0);
+        if (tc != NULL) {
+            grid_cell_text(tc, 0, 0, title);
+            st32(tc, 0x180, 0xffffff);
+            st32(tc, 0x184, 0x455f7b);
+        }
+    }
+    uint8_t *c = NULL;
+    if (ld16(win, 0x4c) > ld16(win, 0x4e)) {
+        uint16_t n = ld16(win, 0x4e);
+        c = ((uint8_t **)ldp(win, 0x48))[n];
+        ui_ref_set(c, (int32_t)(intptr_t)win, n);
+        st16(win, 0x4e, (uint16_t)(n + 1));
+        if (c != NULL) ctrl_grid_init(c, 40, ty, rows, cols, rows, 0);
+    }
+    uint8_t *col0 = ldp(c, 0x178);
+    st32(col0, 0, 0); st32(col0, 4, 0); st32(col0, 8, 0); st32(col0, 0xc, 0);
+    static const uint16_t cur[4] = { 0, 1, 2, 3 };
+    ctrl_cursor_set(c, ld32(sys, 0xb8c), 16, cur, 4, 16, -32, -30);
+    const uint8_t *cfg = ldp(ldp(sys, 0x320), 0);
+    intptr_t r = (intptr_t)ldp(sys, 0x320);
+    if (ld32(cfg, 0x254) == 0) {
+        st32(c, 0x14, 1);
+        st32(c, 0x18, -9);
+        r = (intptr_t)ctrl_out;
+    }
+    *win_out = win;
+    *ctrl_out = c;
+    return r;
+}

@@ -4,7 +4,10 @@ Status: chip 1 DONE 2026-10-16 (`src/ui_core.c`, 24 functions, hybrid 379); chip
 (`src/ui_text.c`, 12 functions, hybrid 391; quirk #148 — the SJIS wrap / ruby paths are JP-only: unexercised).
 Chip 3a DONE 2026-10-16: the builders (`src/ui_core.c` +7) + the shop's screens (`src/ui_menu.c`, 6), hybrid 404.
 Chip 3b DONE 2026-10-16: the runtime (`src/ui_run.c`, 11: keys, ticks, message update, list input, the menu
-frame loop `0x55f190` + pacer as REPLACE-only), hybrid 415; quirk #150.  Shadow note: a function whose
+frame loop `0x55f190` + pacer as REPLACE-only), hybrid 415; quirk #150.  Chip 3c DONE 2026-10-16: the shop
+(`src/ui_menu.c` +7: driver / stock list / "On who?" REPLACE-only, the equip preview + its sprite / stat rows /
+member rows shadowed; `src/ui_core.c` +4 leaves), hybrid 429; quirk #151 — the preview's recolour path (an item
+with a palette swap table) and the buy confirm are unreached by the corpus.  Shadow note: a function whose
 `this` is a caller's stack object can show a false divergence (the shadow restores only below ESP between its
 retail and port phases) — confirm with REPLACE (`0x412570` did).  Owner: the porting loop (rhost shadow per function, REPLACE in the hybrid).
 
@@ -40,9 +43,12 @@ names for the runner were 4 bytes off past +0x2e0, quirk #144)
    (3 KB) — need a JP-text scenario (ense-jp) before porting.
 3. the menus.  3a DONE: grid init `0x40f5c0`, grid new `0x4134f0`, row add `0x40f800`, cell icon `0x415860`, title
    `0x412c40`, framed window `0x40f1c0`, page arrows `0x4103d0`; the shop's message window `0x4123a0`, party status
-   `0x4129b0` / `0x412df0`, "You have N" `0x415a10`, item fit `0x417480`, sprite set release `0x415350`.  3b DONE: the runtime (`src/ui_run.c`, above).  3c next:
-   the shop driver `0x415060` (Buy / Sell; `0x439680` the talk wait; its loop `0x55f190` is now port code), its buy list `0x415460` (+ `0x415ae0`), the
-   sell list `0x415f60` (+ `0x4167a0`, `0x4169e0` 2.5 KB + `0x4175a0`, `0x418c90`, `0x418ec0`), the equip menu
-   `0x4192f0` (+ `0x4199b0` `0x419c70` `0x419eb0` `0x4190d0`); the input re-poll `0x40fe00` (DirectInput) stays a slot.
+   `0x4129b0` / `0x412df0`, "You have N" `0x415a10`, item fit `0x417480`, sprite set release `0x415350`.  3b DONE: the runtime (`src/ui_run.c`, above).  3c DONE: the shop
+   driver `0x415060`, the stock list `0x415460`, "On who?" `0x415f60` (+ `0x4167a0`, the equip preview `0x4169e0`,
+   `0x4175a0`, `0x418c90`), the leaves `0x412330` `0x4173f0` `0x412160` `0x411940` `0x4078a0` `0x41a140`.  3d next
+   (each needs a scenario that reaches it — USER `rhost.py record`: buy a consumable, sell, equip from the shop): the
+   buy confirm `0x415ae0` (+ `0x4190d0` yes/no, `0x413b70` / `0x4140c0` message boxes, `0x412800`), the SELL list
+   `0x4192f0` (+ `0x4199b0` `0x419c70` `0x419eb0`), the gear-locked box `0x418ec0`; the input re-poll `0x40fe00`
+   (DirectInput) stays a slot.
 4. the cutscene runner `0x439690` on top (its other callees: `0x43c650` `0x43d830` `0x43e5b0` …).
 Render / DirectDraw (`0x4178e0` `0x417c40` `0x418470` `0x4184a0` `0x4188b0`) stay platform slots.

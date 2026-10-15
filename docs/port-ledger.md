@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **677** (43.3% of engine-proper) — tested 249, ported 428
-- code bytes touched: **31.8%** (564,982 / 1,776,526 B of engine-proper)
-- unported: **1147**
+- touched: **688** (44.1% of engine-proper) — tested 249, ported 439
+- code bytes touched: **32.2%** (572,590 / 1,776,526 B of engine-proper)
+- unported: **1136**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -37,9 +37,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x40fa00 | sub_40FA00 | 800 | glyph_text.c, glyph_text.h, newgame_menu.c (+4) |
 | 0x40fd20 | glyph_token_search_40FD20 | 143 | glyph_text.c, glyph_text.h |
 | 0x411530 | sub_411530 | 38 | char_ai.h |
-| 0x411940 | sub_411940 | 770 | main.c, newgame_picker.c, newgame_picker.h |
+| 0x411940 | sub_411940 | 770 | main.c, newgame_picker.c, newgame_picker.h (+1) |
 | 0x411f40 | sub_411F40 | 444 | menu_list.c, menu_list.h, newgame_menu.c (+2) |
-| 0x412160 | sub_412160 | 459 | newgame_menu.c, newgame_menu.h, newgame_picker.c (+1) |
+| 0x412160 | sub_412160 | 459 | newgame_menu.c, newgame_menu.h, newgame_picker.c (+2) |
 | 0x412c10 | sub_412C10 | 46 | obj_container.c, obj_container.h, ui_core.h |
 | 0x414080 | sub_414080 | 63 | obj_container.c, obj_container.h, ui_core.h |
 | 0x417870 | sub_417870 | 106 | map_decode.h, sprite_slot.h |
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (428) — reimplemented, no host test yet
+## ported (439) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -298,6 +298,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4071f0 | sub_4071F0 | 196 | party_member.h |
 | 0x4072c0 | sub_4072C0 | 85 | char_def.h |
 | 0x407320 | sub_407320 | 190 | char_integrate.h, party_member.h |
+| 0x4078a0 | sub_4078A0 | 81 | party_member.h |
 | 0x407b80 | sub_407B80 | 32 | char_integrate.h |
 | 0x407ba0 | sub_407BA0 | 907 | sound_fx.h |
 | 0x408100 | sub_408100 | 205 | gimmick.h |
@@ -339,6 +340,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x411c50 | sub_411C50 | 623 | ui_core.h |
 | 0x411ec0 | sub_411EC0 | 118 | ui_core.h |
 | 0x412100 | sub_412100 | 85 | ui_core.h |
+| 0x412330 | sub_412330 | 98 | ui_core.h |
 | 0x4123a0 | sub_4123A0 | 290 | ui_menu.h |
 | 0x4124d0 | sub_4124D0 | 146 | ui_core.h |
 | 0x412570 | sub_412570 | 19 | ui_core.h |
@@ -354,21 +356,30 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x413b20 | sub_413B20 | 68 | party_member.h |
 | 0x413ed0 | sub_413ED0 | 426 | ui_text.h |
 | 0x414c40 | sub_414C40 | 98 | ui_core.h |
+| 0x415060 | sub_415060 | 751 | ui_menu.h |
 | 0x415350 | sub_415350 | 195 | ui_menu.h |
 | 0x415420 | sub_415420 | 58 | ui_core.h |
+| 0x415460 | sub_415460 | 1018 | ui_menu.h |
 | 0x415860 | sub_415860 | 198 | ui_core.h |
 | 0x415930 | sub_415930 | 92 | ui_core.h |
 | 0x415990 | sub_415990 | 119 | ui_core.h |
 | 0x415a10 | sub_415A10 | 197 | ui_menu.h |
 | 0x415e20 | sub_415E20 | 320 | party_member.h |
+| 0x415f60 | sub_415F60 | 1205 | ui_menu.h |
 | 0x416420 | sub_416420 | 115 | party_member.h |
 | 0x416500 | sub_416500 | 107 | ui_core.h |
 | 0x416570 | sub_416570 | 547 | party_member.h |
+| 0x4167a0 | sub_4167A0 | 563 | ui_menu.h |
+| 0x4169e0 | sub_4169E0 | 2529 | ui_menu.h |
 | 0x4173d0 | sub_4173D0 | 29 | ui_core.h |
+| 0x4173f0 | sub_4173F0 | 78 | ui_core.h |
 | 0x417440 | sub_417440 | 51 | ui_core.h |
 | 0x417480 | sub_417480 | 177 | ui_menu.h |
+| 0x4175a0 | sub_4175A0 | 710 | ui_menu.h |
 | 0x4182d0 | sub_4182D0 | 408 | room_load.h |
+| 0x418c90 | sub_418C90 | 547 | ui_menu.h |
 | 0x419c00 | sub_419C00 | 110 | scene_loop.h |
+| 0x41a140 | sub_41A140 | 28 | room_loop.h |
 | 0x41a7f0 | sub_41A7F0 | 152 | scene_loop.h |
 | 0x41d190 | sub_41D190 | 779 | scene_cmd.h |
 | 0x41dc40 | sub_41DC40 | 75 | party_member.h |

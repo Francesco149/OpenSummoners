@@ -4659,6 +4659,43 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   window's tick, the world tick (opt: every character's command cleared first) and the screen effects; render
   (with the pacer's address) + Flip on the render state.
 
+### #151 — the shop: Buy / Sell, the stock list, "On who?" + the equip preview (port 2026-10-16)
+- **Driver** `0x415060` (thiscall on the event runner, from the chapter scripts; args: the stock's item ids,
+  0-terminated, then two flags that skip the choice: Buy / Sell).  The choice is the runner's choice record
+  list (IDA's cls_401D40 names these 4 bytes low, see #144): u16 +0x584 count, +0x588 the pick (preset 1),
+  +0x58c / +0x590 0, +0x594 / +0x598 / +0x59c = 160 / 240 / 240, entries of 0x58 B from +0x5a0 {text, +0x50 0,
+  +0x54 the value: "Buy" 1, "Sell" 2}; +0x20 = 5; the scene wait `0x439680` runs it (6 = the scene ended →
+  6; afterwards +0x2e4 = 1; pick 0 → 11).  Then: the input re-poll, every room's held input dropped, both
+  room-loop views' +0 cleared (`0x41a140`), every live character's command cleared, the menu context on the
+  room loop's window manager.  Buy (1) = the stock list `0x415460`, Sell (2) = `0x4192f0` (context +0x30 = the
+  runner's +0x18).  Result: the screen's, else 12 when anything was bought (context +0x14), else 0.
+- **Stock list** `0x415460`: "Buy this item" (8, 24) 440 x 320; a 1000-row x 5 grid at (40, 48), 8 rows a
+  page, page arrows; per item: the sys+0xb74 icons (frame 0, then the item's +0x54), name (+4), price
+  (+0x60, `0x415930`: GP when room +0x4064 == 10); "You have N" (`0x415a10`).  The cursor item's description
+  (+0xac) goes to the message window on every move.  Confirm: gear (+0x78 != 0) → "On who?"
+  `0x415f60(item, 0, priced = 1)`; the rest → the buy confirm `0x415ae0` (decompile read, unported: a held-count limit by the u16 +0x66
+  kind — 4 / 6 / 10 —, "not enough money", "Would you like to buy the %s?", the carry check `0x415e20`, gold −
+  price).  After a
+  0 / 12 result the "You have" column is recounted with `0x415990`.
+- **"On who?"** `0x415f60` (NOT a sell list): the preview window (168, 64) 464 x 272 with four grids (the slot
+  row 2 x 7, two 10 x 5 stat grids, the sprite row 1 x 4); the member list (8, 64) 160 wide, 28 (n + 1) + 64
+  high: a row {1, id} per member with +0x9c4 == 1 (`0x4167a0`, 100000104 included) + {2, 0} "Don't
+  Equip"; "Which character will equip this?".  A move refreshes the preview (`0x4169e0`); confirm on a member:
+  `0x418ec0` (gear locked: 7 = back to the list), then the class fit `0x416420` (no → buzz 6); "Don't Equip"
+  or a fit → cue 5, then priced → the buy confirm `0x415ae0` and the bought record is equipped on the member
+  (`0x416570`), unpriced → record k equipped directly.  Both windows' +0x50 cleared, the preview sprite set
+  released (`0x415350`).
+- **Equip preview** `0x4169e0`: "Equip - <name>" (or "Equip - Don't Equip"); the worn item of the same equip
+  slot (+0x78; "--------" if none) ">>" the new one, + its price on row 1, red 0xff when above the gold;
+  "Cannot Equip" (red) when `0x417480` refuses; else the stats from `0x4066d0(with the item)`: Attack /
+  Defense / Spirit / Resist (icons 36..39) and Max HP / Max MP (33 / 34): base + equip now ">>" base + with,
+  coloured only when they differ — 0xff when not higher, 0xff0000 when higher (`0x418c90`); none for
+  100000104.  The sprite pair: the member's current bank/frame/clip (`0x4175a0`: char +0x48 / +0x4a / clip
+  +0x15914; the 50010 alternate +0x5c with `alt`), then the same recoloured: a free runtime bank 884..908
+  cloned from it (`0x4179b0`), its palette with every equipped item's swap table (+0x2b4) applied, then the
+  previewed item's, frames rebuilt (`0x417c40`); the bank is kept in context +0x18 (the previous one's
+  frames freed first).
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

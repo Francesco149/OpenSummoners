@@ -176,6 +176,11 @@ typedef struct {
     X(H_UR_ICON, "icon_tick", 0x43c610u) X(H_UR_TKEY, "text_key", 0x43c920u) X(H_UR_NAV, "grid_nav", 0x43ca40u) \
     X(H_UR_KEY, "ctrl_key", 0x43ce50u) X(H_UR_TICK, "ctrl_tick", 0x43c650u) X(H_UR_WTICK, "win_tick", 0x43c2e0u) \
     X(H_UR_MSG, "msg_update", 0x43b980u) X(H_UR_INPUT, "ctrl_input", 0x43bca0u) X(H_UR_JOBS, "jobs_busy", 0x43c170u) \
+    X(H_UC_GAUGE, "grid_gauge_clamp", 0x412330u) X(H_UC_CCOL, "cell_color_set", 0x4173f0u) \
+    X(H_UC_RTEXT, "grid_row_text_add", 0x412160u) X(H_UC_LIST, "sys_list_open", 0x411940u) X(H_PA_IDEF, "item_def", 0x4078a0u) \
+    X(H_RL_VMARK, "room_views_mark", 0x41a140u) X(H_UM_ROWS, "member_rows_add", 0x4167a0u) X(H_UM_STAT, "stat_row_set", 0x418c90u) \
+    X(H_UM_SPR, "member_sprite", 0x4175a0u) X(H_UM_EQP, "equip_panel_fill", 0x4169e0u) X(H_UM_SHOP, "shop_run", 0x415060u) \
+    X(H_UM_BUY, "shop_buy", 0x415460u) X(H_UM_WHO, "shop_who", 0x415f60u) X(H_MCTX, "menu_ctx_clear", 0x4115e0u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
 
@@ -3508,6 +3513,171 @@ TC_HOOK0(H_UR_WTICK, "win_tick", 1, return win_tick(self))
 TC_HOOK(H_UR_MSG, "msg_update", 6, 1, return msg_update(self, (uint32_t)a1, (uint8_t *)a2, a3, a4, a5, (int32_t *)a6))
 TC_HOOK(H_UR_INPUT, "ctrl_input", 6, 1, return ctrl_input(self, (uint8_t *)a1, (uint32_t)a2, a3, a4, a5, a6))
 TC_HOOK0(H_UR_JOBS, "jobs_busy", 1, return jobs_busy(self))
+/* chip 3c: the leaves under the shop (src/ui_core.c, src/party_member.c, src/room_loop.c) */
+TC_HOOK(H_UC_GAUGE, "grid_gauge_clamp", 3, 0, grid_gauge_clamp(self, a1, a2, a3); return 0)
+TC_HOOK(H_UC_CCOL, "cell_color_set", 5, 1, return cell_color_set(self, a1, a2, a3, a4, a5))
+ST_HOOK(H_UC_RTEXT, "grid_row_text_add", 4, 1, return grid_row_text_add((uint8_t *)a1, a2, a3, (const char *)a4))
+ST_HOOK(H_PA_IDEF, "item_def", 1, 1, return (intptr_t)item_def(a1))
+TC_HOOK(H_RL_VMARK, "room_views_mark", 1, 0, room_views_mark(self, a1); return 0)
+ST_HOOK(H_UM_ROWS, "member_rows_add", 3, 1, return member_rows_add(CP(a1), (uint8_t *)a2, a3))
+ST_HOOK(H_UM_STAT, "stat_row_set", 7, 0,
+        stat_row_set((uint8_t *)a1, U16(a2), (const char *)a3, a4, a5, a6, (int16_t)a7); return 0)
+/* ... and the three whose outputs land on the CALLER's stack (the menu context M, out-params): the shadow
+ * snapshots only below ESP, so these wrappers restore M (0x34 B) before the port phase, give the port its
+ * own out-params, and compare both */
+typedef struct {
+    void *self; uint8_t *m; intptr_t a[12]; intptr_t rr, rp;
+    uint8_t pre[0x34], ret[0x34]; intptr_t out_r[3], out_p[3], out_pre[3]; int ported;
+} sx_ctx;
+static void sx_begin(sx_ctx *x) { if (x->m != NULL) memcpy(x->pre, x->m, sizeof x->pre); }
+static void sx_port_phase(sx_ctx *x)   /* the port phase starts from the pre-state of M */
+{
+    if (x->m == NULL) return;
+    x->ported = 1;
+    memcpy(x->ret, x->m, sizeof x->ret);
+    memcpy(x->m, x->pre, sizeof x->pre);
+}
+static void sx_tail(hook_t *h, sx_ctx *x, void (*r)(void *), void (*p)(void *), int nout, const char *name)
+{
+    char why[512];
+    int d = rh_shadow_ex(name, r, p, x, why, sizeof why);
+    int bad = x->m != NULL && memcmp(x->ret, x->m, sizeof x->ret) != 0;
+    for (int i = 0; i < nout; i++) if (x->out_r[i] != x->out_p[i]) bad = 1;
+    if (d < 0) {   /* not compared (retail's result kept): M back to retail's */
+        h->skipped++;
+        if (x->m != NULL && x->ported) memcpy(x->m, x->ret, sizeof x->ret);
+        return;
+    }
+    h->compared++;
+    if (d || bad || x->rr != x->rp)
+        diverged(h, "f%u %s: M+0x18 %04x/%04x outs %p,%p,%p / %p,%p,%p ret %p/%p %s", g_frame, name,
+                 x->m ? *(uint16_t *)(x->ret + 0x18) : 0, x->m ? *(uint16_t *)(x->m + 0x18) : 0,
+                 (void *)x->out_r[0], (void *)x->out_r[1], (void *)x->out_r[2], (void *)x->out_p[0], (void *)x->out_p[1],
+                 (void *)x->out_p[2], (void *)x->rr, (void *)x->rp, d ? why : "");
+    if (x->m != NULL && x->ported) memcpy(x->m, x->ret, sizeof x->ret);   /* retail's M stays */
+}
+/* 0x411940 (thiscall sys, 12 args): the window / control out-params */
+typedef intptr_t (__attribute__((thiscall)) *slist_t)(void *, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t,
+                                                      intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t);
+static void slist_r(void *c)
+{
+    sx_ctx *x = c; intptr_t *a = x->a;
+    x->rr = ((slist_t)(uintptr_t)H[H_UC_LIST].va)(x->self, a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]);
+    x->out_r[0] = *(intptr_t *)a[8]; x->out_r[1] = *(intptr_t *)a[9];
+}
+static void slist_p(void *c)
+{
+    sx_ctx *x = c; intptr_t *a = x->a;
+    uint8_t *w = NULL, *k = NULL;
+    port_world();
+    x->rp = sys_list_open(x->self, (uint8_t *)a[0], a[1], a[2], a[3], a[4], U16(a[5]), U16(a[6]), U16(a[7]), &w, &k,
+                          (const char *)a[10], a[11]);
+    if (x->rp == (intptr_t)&k) x->rp = a[9];   /* (that return is the ctrl_out pointer itself) */
+    x->out_p[0] = (intptr_t)w; x->out_p[1] = (intptr_t)k;
+}
+static intptr_t __attribute__((thiscall)) H_UC_LIST_w(void *self, GP12)
+{
+    hook_t *h = &H[H_UC_LIST];
+    if (h->mode == 2) {
+        h->calls++; port_world();
+        return sys_list_open(self, (uint8_t *)a1, a2, a3, a4, a5, U16(a6), U16(a7), U16(a8), (uint8_t **)a9, (uint8_t **)a10,
+                             (const char *)a11, a12);
+    }
+    sx_ctx x = { self, NULL, { GA12 }, 0, 0, { 0 }, { 0 }, { 0 }, { 0 }, { 0 }, 0 };
+    if (!sample(h)) { slist_r(&x); return x.rr; }
+    sx_tail(h, &x, slist_r, slist_p, 2, "sys_list_open");
+    *(intptr_t *)a9 = x.out_r[0]; *(intptr_t *)a10 = x.out_r[1];
+    return x.rr;
+}
+/* 0x4175a0 (thiscall M, 6 args): bank / frame / clip out-params + M+0x18 */
+typedef void (__attribute__((thiscall)) *mspr_t)(void *, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t);
+static void mspr_r(void *c)
+{
+    sx_ctx *x = c; intptr_t *a = x->a;
+    ((mspr_t)(uintptr_t)H[H_UM_SPR].va)(x->self, a[0], a[1], a[2], a[3], a[4], a[5]);
+    x->out_r[0] = *(uint16_t *)a[1]; x->out_r[1] = *(uint16_t *)a[2]; x->out_r[2] = *(intptr_t *)a[3];
+}
+static void mspr_p(void *c)
+{
+    sx_ctx *x = c; intptr_t *a = x->a;
+    uint16_t bank = (uint16_t)x->out_pre[0], frame = (uint16_t)x->out_pre[1];
+    const uint8_t *clip = (const uint8_t *)x->out_pre[2];
+    sx_port_phase(x);
+    port_world();
+    member_sprite(x->self, CP(a[0]), &bank, &frame, &clip, a[4], CP(a[5]));
+    x->out_p[0] = bank; x->out_p[1] = frame; x->out_p[2] = (intptr_t)clip;
+}
+static void __attribute__((thiscall)) H_UM_SPR_w(void *self, GP6)
+{
+    hook_t *h = &H[H_UM_SPR];
+    if (h->mode == 2) {
+        h->calls++; port_world();
+        member_sprite(self, CP(a1), (uint16_t *)a2, (uint16_t *)a3, (const uint8_t **)a4, a5, CP(a6));
+        return;
+    }
+    sx_ctx x = { self, self, { GA6 }, 0, 0, { 0 }, { 0 }, { 0 }, { 0 }, { 0 }, 0 };
+    if (!sample(h)) { mspr_r(&x); return; }
+    x.out_pre[0] = *(uint16_t *)a2; x.out_pre[1] = *(uint16_t *)a3; x.out_pre[2] = *(intptr_t *)a4;
+    sx_begin(&x);
+    sx_tail(h, &x, mspr_r, mspr_p, 3, "member_sprite");
+    /* retail's out-params stay (the port phase wrote its own) */
+    *(uint16_t *)a2 = (uint16_t)x.out_r[0]; *(uint16_t *)a3 = (uint16_t)x.out_r[1]; *(intptr_t *)a4 = x.out_r[2];
+}
+/* 0x4169e0 (thiscall M, 5 args): M+0x18 via 0x4175a0 */
+typedef void (__attribute__((thiscall)) *eqp_t)(void *, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t);
+static void eqp_r(void *c)
+{
+    sx_ctx *x = c; intptr_t *a = x->a;
+    ((eqp_t)(uintptr_t)H[H_UM_EQP].va)(x->self, a[0], a[1], a[2], a[3], a[4]);
+}
+static void eqp_p(void *c)
+{
+    sx_ctx *x = c; intptr_t *a = x->a;
+    sx_port_phase(x);
+    port_world();
+    equip_panel_fill(x->self, (uint8_t *)a[0], (wl_room *)a[1], a[2], a[3], a[4]);
+}
+static void __attribute__((thiscall)) H_UM_EQP_w(void *self, GP5)
+{
+    hook_t *h = &H[H_UM_EQP];
+    if (h->mode == 2) { h->calls++; port_world(); equip_panel_fill(self, (uint8_t *)a1, (wl_room *)a2, a3, a4, a5); return; }
+    sx_ctx x = { self, self, { GA5 }, 0, 0, { 0 }, { 0 }, { 0 }, { 0 }, { 0 }, 0 };
+    if (!sample(h)) { eqp_r(&x); return; }
+    sx_begin(&x);
+    sx_tail(h, &x, eqp_r, eqp_p, 0, "equip_panel_fill");
+}
+/* the shop's loops (menus: render + Flip) + the menu context clear (its `this` is a stack object) — REPLACE only */
+typedef int32_t (__attribute__((thiscall)) *shop_t)(void *, intptr_t, intptr_t, intptr_t);
+static int32_t __attribute__((thiscall)) H_UM_SHOP_w(void *ev, intptr_t a1, intptr_t a2, intptr_t a3)
+{
+    hook_t *h = &H[H_UM_SHOP];
+    h->calls++;
+    if (h->mode == 2) { port_world(); return shop_run(ev, (const int32_t *)a1, a2, a3); }
+    return ((shop_t)(uintptr_t)h->va)(ev, a1, a2, a3);
+}
+typedef int32_t (__attribute__((thiscall)) *sbuy_t)(void *, intptr_t);
+static int32_t __attribute__((thiscall)) H_UM_BUY_w(void *m, intptr_t a1)
+{
+    hook_t *h = &H[H_UM_BUY];
+    h->calls++;
+    if (h->mode == 2) { port_world(); return shop_buy(m, (const int32_t *)a1); }
+    return ((sbuy_t)(uintptr_t)h->va)(m, a1);
+}
+static int32_t __attribute__((thiscall)) H_UM_WHO_w(void *m, intptr_t a1, intptr_t a2, intptr_t a3)
+{
+    hook_t *h = &H[H_UM_WHO];
+    h->calls++;
+    if (h->mode == 2) { port_world(); return shop_who(m, CP(a1), U16(a2), a3); }
+    return ((shop_t)(uintptr_t)h->va)(m, a1, a2, a3);
+}
+typedef int32_t (__attribute__((thiscall)) *mctx_t)(void *);
+static int32_t __attribute__((thiscall)) H_MCTX_w(void *m)
+{
+    hook_t *h = &H[H_MCTX];
+    h->calls++;
+    if (h->mode == 2) { menu_ctx_clear(m); return 0; }
+    return ((mctx_t)(uintptr_t)h->va)(m);
+}
 TC_HOOK(H_CS_SHOT, "shot_spawn", 19, 1,
         return (intptr_t)shot_spawn(self, a1, a2, a3, (wl_body *)a4, a5, a6, a7, a8, (int16_t)a9, a10, a11, a12, a13, a14,
                                     a15, a16, a17, a18, a19))
@@ -3799,7 +3969,7 @@ static void bind_engine_calls(void)
     B(56dc20); B(41a890); B(5bf3ee); B(426110); B(560900); B(5bf5db);
     B(428c00); B(429060); B(429db0); B(42a500); B(42a9a0); B(42b9a0); B(42c130); B(42c510); B(42c970);
     B(42cce0); B(42d3c0); B(42da50); B(42e290); B(42f840); B(42fbf0); B(42ff00); B(430400);
-    B(5bcfb0); B(405e80); B(55d140); B(47ae00); B(5b1f10); B(4034f0); B(4051d0);
+    B(5bcfb0); B(405e80); B(55d140); B(47ae00); B(5b1f10); B(4034f0); B(4051d0); B(415ae0); B(4192f0); B(418ec0);
     B(561d20); B(409150); B(55fdb0); B(41d780); B(4e6520); B(4e61d0); B(41b670); B(4c5af0); B(52fd80); B(5a3870); B(5a00c0);
     B(5a3670); B(56c640); B(5b6060); B(5b60d0); B(5b61b0); B(5b6200); B(5b6bc0); B(5b6340); B(5b64b0);
     B(41cfd0);

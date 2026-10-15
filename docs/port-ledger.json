@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 428,
-  "unported": 1147,
+  "ported": 439,
+  "unported": 1136,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 677,
-  "pct_touched": 43.3,
+  "touched": 688,
+  "pct_touched": 44.1,
   "pct_tested": 15.7,
-  "engine_proper_touched": 664,
+  "engine_proper_touched": 675,
   "bytes_total": 1776526,
-  "bytes_touched": 564982,
-  "pct_bytes_touched": 31.8
+  "bytes_touched": 572590,
+  "pct_bytes_touched": 32.2
  },
  "orphan_refs": [],
  "functions": [
@@ -596,8 +596,10 @@
    "name": "sub_4078A0",
    "size": 81,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/party_member.h"
+   ]
   },
   {
    "va": "0x407900",
@@ -1302,7 +1304,8 @@
    "src": [
     "src/main.c",
     "src/newgame_picker.c",
-    "src/newgame_picker.h"
+    "src/newgame_picker.h",
+    "src/ui_core.h"
    ]
   },
   {
@@ -1359,7 +1362,8 @@
     "src/newgame_menu.c",
     "src/newgame_menu.h",
     "src/newgame_picker.c",
-    "src/newgame_picker.h"
+    "src/newgame_picker.h",
+    "src/ui_core.h"
    ]
   },
   {
@@ -1367,8 +1371,10 @@
    "name": "sub_412330",
    "size": 98,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x4123a0",
@@ -1629,8 +1635,10 @@
    "name": "sub_415060",
    "size": 751,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_menu.h"
+   ]
   },
   {
    "va": "0x415350",
@@ -1657,8 +1665,10 @@
    "name": "sub_415460",
    "size": 1018,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_menu.h"
+   ]
   },
   {
    "va": "0x415860",
@@ -1723,8 +1733,10 @@
    "name": "sub_415F60",
    "size": 1205,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_menu.h"
+   ]
   },
   {
    "va": "0x416420",
@@ -1761,16 +1773,20 @@
    "name": "sub_4167A0",
    "size": 563,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_menu.h"
+   ]
   },
   {
    "va": "0x4169e0",
    "name": "sub_4169E0",
    "size": 2529,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_menu.h"
+   ]
   },
   {
    "va": "0x4173d0",
@@ -1787,8 +1803,10 @@
    "name": "sub_4173F0",
    "size": 78,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x417440",
@@ -1815,8 +1833,10 @@
    "name": "sub_4175A0",
    "size": 710,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_menu.h"
+   ]
   },
   {
    "va": "0x417870",
@@ -1948,8 +1968,10 @@
    "name": "sub_418C90",
    "size": 547,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_menu.h"
+   ]
   },
   {
    "va": "0x418ec0",
@@ -2046,8 +2068,10 @@
    "name": "sub_41A140",
    "size": 28,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_loop.h"
+   ]
   },
   {
    "va": "0x41a160",

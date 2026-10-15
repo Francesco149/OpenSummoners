@@ -222,6 +222,9 @@ typedef struct engine_calls {
      * reading writer 0x4051d0 (glyph record, kana) — Japanese text only */
     int (ENG_STDCALL *h4034f0)(const char *text, int32_t cond, int32_t pos, int32_t len);
     int (ENG_STDCALL *h4051d0)(void *rec, const char *kana);
+    /* the shop's (`this` = the menu context): the buy confirm 0x415ae0 (item, &record, ask), the sell list
+     * 0x4192f0 (1), the "you cannot change equipment now" box 0x418ec0 (the slot) */
+    eng_tc3 h415ae0; eng_tc1 h4192f0; eng_tc1 h418ec0;
 } engine_calls;
 
 extern engine_calls g_eng;

@@ -303,8 +303,7 @@ wl_char *member_create(wl_roomloop *rl, int32_t unused, const wl_entity *at, wl_
 
 static void stats_fill1000(uint8_t *st) { for (int i = 0; i < 12; i++) st32(st, 0xa4 + 4u * i, 1000); }
 
-/* the item row `id` (the scan ends at a 0 key) */
-static const uint8_t *item_row(int32_t id)
+const uint8_t *item_def(int32_t id)
 {
     const uint8_t *t = D(ITEM_TBL);
     for (uint16_t i = 0; ld32(t, 736u * i) != 0; i++)
@@ -498,7 +497,7 @@ int room_item_add(wl_room *r, int32_t item, uint16_t *idx, int32_t count, uint8_
 {
     uint16_t n = ld16(r, 0x4010);
     if (n >= 0x200) return 0;
-    const uint8_t *d = item_row(item);
+    const uint8_t *d = item_def(item);
     if (d == NULL) return 0;
     if (ld32(d, 0x2ac) < 900 && n != 0 && !gear_room(r)) return 0;
     if (dry == 0) {
@@ -524,7 +523,7 @@ void room_items_grant(wl_room *r, int32_t id)
         uint16_t n = ld16(r, 0x4010), have = 0;
         for (uint16_t k = 0; k < n; k++) if (ld32(ITEM(r, k), 0) == item) have++;
         if (have != 0 || n >= 0x200) continue;
-        const uint8_t *d = item_row(item);
+        const uint8_t *d = item_def(item);
         if (d == NULL) continue;
         if (ld32(d, 0x2ac) < 900 && n != 0 && !gear_room(r)) continue;
         uint8_t *it = ITEM(r, n);

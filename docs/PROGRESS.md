@@ -6,6 +6,24 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-16 — the UI widget toolkit, chip 3c: the shop (`src/ui_menu.c` +7, `src/ui_core.c` +4)
+
+- The shop runs as port code: the driver `0x415060` (the Buy / Sell choice on the event runner's choice
+  records, the input / command reset, the menu context), the stock list `0x415460` (icons, names, prices,
+  "You have N", the cursor item's description), "On who?" `0x415f60` (the old plan called it the sell list;
+  the sell list is `0x4192f0`) with the equip preview `0x4169e0` (worn >> new + price, the stat rows `0x418c90`,
+  the sprite pair `0x4175a0` with the recolour clone in banks 884..908), the member rows `0x4167a0`; leaves:
+  the list window open `0x411940`, row + text `0x412160`, the gauge clamp `0x412330`, the cell colour
+  `0x4173f0`, the item lookup `0x4078a0` (`item_def`, exported from party_member.c), the views mark `0x41a140`.
+  Slots: the buy confirm `0x415ae0`, the sell list `0x4192f0`, the gear-locked box `0x418ec0` (unreached).
+  Quirk #151.
+- rhost: equip_panel_fill 1, stat_row_set 6, member_sprite 2, member_rows_add 1, sys_list_open 1,
+  grid_row_text_add 3, item_def 9, room_views_mark 1 — 0 divergences (the preview's wrappers restore the
+  caller's menu context + compare the out-params: the shadow snapshots only below ESP).  REPLACE: shop_run 2,
+  shop_buy 1, shop_who 1, equip_panel_fill 1, member_sprite 2 — each alone under retail's callers, and all
+  together in the hybrid gate: 429 hooks, `corpus --check` PASS.  Not reached: the recolour path, the buy
+  confirm, the sell list (needs a recorded purchase / sale).
+
 ## 2026-10-16 — the UI widget toolkit, chip 3b: the runtime + the menu frame loop (`src/ui_run.c`)
 
 - The layer every menu and message box runs on: the list cursor `0x43ca40` (modes 0 page-wrap / 2 paged / 3

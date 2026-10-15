@@ -48,6 +48,7 @@
  *   FUN_0040d9b0  bgm_pick
  *   FUN_0058f360  room_loop_run       FUN_0049be60  input_repoll_flush
  *   FUN_004115e0  menu_ctx_clear      FUN_0058d090  room_leader
+ *   FUN_0041a140  room_views_mark
  */
 #ifndef OSS_ROOM_LOOP_H
 #define OSS_ROOM_LOOP_H
@@ -90,6 +91,8 @@ int room_loop_run(wl_roomloop *rl);
 void input_repoll_flush(wl_roomloop *rl);
 /* 0x4115e0: clear the main menu's context fields */
 void menu_ctx_clear(void *ctx);
+/* 0x41a140 (thiscall room loop): both views' +0 = v */
+void room_views_mark(wl_roomloop *rl, int32_t v);
 /* 0x58d090 (thiscall room): the leader's character (NULL without a leader) */
 wl_char *room_leader(const wl_room *r);
 

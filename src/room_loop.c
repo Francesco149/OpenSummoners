@@ -503,6 +503,12 @@ void menu_ctx_clear(void *ctx)
     memcpy(c + 0x30, &z, 4);
 }
 
+void room_views_mark(wl_roomloop *rl, int32_t v)
+{
+    rl->view[0].f0 = v;
+    rl->view[1].f0 = v;
+}
+
 void input_repoll_flush(wl_roomloop *rl)
 {
     g_eng.h5ba4c0(sysp(0x2878));
