@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **707** (45.3% of engine-proper) — tested 249, ported 458
-- code bytes touched: **33.2%** (590,335 / 1,776,526 B of engine-proper)
-- unported: **1117**
+- touched: **712** (45.6% of engine-proper) — tested 249, ported 463
+- code bytes touched: **33.4%** (594,207 / 1,776,526 B of engine-proper)
+- unported: **1112**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -75,7 +75,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x466930 | sub_466930 | 1315 | char_physics.c, char_physics.h |
 | 0x467bb0 | sub_467BB0 | 3364 | char_physics.c, char_physics.h |
 | 0x46a880 | sub_46A880 | 8890 | input_dik.c, input_dik.h, input_live.c (+1) |
-| 0x4766a0 | hud_door_on_screen_4766A0 | 106 | hud.c, hud.h |
+| 0x4766a0 | hud_door_on_screen_4766A0 | 106 | camera_follow.h, hud.c, hud.h |
 | 0x478ba0 | char_ai_478BA0 | 3514 | char_ai.c, char_ai.h |
 | 0x479960 | sub_479960 | 165 | character.c, character.h, input.c (+1) |
 | 0x479a10 | sub_479A10 | 644 | input.h |
@@ -109,7 +109,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x498680 | hud_bar_row_geom_498680 | 401 | hud.c, hud.h, main.c |
 | 0x498f10 | sub_498F10 | 344 | hud.h, main.c |
 | 0x499560 | parallax_strip_499560 | 271 | color_grade.h, parallax.c, parallax.h |
-| 0x499ab0 | scene_cinematic_step_499AB0 | 1356 | camera_follow.h |
+| 0x499ab0 | scene_cinematic_step_499AB0 | 1356 | camera_follow.h, screen_fx.h |
 | 0x49a740 | sf_pattern_edges_in_49A740 | 336 | scene_fade.c, scene_fade.h, screen_fx.h |
 | 0x49a890 | sf_pattern_center_out_49A890 | 361 | scene_fade.c, scene_fade.h, screen_fx.h |
 | 0x49aa00 | sf_pattern_sweep_down_49AA00 | 216 | scene_fade.c, scene_fade.h, screen_fx.h |
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (458) — reimplemented, no host test yet
+## ported (463) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -571,6 +571,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x489280 | sub_489280 | 818 | sound_fx.h |
 | 0x48bb30 | sub_48BB30 | 632 | char_status.h |
 | 0x491740 | sub_491740 | 38 | sprite_slot.h |
+| 0x496970 | sub_496970 | 54 | hud_view.h |
 | 0x49a050 | sub_49A050 | 13 | sprite_slot.h |
 | 0x49a060 | sub_49A060 | 651 | ui_run.h |
 | 0x49a2f0 | sub_49A2F0 | 76 | ui_run.h |
@@ -578,6 +579,10 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x49a470 | sub_49A470 | 622 | ui_run.h |
 | 0x49abd0 | sub_49ABD0 | 168 | screen_fx.h |
 | 0x49ac80 | sub_49AC80 | 664 | screen_fx.h |
+| 0x49af40 | hud_party_anim_update_49AF40 | 3313 | hud_view.h |
+| 0x49bc40 | sub_49BC40 | 261 | hud_view.h |
+| 0x49bd50 | sub_49BD50 | 147 | hud_view.h |
+| 0x49bdf0 | sub_49BDF0 | 97 | hud_view.h |
 | 0x49be60 | sub_49BE60 | 290 | room_loop.h |
 | 0x49c2f0 | sub_49C2F0 | 808 | screen_fx.h |
 | 0x49c620 | sub_49C620 | 31 | ui_core.h |

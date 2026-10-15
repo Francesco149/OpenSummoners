@@ -6,6 +6,8 @@
 
 #include "asset_register.h"
 #include "engine_calls.h"
+#include "camera_follow.h"
+#include "hud_view.h"
 #include "sprite_slot.h"
 #include "ui_core.h"
 #include "ui_run.h"
@@ -272,4 +274,150 @@ void notice_tick(wl_roomloop *rl)
         st32(ldp(L, 0xec), 0x50, 0);
         stp(L, 0xec, NULL);
     }
+}
+
+/* a value eased 2 a frame toward t */
+static int32_t step2(int32_t v, int32_t t)
+{
+    if (v < t) {
+        v += 2;
+        if (v > t) v = t;
+    }
+    if (v > t) {
+        v -= 2;
+        if (v < t) v = t;
+    }
+    return v;
+}
+
+/* the first two overlays (room loop +0x11c / +0x120; inline in retail, the kind-1 phases as 0x49ac80's with the
+ * slot frees through 0x4118b0); `first`: kinds 3 / 4 free sys+0xbb8 entry by entry */
+static void overlay_inline(uint8_t *o, int first)
+{
+    if (ld32(o, 0x20) == 0) return;
+    int32_t kind = ld32(o, 0);
+    if (kind == 1) {
+        switch (ld16(o, 4)) {
+        case 0:
+            if (sprite_slot_ready(ldp(g_eng.sys, 0xbb4))) slot_frames_free_all(ldp(g_eng.sys, 0xbb4));
+            st16(o, 4, (uint16_t)(ld16(o, 4) + 1));
+            /* fall through */
+        case 1: {
+            int32_t a = ld32(o, 8);
+            if (a < 1000) {
+                a += 20;
+                st32(o, 8, a > 1000 ? 1000 : a);
+            }
+            if (ld32(o, 8) >= 1000) st16(o, 4, (uint16_t)(ld16(o, 4) + 1));
+            return;
+        }
+        case 2:
+            if (ld16(o, 6) < ld16(o, 0x10)) st16(o, 6, (uint16_t)(ld16(o, 6) + 1));
+            else st16(o, 4, (uint16_t)(ld16(o, 4) + 1));
+            return;
+        case 3:
+            if (ld32(o, 8) > 0) {
+                int32_t a = ld32(o, 8) - 20;
+                st32(o, 8, a < 0 ? 0 : a);
+                return;
+            }
+            st32(o, 0x20, 0);
+            slot_frames_free_all(ldp(g_eng.sys, 0xbb4));
+            return;
+        default:
+            return;
+        }
+    }
+    int32_t r;
+    if (kind == 2) r = overlay_fade(o, 40, 40, 200);
+    else if (kind == 3) r = overlay_fade(o, 20, 20, 300);
+    else if (kind == 4) r = overlay_fade(o, 20, 20, 600);
+    else return;
+    if (r == 0) return;
+    if (first && kind != 2) slot_free(0xbb8);
+    else slot_frames_free_all(ldp(g_eng.sys, 0xbb8));
+}
+
+void screen_step(wl_roomloop *rl)
+{
+    uint8_t *L = (uint8_t *)rl;
+    /* the letterbox bars: 64 each and their offset toward +0x50 when on, else all to 0 */
+    if (ld32(L, 0x40) != 0) {
+        st32(L, 0x44, step2(ld32(L, 0x44), 64));
+        st32(L, 0x48, step2(ld32(L, 0x48), 64));
+        st32(L, 0x4c, step2(ld32(L, 0x4c), ld32(L, 0x50)));
+    } else {
+        st32(L, 0x44, step2(ld32(L, 0x44), 0));
+        st32(L, 0x48, step2(ld32(L, 0x48), 0));
+        st32(L, 0x4c, step2(ld32(L, 0x4c), 0));
+    }
+    g_world->view->y_off = ld32(L, 0x4c);
+    uint8_t *mgr = ldp(L, 0xe8);
+    for (uint16_t i = 0; i < ld16(mgr, 6); i++) win_anim(((uint8_t **)ldp(mgr, 0))[i]);
+    uint8_t *fx = g_world->f1040;
+    {   /* the fader */
+        int32_t d = 20 * ld32(fx, 0x24) / 1000;
+        switch (ld32(fx, 0x20)) {
+        case 1:
+            st32(fx, 0x28, 0);
+            break;
+        case 2: {
+            int32_t a = ld32(fx, 0x28) + d;
+            if (a > 1000) a = 1000;
+            st32(fx, 0x28, a);
+            if (a == 1000) st32(fx, 0x20, 0);
+            break;
+        }
+        case 3: {
+            int32_t a = ld32(fx, 0x28) - d;
+            if (a < 0) a = 0;
+            st32(fx, 0x28, a);
+            if (a == 0) st32(fx, 0x20, 0);
+            break;
+        }
+        default:
+            break;
+        }
+    }
+    if (ld32(fx, 0x18) == 0) {   /* the dissolve */
+        uint16_t step = (uint16_t)(100 * ld32(fx, 0x1c) / 1000);
+        int32_t kind = ld32(fx, 0xc);
+        uint16_t rows = 0;   /* (retail: a stack word for a kind over 3 — none occurs) */
+        if (kind == 0 || kind == 3) {
+            st32(fx, 0x18, 1);
+        } else {
+            if (kind == 1) rows = 2;
+            else if (kind == 2) rows = 4;
+            switch (ld32(fx, 0x10)) {
+            case 0: fx_rows_center_out(fx, step, rows); break;
+            case 1: fx_rows_edges_in(fx, step, rows); break;
+            case 2:
+                if (kind == 1) fx_rows_sweep_up(fx, step, (uint16_t)(2 * rows));
+                else if (kind == 2) fx_rows_sweep_down(fx, step, (uint16_t)(2 * rows));
+                break;
+            default: break;
+            }
+            uint16_t live = 0;
+            for (uint16_t i = 0; i < ld16(fx, 8); i++) {
+                uint8_t *c = (uint8_t *)ldp(fx, 0) + 12u * i;
+                uint16_t s = ld16(c, 0);
+                if (s == 1) {
+                    st16(c, 2, (uint16_t)(ld16(c, 2) + step));
+                    if (ld16(c, 2) >= 1000) {
+                        st16(c, 2, 1000);
+                        st16(c, 0, 2);
+                    }
+                } else if (s != 0) {
+                    continue;
+                }
+                live++;
+            }
+            if (live == 0) st32(fx, 0x18, 1);
+        }
+    }
+    for (int i = 0; i < 2; i++) hud_view_tick(L + 0x128 + 0x3ec * i);
+    overlay_inline(ldp(L, 0x11c), 1);
+    overlay_inline(ldp(L, 0x120), 0);
+    overlay_tick(ldp(L, 0x124));
+    notice_tick(rl);
 }

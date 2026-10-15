@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 458,
-  "unported": 1117,
+  "ported": 463,
+  "unported": 1112,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 707,
-  "pct_touched": 45.3,
+  "touched": 712,
+  "pct_touched": 45.6,
   "pct_tested": 15.7,
-  "engine_proper_touched": 694,
+  "engine_proper_touched": 699,
   "bytes_total": 1776526,
-  "bytes_touched": 590335,
-  "pct_bytes_touched": 33.2
+  "bytes_touched": 594207,
+  "pct_bytes_touched": 33.4
  },
  "orphan_refs": [],
  "functions": [
@@ -5187,6 +5187,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/camera_follow.h",
     "src/hud.c",
     "src/hud.h"
    ]
@@ -6856,8 +6857,10 @@
    "name": "sub_496970",
    "size": 54,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/hud_view.h"
+   ]
   },
   {
    "va": "0x4969b0",
@@ -7048,7 +7051,8 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/camera_follow.h"
+    "src/camera_follow.h",
+    "src/screen_fx.h"
    ]
   },
   {
@@ -7182,32 +7186,40 @@
    "name": "hud_party_anim_update_49AF40",
    "size": 3313,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/hud_view.h"
+   ]
   },
   {
    "va": "0x49bc40",
    "name": "sub_49BC40",
    "size": 261,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/hud_view.h"
+   ]
   },
   {
    "va": "0x49bd50",
    "name": "sub_49BD50",
    "size": 147,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/hud_view.h"
+   ]
   },
   {
    "va": "0x49bdf0",
    "name": "sub_49BDF0",
    "size": 97,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/hud_view.h"
+   ]
   },
   {
    "va": "0x49be60",

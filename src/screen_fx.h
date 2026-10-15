@@ -4,7 +4,7 @@
  *
  *   FUN_0049a890  fx_rows_center_out  FUN_0049a740  fx_rows_edges_in   FUN_0049aa00  fx_rows_sweep_down
  *   FUN_0049aae0  fx_rows_sweep_up    FUN_0049abd0  overlay_fade        FUN_0049ac80  overlay_tick
- *   FUN_0049c2f0  notice_tick
+ *   FUN_0049c2f0  notice_tick         FUN_00499ab0  screen_step
  *
  * The screen object FX (world+0x1040): +0 the cells (12 B {u16 state 0 / 1 fading / 2 done, u16 its clock
  * 0..1000, +4 col, +8 row}), u16 +4 / +6 the grid's width / height in cells, u16 +8 the count, u16 +0xa, +0xc the
@@ -38,5 +38,9 @@ void overlay_tick(uint8_t *o);                                                  
  * from world+0x1024) in a (160, 384) 320 x 80 window sliding in from the right, its text shown 120 frames (50
  * when another waits), closed when its control is done */
 void notice_tick(wl_roomloop *rl);                                                     /* 0x49c2f0 */
+/* the room loop's per-frame screen step: the letterbox bars (room loop +0x40 on, +0x44 / +0x48 to 64, +0x4c to
+ * +0x50 — the view's +0x74 follows it), every window's animation, the fader, the dissolve, both views' HUD, the
+ * overlays, the notice popup */
+void screen_step(wl_roomloop *rl);                                                     /* 0x499ab0 */
 
 #endif /* OSS_SCREEN_FX_H */

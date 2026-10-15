@@ -138,5 +138,8 @@ void camera_apply_snap(camera_view *v, int32_t tgt_x, int32_t tgt_y);
  */
 int view_project(const camera_view *v, int32_t x, int32_t y, int32_t dx, int32_t dy, int32_t w, int32_t h,
                  int32_t *sx, int32_t *sy, int32_t noshake);
+/* FUN_004766a0 (thiscall view): whether the world box (x, y, w, h), grown by `margin`, touches the viewport (with
+ * the shake and the +0x74 offset) */
+int view_box_visible(const camera_view *v, int32_t x, int32_t y, int32_t w, int32_t h, int32_t margin);
 
 #endif /* OSS_CAMERA_FOLLOW_H */

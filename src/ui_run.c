@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "char_ai.h"      /* cmd_clear 0x411530 */
+#include "screen_fx.h"     /* screen_step 0x499ab0 */
 #include "engine_calls.h"
 #include "room_load.h"    /* ctrl_geometry_free 0x40e0c0 */
 #include "room_loop.h"    /* timed_sounds_tick 0x43e140, room_input_update 0x468a20 */
@@ -470,7 +471,7 @@ int32_t menu_run(uint8_t *m, uint8_t *c, uint8_t *msgwin, int32_t cue, int32_t l
             if (w != msgwin) win_tick(w);
         }
         if (world != 0) world_tick(rl, 1);
-        g_eng.h499ab0(rl);
+        screen_step(rl);
     }
 }
 

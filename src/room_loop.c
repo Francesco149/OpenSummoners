@@ -13,6 +13,7 @@
 #include "char_ai.h"
 #include "char_behave.h"
 #include "char_physics.h"
+#include "screen_fx.h"     /* screen_step 0x499ab0 */
 #include "engine_calls.h"
 #include "scene_loop.h"
 #include "entity_fx.h"
@@ -807,6 +808,6 @@ int room_loop_run(wl_roomloop *rl)
             int32_t f; memcpy(&f, (const uint8_t *)rl->f11c + 0x20, 4);
             if (f == 0) rl->view[0].f0 = rl->view[1].f0 = 1;
         }
-        g_eng.h499ab0(rl);
+        screen_step(rl);
     }
 }

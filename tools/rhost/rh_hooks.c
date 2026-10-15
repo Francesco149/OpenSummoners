@@ -61,6 +61,7 @@
 #include "scene_cast.h"
 #include "scene_run.h"
 #include "screen_fx.h"
+#include "hud_view.h"
 #include "ui_run.h"
 #include "glyph_text.h"
 #include "engine_calls.h"
@@ -196,6 +197,9 @@ typedef struct {
     X(H_FX_SD, "fx_rows_sweep_down", 0x49aa00u) X(H_FX_SU, "fx_rows_sweep_up", 0x49aae0u) X(H_OV_FADE, "overlay_fade", 0x49abd0u) \
     X(H_OV_TICK, "overlay_tick", 0x49ac80u) \
     X(H_UC_TOBACK, "win_ctrl_to_back", 0x41c280u) X(H_UC_ANIMSET, "win_anim_set", 0x49c620u) X(H_NOTICE, "notice_tick", 0x49c2f0u) \
+    X(H_HV_EASE, "hud_ease", 0x49bdf0u) X(H_HV_MPR, "stats_mp_ratio", 0x496970u) X(H_HV_ICON, "hud_status_icon", 0x49bc40u) \
+    X(H_HV_DROP, "hud_status_drop", 0x49bd50u) X(H_HV_TICK, "hud_view_tick", 0x49af40u) X(H_VBOX, "view_box_visible", 0x4766a0u) \
+    X(H_SSTEP, "screen_step", 0x499ab0u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
 
@@ -3688,6 +3692,15 @@ TC_HOOK0(H_OV_TICK, "overlay_tick", 0, overlay_tick(self); return 0)
 TC_HOOK(H_UC_TOBACK, "win_ctrl_to_back", 1, 1, return (intptr_t)win_ctrl_to_back(self, U16(a1)))
 TC_HOOK(H_UC_ANIMSET, "win_anim_set", 2, 1, return win_anim_set(self, a1, a2))
 TC_HOOK0(H_NOTICE, "notice_tick", 0, notice_tick(self); return 0)
+/* chip 5b: the HUD animation (src/hud_view.c) + the view box test (src/camera_follow.c).  hud_ease's value
+ * lives in the HUD record (heap); stats_mp_ratio / the icons are stdcall */
+ST_HOOK(H_HV_EASE, "hud_ease", 3, 1, return hud_ease((int32_t *)a1, a2, a3))
+ST_HOOK(H_HV_MPR, "stats_mp_ratio", 1, 1, return stats_mp_ratio(CP(a1)))
+ST_HOOK(H_HV_ICON, "hud_status_icon", 2, 0, return hud_status_icon((uint8_t *)a1, U16(a2)))
+ST_HOOK(H_HV_DROP, "hud_status_drop", 2, 1, return hud_status_drop((uint8_t *)a1, U16(a2)))
+TC_HOOK0(H_HV_TICK, "hud_view_tick", 1, return hud_view_tick(self))
+TC_HOOK(H_VBOX, "view_box_visible", 5, 1, return view_box_visible(self, a1, a2, a3, a4, a5))
+TC_HOOK0(H_SSTEP, "screen_step", 0, screen_step(self); return 0)
 /* 0x490b90 (thiscall view, 9 args): the screen point lands in the caller's (stack) out-params */
 typedef intptr_t (__attribute__((thiscall)) *vproj_t)(void *, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t,
                                                       intptr_t, intptr_t, intptr_t);
@@ -4045,7 +4058,6 @@ static void bind_engine_calls(void)
     B(40ac90); B(54ed80); B(468b10); B(5bc0c0); B(409520);
     B(5b1030); B(48c150); B(495e40); B(59d160); B(58ffa0); B(590480); B(590f20); B(590ca0); B(59d540);
     B(591120); B(590230); B(59ad60);
-    B(499ab0);
     *(void **)&g_eng.flip_5b8fc0  = g_rh_flip_stub;    /* the virtual clock steps there */
     *(void **)&g_eng.easer_43d1d0 = g_rh_easer_stub;   /* the tick count (+ a camera hook chained behind) */
     B(5ba120); B(5ba290);

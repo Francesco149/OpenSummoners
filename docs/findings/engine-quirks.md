@@ -4810,6 +4810,30 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   640 and out to −480, its text at (40, 24) 40 x 2 white / 0x808080 / 0xc0c0c0, held 120 frames — 50 when
   another line waits — then closed (no free window: the line stays pending).
 
+### #156 — the screen step and the HUD's animation (port 2026-10-16)
+- **Screen step** (`0x499ab0`, once per update from the room loop, the menu loop and the scene runner): the
+  letterbox — room loop +0x40 on: the bars +0x44 / +0x48 move 2 px a frame to 64 and the offset +0x4c to +0x50; off:
+  all to 0 — and the view's +0x74 (the projector's y shift) = +0x4c; every window's open / close animation
+  (#155; a window closing mid-loop shifts the list, so the next one waits a frame); the fader (world+0x1040: +0x20
+  state 1 → level 0, 2 / 3 → ±20 x +0x24 / 1000 a frame to 1000 / 0, then idle); the dissolve while not done
+  (+0x18): kind +0xc 0 / 3 → done at once, 1 / 2 → 2 / 4 rows a frame by the pattern +0x10 (0 centre-out, 1
+  edges-in, 2 a sweep — up for kind 1, down for kind 2, twice the rows), every fading cell's clock + 100 x
+  +0x1c / 1000 (state 2 at 1000), done when no cell is still 0 or 1; both views' HUD (`0x49af40`); the overlays
+  +0x11c / +0x120 (inline; their kind-1 frees through `0x4118b0`) and +0x124 (`0x49ac80`); the notice popup.
+- **HUD animation** (`0x49af40`, per view record +0x128 / +0x514, only while +8): the leader panel (+0x20) and
+  the previous one's (+0x1b0, fading out −20 a frame, then reset): HP / MP per mille eased by a tenth of the gap
+  (at least 5), the quick slot / class change clock (200), the mood — 3 when HP is under 30 % or a status whose
+  table row (0x628760, 140 B) has +4 == 0 is on, else 2 during a scene, 1 — cross-faded −40, the 18 status
+  icons (table row +0 u16: shown; value / max from the party block +0x448 / +0x46c; a gone status fades −20
+  and is removed, the rest shifting down with a +1000 pulse; new ones fade in +50).  The gold shown rolls
+  toward the room's +0x4014 by 1 / 10 / 100 / 1000 (gap ≤ 200 / ≤ 2000 / ≤ 20000 / more).  Hidden (+0): the HUD
+  alpha, the +0x4070 fade, the panel, the foe gauge and the combo fade out.  A new leader (room +0x200c's
+  character) copies the panel to the previous slot (alpha 1000) and flashes 100 frames when its +0x200 is 0.  The
+  foe gauge (+0x398): kept while alive, standing, on screen within 32000 / 24000 (64000 / 32000 for foe kinds
+  10 / 40 / 43) of the view centre, its HP eased; else dropped and drained.  The hit combo shows when the room's
+  +0x40e0 ≥ 5 hits with +0x40e8 > 0.  The party bars (+0x340 + 8 k) ease for every active member except
+  100000104.  A bounce (+0x380 / +0x384: 100 at the floor, −5 a frame) and a 3-step clock (+0x3cc).
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

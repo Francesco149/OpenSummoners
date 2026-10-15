@@ -6,6 +6,18 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-16 — the screen effects, chip 5b: the screen step + the HUD animation
+
+- `src/screen_fx.c`: the per-update screen step `0x499ab0` (letterbox easing + the view's +0x74, every window's
+  animation, the fader, the dissolve, both views' HUD, the three overlays, the notice popup) — its slot retired:
+  the room loop, the menu loop and the scene runner call `screen_step` directly.  `src/hud_view.c` (new): the
+  HUD animator `0x49af40` (panels, status icons, leader cross-fade, gold roll, foe gauge, combo, party bars) +
+  `0x49bdf0` / `0x496970` / `0x49bc40` / `0x49bd50`; `src/camera_follow.c`: the view box test `0x4766a0`.  Quirk
+  #156.
+- rhost: screen_step 2,169 / hud_view_tick 4,340 (sampled @10), hud_ease 479, stats_mp_ratio 405,
+  hud_status_icon 4,321 — 0 divergences; the dissolve's reveal (652 frames) / cover (335) and all four patterns
+  reached; the foe gauge and icon removal unreached.  Hybrid gate 461 PASS.
+
 ## 2026-10-16 — the screen effects, chip 5a: window animation, dissolve patterns, overlays, notices
 
 - `src/ui_run.c`: the window open / close animation `0x49a060` (at once / fade / slide; a closed window leaves its

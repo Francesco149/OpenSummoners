@@ -7,6 +7,7 @@
 
 #include "camera_follow.h"
 #include "char_ai.h"
+#include "screen_fx.h"
 #include "engine_calls.h"
 #include "entity_life.h"
 #include "event.h"          /* sys_unload 0x43e3a0 */
@@ -553,7 +554,7 @@ int32_t scene_run(wl_roomloop *rl, wl_event *ev)
             v->flag = 0;
         }
         g_eng.easer_43d1d0(g_world->view);
-        g_eng.h499ab0(rl);
+        screen_step(rl);
         if (ld32(g_world->f1040, 0x18) != 0) st32(r, 0x24, 0);
         switch (ld32(r, 0x20)) {   /* the wait mode */
         case 2:

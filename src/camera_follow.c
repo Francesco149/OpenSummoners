@@ -142,3 +142,10 @@ int view_project(const camera_view *v, int32_t x, int32_t y, int32_t dx, int32_t
     *sy = dy + y / 100 - oy / 100;
     return *sx + w >= 0 && *sy + h >= 0 && v->vp_w / 100 > *sx && v->vp_h / 100 > *sy;
 }
+
+int view_box_visible(const camera_view *v, int32_t x, int32_t y, int32_t w, int32_t h, int32_t margin)
+{
+    int32_t sx = x - v->cur_x - v->shake_x.out;
+    int32_t sy = y - 100 * v->y_off - v->cur_y - v->shake_y.out;
+    return margin + sx + w >= 0 && margin + sy + h >= 0 && v->vp_w > sx - margin && v->vp_h > sy - margin;
+}
