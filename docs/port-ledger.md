@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **616** (39.4% of engine-proper) — tested 249, ported 367
-- code bytes touched: **30.2%** (537,396 / 1,776,526 B of engine-proper)
-- unported: **1208**
+- touched: **623** (39.8% of engine-proper) — tested 249, ported 374
+- code bytes touched: **30.7%** (545,354 / 1,776,526 B of engine-proper)
+- unported: **1201**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -69,7 +69,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x440f40 | sub_440F40 | 670 | char_ai.c, char_ai.h |
 | 0x4411e0 | sub_4411E0 | 131 | char_ai.c, char_ai.h |
 | 0x4416c0 | sub_4416C0 | 52 | entity_move.c, entity_move.h |
-| 0x44d160 | sub_44D160 | 379 | actor_render.c, actor_render.h, actor_spawn.c (+3) |
+| 0x44d160 | sub_44D160 | 379 | actor_render.c, actor_render.h, actor_spawn.c (+4) |
 | 0x44e640 | sub_44E640 | 49 | hud.c, hud.h, npc_ai.h |
 | 0x44e680 | sub_44E680 | 59 | hud.c, hud.h, npc_ai.h |
 | 0x466930 | sub_466930 | 1315 | char_physics.c, char_physics.h |
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (367) — reimplemented, no host test yet
+## ported (374) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -446,6 +446,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x448c80 | sub_448C80 | 47 | particle_init.h |
 | 0x448cb0 | sub_448CB0 | 264 | entity_fx.c, entity_fx.h |
 | 0x44bbc0 | sub_44BBC0 | 66 | entity_fx.c, entity_fx.h |
+| 0x44d020 | sub_44D020 | 308 | char_status.h |
+| 0x44e6c0 | sub_44E6C0 | 108 | char_status.h |
 | 0x450e00 | sub_450E00 | 237 | entity_fx.h |
 | 0x450ef0 | sub_450EF0 | 776 | sound_fx.h |
 | 0x451200 | sub_451200 | 79 | entity_fx.c, entity_fx.h |
@@ -502,7 +504,11 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x487530 | sub_487530 | 54 | char_state.h |
 | 0x487570 | sub_487570 | 437 | char_state.h |
 | 0x487730 | sub_487730 | 366 | char_state.h |
+| 0x4878b0 | sub_4878B0 | 1289 | char_status.c, char_status.h |
+| 0x487dc0 | sub_487DC0 | 5082 | char_status.c, char_status.h |
+| 0x4891c0 | sub_4891C0 | 181 | char_status.h |
 | 0x489280 | sub_489280 | 818 | sound_fx.h |
+| 0x48bb30 | sub_48BB30 | 632 | char_status.h |
 | 0x491740 | sub_491740 | 38 | sprite_slot.h |
 | 0x49a050 | sub_49A050 | 13 | sprite_slot.h |
 | 0x49be60 | sub_49BE60 | 290 | room_loop.h |
@@ -569,6 +575,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x55cd50 | sub_55CD50 | 85 | particle_init.h |
 | 0x55cdb0 | sub_55CDB0 | 145 | particle_init.h |
 | 0x55ce50 | sub_55CE50 | 18 | particle_init.h |
+| 0x55cfc0 | sub_55CFC0 | 358 | char_status.h |
 | 0x55f790 | sub_55F790 | 1558 | scene_loop.h |
 | 0x560e90 | sub_560E90 | 700 | scene_loop.h |
 | 0x561150 | sub_561150 | 126 | scene_loop.h |

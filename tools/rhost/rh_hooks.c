@@ -52,6 +52,7 @@
 #include "arche_pose.h"
 #include "script_engine.h"
 #include "scene_cmd.h"
+#include "char_status.h"
 #include "engine_calls.h"
 
 typedef struct {
@@ -136,6 +137,10 @@ typedef struct {
     X(H_SC_SPAWN, "scene_spawn_at_door", 0x41f0e0u) X(H_SC_PLREC, "scene_place_rec", 0x4cbf80u) \
     X(H_SC_BGM, "room_bgm_restart", 0x4cca70u) \
     X(H_CD_PAI, "char_party_ai_skills", 0x42eb20u) \
+    X(H_CS_TICK, "char_status_tick", 0x487dc0u) X(H_CS_FADE, "char_fade_tick", 0x4878b0u) \
+    X(H_CS_DECAY, "char_status_decay", 0x48bb30u) X(H_CS_HIT, "char_hit_queue", 0x4891c0u) \
+    X(H_CS_LOG, "world_log_line", 0x44e6c0u) X(H_CS_PARTS, "entity_part_descs", 0x44d020u) \
+    X(H_CS_SPRITE, "entity_sprite_desc", 0x44d160u) X(H_CS_SHOT, "shot_spawn", 0x55cfc0u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
 
@@ -3343,6 +3348,36 @@ TC_HOOK(H_SC_SPAWN, "scene_spawn_at_door", 8, 1, return (intptr_t)scene_spawn_at
 TC_HOOK(H_SC_PLREC, "scene_place_rec", 5, 0, scene_place_rec(self, a1, a2, a3, a4, a5); return 0)
 TC_HOOK(H_SC_BGM, "room_bgm_restart", 2, 0, room_bgm_restart(self, a1, a2); return 0)
 TC_HOOK(H_CD_PAI, "char_party_ai_skills", 4, 0, char_party_ai_skills(self, U16(a1), U16(a2), U16(a3), a4); return 0)
+/* the status pass + its leaves (src/char_status.c) */
+/* a status pass with anything to do: a timer, the fade, a shot / aura slot, the guard radius, the blink */
+static int cs_busy(const void *c)
+{
+    const uint8_t *p = c, *pt = *(uint8_t *const *)(p + 0x750);
+    for (int i = 0; i < 18; i++) if (*(const uint16_t *)(pt + 0x448 + 2 * i) != 0) return 1;
+    if (*(const uint16_t *)(p + 0x158a8) != 0 || *(const int32_t *)(p + 0xc7f4) != 0 || *(const uint16_t *)(p + 0x26c) != 0)
+        return 1;
+    for (uint32_t off = 0xc7fc; off <= 0xc824; off += 4) if (*(void *const *)(p + off) != NULL) return 1;
+    return 0;
+}
+TC_HOOK_R(H_CS_TICK, "char_status_tick", 1, 0, cs_busy(self), char_status_tick(self, (wl_body *)a1); return 0)
+static void cs_fade_r(void *c) { gx_ctx *x = c; ((void (__attribute__((thiscall)) *)(void *))(uintptr_t)H[H_CS_FADE].va)(x->self); }
+static void cs_fade_p(void *c) { gx_ctx *x = c; port_world(); char_fade_tick(x->self); }
+static void __attribute__((thiscall)) H_CS_FADE_w(void *self)
+{
+    hook_t *h = &H[H_CS_FADE]; gx_ctx x = { self, { 0 }, 0, 0 };
+    if (h->mode == 2) { h->calls++; cs_fade_p(&x); return; }
+    if (!sample_rare(h, *(const uint16_t *)((const uint8_t *)self + 0x158a8) != 0)) { cs_fade_r(&x); return; }
+    full_shadow(h, "char_fade_tick", cs_fade_r, cs_fade_p, &x, "char_fade_tick");
+}
+TC_HOOK(H_CS_DECAY, "char_status_decay", 5, 0, char_status_decay(self, U16(a1), U16(a2), a3, (uint32_t)a4, (char *)a5); return 0)
+TC_HOOK(H_CS_HIT, "char_hit_queue", 16, 1,
+        return char_hit_queue(self, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16))
+TC_HOOK(H_CS_LOG, "world_log_line", 1, 0, world_log_line(self, (const char *)a1); return 0)
+TC_HOOK(H_CS_PARTS, "entity_part_descs", 3, 1, return entity_part_descs(self, CP(a1), (es_desc *)a2, (uint16_t *)a3))
+TC_HOOK(H_CS_SPRITE, "entity_sprite_desc", 2, 1, return entity_sprite_desc(self, CP(a1), (es_desc *)a2))
+TC_HOOK(H_CS_SHOT, "shot_spawn", 19, 1,
+        return (intptr_t)shot_spawn(self, a1, a2, a3, (wl_body *)a4, a5, a6, a7, a8, (int16_t)a9, a10, a11, a12, a13, a14,
+                                    a15, a16, a17, a18, a19))
 /* the scene loop itself — REPLACE only (a whole session per call) */
 typedef int32_t (__attribute__((thiscall)) *scloop_t)(uint8_t *, int32_t, uint32_t, int32_t, int32_t *, int32_t);
 static int32_t __attribute__((thiscall)) w_scloop(uint8_t *ss, int32_t save, uint32_t sub, int32_t demo, int32_t *out, int32_t start)
@@ -3609,12 +3644,12 @@ static void bind_engine_calls(void)
 #undef B
 #define B(n) *(void **)&g_eng.h##n = (void *)(uintptr_t)0x##n##u
     B(5b4d00);
-    B(5b5600); B(487dc0);
-    B(4878b0); B(4895c0);
+    B(5b5600);
+    B(4895c0);
    
     B(4710c0); B(46da00);
     B(408b90); B(54f140);
-    B(40ac90); B(55cfc0); B(54ed80); B(468b10); B(5bc0c0); B(409520);
+    B(40ac90); B(54ed80); B(468b10); B(5bc0c0); B(409520);
     B(5b1030); B(48c150); B(495e40); B(59d160); B(59aa40); B(58ffa0); B(590480); B(590f20); B(590ca0); B(59d540);
     B(591120); B(562a70); B(58ffc0); B(59a910); B(415350); B(590230); B(59c750); B(59ca90); B(59ad60); B(5908a0);
     B(499ab0);
@@ -3629,7 +3664,7 @@ static void bind_engine_calls(void)
     B(56dc20); B(41a890); B(5bf3ee); B(426110); B(560900); B(5bf5db);
     B(428c00); B(429060); B(429db0); B(42a500); B(42a9a0); B(42b9a0); B(42c130); B(42c510); B(42c970);
     B(42cce0); B(42d3c0); B(42da50); B(42e290); B(42f840); B(42fbf0); B(42ff00); B(430400);
-    B(49ce70); B(5bcfb0); B(405e80);
+    B(49ce70); B(5bcfb0); B(405e80); B(55d140);
     B(561d20); B(409150); B(55fdb0); B(41d780); B(4e6520); B(4e61d0); B(41b670); B(4c5af0); B(52fd80); B(5a3870); B(5a00c0);
     B(5a3670); B(56c640); B(5b6060); B(5b60d0); B(5b61b0); B(5b6200); B(5b6bc0); B(5b6340); B(5b64b0);
     B(41cfd0);

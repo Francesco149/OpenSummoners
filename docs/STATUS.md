@@ -7,15 +7,15 @@
 ## Port coverage (engine-proper functions of `sotes.exe`)
 
 ```
-████████░░░░░░░░░░░░  39.4% touched   (15.7% host-tested, 30.2% of code bytes)
+████████░░░░░░░░░░░░  39.8% touched   (15.7% host-tested, 30.7% of code bytes)
 ```
 
 | status      | count | what it means                                          |
 |-------------|------:|--------------------------------------------------------|
 | tested      |   249 | ported + module covered by the host unit suite       |
-| ported      |   367 | reimplemented in src/, no host test for that module  |
-| **touched** | **616** | tested + ported (FUN_ provenance ref in src/)    |
-| unported    |  1208 | exists in engine, never referenced from src/         |
+| ported      |   374 | reimplemented in src/, no host test for that module  |
+| **touched** | **623** | tested + ported (FUN_ provenance ref in src/)    |
+| unported    |  1201 | exists in engine, never referenced from src/         |
 
 **Denominator note (read this before judging the %):** the headline % is over
 **engine-proper** functions — the **1532** below
@@ -26,7 +26,7 @@ those like retail rather than porting them (PLAN.md §2-3), so counting them
 would bury real progress. Full table is **1824** non-thunk
 functions (of 1824 incl. thunks).
 
-Code-byte coverage (30.2% of engine-proper bytes) is the truer progress
+Code-byte coverage (30.7% of engine-proper bytes) is the truer progress
 signal: the engine has a long tail of tiny leaf helpers, so function count
 understates how much actual instruction volume is ported.
 
@@ -51,6 +51,7 @@ understates how much actual instruction volume is ported.
   | hazard probe | `0x440f40` | 31k | 0 |
   | NPC navigation AI (+ cluster) | `0x43f880` | 11,491 (all full-state) | 0 |
   | character apply pass | `0x485fc0` | 69,968 (17,492 full-state) | 0 |
+  | the per-tick STATUS pass (doom / stun / weak / poison / floor damage, the pose statuses, haste / orbit shots / shields / attack up / guard / auras, the cure + decay) + the FADE, status decay, pending hit, log line, sprite / part descriptors, shot spawn | `0x487dc0` `0x4878b0` (+ `0x48bb30` `0x4891c0` `0x44e6c0` `0x44d160` `0x44d020` `0x55cfc0`) | 143,533 (2,241 full-state: the idle path — no status / fade / shot in the corpus) / 143,533 (2,241) / – / – / – / 1,194,769 (37,334) / – / – | 0 |
   | entity tick driver | `0x46cd70` | 6,877 (3,438 full-state) | 0 |
   | entity effect records (tick / add / splash) | `0x54d090` / `0x448cb0` / `0x46d7f0` | 649k / 218 / 186k (16k full-state) | 0 |
   | looping-sound channels (all / one / release) | `0x46d180` / `0x46d4a0` / `0x4537d0` | 256k / 227k / 36 (11.5k full-state) | 0 |
@@ -101,7 +102,7 @@ understates how much actual instruction volume is ported.
   | the party POSE handler (turn-around, hit reactions + voice, stagger, knockdowns, blown-back falls, get-up, revive) + knockdown, status inflict, drift, switch touch, particle live, hitstop | `0x457ff0` (+ `0x459990` `0x4593e0` `0x4678f0` `0x467ae0` `0x459ed0` `0x5b1aa0` `0x459370` `0x54d060` `0x5b4510`) | 1.43M (72,685 full-state: every non-zero pose) / – / – / – / – / – / 414 / – / – / – | 0 |
   | the SCRIPT ENGINE (chapter scripts by area / flag, then the default event: room arrival + BGM + area title, doors, switched furniture / chest / save statue / talk records, time of day) + scene begin / end, room flag, leader, party cast, cast add, scene wait, actor by record | `0x40c380` (+ `0x49cb60` `0x49cd70` `0x41e2f0` `0x402f20` `0x402060` `0x401f50` `0x439680` `0x556eb0`) | 61 (11 full-state; 49 guarded: the BGM / frame loop) / 31 / 30 / 251 / 29 / 13 / 13 / – (REPLACE: 146) / 129; REPLACE: every event of the corpus | 0 |
   | the scene COMMAND builders (message box + voice row, face, weapon stance, talk turn, flag set, camera, fades / waits / pause, area title, door place / spawn / by record, next event, room BGM restart) | `0x49d6e0` `0x4a5ee0` `0x401e60` `0x4a5e20` `0x402d40` `0x406210` `0x41d190` `0x4a5f50` `0x401d40` `0x4a5f30` `0x4a5f90` `0x4cc060` `0x4cc080` `0x4cc0a0` `0x4cc0c0` `0x403100` `0x41ec20` `0x41f0e0` `0x4cbf80` `0x4cca70` | 101 / 34 / 7 / 1 / 13 / 13 / 8 / 18 / 6 / 1 / 5 / 1 / 2 / 2 / 1 / 3 (guarded: the title text) / 1 / 15 / 1 / 2 (guarded: the BGM) — from retail's chapter scripts | 0 |
-  Hybrid gate: with all of the above REPLACING retail (335 hooks) (the whole character tick, driver → tile
+  Hybrid gate: with all of the above REPLACING retail (343 hooks) (the whole character tick, driver → tile
   movers, + the room loop's passes and per-tick calls, runs as port code), every corpus scenario ends byte-identical.
   Shadow guard (rhost): a port phase that reaches an external effect retail already performed (surface free,
   buffer release, DeleteObject, DirectInput, a mode-0/2 script) aborts its comparison (counted skipped); those

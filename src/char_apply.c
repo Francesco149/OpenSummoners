@@ -4,6 +4,7 @@
  * (call-site pushes — IDA adds a phantom register argument).  Labels keep retail's
  * control flow. */
 #include "char_apply.h"
+#include "char_status.h"
 
 #include <stddef.h>
 #include <string.h>
@@ -322,8 +323,8 @@ tail:
         if (self->leash_max > 0 && t > self->leash_max) leash_release(self);
     }
     char_mods_reset(self);
-    if (stunned || (g_eng.h487dc0(self, IP(bb)), self->base.alive != 0)) {
-        g_eng.h4878b0(self);
+    if (stunned || (char_status_tick(self, bb), self->base.alive != 0)) {
+        char_fade_tick(self);
         int32_t code = self->base.code;
         if (code >= 0xc35a && code <= 0xc35c) {
             if (bb->grounded == 0 || bb->vel_x != 0 || bb->pose != 0 || bb->state != 0 || self->f268 != 0) {

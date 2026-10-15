@@ -16,6 +16,7 @@
 #include "char_integrate.h"
 #include "char_physics.h"
 #include "char_state.h"
+#include "char_status.h"
 #include "engine_calls.h"
 #include "entity_life.h"
 #include "entity_move.h"
@@ -167,7 +168,7 @@ int actor_shot(wl_actor *a, wl_body *b, int32_t a3, int32_t power)
 {
     uint32_t s = world_next_serial(g_world);
     int32_t pw = mul(a->f2e0[1], power) / 1000;
-    return g_eng.h55cfc0(a, 0, 2, 100040, IP(b), 0, 0, 1, a3, 10, pw, 0, (intptr_t)s, 3, 0, 0, 0, 0, 0, 2);
+    return (intptr_t)shot_spawn(a, 0, 2, 100040, b, 0, 0, 1, a3, 10, pw, 0, (int32_t)(intptr_t)s, 3, 0, 0, 0, 0, 0, 2);
 }
 
 void warp_request(wl_actor *a, int32_t kind)
@@ -231,7 +232,7 @@ static void shots_inline(wl_actor *a, wl_body *b, int32_t code, uint32_t serial,
     sfx_play_at(&a->base, 0, 235, 0, 0, 0);
     for (int n = 2; n != 0; n--) {
         for (uint16_t m = 10; m < 50; m += 10)
-            g_eng.h55cfc0(a, 0, 2, code, IP(b), 2000, 0, 1, 0, m, 0, 90, (intptr_t)serial, k, a15, a16, a17, 0, 0, 2);
+            shot_spawn(a, 0, 2, code, b, 2000, 0, 1, 0, (int16_t)m, 0, 90, (int32_t)serial, k, a15, a16, a17, 0, 0, 2);
         k = 1;
     }
 }

@@ -6,6 +6,20 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-15 (night) — the per-tick STATUS pass 0x487dc0 + the FADE 0x4878b0
+
+- `src/char_status.c`: the apply pass's tail — the status pass (doom / stun / weak / poison / the damaging
+  floor, the pose statuses 118 / 119 / 121 / 117 / 109, haste / orbit shots / shields / attack up / guard /
+  auras, the foe-distance cures and the timed decay `0x48bb30`) and the fade (`0x4878b0`: out / in, the cut
+  line's sparkles), with the pending hit `0x4891c0`, the log line `0x44e6c0`, a retail-layout sprite
+  descriptor `0x44d160` (the old `actor_render_describe` is a reduction on its own struct) + the part
+  descriptors `0x44d020`, the shot spawn `0x55cfc0` (gimmick's shots call it too).  Quirk #146 (the
+  attack-up sparks read an uninitialised ground flag for move modes outside 0..3: none are set).  Slots
+  `h487dc0` / `h4878b0` / `h55cfc0` retired; `0x5b4d00` (the fall) / `0x55d140` (shot init) stay slots.
+- rhost: status / fade 143,533 calls each (2,241 full-state, TC_HOOK_R rare = a timer / fade / slot live),
+  sprite desc 1.19M (37,334), 0 divergences — the corpus has no status, shot or fade: the idle path; the rest
+  is REPLACE-only.  Hybrid gate: 343 hooks, PASS.
+
 ## 2026-10-15 (evening) — the party AI skill records 0x42eb20
 
 - `char_party_ai_skills` (`src/char_def.c`): one AI skill record per known party skill, by id (ranges, the

@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 367,
-  "unported": 1208,
+  "ported": 374,
+  "unported": 1201,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 616,
-  "pct_touched": 39.4,
+  "touched": 623,
+  "pct_touched": 39.8,
   "pct_tested": 15.7,
-  "engine_proper_touched": 603,
+  "engine_proper_touched": 610,
   "bytes_total": 1776526,
-  "bytes_touched": 537396,
-  "pct_bytes_touched": 30.2
+  "bytes_touched": 545354,
+  "pct_bytes_touched": 30.7
  },
  "orphan_refs": [],
  "functions": [
@@ -4212,8 +4212,10 @@
    "name": "sub_44D020",
    "size": 308,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_status.h"
+   ]
   },
   {
    "va": "0x44d160",
@@ -4226,6 +4228,7 @@
     "src/actor_render.h",
     "src/actor_spawn.c",
     "src/actor_spawn.h",
+    "src/char_status.h",
     "src/draw_pool.h",
     "src/main.c"
    ]
@@ -4283,8 +4286,10 @@
    "name": "sub_44E6C0",
    "size": 108,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_status.h"
+   ]
   },
   {
    "va": "0x44e730",
@@ -6062,24 +6067,32 @@
    "name": "sub_4878B0",
    "size": 1289,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_status.c",
+    "src/char_status.h"
+   ]
   },
   {
    "va": "0x487dc0",
    "name": "sub_487DC0",
    "size": 5082,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_status.c",
+    "src/char_status.h"
+   ]
   },
   {
    "va": "0x4891c0",
    "name": "sub_4891C0",
    "size": 181,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_status.h"
+   ]
   },
   {
    "va": "0x489280",
@@ -6128,8 +6141,10 @@
    "name": "sub_48BB30",
    "size": 632,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_status.h"
+   ]
   },
   {
    "va": "0x48bdd0",
@@ -8976,8 +8991,10 @@
    "name": "sub_55CFC0",
    "size": 358,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_status.h"
+   ]
   },
   {
    "va": "0x55d140",

@@ -47,6 +47,9 @@ typedef int (ENG_THISCALL *eng_tc10)(void *self, intptr_t, intptr_t, intptr_t, i
                                      intptr_t, intptr_t, intptr_t);
 typedef int (ENG_THISCALL *eng_tc12)(void *self, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t,
                                      intptr_t, intptr_t, intptr_t, intptr_t, intptr_t);
+typedef int (ENG_THISCALL *eng_tc17)(void *self, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t,
+                                     intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t,
+                                     intptr_t, intptr_t);
 typedef int (ENG_THISCALL *eng_tc19)(void *self, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t,
                                      intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t,
                                      intptr_t, intptr_t, intptr_t, intptr_t);
@@ -103,7 +106,7 @@ typedef struct engine_calls {
     eng_tc0 h5ba4c0; eng_tc0 h5ba2d0; eng_tc0 h5ba650; eng_tc1 h49bf90;
     /* the gimmick pass's callees: the event-script engine 0x40c380, the shot emitter 0x40ac90,
      * the shot spawner 0x55cfc0 */
-    eng_tc6 h40ac90; eng_tc19 h55cfc0;
+    eng_tc6 h40ac90;
     /* the touch pass's: the input re-poll 0x40fe00 (`this` = sys), the key use 0x54ed80 */
     eng_tc0 h40fe00; eng_tc0 h54ed80;
     /* the room loop's: the joystick input producer 0x468b10, the BGM manager update 0x5bc0c0 */
@@ -136,8 +139,6 @@ typedef struct engine_calls {
     /* the character apply pass 0x485fc0's callees (HP/MP, damage, respawn, voices, effects) */
     eng_tc3 h5b4d00; 
     eng_tc2 h5b5600;
-    eng_tc1 h487dc0;
-    eng_tc0 h4878b0; 
     eng_tc0 h4895c0; 
     /* the tick driver 0x46cd70's band updaters */
     eng_tc4 h4710c0; eng_tc0 h46da00;
@@ -213,6 +214,8 @@ typedef struct engine_calls {
     eng_tc3 h5bcfb0; eng_tc1 h5bbc60; eng_tc1 h5bbc90; eng_tc1 h5bbcd0; eng_tc0 h5bbc20; eng_tc5 h5bcb80;
     /* the scene commands': the party gather after a talk turn 0x405e80 (thiscall runner) */
     eng_tc5 h405e80;
+    /* the status pass's: the shot init 0x55d140 (thiscall shot, 17 args) */
+    eng_tc17 h55d140;
 } engine_calls;
 
 extern engine_calls g_eng;

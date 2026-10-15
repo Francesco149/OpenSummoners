@@ -4531,6 +4531,31 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   dead and inits it there (`0x41f200` anchor 3 / 3).  Area title `0x403100`: the arrival's title for `dur`
   ticks + runner +0x20 = 9.
 
+### #146 — the per-tick STATUS pass 0x487dc0 and the FADE 0x4878b0 (port 2026-10-15)
+- **Gate**: the effects below run only while the character is tangible (+0x268 == 0) and not fading (+0x158a8
+  == 0).  Status 4 (doom) calls the fall `0x5b4d00(0, 1, facing)` outside scene kind 2 / +0x1034; 3 keeps the
+  stun mark (particle 100113 in +0xc824, +0x1f0 = 1); 1 weakened sets the strength +0xfc / +0x100 to 12 (scene
+  kind 2: cured on the spot, party +0x54 = 1); 6 poison: bubbles 100107 every 8th tick (+0x206), a 5 % hit of
+  the HP parts (+0x58 + +0x84 + +0x9c) every 256 ticks (512 for a party member) through the pending hit
+  `0x4891c0` (kind 13, the world serial passed as old + 1 even when the counter wraps); a party member on grid C
+  3 takes 2 % every 256 (kind 14).
+- **Pose statuses** (each first drops the character's ten shot slots +0xc7fc..+0xc820): 1 (see above), 2
+  paralysed → pose 118, 8 → 119 (+ the tint sys+0x2868), 9 a carried partner → 121 (800), 5 asleep → 117, 10
+  fallen → 109 (released: 108).  While held the phase +0x58 is 20 below 50 ticks left, 10 below 100, else reset
+  to 0 once past 10.
+- **Buffs**: 15 haste (+20 to +0xc7d8..+0xc7e4, u16 +0xc7e8 = 2, after-images 100131 ×8 every 10th tick with a
+  discarded draw first), 17 four orbit shots 100015, 16 two shields 100014 (both dropped after 2 hits, `0x48bb30`
+  shortens the status by 25 per new shield), 13 attack up (+V[13] to +0xc7d8, sparks 100109 when grounded —
+  the ground flag is UNINITIALISED in retail for move modes outside 0..3), 12 the guard radius +0xc7f8 (grows
+  200 a tick to 8000, shrinks after; sounds sys+0x4d0 / +0x4d4), 14 / 11 the auras 100023 / 100024 (11 also while
+  the slow flag +0xc7ec holds, 100 ticks).  Shot slots given up are flagged +0x204 = 2 (or 1), released only
+  while fading.
+- **Cure / decay**: unless intangible, each status whose row (0x628708 + 140 st) has +0x5c ends when no foe is
+  within 48000 × 20000 (not 10), each with +0x6c counts down 1 a tick (`0x48bb30`: at 0 the cure line).
+- **Fade** (+0x158a8: 1 out, 2 in; +0x158ac / +0x158b0 the cut, +0x158b8 the delay): the delay's end plays sys
+  +0x4ec / +0x4f0; while shown, sparkles 100049 and per sprite row two 100098 from the cut line
+  (frame height · +0x158ac / +0x158b0).  The room arrival starts it (mode 2, delay 40 + 30 k).
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`
