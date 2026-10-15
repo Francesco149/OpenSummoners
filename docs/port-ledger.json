@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 386,
-  "unported": 1189,
+  "ported": 404,
+  "unported": 1171,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 635,
-  "pct_touched": 40.6,
+  "touched": 653,
+  "pct_touched": 41.8,
   "pct_tested": 15.7,
-  "engine_proper_touched": 622,
+  "engine_proper_touched": 640,
   "bytes_total": 1776526,
-  "bytes_touched": 551063,
-  "pct_bytes_touched": 31.0
+  "bytes_touched": 553467,
+  "pct_bytes_touched": 31.2
  },
  "orphan_refs": [],
  "functions": [
@@ -998,7 +998,8 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/main.c"
+    "src/main.c",
+    "src/ui_core.h"
    ]
   },
   {
@@ -1006,8 +1007,10 @@
    "name": "sub_40DF40",
    "size": 374,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x40e0c0",
@@ -1026,8 +1029,10 @@
    "name": "sub_40E2F0",
    "size": 100,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x40e360",
@@ -1079,7 +1084,8 @@
    "src": [
     "src/menu_list.c",
     "src/menu_list.h",
-    "src/newgame_menu.c"
+    "src/newgame_menu.c",
+    "src/ui_core.h"
    ]
   },
   {
@@ -1087,8 +1093,10 @@
    "name": "sub_40F5A0",
    "size": 25,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x40f5c0",
@@ -1140,8 +1148,10 @@
    "name": "sub_40FDB0",
    "size": 70,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x40fe00",
@@ -1282,16 +1292,20 @@
    "name": "sub_411C50",
    "size": 623,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x411ec0",
    "name": "sub_411EC0",
    "size": 118,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x411f40",
@@ -1303,7 +1317,8 @@
     "src/menu_list.c",
     "src/menu_list.h",
     "src/newgame_menu.c",
-    "src/newgame_menu.h"
+    "src/newgame_menu.h",
+    "src/ui_core.h"
    ]
   },
   {
@@ -1311,8 +1326,10 @@
    "name": "sub_412100",
    "size": 85,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x412160",
@@ -1348,16 +1365,20 @@
    "name": "sub_4124D0",
    "size": 146,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x412570",
    "name": "sub_412570",
    "size": 19,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x412590",
@@ -1399,7 +1420,8 @@
    "status": "tested",
    "src": [
     "src/obj_container.c",
-    "src/obj_container.h"
+    "src/obj_container.h",
+    "src/ui_core.h"
    ]
   },
   {
@@ -1415,8 +1437,10 @@
    "name": "sub_412D30",
    "size": 117,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x412db0",
@@ -1457,8 +1481,10 @@
    "name": "sub_413760",
    "size": 173,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x413810",
@@ -1522,7 +1548,8 @@
    "status": "tested",
    "src": [
     "src/obj_container.c",
-    "src/obj_container.h"
+    "src/obj_container.h",
+    "src/ui_core.h"
    ]
   },
   {
@@ -1554,8 +1581,10 @@
    "name": "sub_414C40",
    "size": 98,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x414cb0",
@@ -1586,8 +1615,10 @@
    "name": "sub_415420",
    "size": 58,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x415460",
@@ -1610,16 +1641,20 @@
    "name": "sub_415930",
    "size": 92,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x415990",
    "name": "sub_415990",
    "size": 119,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x415a10",
@@ -1670,8 +1705,10 @@
    "name": "sub_416500",
    "size": 107,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x416570",
@@ -1704,8 +1741,10 @@
    "name": "sub_4173D0",
    "size": 29,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x4173f0",
@@ -1720,8 +1759,10 @@
    "name": "sub_417440",
    "size": 51,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x417480",
@@ -1897,7 +1938,8 @@
    "src": [
     "src/menu_list.c",
     "src/menu_list.h",
-    "src/newgame_picker.c"
+    "src/newgame_picker.c",
+    "src/ui_core.h"
    ]
   },
   {

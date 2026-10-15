@@ -54,6 +54,7 @@
 #include "scene_cmd.h"
 #include "char_status.h"
 #include "room_tick.h"
+#include "ui_core.h"
 #include "engine_calls.h"
 
 typedef struct {
@@ -149,6 +150,15 @@ typedef struct {
     X(H_RT_PARTY, "room_party_tick", 0x5908a0u) X(H_RT_IPICK, "room_item_pick", 0x590660u) \
     X(H_RT_QUEST, "quest_count", 0x49ce70u) X(H_RT_VIEWS, "room_views_refresh", 0x59a910u) \
     X(H_RT_NOTICE, "world_notice_reset", 0x58ffc0u) \
+    X(H_UI_TOP, "win_mgr_topmost", 0x414080u) X(H_UI_OPEN, "win_mgr_open", 0x4124d0u) X(H_UI_INIT, "win_init", 0x40f3e0u) \
+    X(H_UI_TAKE, "win_ctrl_take", 0x412c10u) X(H_UI_AT, "win_ctrl_at", 0x4173d0u) X(H_UI_COLP, "grid_col_place", 0x40fdb0u) \
+    X(H_UI_COLS, "grid_col_style", 0x412100u) X(H_UI_REF, "ui_ref_set", 0x40f5a0u) X(H_UI_LINK, "ui_link_drop", 0x412570u) \
+    X(H_UI_TADD, "win_text_add", 0x40dee0u) X(H_UI_TINIT, "ctrl_text_init", 0x40df40u) X(H_UI_GADD, "win_grid_add", 0x411c50u) \
+    X(H_UI_ROW, "grid_row_reset", 0x411f40u) X(H_UI_TMET, "text_metrics_set", 0x40e2f0u) \
+    X(H_UI_CUR, "ctrl_cursor_set", 0x411ec0u) X(H_UI_ICON, "icon_set", 0x414c40u) X(H_UI_FSTY, "sys_frame_style", 0x412d30u) \
+    X(H_UI_CSTY, "sys_cursor_style", 0x413760u) X(H_UI_PAGE, "grid_page_fit", 0x4192b0u) \
+    X(H_UI_SCROLL, "ui_scroll_init", 0x415420u) X(H_UI_MTXT, "money_text", 0x415930u) X(H_UI_MVAL, "money_value", 0x417440u) \
+    X(H_UI_ICNT, "room_item_count", 0x415990u) X(H_UI_PCNT, "room_party_count", 0x416500u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
 
@@ -3396,6 +3406,32 @@ TC_HOOK(H_RT_IPICK, "room_item_pick", 4, 1, return room_item_pick(self, (wl_pslo
 TC_HOOK0(H_RT_QUEST, "quest_count", 1, return quest_count(self))
 TC_HOOK0(H_RT_VIEWS, "room_views_refresh", 0, room_views_refresh(self); return 0)
 TC_HOOK0(H_RT_NOTICE, "world_notice_reset", 1, return (intptr_t)world_notice_reset(self))
+/* the UI toolkit core (src/ui_core.c) */
+TC_HOOK0(H_UI_TOP, "win_mgr_topmost", 0, win_mgr_topmost(self); return 0)
+TC_HOOK(H_UI_OPEN, "win_mgr_open", 6, 1, return (intptr_t)win_mgr_open(self, a1, a2, a3, a4, U16(a5), CP(a6)))
+TC_HOOK(H_UI_INIT, "win_init", 7, 1, return win_init(self, (uint8_t *)a1, a2, a3, a4, a5, U16(a6), CP(a7)))
+TC_HOOK0(H_UI_TAKE, "win_ctrl_take", 1, return (intptr_t)win_ctrl_take(self))
+TC_HOOK(H_UI_AT, "win_ctrl_at", 1, 1, return (intptr_t)win_ctrl_at(self, U16(a1)))
+TC_HOOK(H_UI_COLP, "grid_col_place", 5, 1, return grid_col_place(self, a1, a2, a3, a4, a5))
+TC_HOOK(H_UI_COLS, "grid_col_style", 6, 1, return grid_col_style(self, a1, a2, a3, a4, a5, a6))
+TC_HOOK(H_UI_REF, "ui_ref_set", 2, 1, return ui_ref_set(self, a1, U16(a2)))
+TC_HOOK0(H_UI_LINK, "ui_link_drop", 1, return (intptr_t)ui_link_drop(self))
+TC_HOOK(H_UI_TADD, "win_text_add", 4, 1, return (intptr_t)win_text_add(self, a1, a2, U16(a3), U16(a4)))
+TC_HOOK(H_UI_TINIT, "ctrl_text_init", 4, 1, return (intptr_t)ctrl_text_init(self, a1, a2, U16(a3), U16(a4)))
+TC_HOOK(H_UI_GADD, "win_grid_add", 4, 1, return (intptr_t)win_grid_add(self, a1, a2, a3, a4))
+TC_HOOK(H_UI_ROW, "grid_row_reset", 1, 0, return grid_row_reset(self, a1))
+TC_HOOK(H_UI_TMET, "text_metrics_set", 4, 1, return (intptr_t)text_metrics_set(self, a1, a2, a3, a4))
+TC_HOOK(H_UI_CUR, "ctrl_cursor_set", 7, 1,
+        return ctrl_cursor_set(self, a1, U16(a2), (const uint16_t *)a3, U16(a4), U16(a5), a6, a7))
+ST_HOOK(H_UI_ICON, "icon_set", 6, 0, icon_set((uint8_t *)a1, a2, U16(a3), (const uint16_t *)a4, U16(a5), U16(a6)); return 0)
+TC_HOOK(H_UI_FSTY, "sys_frame_style", 2, 1, return (intptr_t)sys_frame_style(self, (uint8_t *)a1, a2))
+TC_HOOK(H_UI_CSTY, "sys_cursor_style", 2, 1, return (intptr_t)sys_cursor_style(self, (uint8_t *)a1, a2))
+TC_HOOK0(H_UI_PAGE, "grid_page_fit", 1, return grid_page_fit(self))
+TC_HOOK(H_UI_SCROLL, "ui_scroll_init", 4, 1, return ui_scroll_init(self, a1, a2, a3, a4))
+ST_HOOK(H_UI_MTXT, "money_text", 4, 1, return (intptr_t)money_text((char *)a1, a2, a3, a4))
+ST_HOOK(H_UI_MVAL, "money_value", 3, 1, return money_value(a1, a2, a3))
+TC_HOOK(H_UI_ICNT, "room_item_count", 3, 1, return room_item_count(self, a1, (uint16_t *)a2, a3))
+TC_HOOK(H_UI_PCNT, "room_party_count", 2, 1, return room_party_count(self, a1, a2))
 TC_HOOK(H_CS_SHOT, "shot_spawn", 19, 1,
         return (intptr_t)shot_spawn(self, a1, a2, a3, (wl_body *)a4, a5, a6, a7, a8, (int16_t)a9, a10, a11, a12, a13, a14,
                                     a15, a16, a17, a18, a19))
@@ -3685,7 +3721,7 @@ static void bind_engine_calls(void)
     B(56dc20); B(41a890); B(5bf3ee); B(426110); B(560900); B(5bf5db);
     B(428c00); B(429060); B(429db0); B(42a500); B(42a9a0); B(42b9a0); B(42c130); B(42c510); B(42c970);
     B(42cce0); B(42d3c0); B(42da50); B(42e290); B(42f840); B(42fbf0); B(42ff00); B(430400);
-    B(5bcfb0); B(405e80); B(55d140); B(47ae00); B(5b1f10);
+    B(5bcfb0); B(405e80); B(55d140); B(47ae00); B(5b1f10); B(40fa00);
     B(561d20); B(409150); B(55fdb0); B(41d780); B(4e6520); B(4e61d0); B(41b670); B(4c5af0); B(52fd80); B(5a3870); B(5a00c0);
     B(5a3670); B(56c640); B(5b6060); B(5b60d0); B(5b61b0); B(5b6200); B(5b6bc0); B(5b6340); B(5b64b0);
     B(41cfd0);

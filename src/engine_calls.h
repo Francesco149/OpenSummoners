@@ -218,6 +218,8 @@ typedef struct engine_calls {
     eng_tc17 h55d140;
     /* the room's item use: the effect value 0x47ae00 (thiscall char, 12 args), the use 0x5b1f10 (thiscall room) */
     eng_tc12 h47ae00; eng_tc6 h5b1f10;
+    /* the UI toolkit's: a grid cell's text 0x40fa00 (thiscall control, row, col, text) */
+    eng_tc3 h40fa00;
 } engine_calls;
 
 extern engine_calls g_eng;

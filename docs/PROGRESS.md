@@ -6,6 +6,21 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-16 — the UI widget toolkit, chip 1 (`src/ui_core.c`)
+
+- New arc `docs/plans/ui-toolkit.md` (the band 0x40d000..0x41a000: 49.6 KB, 33.4 KB reached; the old port's
+  reductions there are on their own structs).  Chip 1: the window manager / window / control allocators and
+  set-ups — open `0x4124d0` / init `0x40f3e0` (cap fresh 0x1b0-byte controls, the style), take / at, the
+  grid control `0x411c50` (+ rows `0x411f40`, columns `0x40fdb0` / `0x412100`), the text control `0x40df40`
+  (+ the glyph buffers in retail's allocation order) / metrics `0x40e2f0`, cursor / icon / frame / cursor
+  styles, page fit, scroll, and the money / inventory / party-count helpers.  The cell text `0x40fa00` is a
+  slot (its old port is a reduction).
+- rhost: 22 of 24 reached (win_grid_add 378, grid_row_reset 445, columns 411, win_init 87, ...), 0 port
+  divergences; `ui_link_drop` (`0x412570`) shows 1 shadow ARTIFACT — its object lives on the caller's stack,
+  which the full-state shadow restores only below ESP, so the port phase saw +0x20 already cleared by the
+  retail phase (watch: retail writes control +0x50 = 0 from `0x412579`); REPLACE passes.  Hybrid gate: 379
+  hooks, PASS.
+
 ## 2026-10-15 (late night) — the room loop's party chores: warp, leader swap, pickups
 
 - `src/room_tick.c`: the warp countdown `0x59c750` (the party fade-out, the screen dissolve, the refusal),

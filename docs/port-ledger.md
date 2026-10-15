@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **635** (40.6% of engine-proper) — tested 249, ported 386
-- code bytes touched: **31.0%** (551,063 / 1,776,526 B of engine-proper)
-- unported: **1189**
+- touched: **653** (41.8% of engine-proper) — tested 249, ported 404
+- code bytes touched: **31.2%** (553,467 / 1,776,526 B of engine-proper)
+- unported: **1171**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -27,21 +27,21 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x406440 | cs_fail_406440 | 184 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
 | 0x408b90 | sub_408B90 | 419 | wnd_proc.h |
 | 0x40a540 | sub_40A540 | 133 | char_integrate.h, character.h |
-| 0x40dee0 | sub_40DEE0 | 85 | main.c |
+| 0x40dee0 | sub_40DEE0 | 85 | main.c, ui_core.h |
 | 0x40e0c0 | menu_ctrl_clear_40E0C0 | 555 | menu_list.c, menu_list.h, room_load.h |
 | 0x40e360 | sub_40E360 | 636 | main.c |
 | 0x40e5e0 | wrap_class_40E5E0 | 2553 | glyph_wrap.c, glyph_wrap.h, main.c |
 | 0x40f040 | wrap_parse_40F040 | 379 | glyph_wrap.c, glyph_wrap.h |
-| 0x40f3e0 | sub_40F3E0 | 434 | menu_list.c, menu_list.h, newgame_menu.c |
+| 0x40f3e0 | sub_40F3E0 | 434 | menu_list.c, menu_list.h, newgame_menu.c (+1) |
 | 0x40f5c0 | menu_ctrl_build_40F5C0 | 563 | menu_list.c, menu_list.h |
 | 0x40fa00 | sub_40FA00 | 800 | glyph_text.c, glyph_text.h, newgame_menu.c (+3) |
 | 0x40fd20 | glyph_token_search_40FD20 | 143 | glyph_text.c, glyph_text.h |
 | 0x411530 | sub_411530 | 38 | char_ai.h |
 | 0x411940 | sub_411940 | 770 | main.c, newgame_picker.c, newgame_picker.h |
-| 0x411f40 | sub_411F40 | 444 | menu_list.c, menu_list.h, newgame_menu.c (+1) |
+| 0x411f40 | sub_411F40 | 444 | menu_list.c, menu_list.h, newgame_menu.c (+2) |
 | 0x412160 | sub_412160 | 459 | newgame_menu.c, newgame_menu.h, newgame_picker.c (+1) |
-| 0x412c10 | sub_412C10 | 46 | obj_container.c, obj_container.h |
-| 0x414080 | sub_414080 | 63 | obj_container.c, obj_container.h |
+| 0x412c10 | sub_412C10 | 46 | obj_container.c, obj_container.h, ui_core.h |
+| 0x414080 | sub_414080 | 63 | obj_container.c, obj_container.h, ui_core.h |
 | 0x417870 | sub_417870 | 106 | map_decode.h, sprite_slot.h |
 | 0x4178e0 | sub_4178E0 | 194 | asset_register.c, asset_register.h, bitmap_session.c (+1) |
 | 0x4179b0 | sub_4179B0 | 415 | asset_register.c, asset_register.h, sprite_slot.h (+1) |
@@ -51,7 +51,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x418470 | sub_418470 | 40 | asset_register.c, asset_register.h, color_grade.h (+4) |
 | 0x4184a0 | sub_4184A0 | 1035 | asset_register.c, asset_register.h, bitmap_session.h (+1) |
 | 0x4188b0 | sub_4188B0 | 891 | asset_register.c, asset_register.h |
-| 0x4192b0 | sub_4192B0 | 52 | menu_list.c, menu_list.h, newgame_picker.c |
+| 0x4192b0 | sub_4192B0 | 52 | menu_list.c, menu_list.h, newgame_picker.c (+1) |
 | 0x419900 | picker_seek_value_419900 | 128 | newgame_picker.c, newgame_picker.h |
 | 0x426110 | sub_426110 | 610 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
 | 0x426f50 | sub_426F50 | 26 | char_integrate.h, character.c |
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (386) — reimplemented, no host test yet
+## ported (404) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -322,17 +322,35 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x40c380 | sub_40C380 | 5077 | script_engine.c, script_engine.h |
 | 0x40d960 | sub_40D960 | 69 | char_state.h |
 | 0x40d9b0 | sub_40D9B0 | 437 | room_loop.h |
+| 0x40df40 | sub_40DF40 | 374 | ui_core.h |
+| 0x40e2f0 | sub_40E2F0 | 100 | ui_core.h |
+| 0x40f5a0 | sub_40F5A0 | 25 | ui_core.h |
+| 0x40fdb0 | sub_40FDB0 | 70 | ui_core.h |
 | 0x411390 | sub_411390 | 413 | sound_fx.h |
 | 0x411560 | sub_411560 | 117 | gimmick.h |
 | 0x4115e0 | sub_4115E0 | 33 | room_loop.h |
 | 0x4118b0 | sub_4118B0 | 134 | sprite_slot.h |
+| 0x411c50 | sub_411C50 | 623 | ui_core.h |
+| 0x411ec0 | sub_411EC0 | 118 | ui_core.h |
+| 0x412100 | sub_412100 | 85 | ui_core.h |
+| 0x4124d0 | sub_4124D0 | 146 | ui_core.h |
+| 0x412570 | sub_412570 | 19 | ui_core.h |
+| 0x412d30 | sub_412D30 | 117 | ui_core.h |
 | 0x412db0 | sub_412DB0 | 57 | room_loop.h |
+| 0x413760 | sub_413760 | 173 | ui_core.h |
 | 0x413810 | sub_413810 | 444 | party_member.h |
 | 0x413a00 | sub_413A00 | 286 | party_member.h |
 | 0x413b20 | sub_413B20 | 68 | party_member.h |
+| 0x414c40 | sub_414C40 | 98 | ui_core.h |
+| 0x415420 | sub_415420 | 58 | ui_core.h |
+| 0x415930 | sub_415930 | 92 | ui_core.h |
+| 0x415990 | sub_415990 | 119 | ui_core.h |
 | 0x415e20 | sub_415E20 | 320 | party_member.h |
 | 0x416420 | sub_416420 | 115 | party_member.h |
+| 0x416500 | sub_416500 | 107 | ui_core.h |
 | 0x416570 | sub_416570 | 547 | party_member.h |
+| 0x4173d0 | sub_4173D0 | 29 | ui_core.h |
+| 0x417440 | sub_417440 | 51 | ui_core.h |
 | 0x4182d0 | sub_4182D0 | 408 | room_load.h |
 | 0x419c00 | sub_419C00 | 110 | scene_loop.h |
 | 0x41a7f0 | sub_41A7F0 | 152 | scene_loop.h |
