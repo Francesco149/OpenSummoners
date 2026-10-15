@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **460** (29.2% of engine-proper) — tested 250, ported 210
-- code bytes touched: **25.6%** (454,204 / 1,776,526 B of engine-proper)
-- unported: **1364**
+- touched: **471** (29.9% of engine-proper) — tested 250, ported 221
+- code bytes touched: **27.1%** (481,184 / 1,776,526 B of engine-proper)
+- unported: **1353**
 - orphan refs in src/ not in this table: 0
 
 ## tested (250) — ported + host unit suite
@@ -274,7 +274,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (210) — reimplemented, no host test yet
+## ported (221) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -318,6 +318,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x41ee60 | sub_41EE60 | 252 | char_state.h |
 | 0x41ef80 | sub_41EF80 | 83 | char_state.h |
 | 0x426440 | sub_426440 | 47 | char_state.h |
+| 0x426490 | sub_426490 | 322 | device_init.h |
 | 0x4265e0 | sub_4265E0 | 53 | particle_init.h |
 | 0x426620 | sub_426620 | 1437 | particle_init.c, particle_init.h |
 | 0x426be0 | sub_426BE0 | 395 | char_integrate.h |
@@ -328,7 +329,16 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x426f70 | sub_426F70 | 37 | npc_ai.h |
 | 0x426fa0 | sub_426FA0 | 45 | npc_ai.h |
 | 0x4272e0 | sub_4272E0 | 79 | particle_init.h |
-| 0x4385c0 | sub_4385C0 | 19 | particle_init.h |
+| 0x427330 | sub_427330 | 43 | device_init.h |
+| 0x431e30 | sub_431E30 | 25293 | device_init.c, device_init.h |
+| 0x438520 | sub_438520 | 153 | device_init.h |
+| 0x4385c0 | sub_4385C0 | 19 | device_init.h, particle_init.h |
+| 0x438610 | sub_438610 | 19 | device_init.h |
+| 0x438630 | sub_438630 | 60 | device_init.h |
+| 0x438670 | sub_438670 | 42 | device_init.h |
+| 0x4386a0 | sub_4386A0 | 80 | device_init.h |
+| 0x4386f0 | sub_4386F0 | 64 | device_init.h |
+| 0x438740 | sub_438740 | 555 | device_init.h |
 | 0x438a60 | sub_438A60 | 2639 | particle_init.h |
 | 0x43c9b0 | sub_43C9B0 | 130 | room_load.h |
 | 0x43e140 | sub_43E140 | 266 | room_loop.h |
@@ -438,6 +448,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5568e0 | sub_5568E0 | 161 | gimmick.h |
 | 0x556de0 | sub_556DE0 | 98 | gimmick.h |
 | 0x556eb0 | sub_556EB0 | 62 | actor_update.c, actor_update.h |
+| 0x556ef0 | sub_556EF0 | 349 | device_init.h |
 | 0x557370 | particle_spawn_557370 | 452 | particle_spawn.c, particle_spawn.h |
 | 0x557550 | sub_557550 | 21735 | particle_init.c, particle_init.h |
 | 0x55cbc0 | sub_55CBC0 | 394 | particle_init.h |

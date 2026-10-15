@@ -20,6 +20,7 @@
 #include "map_decode.h"
 #include "npc_ai.h"
 #include "particle_init.h"
+#include "device_init.h"
 #include "rng.h"
 #include "room_loop.h"
 #include "sprite_slot.h"
@@ -446,8 +447,8 @@ void room_populate(wl_roomloop *rl, int32_t map, const uint8_t *mres)
             for (uint16_t n = 0; n < 128; n++)
                 if (g_world->actors[n]->alive == 0) { a = g_world->actors[n]; break; }
             if (a == NULL) log_fatal(0x8a2e2cu);   /* "Device object ..." */
-            g_eng.h431e30(a, x, y, 1, code, r2c, (intptr_t)(((uint32_t)id1 & 0xffff0000u) | w18), id1, a0, a2, a5,
-                          facing, x0, x1, y0, y1, a6, a7, a8, a9, b6, b7, id2, a11, map, 0);
+            device_init((wl_actor *)a, x, y, 1, (uint32_t)code, r2c, (int16_t)w18, id1, a0, a2, a5, facing, x0, x1, y0, y1,
+                        a6, a7, a8, a9, b6, b7, id2, a11, map, NULL);
         }
         code = ld32(rec, 0x10);
         if (code > 60000 && code < 70000) {   /* a STRUCTURE: the first free of world +0x2560 */

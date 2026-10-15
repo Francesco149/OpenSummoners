@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 250,
-  "ported": 210,
-  "unported": 1364,
+  "ported": 221,
+  "unported": 1353,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 460,
-  "pct_touched": 29.2,
+  "touched": 471,
+  "pct_touched": 29.9,
   "pct_tested": 15.8,
-  "engine_proper_touched": 447,
+  "engine_proper_touched": 458,
   "bytes_total": 1776526,
-  "bytes_touched": 454204,
-  "pct_bytes_touched": 25.6
+  "bytes_touched": 481184,
+  "pct_bytes_touched": 27.1
  },
  "orphan_refs": [],
  "functions": [
@@ -2385,8 +2385,10 @@
    "name": "sub_426490",
    "size": 322,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/device_init.h"
+   ]
   },
   {
    "va": "0x4265e0",
@@ -2526,8 +2528,10 @@
    "name": "sub_427330",
    "size": 43,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/device_init.h"
+   ]
   },
   {
    "va": "0x427360",
@@ -3030,16 +3034,21 @@
    "name": "sub_431E30",
    "size": 25293,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/device_init.c",
+    "src/device_init.h"
+   ]
   },
   {
    "va": "0x438520",
    "name": "sub_438520",
    "size": 153,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/device_init.h"
+   ]
   },
   {
    "va": "0x4385c0",
@@ -3048,6 +3057,7 @@
    "is_thunk": false,
    "status": "ported",
    "src": [
+    "src/device_init.h",
     "src/particle_init.h"
    ]
   },
@@ -3067,48 +3077,60 @@
    "name": "sub_438610",
    "size": 19,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/device_init.h"
+   ]
   },
   {
    "va": "0x438630",
    "name": "sub_438630",
    "size": 60,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/device_init.h"
+   ]
   },
   {
    "va": "0x438670",
    "name": "sub_438670",
    "size": 42,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/device_init.h"
+   ]
   },
   {
    "va": "0x4386a0",
    "name": "sub_4386A0",
    "size": 80,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/device_init.h"
+   ]
   },
   {
    "va": "0x4386f0",
    "name": "sub_4386F0",
    "size": 64,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/device_init.h"
+   ]
   },
   {
    "va": "0x438740",
    "name": "sub_438740",
    "size": 555,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/device_init.h"
+   ]
   },
   {
    "va": "0x438970",
@@ -8626,8 +8648,10 @@
    "name": "sub_556EF0",
    "size": 349,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/device_init.h"
+   ]
   },
   {
    "va": "0x557060",

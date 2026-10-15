@@ -44,6 +44,7 @@
 #include "room_load.h"
 #include "world_alloc.h"
 #include "sprite_slot.h"
+#include "device_init.h"
 #include "engine_calls.h"
 
 typedef struct {
@@ -72,7 +73,7 @@ enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_D
        H_LROOM, H_BODIES, H_LINKS, H_VPOOLS, H_SHAKECLR, H_VFADE, H_MAPID, H_MAPNPC, H_PSCLR, H_GATE, H_SREADY, H_STINT, H_TSFADE, H_FILL,
        H_WNEW, H_WFREE, H_EFREE, H_AFREE, H_CFREE, H_CBLK, H_WLEAD, H_CSNAP, H_ZRESET, H_QSTATE, H_VREC, H_RSAVE, H_MFREE, H_MDEL, H_PHDEL,
        H_FORM, H_FOLLOW, H_ASTATE, H_PTINT, H_MLOAD,
-       H_SFREE, H_SFREEALL, H_SGRADED, H_PSWAP, H_POPULATE, H_SINIT, H_SETH, H_N };
+       H_SFREE, H_SFREEALL, H_SGRADED, H_PSWAP, H_POPULATE, H_SINIT, H_SETH, H_DINIT, H_SNDFREE, H_N };
 
 static void diverged(hook_t *h, const char *fmt, ...)
 {
@@ -2896,6 +2897,53 @@ static void __attribute__((thiscall)) w_seth(wl_entity *e, int32_t hd)
     full_shadow(h, "entity_set_handle", seth_retail, seth_port, &x, "entity");
 }
 
+/* ---- the device init (src/device_init.c) — full state, per-code coverage ---- */
+typedef void (__attribute__((thiscall)) *dinit_t)(wl_actor *, int32_t, int32_t, int32_t, uint32_t, int32_t, int32_t, int32_t,
+                                                int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t,
+                                                int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, wl_entity *);
+typedef struct { wl_actor *a; int32_t v[24]; uint32_t code; wl_entity *f; } dinit_ctx;
+static void dinit_retail(void *c)
+{
+    dinit_ctx *x = c; int32_t *v = x->v;
+    ((dinit_t)(uintptr_t)H[H_DINIT].va)(x->a, v[0], v[1], v[2], x->code, v[3], v[4], v[5], v[6], v[7], v[8], v[9], v[10], v[11],
+                                        v[12], v[13], v[14], v[15], v[16], v[17], v[18], v[19], v[20], v[21], v[22], x->f);
+}
+static void dinit_port(void *c)
+{
+    dinit_ctx *x = c; int32_t *v = x->v;
+    port_world();
+    device_init(x->a, v[0], v[1], v[2], x->code, v[3], (int16_t)v[4], v[5], v[6], v[7], v[8], v[9], v[10], v[11], v[12], v[13],
+                v[14], v[15], v[16], v[17], v[18], v[19], v[20], v[21], v[22], x->f);
+}
+#define NDCODES 128
+static int32_t g_dcode_id[NDCODES]; static long g_dcodes[NDCODES]; static int g_ndcodes;
+static void __attribute__((thiscall)) w_dinit(wl_actor *a, int32_t x0, int32_t y0, int32_t an, uint32_t code, int32_t k6, int32_t trk,
+                                              int32_t hd, int32_t zn, int32_t st, int32_t kd, int32_t fc, int32_t ax0, int32_t ax1,
+                                              int32_t ay0, int32_t ay1, int32_t p0, int32_t p1, int32_t p2, int32_t p3, int32_t gx,
+                                              int32_t gy, int32_t lk, int32_t rd, int32_t mp, wl_entity *f)
+{
+    hook_t *h = &H[H_DINIT];
+    dinit_ctx x = { a, { x0, y0, an, k6, trk, hd, zn, st, kd, fc, ax0, ax1, ay0, ay1, p0, p1, p2, p3, gx, gy, lk, rd, mp }, code, f };
+    if (h->mode == 2) { h->calls++; dinit_port(&x); return; }
+    if (!sample(h)) { dinit_retail(&x); return; }
+    char what[48]; snprintf(what, sizeof what, "code %u", code);
+    if (!full_shadow(h, "device_init", dinit_retail, dinit_port, &x, what)) {
+        int k; for (k = 0; k < g_ndcodes && g_dcode_id[k] != (int32_t)code; k++) {}
+        if (k == g_ndcodes && g_ndcodes < NDCODES) g_dcode_id[g_ndcodes++] = (int32_t)code;
+        if (k < NDCODES) g_dcodes[k]++;
+    }
+}
+typedef void (__attribute__((thiscall)) *sndfree_t)(wl_entity *);
+static void sndfree_retail(void *c) { ((sndfree_t)(uintptr_t)H[H_SNDFREE].va)(c); }
+static void sndfree_port(void *c) { entity_snd_free(c); }
+static void __attribute__((thiscall)) w_sndfree(wl_entity *e)
+{
+    hook_t *h = &H[H_SNDFREE];
+    if (h->mode == 2) { h->calls++; sndfree_port(e); return; }
+    if (!sample(h)) { sndfree_retail(e); return; }
+    full_shadow(h, "entity_snd_free", sndfree_retail, sndfree_port, e, "entity");
+}
+
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
     [H_POLL] = { "input_poll", 0x43c110u, (void *)w_poll, 0, 1, 0, 0, 0, 0, "" },
@@ -3075,6 +3123,8 @@ static hook_t H[H_N] = {
     [H_POPULATE]   = { "room_populate",  0x58d460u, (void *)w_popul,  0, 1, 0, 0, 0, 0, "" },
     [H_SINIT]      = { "structure_init", 0x438a60u, (void *)w_sinit,  0, 1, 0, 0, 0, 0, "" },
     [H_SETH]       = { "entity_set_handle", 0x555f00u, (void *)w_seth, 0, 1, 0, 0, 0, 0, "" },
+    [H_DINIT]      = { "device_init",    0x431e30u, (void *)w_dinit,  0, 1, 0, 0, 0, 0, "" },
+    [H_SNDFREE]    = { "entity_snd_free", 0x426490u, (void *)w_sndfree, 0, 1, 0, 0, 0, 0, "" },
 };
 
 static const void *rh_data_identity(uint32_t va) { return (const void *)(uintptr_t)va; }
@@ -3126,7 +3176,7 @@ static void bind_engine_calls(void)
     B(499ab0); B(4842c0); B(41a7f0); B(59cfc0);
     *(void **)&g_eng.flip_5b8fc0  = g_rh_flip_stub;    /* the virtual clock steps there */
     *(void **)&g_eng.easer_43d1d0 = g_rh_easer_stub;   /* the tick count (+ a camera hook chained behind) */
-    B(5ba120); B(5ba290); B(41f200); B(431e30);
+    B(5ba120); B(5ba290); B(41f200);
     g_eng.tod = (int32_t *)(uintptr_t)0x8a93fcu;
     B(4178e0); B(418470); B(417c40); B(58e170);
     *(void **)&g_eng.find_res = iat_lookup("FindResourceA");
@@ -3190,7 +3240,7 @@ void rh_hooks_install(void)
         H[H_WNEW].va = H[H_WFREE].va = H[H_EFREE].va = H[H_AFREE].va = H[H_CFREE].va = H[H_CBLK].va = H[H_WLEAD].va =
         H[H_CSNAP].va = H[H_ZRESET].va = H[H_QSTATE].va = H[H_VREC].va = H[H_RSAVE].va = H[H_MFREE].va = H[H_MDEL].va =
         H[H_PHDEL].va = H[H_FORM].va = H[H_FOLLOW].va = H[H_ASTATE].va = H[H_PTINT].va = H[H_MLOAD].va =
-        H[H_SFREE].va = H[H_SFREEALL].va = H[H_SGRADED].va = H[H_PSWAP].va = H[H_POPULATE].va = H[H_SINIT].va = H[H_SETH].va = 0;
+        H[H_SFREE].va = H[H_SFREEALL].va = H[H_SGRADED].va = H[H_PSWAP].va = H[H_POPULATE].va = H[H_SINIT].va = H[H_SETH].va = H[H_DINIT].va = H[H_SNDFREE].va = 0;
     if (!O.hooks) return;
     char b[4096]; snprintf(b, sizeof b, "%s", O.hooks);
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {
@@ -3236,6 +3286,8 @@ void rh_hooks_report(void)
     if (H[H_PINIT].mode == 1)
         for (int k = 0; k < g_npinit_codes; k++) rh_log("particle_init coverage: code %d compared %ld\n", g_pinit_code_id[k], g_pinit_codes[k]);
     if (H[H_GSTEP].mode == 1) rh_log("gimmick_step: %ld live (switching) calls shadowed\n", g_gstep_live);
+    if (H[H_DINIT].mode == 1)
+        for (int k = 0; k < g_ndcodes; k++) rh_log("device_init coverage: code %d compared %ld\n", g_dcode_id[k], g_dcodes[k]);
     if (H[H_DIK].mode == 1) rh_log("input_dik_produce: %ld keyboard events shadowed\n", g_dik_events);
     if (H[H_ZPASS].mode == 1) rh_log("zone_pass: %ld calls with a zone under the leader shadowed\n", g_zone_live);
     if (H[H_PARTICLE].mode == 1)

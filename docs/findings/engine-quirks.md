@@ -4313,6 +4313,19 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   in the first free of world +0x2560 (`0x438a60`; kind 8 for rec +0x30 0, 15 for 1, **else the previous
   structure's** — one stack local). Ids (A[1], A[3]) below 1000 and not 0 get + 1000 x the map id. The record's
   u16 +0x18 goes to the inits as a word pushed over a register's stale upper half.
+- **The device init `0x431e30`** (an actor from a map object; ~95 codes 70100..70910 / 71010 / 71031 /
+  100138..100145, anything else fatal "Unknown Object Type Device."): one sound channel (the old ones stopped,
+  `0x426490`), the object's fields (area +0x2b4..+0x2c0, parameters +0x2cc..+0x2d8, goal, link, kind +0x28c;
+  **+0x2a0 / +0x2ec / +0x2f4 are u16 stores**), +0x2e0 = the 0x693808 row keyed by the room record's +0x140
+  (else row 0), then per code the entity setup (kind 2, tint 9, 4 fx records — MSVC inlined `0x426620` into 18
+  cases verbatim), track / collision / step records / zones / tints. Codes 70410 / 70411 split by the kind
+  (+0x28c): 2 = a mover (area shifted by -100 x the box offset, +0x1c4 = 100, list +0x2794), 3 = passable, else
+  solid; **70411 sizes by the +0x2e4 argument 0 / 1 / 2 (30x44 / 30x35 / 30x28 cells), other values read two
+  stale stack slots**. 70362 returns at once (no tail) when `0x426440(1,1,1)`. Tail: the ride mode (the
+  object's, else 3 for the solid ones), the saved state (`0x41e600`), the handle, the lists (+0x2788 + a world
+  serial for the faction-2 ones, +0x2794 movers, +0x2798 material), parts copied from the previous part
+  (`0x438740`) unless multipart, the offset to the followed entity. 70480 spawns its own platform 100144
+  (`0x556ef0`, anchor 2 below it).
 
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)

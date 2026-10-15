@@ -61,6 +61,7 @@
   | sprite-slot helpers: frame frees (entry / all / every graded slot), palette set, swap table | `0x417870` `0x4118b0` `0x56df10` `0x491770` (REPLACE) `0x417bc0` | 13,240 / 3 (REPLACE) / 6 / – / 14 | 0 |
   | the ROOM POPULATION (map objects → characters / effects / devices / structures) | `0x58d460` | 16 (all full-state) | 0 |
   | the STRUCTURE init (box + track by code) + the handle list filing | `0x438a60` / `0x555f00` | 596 / 544 | 0 |
+  | the DEVICE init (~95 codes: box, track, collision, steps, zones, lists) + sound-channel reset, step add, zone, link state, night glow, grid mark D, parts copy, sub-device spawn | `0x431e30` (+ `0x426490` `0x438630` `0x438670` `0x4386a0` `0x4386f0` `0x438520` `0x438740` `0x556ef0`) | 425 (34 codes) / 418 | 0 |
   Hybrid gate: with all of the above REPLACING retail (170 hooks) (the whole character tick, driver → tile
   movers, + the room loop's passes and per-tick calls, runs as port code), every corpus scenario ends byte-identical.
   Shadow guard (rhost): a port phase that reaches an external effect retail already performed (surface free,
@@ -79,7 +80,7 @@
 - **Next (port side):**
   000. `load_room 0x586010` RUNS AS PORT CODE (`src/room_load.c`, REPLACE-verified; quirk #138), the world it makes /
      frees too (`src/world_alloc.c`), and the map decode (`map_decode_room`). Slots left under it: the population's inits — character
-     `0x41f200` (27 KB), device `0x431e30` (25 KB) —, the party member create `0x58e170` (→ `0x41f200`,
+     `0x41f200` (27 KB, 61 unported callees) —, the party member create `0x58e170` (→ `0x41f200`,
      `0x5b4530`), the palette read `0x4178e0` (bitmap resource) + frames `0x418470` / `0x417c40` (DirectDraw), `0x56dc20`
      (Now Loading text + Flip: platform), `0x41a890`, `0x40e0c0`, the room-start script `0x40c380`, the joystick
      create `0x5ba120` / `0x5ba290` (platform). Next: those leaves + the scene loop `0x59f2c0`.
