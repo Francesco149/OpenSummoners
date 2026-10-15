@@ -83,7 +83,14 @@
      `0x41f200` (27 KB, 61 unported callees) —, the party member create `0x58e170` (→ `0x41f200`,
      `0x5b4530`), the palette read `0x4178e0` (bitmap resource) + frames `0x418470` / `0x417c40` (DirectDraw), `0x56dc20`
      (Now Loading text + Flip: platform), `0x41a890`, `0x40e0c0`, the room-start script `0x40c380`, the joystick
-     create `0x5ba120` / `0x5ba290` (platform). Next: those leaves + the scene loop `0x59f2c0`.
+     create `0x5ba120` / `0x5ba290` (platform). Next: the CHARACTER INIT `0x41f200` — 27 KB: the reset (+0x158d0
+     0x1d8, stats via the base table `0x426fd0`, difficulty scaling by world+0x2780, the brain / skill / voice set-up),
+     then by code (50000..59999, 100xxx) either inline set-ups or the ~20 per-type inits `0x428c00`..`0x430400`
+     (~30 KB) over ~40 shared helpers (`0x4072c0` skill lookup, `0x427430` combo add, `0x427670` look by kind,
+     `0x427f00` ai record, `0x4282f0` / `0x4285f0` skill add, `0x4287d0` attack box, `0x428950`, `0x4289f0` voice
+     set, `0x427fb0` the char→skill table 0x6907c0, setters `0x427580`..`0x427eb0` / `0x428780`); plan: helpers →
+     0x41f200 with the per-type inits as slots (shadow full-state over the corpus' characters) → each per-type init.
+     Then the scene loop `0x59f2c0` (its save-load half is unexercised by the corpus: a save scenario is needed).
   00. the ROOM LOOP `0x58f360` RUNS AS PORT CODE (`room_loop_run`, REPLACE-verified; Flip / the camera
      easer go through rhost's own stubs). Left under it as slots: the pickups `0x59ca90` (+ the world
      message log world+4 / +0x1024, "You got %s!"), the warp countdown `0x59c750`, the leader swap
