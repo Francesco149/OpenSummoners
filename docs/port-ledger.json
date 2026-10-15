@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 410,
-  "unported": 1165,
+  "ported": 422,
+  "unported": 1153,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 659,
-  "pct_touched": 42.2,
+  "touched": 671,
+  "pct_touched": 43.0,
   "pct_tested": 15.7,
-  "engine_proper_touched": 646,
+  "engine_proper_touched": 658,
   "bytes_total": 1776526,
-  "bytes_touched": 558153,
-  "pct_bytes_touched": 31.4
+  "bytes_touched": 562903,
+  "pct_bytes_touched": 31.7
  },
  "orphan_refs": [],
  "functions": [
@@ -1076,8 +1076,10 @@
    "name": "sub_40F1C0",
    "size": 530,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x40f3e0",
@@ -1110,7 +1112,8 @@
    "status": "tested",
    "src": [
     "src/menu_list.c",
-    "src/menu_list.h"
+    "src/menu_list.h",
+    "src/ui_core.h"
    ]
   },
   {
@@ -1118,8 +1121,10 @@
    "name": "sub_40F800",
    "size": 511,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x40fa00",
@@ -1195,8 +1200,10 @@
    "name": "sub_4103D0",
    "size": 389,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x410560",
@@ -1368,8 +1375,10 @@
    "name": "sub_4123A0",
    "size": 290,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_menu.h"
+   ]
   },
   {
    "va": "0x4124d0",
@@ -1420,8 +1429,10 @@
    "name": "sub_4129B0",
    "size": 602,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_menu.h"
+   ]
   },
   {
    "va": "0x412c10",
@@ -1440,8 +1451,10 @@
    "name": "sub_412C40",
    "size": 227,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x412d30",
@@ -1468,8 +1481,10 @@
    "name": "sub_412DF0",
    "size": 821,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_menu.h"
+   ]
   },
   {
    "va": "0x413130",
@@ -1484,8 +1499,10 @@
    "name": "sub_4134F0",
    "size": 613,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x413760",
@@ -1620,8 +1637,10 @@
    "name": "sub_415350",
    "size": 195,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_menu.h"
+   ]
   },
   {
    "va": "0x415420",
@@ -1646,8 +1665,10 @@
    "name": "sub_415860",
    "size": 198,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_core.h"
+   ]
   },
   {
    "va": "0x415930",
@@ -1674,8 +1695,10 @@
    "name": "sub_415A10",
    "size": 197,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_menu.h"
+   ]
   },
   {
    "va": "0x415ae0",
@@ -1782,8 +1805,10 @@
    "name": "sub_417480",
    "size": 177,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_menu.h"
+   ]
   },
   {
    "va": "0x4175a0",

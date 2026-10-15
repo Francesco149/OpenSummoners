@@ -27,6 +27,7 @@
 #include "sound_fx.h"
 #include "npc_ai.h"
 #include "room_load.h"
+#include "ui_menu.h"
 
 #define IP(p) ((intptr_t)(p))
 
@@ -607,7 +608,7 @@ static int room_keys(wl_roomloop *rl, wl_room *room, uint32_t now)
         }
     }
 done:
-    g_eng.h415350(ctx);
+    menu_sprites_free((uint8_t *)ctx);
     return res;
 }
 

@@ -425,3 +425,148 @@ int32_t room_party_count(const wl_room *r, int32_t all, int32_t fit)
     }
     return n;
 }
+
+intptr_t ctrl_grid_init(uint8_t *c, int32_t x, int32_t y, int32_t rows, int32_t cols, int32_t page, int32_t a7)
+{
+    ctrl_geometry_free(c);
+    st32(c, 0xc, x);
+    st32(c, 0x10, y);
+    st32(c, 8, 1);
+    st32(c, 0x20, 0);
+    st32(c, 0x84, 0);
+    st32(c, 0x140, 0);
+    uint8_t *gi = g_eng.op_new(0x24);
+    stp(c, 0x174, gi);
+    st32(gi, 0x18, 0); st32(gi, 0x14, 0); st32(gi, 4, rows); st32(gi, 8, cols); st32(gi, 0xc, page); st32(gi, 0, a7);
+    st32(gi, 0x1c, 0); st32(gi, 0x20, 0); st32(gi, 0x10, 0);
+    stp(c, 0x17c, g_eng.op_new((uint32_t)ld32(gi, 4) << 4));
+    stp(c, 0x178, g_eng.op_new(36u * (uint32_t)ld32(ldp(c, 0x174), 8)));
+    for (uint16_t r = 0; (int32_t)r < ld32(ldp(c, 0x174), 4); r++) {
+        st32((uint8_t *)ldp(c, 0x17c) + 16u * r, 0, 0);
+        st32((uint8_t *)ldp(c, 0x17c) + 16u * r, 4, 0);
+        stp((uint8_t *)ldp(c, 0x17c) + 16u * r, 0xc, g_eng.op_new(24u * (uint32_t)ld32(ldp(c, 0x174), 8)));
+        for (uint16_t k = 0; (int32_t)k < ld32(ldp(c, 0x174), 8); k++) {
+            uint8_t *cell = (uint8_t *)ldp((uint8_t *)ldp(c, 0x17c) + 16u * r, 0xc) + 24u * k;
+            st32(cell, 0, 0); st32(cell, 4, 0); st32(cell, 8, 0); st32(cell, 0xc, 0);
+        }
+    }
+    uint16_t k = 0;
+    for (; (int32_t)k < ld32(ldp(c, 0x174), 8); k++) {
+        uint8_t *col = (uint8_t *)ldp(c, 0x178) + 36u * k;
+        st32(col, 0, 32 * k); st32(col, 4, 0); st32(col, 8, 32); st32(col, 0xc, 0);
+        st32(col, 0x10, 0); st32(col, 0x14, 0); st32(col, 0x18, 0); st32(col, 0x1c, 0); st32(col, 0x20, 0);
+    }
+    /* (retail's eax: the column count, or the grid record when there are none) */
+    return k != 0 ? (intptr_t)k : (intptr_t)ldp(c, 0x174);
+}
+
+uint8_t *win_grid_new(uint8_t *win, int32_t x, int32_t y, int32_t rows, int32_t cols, int32_t page, int32_t a7)
+{
+    uint8_t *c = win_ctrl_take(win);
+    if (c == NULL) return NULL;
+    ctrl_grid_init(c, x, y, rows, cols, page, a7);
+    return c;
+}
+
+int32_t grid_row_add(uint8_t *c, int32_t a, int32_t b)
+{
+    uint8_t *gi = ldp(c, 0x174);
+    int32_t row = ld32(gi, 0x10);
+    if (row >= ld32(gi, 4)) return -1;
+    st32(gi, 0x10, row + 1);
+    st32((uint8_t *)ldp(c, 0x17c) + 16 * row, 0, a);
+    st32((uint8_t *)ldp(c, 0x17c) + 16 * row, 4, b);
+    st32((uint8_t *)ldp(c, 0x17c) + 16 * row, 8, 1);
+    grid_row_reset(c, row);
+    return row;
+}
+
+intptr_t cell_icon_set(uint8_t *c, int32_t row, int32_t col, int32_t sprite, uint16_t a5, const uint16_t *frames,
+                       uint16_t n, uint16_t a8)
+{
+    const uint8_t *gi = ldp(c, 0x174);
+    if (ld32(gi, 8) <= col || ld32(gi, 0x10) <= row) return col;
+    if (ldp(ldp((uint8_t *)ldp(c, 0x17c) + 16 * row, 0xc), 24u * col + 4) == NULL)
+        stp(ldp((uint8_t *)ldp(c, 0x17c) + 16 * row, 0xc), 24u * col + 4, g_eng.op_new(0x54));
+    uint8_t *ic = ldp(ldp((uint8_t *)ldp(c, 0x17c) + 16 * row, 0xc), 24u * col + 4);
+    st16(ic, 4, a5);
+    st32(ic, 0, sprite);
+    st16(ic, 0x46, n);
+    if (frames != NULL && n != 0)
+        for (uint16_t i = 0; i < n; i++) st16(ic, 6 + 2u * i, frames[i]);
+    st16(ic, 0x4c, 0);
+    st16(ic, 0x48, a8);
+    st16(ic, 0x4a, 0);
+    st32(ic, 0x50, 0);
+    return (intptr_t)ic;
+}
+
+/* a 1 x 1 grid at (32, 7) holding `text`, white on 0x455f7b */
+static void title_fill(uint8_t *c, const char *text)
+{
+    ctrl_grid_init(c, 32, 7, 1, 1, 1, 1);
+    grid_col_place(c, 0, 0, 0, 0, 0);
+    grid_row_add(c, 0, 0);
+    grid_cell_text(c, 0, 0, text);
+    st32(c, 0x180, 0xffffff);
+    st32(c, 0x184, 0x455f7b);
+}
+
+uint8_t *win_title_add(uint8_t *win, const char *text)
+{
+    uint8_t *c = win_ctrl_take(win);
+    if (c == NULL) return NULL;
+    title_fill(c, text);
+    return c;
+}
+
+uint8_t *sys_win_open(void *sys, uint8_t *mgr, int32_t x, int32_t y, int32_t w, int32_t h, uint16_t cap,
+                      const char *title, int32_t plain)
+{
+    int t = title != NULL;
+    if (t) cap++;
+    uint8_t st[0x24];
+    const uint16_t fr[10] = { (uint16_t)(plain ? 0 : 16), (uint16_t)(t ? 9 : 0), (uint16_t)(t ? 10 : 1),
+                              (uint16_t)(t ? 11 : 2), 3, 4, 5, 6, 7, 8 };
+    st32(st, 0, ld32(sys, 0xb88));
+    memcpy(st + 4, fr, sizeof fr);
+    st32(st, 0x18, 32);
+    st32(st, 0x1c, 32);
+    st32(st, 0x20, 0);
+    uint8_t *win = win_mgr_open(mgr, x, y, w, h, cap, st);
+    if (title != NULL && ld16(win, 0x4c) > ld16(win, 0x4e)) {
+        uint16_t n = ld16(win, 0x4e);
+        uint8_t *c = ((uint8_t **)ldp(win, 0x48))[n];
+        ui_ref_set(c, (int32_t)(intptr_t)win, n);
+        st16(win, 0x4e, (uint16_t)(n + 1));
+        if (c != NULL) title_fill(c, title);
+    }
+    return win;
+}
+
+int32_t sys_page_arrows(void *sys, const uint8_t *win, uint8_t *c)
+{
+    static const uint16_t fr[4] = { 0, 1, 2, 3 };
+    int32_t spr = ld32(sys, 0xb8c), half = ld32(win, 0x18) / 2 - 16;
+    st32(c, 0x84, 1);
+    st32(c, 0x88, spr);
+    st16(c, 0x8c, 4);
+    st16(c, 0xce, 4);
+    memcpy(c + 0x8e, fr, sizeof fr);
+    st16(c, 0xd4, 0); st16(c, 0xd0, 8); st16(c, 0xd2, 0);
+    st32(c, 0xd8, 0); st32(c, 0xdc, 4); st32(c, 0xe0, half);
+    st32(c, 0xe4, spr);
+    st16(c, 0xe8, 8);
+    st16(c, 0x12a, 4);
+    memcpy(c + 0xea, fr, sizeof fr);
+    st16(c, 0x12c, 8); st16(c, 0x130, 0); st16(c, 0x12e, 0);
+    st32(c, 0x134, 0); st32(c, 0x138, ld32(win, 0x14) - 36); st32(c, 0x13c, half);
+    st32(c, 0x140, 1);
+    strcpy((char *)c + 0x144, "%d/%d");
+    st32(c, 0x158, ld32(win, 0x14) - 56);
+    st16(c, 0x160, 0); st16(c, 0x162, 0);
+    st32(c, 0x15c, 8);
+    st32(c, 0x1a0, 0xffffff);
+    st32(c, 0x19c, 0x455f7b);
+    return 6;
+}

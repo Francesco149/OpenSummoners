@@ -56,6 +56,7 @@
 #include "room_tick.h"
 #include "ui_core.h"
 #include "ui_text.h"
+#include "ui_menu.h"
 #include "glyph_text.h"
 #include "engine_calls.h"
 
@@ -166,6 +167,11 @@ typedef struct {
     X(H_UT_KALLOC, "ctrl_keys_alloc", 0x43cf30u) X(H_UT_KADD, "ctrl_key_add", 0x411230u) \
     X(H_UT_KEXP, "ctrl_keys_expand", 0x43cf90u) X(H_UT_MSGK, "sys_msg_keys", 0x410610u) \
     X(H_UT_BOXC, "sys_box_cursor", 0x410560u) X(H_UT_TOK, "glyph_token_search", 0x40fd20u) \
+    X(H_UI_GINIT, "ctrl_grid_init", 0x40f5c0u) X(H_UI_GNEW, "win_grid_new", 0x4134f0u) X(H_UI_RADD, "grid_row_add", 0x40f800u) \
+    X(H_UI_CICON, "cell_icon_set", 0x415860u) X(H_UI_TITLE, "win_title_add", 0x412c40u) X(H_UI_WOPEN, "sys_win_open", 0x40f1c0u) \
+    X(H_UI_ARROWS, "sys_page_arrows", 0x4103d0u) X(H_UM_MSG, "menu_msg_open", 0x4123a0u) X(H_UM_POPEN, "menu_party_open", 0x4129b0u) \
+    X(H_UM_PFILL, "menu_party_fill", 0x412df0u) X(H_UM_HAVE, "menu_have_counts", 0x415a10u) X(H_UM_FITS, "menu_item_fits", 0x417480u) \
+    X(H_UM_SPRF, "menu_sprites_free", 0x415350u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
 
@@ -3453,6 +3459,22 @@ TC_HOOK(H_UT_KEXP, "ctrl_keys_expand", 2, 1, return (intptr_t)ctrl_keys_expand(s
 TC_HOOK(H_UT_MSGK, "sys_msg_keys", 2, 1, return sys_msg_keys(self, a1, (uint8_t *)a2))
 TC_HOOK(H_UT_BOXC, "sys_box_cursor", 4, 1, return (intptr_t)sys_box_cursor(self, CP(a1), (uint8_t *)a2, a3, a4))
 ST_HOOK(H_UT_TOK, "glyph_token_search", 3, 1, return glyph_token_search((const char *)a1, (const char *)a2, a3))
+/* the toolkit's builders (src/ui_core.c) + the menu screens (src/ui_menu.c) */
+TC_HOOK(H_UI_GINIT, "ctrl_grid_init", 6, 1, return ctrl_grid_init(self, a1, a2, a3, a4, a5, a6))
+TC_HOOK(H_UI_GNEW, "win_grid_new", 6, 1, return (intptr_t)win_grid_new(self, a1, a2, a3, a4, a5, a6))
+TC_HOOK(H_UI_RADD, "grid_row_add", 2, 1, return grid_row_add(self, a1, a2))
+TC_HOOK(H_UI_CICON, "cell_icon_set", 7, 1,
+        return cell_icon_set(self, a1, a2, a3, U16(a4), (const uint16_t *)a5, U16(a6), U16(a7)))
+TC_HOOK(H_UI_TITLE, "win_title_add", 2, 1, return (intptr_t)win_title_add((uint8_t *)a1, (const char *)a2))
+TC_HOOK(H_UI_WOPEN, "sys_win_open", 8, 1,
+        return (intptr_t)sys_win_open(self, (uint8_t *)a1, a2, a3, a4, a5, U16(a6), (const char *)a7, a8))
+TC_HOOK(H_UI_ARROWS, "sys_page_arrows", 2, 1, return sys_page_arrows(self, CP(a1), (uint8_t *)a2))
+TC_HOOK0(H_UM_MSG, "menu_msg_open", 1, return (intptr_t)menu_msg_open(self))
+TC_HOOK0(H_UM_POPEN, "menu_party_open", 0, menu_party_open(self); return 0)
+TC_HOOK0(H_UM_PFILL, "menu_party_fill", 0, menu_party_fill(self); return 0)
+TC_HOOK(H_UM_HAVE, "menu_have_counts", 1, 1, return menu_have_counts(self, (uint8_t *)a1))
+TC_HOOK(H_UM_FITS, "menu_item_fits", 2, 1, return menu_item_fits(self, a1, CP(a2)))
+TC_HOOK0(H_UM_SPRF, "menu_sprites_free", 0, return menu_sprites_free(self))
 TC_HOOK(H_CS_SHOT, "shot_spawn", 19, 1,
         return (intptr_t)shot_spawn(self, a1, a2, a3, (wl_body *)a4, a5, a6, a7, a8, (int16_t)a9, a10, a11, a12, a13, a14,
                                     a15, a16, a17, a18, a19))
@@ -3729,7 +3751,7 @@ static void bind_engine_calls(void)
     B(408b90); B(54f140);
     B(40ac90); B(54ed80); B(468b10); B(5bc0c0); B(409520);
     B(5b1030); B(48c150); B(495e40); B(59d160); B(58ffa0); B(590480); B(590f20); B(590ca0); B(59d540);
-    B(591120); B(415350); B(590230); B(59ad60);
+    B(591120); B(590230); B(59ad60);
     B(499ab0);
     *(void **)&g_eng.flip_5b8fc0  = g_rh_flip_stub;    /* the virtual clock steps there */
     *(void **)&g_eng.easer_43d1d0 = g_rh_easer_stub;   /* the tick count (+ a camera hook chained behind) */

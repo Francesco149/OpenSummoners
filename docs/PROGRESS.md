@@ -6,6 +6,19 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-16 — the UI widget toolkit, chip 3a: builders + the shop's screens (`src/ui_menu.c`)
+
+- `src/ui_core.c` +7: the grid init `0x40f5c0` (rows x cols of 32-px columns; the old `menu_list.c` reduction
+  stays for the port drive) / take + init `0x4134f0`, the row add `0x40f800` (= take a row + the row reset
+  `0x411f40`), a cell's icon `0x415860`, a window's title `0x412c40`, the framed window open `0x40f1c0` (the
+  style built on the stack from sys+0xb88) and a grid's page arrows + "%d/%d" counter `0x4103d0`.
+- `src/ui_menu.c` (new): the shop's message window `0x4123a0` (+ the key-token table), the "Party Member
+  Status" window `0x4129b0` / its fill `0x412df0` (LV / HP / MP per ready member, the money in GP or CP + the
+  cap), the "You have N" column `0x415a10`, the member / item-kind fit `0x417480`, the menu's sprite set
+  release `0x415350` (a room-loop slot retired: frames through the guarded surface free).
+- rhost: cell_icon_set 4,487, menu_sprites_free 7,692, grid_row_add 13, ctrl_grid_init 10, the rest 1..6 —
+  0 divergences (rhost.py's summary prints only the first 6 notes: read the log).  Hybrid gate: 404 hooks, PASS.
+
 ## 2026-10-16 — the UI widget toolkit, chip 2: the text layer (`src/ui_text.c`)
 
 - The text a menu cell / text control shows: the cell text `0x40fa00` (its own 80-glyph buffer; ui_core's slot

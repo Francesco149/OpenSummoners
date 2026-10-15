@@ -4616,6 +4616,23 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   the SJIS-aware search `0x40fd20` — ~300k searches for the corpus's EN text, none matching.  A `#`-prefixed
   word blanks its first two records.
 
+### #149 — the shop's screens: message window, "Party Member Status", the item fit (port 2026-10-16)
+- **Menu context** (a 0x34-B stack object, `0x415420`): +0 the window manager, +0xc the room, +0x14 the result,
+  u16 +0x18 its sprite set (sys+0xaac[i]: 8-B entries of frame arrays, u16 +4 count, +0x38 frames each;
+  released by `0x415350` — every frame through `0x5b9390` + delete — which the room loop also calls every tick),
+  +0x20 / +0x24 the message window / its text control, +0x28 the party window.
+- **Message window** `0x4123a0`: (8, 346) 624 x 128, sys+0xb88 frames {0,0,1..8}, one text control at (64, 24)
+  wrapping at 68 glyph bytes x 3 lines, with the message key-token table (#148).
+- **"Party Member Status"** `0x4129b0`: (352, 8) 288 wide, 28 (n + 1) + 104 high for the n slots `0x412db0`
+  accepts; a 9 x 6 grid at (0, 40), 8 rows a page (name 88, LV, HP, "/ max", MP, "/ max" at x 0 / 96 / 128 / 160 /
+  192 / 224) and a 1 x 3 money grid below.  `0x412df0` lists the slots with +0x9c4 == 1 except 100000104: LV =
+  +0xae8 + +0xaf0, HP +0xa64 "/ " +0xa68 + +0xa94 + +0xaac, MP +0xa6c "/ " +0xa70 + +0xa98 + +0xab0; money room
+  +0x4014 as "%dGP" (/ 100, truncated) when room +0x4064 == 10, else "%dCP"; "(Max %d)" from room +0x4020.
+- **Item fit** `0x417480` (by the item's kind +0x7c): 100000101 1 / 2 / 4 / 9, 100000102 1 / 3 / 5 / 9,
+  100000103 1 / 3 / 6 / 9, 100000104 only 8; the member must be in the party with +0x9c4 1 or 2.
+- **Framed window** `0x40f1c0`: a title costs one more control (cap + 1) and swaps the top frames 0..2 → 9..11;
+  `plain` drops frame 0's corner (16 → 0).  Titles are 1 x 1 grids at (32, 7), white on 0x455f7b.
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

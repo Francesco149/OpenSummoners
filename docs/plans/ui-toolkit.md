@@ -1,7 +1,8 @@
 # Plan — the retail UI widget toolkit on the retail layout (0x40d000..0x41a000)
 
 Status: chip 1 DONE 2026-10-16 (`src/ui_core.c`, 24 functions, hybrid 379); chip 2 DONE 2026-10-16
-(`src/ui_text.c`, 12 functions, hybrid 391; quirk #148 — the SJIS wrap / ruby paths are JP-only: unexercised).  Shadow note: a function whose
+(`src/ui_text.c`, 12 functions, hybrid 391; quirk #148 — the SJIS wrap / ruby paths are JP-only: unexercised).
+Chip 3a DONE 2026-10-16: the builders (`src/ui_core.c` +7) + the shop's screens (`src/ui_menu.c`, 6), hybrid 404.  Shadow note: a function whose
 `this` is a caller's stack object can show a false divergence (the shadow restores only below ESP between its
 retail and port phases) — confirm with REPLACE (`0x412570` did).  Owner: the porting loop (rhost shadow per function, REPLACE in the hybrid).
 
@@ -35,6 +36,11 @@ names for the runner were 4 bytes off past +0x2e0, quirk #144)
    `0x43cf90`, `0x413ed0`, `0x410610` (the message key table), `0x410560`, `0x411230`, `0x40e360`; reuses
    `glyph_text.c`'s `0x40fd20`.  Slots left: the ruby context test `0x4034f0` (7 KB) + reading writer `0x4051d0`
    (3 KB) — need a JP-text scenario (ense-jp) before porting.
-3. the menus: `0x4123a0` `0x4129b0` `0x412c40` `0x412df0` `0x4134f0` `0x415460` `0x415f60` `0x4169e0` …
+3. the menus.  3a DONE: grid init `0x40f5c0`, grid new `0x4134f0`, row add `0x40f800`, cell icon `0x415860`, title
+   `0x412c40`, framed window `0x40f1c0`, page arrows `0x4103d0`; the shop's message window `0x4123a0`, party status
+   `0x4129b0` / `0x412df0`, "You have N" `0x415a10`, item fit `0x417480`, sprite set release `0x415350`.  3b next:
+   the shop driver `0x415060` (Buy / Sell; `0x439680` the talk wait), its buy list `0x415460` (+ `0x415ae0`), the
+   sell list `0x415f60` (+ `0x4167a0`, `0x4169e0` 2.5 KB + `0x4175a0`, `0x418c90`, `0x418ec0`), the equip menu
+   `0x4192f0` (+ `0x4199b0` `0x419c70` `0x419eb0` `0x4190d0`); the input re-poll `0x40fe00` (DirectInput) stays a slot.
 4. the cutscene runner `0x439690` on top (its other callees: `0x43c650` `0x43d830` `0x43e5b0` …).
 Render / DirectDraw (`0x4178e0` `0x417c40` `0x418470` `0x4184a0` `0x4188b0`) stay platform slots.

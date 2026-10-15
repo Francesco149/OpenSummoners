@@ -118,14 +118,14 @@ typedef struct engine_calls {
      * 0x495e40, 0x59d160, Flip 0x5b8fc0 (`this` = the ZDD) and the camera easer 0x43d1d0 (rhost
      * binds these two to its own call stubs: the virtual clock / the tick count), the leader swap
      * 0x59aa40, the pause switch 0x58ffa0, the party / item menus 0x590480 / 0x590f20 / 0x590ca0,
-     * the main menu 0x59d540 / 0x591120 / 0x562a70 / 0x58ffc0 / 0x59a910 / 0x415350, the shots
+     * the main menu 0x59d540 / 0x591120 / 0x562a70 / 0x58ffc0 / 0x59a910, the shots
      * 0x590230, the warp 0x59c750, the pickups 0x59ca90, the scene runner 0x59ad60, 0x5908a0,
      * the screen effects 0x499ab0, the
      * (the scene start 0x59cfc0 is ported) */
     void (*h5b1030)(void);
     eng_tc3 h48c150; eng_tc7 h495e40; eng_tc0 h59d160; eng_tc1 flip_5b8fc0; eng_tc0 easer_43d1d0;
     eng_tc1 h58ffa0; eng_tc0 h590480; eng_tc1 h590f20; eng_tc0 h590ca0;
-    eng_tc2 h59d540; eng_tc0 h591120; eng_tc0 h415350;
+    eng_tc2 h59d540; eng_tc0 h591120;
     eng_tc0 h590230; eng_tc1 h59ad60;
     eng_tc0 h499ab0;
     /* the integrator 0x442a70's callees: per-type behaviour handlers + helpers (by VA) */
