@@ -42,6 +42,7 @@
 #include "room_loop.h"
 #include "input_dik.h"
 #include "room_load.h"
+#include "world_alloc.h"
 #include "engine_calls.h"
 
 typedef struct {
@@ -67,7 +68,8 @@ enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_D
        H_GPASS, H_GSTEP, H_SWSET, H_SWLINK, H_EVRUN, H_UNLOAD, H_UNLIST_ALL, H_GLOW, H_RECT_HIT, H_CHARS_COUNT, H_CHAR_IN, H_RIDING,
        H_PART_FIND, H_SERIAL, H_SHOT, H_WARP, H_GATHER, H_TPASS, H_TACTOR, H_RFLUSH, H_PROBE_RECT, H_NEAR,
        H_ZPASS, H_ZHIT, H_B96_NEAR, H_RIN, H_RCHAR, H_RACT, H_RANIM, H_RDOWN, H_RLEAD, H_TSOUNDS, H_DIK, H_ENC, H_FOES, H_PFOES, H_PSLOT, H_BGM, H_RLOOP, H_REPOLL,
-       H_LROOM, H_BODIES, H_LINKS, H_VPOOLS, H_SHAKECLR, H_VFADE, H_MAPID, H_MAPNPC, H_PSCLR, H_GATE, H_SREADY, H_STINT, H_TSFADE, H_FILL, H_N };
+       H_LROOM, H_BODIES, H_LINKS, H_VPOOLS, H_SHAKECLR, H_VFADE, H_MAPID, H_MAPNPC, H_PSCLR, H_GATE, H_SREADY, H_STINT, H_TSFADE, H_FILL,
+       H_WNEW, H_WFREE, H_EFREE, H_AFREE, H_CFREE, H_CBLK, H_WLEAD, H_CSNAP, H_ZRESET, H_QSTATE, H_VREC, H_RSAVE, H_MFREE, H_MDEL, H_PHDEL, H_N };
 
 static void diverged(hook_t *h, const char *fmt, ...)
 {
@@ -2604,6 +2606,133 @@ static int __attribute__((thiscall)) w_fill(const uint8_t *t, int32_t id, int32_
     return r;
 }
 
+/* ---- the world's construction / destruction (src/world_alloc.c) + the room setup's leaves — full state ---- */
+#define FS1(TAG, NAME, CC, T, PORTCALL)                                                                  \
+    typedef void (CC *TAG##_t)(T);                                                                       \
+    static void TAG##_retail(void *c) { ((TAG##_t)(uintptr_t)H[H_##TAG].va)((T)c); }                    \
+    static void TAG##_port(void *c) { port_world(); PORTCALL((T)c); }                                    \
+    static void CC w_##TAG(T x)                                                                          \
+    {                                                                                                    \
+        hook_t *h = &H[H_##TAG];                                                                         \
+        if (h->mode == 2) { h->calls++; TAG##_port(x); return; }                                         \
+        if (!sample(h)) { TAG##_retail(x); return; }                                                     \
+        char what[48]; snprintf(what, sizeof what, "%p", (void *)x);                                     \
+        full_shadow(h, NAME, TAG##_retail, TAG##_port, x, what);                                         \
+    }
+FS1(WFREE, "world_free", __attribute__((fastcall)), wl_world *, world_free)
+FS1(EFREE, "entity_free", __attribute__((thiscall)), wl_entity *, entity_free)
+FS1(AFREE, "actor_free", __attribute__((thiscall)), wl_actor *, actor_free)
+FS1(CFREE, "char_free", __attribute__((thiscall)), wl_char *, char_free)
+FS1(CBLK, "char_block_init", __attribute__((thiscall)), uint8_t *, char_block_init)
+FS1(RSAVE, "room_state_save", __stdcall, uint8_t *, room_state_save)
+FS1(MFREE, "map_res_free", __attribute__((thiscall)), uint8_t *, map_res_free)
+#undef FS1
+typedef wl_world *(__attribute__((thiscall)) *wnew_t)(void *);
+typedef struct { void *m; void *rr, *rp; } wnew_ctx;
+static void wnew_retail(void *c) { wnew_ctx *x = c; x->rr = ((wnew_t)(uintptr_t)H[H_WNEW].va)(x->m); }
+static void wnew_port(void *c) { wnew_ctx *x = c; port_world(); x->rp = world_new(x->m); }
+static wl_world *__attribute__((thiscall)) w_wnew(void *m)
+{
+    hook_t *h = &H[H_WNEW];
+    wnew_ctx x = { m, 0, 0 };
+    if (h->mode == 2) { h->calls++; wnew_port(&x); return x.rp; }
+    if (!sample(h)) { wnew_retail(&x); return x.rr; }
+    if (!full_shadow(h, "world_new", wnew_retail, wnew_port, &x, "world") && x.rr != x.rp)
+        diverged(h, "f%u ret %p/%p", g_frame, x.rr, x.rp);
+    return x.rr;
+}
+typedef wl_char *(__attribute__((thiscall)) *wlead_t)(const wl_world *);
+static wl_char *__attribute__((thiscall)) w_wlead(const wl_world *w)
+{
+    hook_t *h = &H[H_WLEAD];
+    if (h->mode == 2) { h->calls++; return world_leader(w); }
+    wl_char *r = ((wlead_t)(uintptr_t)h->va)(w);
+    if (!sample(h)) return r;
+    wl_char *p = world_leader(w);
+    h->compared++;
+    if (p != r) diverged(h, "f%u: retail %p port %p", g_frame, (void *)r, (void *)p);
+    return r;
+}
+typedef void *(__attribute__((thiscall)) *csnap_t)(wl_roomloop *, int32_t);
+typedef struct { wl_roomloop *rl; int32_t snap; void *rr, *rp; } csnap_ctx;
+static void csnap_retail(void *c) { csnap_ctx *x = c; x->rr = ((csnap_t)(uintptr_t)H[H_CSNAP].va)(x->rl, x->snap); }
+static void csnap_port(void *c) { csnap_ctx *x = c; port_world(); x->rp = camera_snap(x->rl, x->snap); }
+static void *__attribute__((thiscall)) w_csnap(wl_roomloop *rl, int32_t snap)
+{
+    hook_t *h = &H[H_CSNAP];
+    csnap_ctx x = { rl, snap, 0, 0 };
+    if (h->mode == 2) { h->calls++; csnap_port(&x); return x.rp; }
+    if (!sample(h)) { csnap_retail(&x); return x.rr; }
+    char what[32]; snprintf(what, sizeof what, "snap %d", snap);
+    if (!full_shadow(h, "camera_snap", csnap_retail, csnap_port, &x, what) && x.rr != x.rp)
+        diverged(h, "f%u %s ret %p/%p", g_frame, what, x.rr, x.rp);
+    return x.rr;
+}
+typedef void (__attribute__((thiscall)) *zreset_t)(wl_zonestate *, const wl_char *);
+typedef struct { wl_zonestate *z; const wl_char *ld; } zreset_ctx;
+static void zreset_retail(void *c) { zreset_ctx *x = c; ((zreset_t)(uintptr_t)H[H_ZRESET].va)(x->z, x->ld); }
+static void zreset_port(void *c) { zreset_ctx *x = c; port_world(); zones_reset(x->z, x->ld); }
+static void __attribute__((thiscall)) w_zreset(wl_zonestate *z, const wl_char *ld)
+{
+    hook_t *h = &H[H_ZRESET];
+    zreset_ctx x = { z, ld };
+    if (h->mode == 2) { h->calls++; zreset_port(&x); return; }
+    if (!sample(h)) { zreset_retail(&x); return; }
+    full_shadow(h, "zones_reset", zreset_retail, zreset_port, &x, "zones");
+}
+typedef int (__attribute__((thiscall)) *qstate_t)(const wl_room *, const uint8_t *, uint16_t *);
+static int __attribute__((thiscall)) w_qstate(const wl_room *r, const uint8_t *rec, uint16_t *out)
+{
+    hook_t *h = &H[H_QSTATE];
+    if (h->mode == 2) { h->calls++; return quest_state(r, rec, out); }
+    uint16_t o0 = out ? *out : 0;
+    int ret = ((qstate_t)(uintptr_t)h->va)(r, rec, out);
+    if (!sample(h)) return ret;
+    uint16_t ro = out ? *out : 0, po = o0;
+    int p = quest_state(r, rec, out ? &po : NULL);
+    h->compared++;
+    if (p != ret || po != ro) diverged(h, "f%u rec %p: retail %d/%u port %d/%u", g_frame, (void *)rec, ret, ro, p, po);
+    return ret;
+}
+typedef void (__attribute__((thiscall)) *vrec_t)(uint8_t *, wl_room *, int32_t);
+typedef struct { uint8_t *r; wl_room *room; int32_t v; } vrec_ctx;
+static void vrec_retail(void *c) { vrec_ctx *x = c; ((vrec_t)(uintptr_t)H[H_VREC].va)(x->r, x->room, x->v); }
+static void vrec_port(void *c) { vrec_ctx *x = c; port_world(); view_record_init(x->r, x->room, x->v); }
+static void __attribute__((thiscall)) w_vrec(uint8_t *r, wl_room *room, int32_t v)
+{
+    hook_t *h = &H[H_VREC];
+    vrec_ctx x = { r, room, v };
+    if (h->mode == 2) { h->calls++; vrec_port(&x); return; }
+    if (!sample(h)) { vrec_retail(&x); return; }
+    full_shadow(h, "view_record_init", vrec_retail, vrec_port, &x, "view record");
+}
+typedef void *(__attribute__((thiscall)) *del1_t)(uint8_t *, int32_t);
+typedef struct { uint8_t *m; int32_t f; void *rr, *rp; } del1_ctx;
+static void mdel_retail(void *c) { del1_ctx *x = c; x->rr = ((del1_t)(uintptr_t)H[H_MDEL].va)(x->m, x->f); }
+static void mdel_port(void *c) { del1_ctx *x = c; x->rp = map_res_delete(x->m, x->f); }
+static void *__attribute__((thiscall)) w_mdel(uint8_t *m, int32_t f)
+{
+    hook_t *h = &H[H_MDEL];
+    del1_ctx x = { m, f, 0, 0 };
+    if (h->mode == 2) { h->calls++; mdel_port(&x); return x.rp; }
+    if (!sample(h)) { mdel_retail(&x); return x.rr; }
+    if (!full_shadow(h, "map_res_delete", mdel_retail, mdel_port, &x, "map res") && x.rr != x.rp)
+        diverged(h, "f%u ret %p/%p", g_frame, x.rr, x.rp);
+    return x.rr;
+}
+static void phdel_retail(void *c) { del1_ctx *x = c; x->rr = ((del1_t)(uintptr_t)H[H_PHDEL].va)(x->m, x->f); }
+static void phdel_port(void *c) { del1_ctx *x = c; x->rp = pool_head_delete(x->m, x->f); }
+static void *__attribute__((thiscall)) w_phdel(uint8_t *m, int32_t f)
+{
+    hook_t *h = &H[H_PHDEL];
+    del1_ctx x = { m, f, 0, 0 };
+    if (h->mode == 2) { h->calls++; phdel_port(&x); return x.rp; }
+    if (!sample(h)) { phdel_retail(&x); return x.rr; }
+    if (!full_shadow(h, "pool_head_delete", phdel_retail, phdel_port, &x, "pool head") && x.rr != x.rp)
+        diverged(h, "f%u ret %p/%p", g_frame, x.rr, x.rp);
+    return x.rr;
+}
+
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
     [H_POLL] = { "input_poll", 0x43c110u, (void *)w_poll, 0, 1, 0, 0, 0, 0, "" },
@@ -2756,6 +2885,21 @@ static hook_t H[H_N] = {
     [H_STINT]      = { "sprite_slot_tint", 0x491740u, (void *)w_stint, 0, 1, 0, 0, 0, 0, "" },
     [H_TSFADE]     = { "timed_sounds_fade", 0x587ce0u, (void *)w_tsfade, 0, 1, 0, 0, 0, 0, "" },
     [H_FILL]       = { "fill_lookup",    0x587db0u, (void *)w_fill,   0, 1, 0, 0, 0, 0, "" },
+    [H_WNEW]       = { "world_new",      0x4017d0u, (void *)w_wnew,   0, 1, 0, 0, 0, 0, "" },
+    [H_WFREE]      = { "world_free",     0x54bfb0u, (void *)w_WFREE,  0, 1, 0, 0, 0, 0, "" },
+    [H_EFREE]      = { "entity_free",    0x401cb0u, (void *)w_EFREE,  0, 1, 0, 0, 0, 0, "" },
+    [H_AFREE]      = { "actor_free",     0x54c2e0u, (void *)w_AFREE,  0, 1, 0, 0, 0, 0, "" },
+    [H_CFREE]      = { "char_free",      0x54c3c0u, (void *)w_CFREE,  0, 1, 0, 0, 0, 0, "" },
+    [H_CBLK]       = { "char_block_init", 0x401c70u, (void *)w_CBLK,  0, 1, 0, 0, 0, 0, "" },
+    [H_WLEAD]      = { "world_leader",   0x54bf90u, (void *)w_wlead,  0, 1, 0, 0, 0, 0, "" },
+    [H_CSNAP]      = { "camera_snap",    0x58e6a0u, (void *)w_csnap,  0, 1, 0, 0, 0, 0, "" },
+    [H_ZRESET]     = { "zones_reset",    0x58d0b0u, (void *)w_zreset, 0, 1, 0, 0, 0, 0, "" },
+    [H_QSTATE]     = { "quest_state",    0x58d3b0u, (void *)w_qstate, 0, 1, 0, 0, 0, 0, "" },
+    [H_VREC]       = { "view_record_init", 0x58d210u, (void *)w_vrec, 0, 1, 0, 0, 0, 0, "" },
+    [H_RSAVE]      = { "room_state_save", 0x58e330u, (void *)w_RSAVE, 0, 1, 0, 0, 0, 0, "" },
+    [H_MFREE]      = { "map_res_free",   0x5878a0u, (void *)w_MFREE,  0, 1, 0, 0, 0, 0, "" },
+    [H_MDEL]       = { "map_res_delete", 0x59db70u, (void *)w_mdel,   0, 1, 0, 0, 0, 0, "" },
+    [H_PHDEL]      = { "pool_head_delete", 0x562d50u, (void *)w_phdel, 0, 1, 0, 0, 0, 0, "" },
 };
 
 static const void *rh_data_identity(uint32_t va) { return (const void *)(uintptr_t)va; }
@@ -2804,12 +2948,12 @@ static void bind_engine_calls(void)
     B(40ac90); B(55cfc0); B(54ed80); B(468b10); B(5bc0c0); B(409520);
     B(5b1030); B(48c150); B(495e40); B(59d160); B(59aa40); B(58ffa0); B(590480); B(590f20); B(590ca0); B(59d540);
     B(591120); B(562a70); B(58ffc0); B(59a910); B(415350); B(590230); B(59c750); B(59ca90); B(59ad60); B(5908a0);
-    B(58e6a0); B(499ab0); B(4842c0); B(41a7f0); B(59cfc0);
+    B(499ab0); B(4842c0); B(41a7f0); B(59cfc0);
     *(void **)&g_eng.flip_5b8fc0  = g_rh_flip_stub;    /* the virtual clock steps there */
     *(void **)&g_eng.easer_43d1d0 = g_rh_easer_stub;   /* the tick count (+ a camera hook chained behind) */
-    B(54bfb0); B(4017d0); B(562d50); B(5ba120); B(5ba290); B(587970); B(587e00); B(5878a0); B(59db70); B(58d460);
-    B(41e600); B(4178e0); B(417bc0); B(4182d0); B(491770); B(418470); B(417c40); B(58e170); B(41dc90); B(58d210);
-    B(58d0b0); B(58e330); B(56dc20); B(41a890); B(5bf3ee); B(426110); B(560900); B(5bf5db);
+    B(5ba120); B(5ba290); B(587970); B(587e00); B(58d460);
+    B(41e600); B(4178e0); B(417bc0); B(4182d0); B(491770); B(418470); B(417c40); B(58e170); B(41dc90);
+    B(56dc20); B(41a890); B(40e0c0); B(5bf3ee); B(426110); B(560900); B(5bf5db);
     g_eng.world = (wl_world **)(uintptr_t)WORLD_PTR_VA;
     g_eng.quiet = (int32_t *)(uintptr_t)0x8a6b54u;
     g_eng.dlog  = (void *)(uintptr_t)0x8a6620u;
@@ -2864,7 +3008,10 @@ void rh_hooks_install(void)
         H[H_ENC].va = H[H_FOES].va = H[H_PFOES].va = H[H_PSLOT].va = H[H_BGM].va =
         H[H_RLOOP].va = H[H_REPOLL].va =
         H[H_LROOM].va = H[H_BODIES].va = H[H_LINKS].va = H[H_VPOOLS].va = H[H_SHAKECLR].va = H[H_VFADE].va = H[H_MAPID].va =
-        H[H_MAPNPC].va = H[H_PSCLR].va = H[H_GATE].va = H[H_SREADY].va = H[H_STINT].va = H[H_TSFADE].va = H[H_FILL].va = 0;
+        H[H_MAPNPC].va = H[H_PSCLR].va = H[H_GATE].va = H[H_SREADY].va = H[H_STINT].va = H[H_TSFADE].va = H[H_FILL].va =
+        H[H_WNEW].va = H[H_WFREE].va = H[H_EFREE].va = H[H_AFREE].va = H[H_CFREE].va = H[H_CBLK].va = H[H_WLEAD].va =
+        H[H_CSNAP].va = H[H_ZRESET].va = H[H_QSTATE].va = H[H_VREC].va = H[H_RSAVE].va = H[H_MFREE].va = H[H_MDEL].va =
+        H[H_PHDEL].va = 0;
     if (!O.hooks) return;
     char b[4096]; snprintf(b, sizeof b, "%s", O.hooks);
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {

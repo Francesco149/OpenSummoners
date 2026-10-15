@@ -54,7 +54,9 @@
   | the ROOM LOOP itself (pacing machine, update, keys / menus, passes, render + Flip) + input re-poll / flush | `0x58f360` / `0x49be60` | REPLACE only: every room of the corpus (rh-my-play 9 runs) | – |
   | the ROOM SETUP `load_room` (new world, pools, gate, map load, palette, NPC entry roll, party, result loop) | `0x586010` | REPLACE only: all 16 room loads of the corpus | – |
   | its helpers: body arrays, char links, draw pools, shake clear, volume fade, map-NPC id / test, slot status, gate actor, slot ready / tint, timed-sound fade, fill lookup | `0x58cf60` `0x58d020` `0x587d50` `0x587d30` `0x43c9b0` `0x58cfe0` `0x58cfc0` `0x58d060` `0x4022d0` `0x49a050` `0x491740` `0x587ce0` `0x587db0` | 1,446 (@16) / 512 / 16 / 32 / 61 / 72 / 72 / 16 / – / 19 / – / – / 78 | 0 |
-  Hybrid gate: with all of the above REPLACING retail (150 hooks) (the whole character tick, driver → tile
+  | the WORLD's construction / destruction + the entity frees | `0x4017d0` / `0x54bfb0` (REPLACE, in load_room) `0x401cb0` `0x54c2e0` `0x54c3c0` `0x401c70` | 16 / 16 / 1,016 (@16) / 1,664 / 416 / 512 | 0 |
+  | room-setup leaves: leader, camera snap, zone reset, quest state, view record, state save, map-resource frees, pool-head free | `0x54bf90` `0x58e6a0` `0x58d0b0` `0x58d3b0` `0x58d210` `0x58e330` `0x5878a0` `0x59db70` `0x562d50` | 8,758 / 8,758 / 10 / 448 / 16 / 13 / 16 / 16 / 6 | 0 |
+  Hybrid gate: with all of the above REPLACING retail (165 hooks) (the whole character tick, driver → tile
   movers, + the room loop's passes and per-tick calls, runs as port code), every corpus scenario ends byte-identical.
   Shadow guard (rhost): a port phase that reaches an external effect retail already performed (surface free,
   buffer release, DeleteObject, DirectInput, a mode-0/2 script) aborts its comparison (counted skipped); those
@@ -70,12 +72,13 @@
   ahead, `0x4418e0`, `0x440e40`, `0x441700`, `0x43ee30`, …; scratch bodies from retail's heap via
   `g_eng.op_new`). Hybrid gate with all 12 movement functions replacing retail: PASS.
 - **Next (port side):**
-  000. `load_room 0x586010` RUNS AS PORT CODE (`src/room_load.c`, REPLACE-verified; quirk #138). Slots left under
-     it: the world ctor / dtor `0x4017d0` / `0x54bfb0`, the map load / decode / free `0x587970` / `0x587e00` (the port
-     decode exists but takes `map_data`: wire the port parse) / `0x5878a0` / `0x59db70`, the room population `0x58d460`
-     (3.3 KB), the party member create `0x58e170`, the formation `0x41dc90`, `0x58d210`, `0x58d0b0`, `0x58e330`,
-     `0x41e600`, the palette chain (`0x4178e0` / `0x417bc0` / `0x4182d0` / `0x491770` / `0x418470` / `0x417c40`),
-     `0x56dc20`, `0x41a890`, the room-start script `0x40c380`. Next: those leaves + the scene loop `0x59f2c0`.
+  000. `load_room 0x586010` RUNS AS PORT CODE (`src/room_load.c`, REPLACE-verified; quirk #138), the world it makes /
+     frees too (`src/world_alloc.c`). Slots left under it: the map load / decode `0x587970` / `0x587e00` (the port
+     decode exists but takes `map_data`: wire the port parse), the room population `0x58d460` (3.3 KB → the 27 KB
+     character init `0x41f200`), the party member create `0x58e170` (→ `0x41f200`, `0x5b4530`), the formation
+     `0x41dc90`, the actor state restore `0x41e600`, the palette chain (`0x4178e0` / `0x417bc0` / `0x4182d0` /
+     `0x491770` / `0x418470` / `0x417c40`), `0x56dc20`, `0x41a890`, `0x40e0c0`, the room-start script `0x40c380`,
+     the joystick create `0x5ba120` / `0x5ba290` (platform). Next: those leaves + the scene loop `0x59f2c0`.
   00. the ROOM LOOP `0x58f360` RUNS AS PORT CODE (`room_loop_run`, REPLACE-verified; Flip / the camera
      easer go through rhost's own stubs). Left under it as slots: the pickups `0x59ca90` (+ the world
      message log world+4 / +0x1024, "You got %s!"), the warp countdown `0x59c750`, the leader swap

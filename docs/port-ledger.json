@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 250,
-  "ported": 186,
-  "unported": 1388,
+  "ported": 201,
+  "unported": 1373,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 436,
-  "pct_touched": 27.6,
+  "touched": 451,
+  "pct_touched": 28.6,
   "pct_tested": 15.8,
-  "engine_proper_touched": 423,
+  "engine_proper_touched": 438,
   "bytes_total": 1776526,
-  "bytes_touched": 439991,
-  "pct_bytes_touched": 24.8
+  "bytes_touched": 445435,
+  "pct_bytes_touched": 25.1
  },
  "orphan_refs": [],
  "functions": [
@@ -209,24 +209,31 @@
    "name": "sub_4017D0",
    "size": 1175,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/world_alloc.c",
+    "src/world_alloc.h"
+   ]
   },
   {
    "va": "0x401c70",
    "name": "sub_401C70",
    "size": 54,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/world_alloc.h"
+   ]
   },
   {
    "va": "0x401cb0",
    "name": "sub_401CB0",
    "size": 140,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/world_alloc.h"
+   ]
   },
   {
    "va": "0x401d40",
@@ -8131,32 +8138,41 @@
    "name": "sub_54BF90",
    "size": 30,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_load.h"
+   ]
   },
   {
    "va": "0x54bfb0",
    "name": "sub_54BFB0",
    "size": 801,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/world_alloc.c",
+    "src/world_alloc.h"
+   ]
   },
   {
    "va": "0x54c2e0",
    "name": "sub_54C2E0",
    "size": 217,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/world_alloc.h"
+   ]
   },
   {
    "va": "0x54c3c0",
    "name": "sub_54C3C0",
    "size": 358,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/world_alloc.h"
+   ]
   },
   {
    "va": "0x54c530",
@@ -8967,8 +8983,10 @@
    "name": "sub_562D50",
    "size": 239,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_load.h"
+   ]
   },
   {
    "va": "0x562e40",
@@ -10020,8 +10038,10 @@
    "name": "sub_5878A0",
    "size": 207,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_load.h"
+   ]
   },
   {
    "va": "0x587970",
@@ -10214,24 +10234,30 @@
    "name": "sub_58D0B0",
    "size": 337,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_load.h"
+   ]
   },
   {
    "va": "0x58d210",
    "name": "sub_58D210",
    "size": 403,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_load.h"
+   ]
   },
   {
    "va": "0x58d3b0",
    "name": "sub_58D3B0",
    "size": 165,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_load.h"
+   ]
   },
   {
    "va": "0x58d460",
@@ -10254,16 +10280,20 @@
    "name": "sub_58E330",
    "size": 873,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_load.h"
+   ]
   },
   {
    "va": "0x58e6a0",
    "name": "sub_58E6A0",
    "size": 218,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_load.h"
+   ]
   },
   {
    "va": "0x58e780",
@@ -10899,8 +10929,10 @@
    "name": "sub_59DB70",
    "size": 227,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_load.h"
+   ]
   },
   {
    "va": "0x59dc60",

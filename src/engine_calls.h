@@ -112,14 +112,14 @@ typedef struct engine_calls {
      * 0x59aa40, the pause switch 0x58ffa0, the party / item menus 0x590480 / 0x590f20 / 0x590ca0,
      * the main menu 0x59d540 / 0x591120 / 0x562a70 / 0x58ffc0 / 0x59a910 / 0x415350, the shots
      * 0x590230, the warp 0x59c750, the pickups 0x59ca90, the scene runner 0x59ad60, 0x5908a0,
-     * the camera snap 0x58e6a0, the screen effects 0x499ab0, a part's facing 0x4842c0, the
+     * the screen effects 0x499ab0, a part's facing 0x4842c0, the
      * scene object 0x41a7f0 / start 0x59cfc0 */
     void (*h5b1030)(void);
     eng_tc3 h48c150; eng_tc7 h495e40; eng_tc0 h59d160; eng_tc1 flip_5b8fc0; eng_tc0 easer_43d1d0;
     eng_tc3 h59aa40; eng_tc1 h58ffa0; eng_tc0 h590480; eng_tc1 h590f20; eng_tc0 h590ca0;
     eng_tc2 h59d540; eng_tc0 h591120; eng_tc0 h562a70; eng_tc0 h58ffc0; eng_tc0 h59a910; eng_tc0 h415350;
     eng_tc0 h590230; eng_tc1 h59c750; int (ENG_STDCALL *h59ca90)(void *room); eng_tc1 h59ad60;
-    eng_tc0 h5908a0; eng_tc1 h58e6a0; eng_tc0 h499ab0; eng_tc1 h4842c0; eng_tc0 h41a7f0;
+    eng_tc0 h5908a0; eng_tc0 h499ab0; eng_tc1 h4842c0; eng_tc0 h41a7f0;
     int (ENG_STDCALL *h59cfc0)(void *scene, void *room, intptr_t zone, intptr_t a4);
     /* the integrator 0x442a70's callees: per-type behaviour handlers + helpers (by VA) */
     eng_tc3 h467260; eng_tc6 h44a740; eng_tc8 h45a300;
@@ -166,20 +166,18 @@ typedef struct engine_calls {
     int32_t    *quiet;
     void       *dlog;
     void       *tint;
-    /* ... and its callees: the world destructor 0x54bfb0 / constructor 0x4017d0, the pool head's
-     * deleting destructor 0x562d50, the joystick create 0x5ba120 / acquire 0x5ba290 (DirectInput),
-     * the map resource load 0x587970 / decode 0x587e00 / free 0x5878a0 / deleting destructor
-     * 0x59db70, the room population 0x58d460, the actor fill 0x41e600, the map sprite's palette
-     * (read 0x4178e0, swap table 0x417bc0, tint 0x4182d0, copy 0x491770, rebuild 0x418470), the
-     * parallax grade 0x417c40, the party member create 0x58e170, the formation 0x41dc90, the
-     * partner's view record 0x58d210, the zone-state leader 0x58d0b0, the room end 0x58e330, 0x56dc20,
-     * the scene runner's stop 0x41a890; the fatal paths: the sprintf 0x5bf3ee, the error box
-     * 0x426110, the log reset 0x560900, exit 0x5bf5db */
-    eng_tc0 h54bfb0; eng_tc0 h4017d0; eng_tc1 h562d50; eng_tc3 h5ba120; eng_tc0 h5ba290;
-    eng_tc2 h587970; eng_tc4 h587e00; eng_tc0 h5878a0; eng_tc1 h59db70; eng_tc2 h58d460; eng_tc1 h41e600;
+    /* ... and its callees: the joystick create 0x5ba120 / acquire 0x5ba290 (DirectInput), the map
+     * resource load 0x587970 / decode 0x587e00, the room population 0x58d460, the actor fill
+     * 0x41e600, the map sprite's palette (read 0x4178e0, swap table 0x417bc0, tint 0x4182d0, copy
+     * 0x491770, rebuild 0x418470), the parallax grade 0x417c40, the party member create 0x58e170,
+     * the formation 0x41dc90, 0x56dc20, the scene runner's stop 0x41a890, the pool-head record
+     * clear 0x40e0c0; the fatal paths: the sprintf 0x5bf3ee, the error box 0x426110, the log reset
+     * 0x560900, exit 0x5bf5db */
+    eng_tc3 h5ba120; eng_tc0 h5ba290;
+    eng_tc2 h587970; eng_tc4 h587e00; eng_tc2 h58d460; eng_tc1 h41e600;
     eng_tc1 h4178e0; eng_tc2 h417bc0; eng_tc6 h4182d0; eng_tc1 h491770; eng_tc1 h418470; eng_tc2 h417c40;
-    eng_tc5 h58e170; eng_tc0 h41dc90; eng_tc2 h58d210; eng_tc1 h58d0b0; eng_tc1 h58e330; eng_tc3 h56dc20;
-    eng_tc4 h41a890;
+    eng_tc5 h58e170; eng_tc0 h41dc90; eng_tc3 h56dc20;
+    eng_tc4 h41a890; eng_tc0 h40e0c0;
     int (*h5bf3ee)(char *buf, const char *fmt, ...);
     eng_tc3 h426110; eng_tc0 h560900;
     void (*h5bf5db)(int code);

@@ -52,6 +52,11 @@
  *   FUN_0058d060  pslot_status_clear   FUN_004022d0  gate_actor
  *   FUN_0049a050  sprite_slot_ready    FUN_00491740  sprite_slot_tint
  *   FUN_00587ce0  timed_sounds_fade    FUN_00587db0  fill_lookup
+ *   FUN_0054bf90  world_leader         FUN_0058e6a0  camera_snap
+ *   FUN_0058d0b0  zones_reset          FUN_0058d3b0  quest_state
+ *   FUN_0058d210  view_record_init     FUN_0058e330  room_state_save
+ *   FUN_005878a0  map_res_free         FUN_0059db70  map_res_delete
+ *   FUN_00562d50  pool_head_delete
  */
 #ifndef OSS_ROOM_LOAD_H
 #define OSS_ROOM_LOAD_H
@@ -59,6 +64,8 @@
 #include <stdint.h>
 
 #include "world_layout.h"
+
+struct camera_view;
 
 /* 0x586010 (thiscall room loop, 15 stack arguments): the room's result (0x58f360's, or the
  * start event's 1..3 / 6) */
@@ -93,5 +100,30 @@ void sprite_slot_tint(void *slot, int32_t r, int32_t g, int32_t b, const uint8_t
 void timed_sounds_fade(void *list, int32_t rate);
 /* 0x587db0 (thiscall fill table): *out = the value for `id`; 0 when absent */
 int fill_lookup(const uint8_t *tbl, int32_t id, int32_t *out);
+
+/* 0x54bf90 (thiscall world): the leader's character (NULL without a room / leader) */
+wl_char *world_leader(const wl_world *w);
+/* 0x58e6a0 (thiscall room loop): aim the view at the leader + the camera leads (clamped to the
+ * map; follow cap 800, the far boost on), the listener on the leader; `snap` != 0 = jump there
+ * (returns the view, else NULL) */
+struct camera_view *camera_snap(wl_roomloop *rl, int32_t snap);
+/* 0x58d0b0 (thiscall zone state): clear it; `cur` = the first live zone actor (not in its done
+ * state) whose part 0 overlaps the leader's */
+void zones_reset(wl_zonestate *z, const wl_char *ld);
+/* 0x58d3b0 (thiscall room): a quest record's state against the room's flags: 0 = its prerequisite
+ * (+0x8) below +0xc, 2 = its own flag (+0) set (*out 73), else 1 (*out 72) */
+int quest_state(const wl_room *room, const uint8_t *rec, uint16_t *out);
+/* 0x58d210 (thiscall view record): set the record up for `room` (+0x10 = v); +0xc = the quests
+ * open (state 1) in the town maps 1010 / 1020 */
+void view_record_init(uint8_t *r, wl_room *room, int32_t v);
+/* 0x58e330 (stdcall room state): save every live actor's switch state (+0xc) by its handle */
+void room_state_save(uint8_t *t);
+/* 0x5878a0 (thiscall map resource): free its buffers */
+void map_res_free(uint8_t *m);
+/* 0x59db70 (thiscall map resource): + itself when flags & 1 */
+void *map_res_delete(uint8_t *m, int32_t flags);
+/* 0x562d50 (thiscall pool head): free its records (their +0x48 objects through 0x40e0c0), + itself
+ * when flags & 1 */
+void *pool_head_delete(uint8_t *h, int32_t flags);
 
 #endif /* OSS_ROOM_LOAD_H */

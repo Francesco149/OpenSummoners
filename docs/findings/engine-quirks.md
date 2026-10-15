@@ -4280,6 +4280,18 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   copied by `0x491770` (byte 3 of each entry never written). The corpus: kind != 3 on all 16 loads.
 - `0x587ce0` (sys+0xaa8 timed sounds → state 3, fade 400) is the same loop `0x40b8f0` inlines; `0x4022d0` (a
   stdcall; load_room passes ecx anyway) repeats the gate-actor search for the wait record's +0x68.
+- **The room's persistent state room+0x40ac** = two tables: +0 512 x {flag id, value, -} (count +0x1800) and
+  +0x1804 2048 x {actor handle, switch state, map} (count +0x7804). At room end `0x58e330` saves every live actor
+  with a handle: kind +0x2b0 3 = not saved; state = +0xc; map = 0 (kind 1) / the room record's +4 (kind 2) /
+  **the previous actor's (any other kind: one stack local, uninitialized before the first)**; a new handle takes
+  the LAST free (id 0) record, else appends (2048 full → "The object perpetuity state area exceeded" + exit). At
+  entry `0x587db0` reads the state back by handle → `0x41e600`. `0x58d3b0` (quest records 0x6b7ee8, 1212 B,
+  0-terminated: [0] own flag, [2] prerequisite flag, [3] its minimum) = 0 below the prerequisite, 2 when the own
+  flag is set, else 1 (open); the partner's view record (`0x58d210`, only in maps 1010 / 1020) counts the open ones.
+- **The world `0x4017d0`** allocates in a fixed order (fader 0x2c, 64 x 0x258, 32 x 0x15bb0, 128 x 0x2fc, 1024 x
+  0x284, 96 x 0x20c, 128 x 0x1f8, grid 0x2cb044, view 0x78, 0xa52c, runner 0xb2c, 5 lists 12 B + 5 x 0x200); none
+  of the big blocks is cleared (retail relies on the room setup / the map decode to fill them). `0x54bfb0` stops a
+  character's playing voice lines (`0x5bb8e0`) before freeing its voice set.
 
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)

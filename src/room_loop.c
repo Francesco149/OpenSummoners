@@ -24,6 +24,7 @@
 #include "particle_tick.h"
 #include "sound_fx.h"
 #include "npc_ai.h"
+#include "room_load.h"
 
 #define IP(p) ((intptr_t)(p))
 
@@ -791,7 +792,7 @@ int room_loop_run(wl_roomloop *rl)
             }
         }
         for (uint16_t j = 0; j < rl->nrooms; j++) g_eng.h5908a0(&rl->rooms[j]);
-        g_eng.h58e6a0(rl, 0);
+        camera_snap(rl, 0);
         g_eng.easer_43d1d0(g_world->view);
         {
             int32_t f; memcpy(&f, (const uint8_t *)rl->f11c + 0x20, 4);

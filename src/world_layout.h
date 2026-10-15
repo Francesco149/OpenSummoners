@@ -351,9 +351,9 @@ typedef struct wl_world {
                               *           (0x557370)                                       */
     uint8_t   *grid;         /* +0x1048  the 0x2cb044-byte runtime grid (map_grid.h)   */
     struct camera_view *view; /* +0x104c  the camera/view (camera_follow.h)           */
-    uint8_t    _p1050[0x1054 - 0x1050];
+    void      *f1050;        /* +0x1050  (0xa52c bytes, 0x4017d0)                       */
     struct wl_event *event;  /* +0x1054  the event-script runner (0x40b8f0's `this`)    */
-    uint8_t    _p1058[0x105c - 0x1058];
+    void      *f1058;        /* +0x1058 */
     int32_t    f105c;        /* +0x105c  (0x586010's last argument)                     */
     wl_entity *band64[64];   /* +0x1060  0x258-byte entities (shots / projectiles)      */
     struct wl_char *chars[32]; /* +0x1160  the full characters (0x15bb0 B each)        */
@@ -495,7 +495,8 @@ typedef struct wl_room {
     uint16_t   nflags;         /* +0x2008 */
     uint16_t   _p200a;
     wl_pslot  *leader;         /* +0x200c */
-    uint8_t    _p2010[0x4018 - 0x2010];
+    uint8_t    _p2010[0x4014 - 0x2010];
+    int32_t    f4014;          /* +0x4014  (the partner's view record +0x3d4, 0x58d210)   */
     int32_t    f4018;          /* +0x4018  (0x58e170's last argument)                    */
     uint8_t    _p401c[0x4024 - 0x401c];
     int32_t    f4024;          /* +0x4024  the script a zone result runs: its id, arg (0x586010) */
@@ -512,7 +513,10 @@ typedef struct wl_room {
     int32_t    f40a4;          /* +0x40a4  != 0 => the partner's view record is set up (0x58d210) */
     uint16_t   partner;        /* +0x40a8  the room loop's view record holding the partner  */
     uint16_t   _p40aa;
-    int32_t    f40ac;          /* +0x40ac  (0x58e330's argument at room end)              */
+    uint8_t   *f40ac;          /* +0x40ac  the room's persistent state: +0 512 x 12 B {flag id,
+                                *          value, -} (count +0x1800), +0x1804 2048 x 12 B {actor
+                                *          handle, switch state, map} (count +0x7804): 0x58e330
+                                *          saves it at room end, 0x587db0 reads it back      */
     uint8_t    _p40b0[0x40d0 - 0x40b0];
     int32_t    f40d0;          /* +0x40d0  == 0 => no warp request (0x54ecf0)             */
     uint8_t    _p40d4[0x4120 - 0x40d4];

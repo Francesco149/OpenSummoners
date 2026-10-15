@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "camera_follow.h"
+#include "char_physics.h"
 #include "engine_calls.h"
 #include "entity_life.h"
 #include "event.h"
@@ -16,6 +17,7 @@
 #include "npc_ai.h"
 #include "rng.h"
 #include "room_loop.h"
+#include "world_alloc.h"
 
 #define IP(p) ((intptr_t)(p))
 #define W (*g_eng.world)
@@ -182,6 +184,286 @@ int fill_lookup(const uint8_t *tbl, int32_t id, int32_t *out)
     return 0;
 }
 
+wl_char *world_leader(const wl_world *w)
+{
+    if (w->room == NULL || w->room->leader == NULL) return NULL;
+    return w->room->leader->ch;
+}
+
+camera_view *camera_snap(wl_roomloop *rl, int32_t snap)
+{
+    wl_char *c = world_leader(g_world);
+    if (c == NULL) return NULL;
+    const wl_body *b = c->base.body;
+    int32_t y = b->y + rl->lead_y;
+    int32_t x = b->act_78 + b->x + rl->lead;
+    camera_view *v = g_world->view;
+    int32_t lim = v->map_w - v->vp_w;
+    if (x < 0) x = 0;
+    if (lim < x) x = lim;
+    v->tgt_x = x;
+    lim = v->map_h - v->vp_h;
+    if (y < 0) y = 0;
+    if (lim < y) y = lim;
+    v->tgt_y = y;
+    v->cap = 800;
+    v->flag = 1;
+    b = c->base.body;
+    v = g_world->view;
+    v->ear_rel = 0;
+    v->ear_x = b->act_78 + b->x;
+    v->ear_y = b->y;
+    if (snap == 0) return NULL;
+    v = g_world->view;
+    v->cur_x = v->tgt_x;
+    v->cur_y = v->tgt_y;
+    v->vel_x = 0;
+    v->vel_y = 0;
+    return v;
+}
+
+void zones_reset(wl_zonestate *z, const wl_char *ld)
+{
+    if (ld == NULL) return;
+    z->fired = 0;
+    z->able = 0;
+    z->phase = 0;
+    z->rest = 0;
+    z->hold = 0;
+    z->cur = NULL;
+    z->f04 = 0;
+    z->under = NULL;
+    z->f0c = NULL;
+    z->tick = 0;
+    z->wait = 0;
+    for (uint16_t i = 0; i < 128; i++) {
+        const wl_actor *a = (const wl_actor *)g_world->actors[i];
+        if (a->base.alive == 0 || a->zone == 0) continue;
+        uint32_t code = (uint32_t)a->base.code;
+        if (code == 70440 || code == 70610 || code == 70620) {
+            if (a->base.f00c == 1) continue;
+        } else if (code >= 70101 && code <= 70103) {
+            if (a->base.f00c == 2) continue;
+        }
+        const wl_body *lb = ld->base.body;
+        if (a->base.body->x > lb->w + lb->x) continue;
+        if (part_right(&a->base, 0) <= part_left(&ld->base, 0)) continue;
+        if (char_part_top((const wl_char *)a, 0) > part_bottom(&ld->base, 0)) continue;
+        if (part_bottom(&a->base, 0) > char_part_top(ld, 0)) {
+            z->f04 = 0;
+            z->cur = (wl_actor *)g_world->actors[i];
+            return;
+        }
+    }
+    z->f04 = 0;
+    z->cur = NULL;
+}
+
+int quest_state(const wl_room *room, const uint8_t *rec, uint16_t *out)
+{
+    const uint8_t *t = room->f40ac;
+    uint32_t n = (uint32_t)ld32(t, 0x1800);
+    int32_t have = 0;
+    for (uint32_t i = 0; i < n; i++)
+        if (ld32(t, 12 * i) == ld32(rec, 8)) {
+            have = ld32(t, 12 * i + 4);
+            break;
+        }
+    if (have < ld32(rec, 0xc)) return 0;
+    n = (uint32_t)ld32(t, 0x1800);
+    for (uint32_t i = 0; i < n; i++)
+        if (ld32(t, 12 * i) == ld32(rec, 0)) {
+            if (ld32(t, 12 * i + 4) != 0) {
+                if (out != NULL) *out = 73;
+                return 2;
+            }
+            break;
+        }
+    if (out != NULL) *out = 72;
+    return 1;
+}
+
+void view_record_init(uint8_t *r, wl_room *room, int32_t v)
+{
+    st32(r, 0x10, v);
+    memset(r + 0x388, 0, 0x40);
+    st32(r, 0x8, 1);
+    st32(r, 0x0, 0);
+    st32(r, 0x14, 0);
+    st32(r, 0x394, 41);
+    st32(r, 0x3c8, 0);
+    st32(r, 0x20, 0);
+    st32(r, 0x24, 0);
+    st32(r, 0x28, 0);
+    st32(r, 0x2c, 0);
+    st16(r, 0x30, 255);
+    st16(r, 0x32, 255);
+    st16(r, 0x34, 0);
+    st32(r, 0x38, 0);
+    st32(r, 0x40, 0);
+    st32(r, 0x1ac, 0);
+    st16(r, 0x1c0, 255);
+    st16(r, 0x1c2, 255);
+    st32(r, 0x1b0, 0);
+    st32(r, 0x1b4, 0);
+    st32(r, 0x1b8, 0);
+    st32(r, 0x1bc, 0);
+    st16(r, 0x1c4, 0);
+    st32(r, 0x1c8, 0);
+    st32(r, 0x1d0, 0);
+    st32(r, 0x33c, 0);
+    st32(r, 0x380, 0);
+    st32(r, 0x384, 0);
+    stp(r, 0x4, room);
+    st16(r, 0x3cc, 0);
+    st32(r, 0x3d0, 0);
+    for (uint32_t k = 0; k < 5; k++) st32(r, 0x3d8 + 4 * k, 0);
+    if (ld32(r, 0x8) == 0) {
+        st16(r, 0xc, 0);
+    } else {
+        uint32_t n = 0;
+        const wl_room *rm = ldp(r, 0x4);
+        if (g_world->f105c == 1010 || g_world->f105c == 1020) {
+            const uint8_t *t = g_eng.data(0x6b7ee8u);   /* 1212-byte quest records, 0-terminated */
+            if (ld32(t, 0) != 0) {
+                uint16_t i = 0;
+                const uint8_t *rec = t;
+                do {
+                    if (quest_state(rm, rec, NULL) == 1) n++;
+                    i++;
+                    rec = t + 1212u * i;
+                } while (ld32(rec, 0) != 0);
+            }
+        }
+        st16(r, 0xc, (uint16_t)n);
+    }
+    st32(r, 0x18, 0);
+    st32(r, 0x3d4, ((const wl_room *)ldp(r, 0x4))->f4014);
+    st16(r, 0x1c, 0);
+    for (uint32_t k = 0; k < 8; k++) {
+        st32(r, 0x340 + 8 * k, 0);
+        st32(r, 0x344 + 8 * k, 0);
+    }
+}
+
+/* 0x560900 + the error-log append + 0x406440 + exit, as 0x586010 / 0x58e330 inline them */
+static void log_fatal(uint32_t msg)
+{
+    char *lb = (char *)g_eng.log;
+    g_eng.h560900(g_eng.log);
+    st32(lb, 0, 1);
+    char *t = lb + 4;
+    if (strlen(t) != 0) {
+        strcat(t, S(0x854570u));   /* "\n" */
+        strcat(t, S(msg));
+    } else {
+        strcpy(t, S(msg));
+    }
+    strcat(t, S(TRAILER));
+    g_eng.log_fail_406440(g_eng.log, S(msg), S(TRAILER));
+    g_eng.h5bf5db(0);
+}
+
+void room_state_save(uint8_t *t)
+{
+    /* `map` is one local across the loop: a +0x2b0 outside 1..3 keeps the last value (before
+     * any, retail reads an uninitialized stack slot) */
+    int32_t map = 0;
+    for (uint16_t i = 0; i < 128; i++) {
+        const wl_actor *a = (const wl_actor *)g_world->actors[i];
+        if (a->base.alive == 0) continue;
+        int32_t h = a->base.handle;
+        if (h == 0) continue;
+        int32_t kind = ld32(a, 0x2b0);
+        if (kind == 3) continue;
+        if (kind == 1) map = 0;
+        else if (kind == 2) map = ld32(g_world->roominfo, 4);
+        int32_t st = a->base.f00c;
+        uint32_t n = (uint32_t)ld32(t, 0x7804);
+        uint8_t *rec = NULL;
+        for (uint32_t k = 0; k < n; k++)
+            if (ld32(t, 0x1804 + 12 * k) == h) {
+                rec = t + 0x1804 + 12 * k;
+                break;
+            }
+        if (rec == NULL) {
+            for (uint16_t k = 0; k < n; k++)
+                if (ld32(t, 0x1804 + 12u * k) == 0) rec = t + 0x1804 + 12u * k;
+            if (rec == NULL) {
+                if (n == 0x800) log_fatal(0x859388u);   /* "The object perpetuity state area exceed..." */
+                st32(t, 0x7804, (int32_t)(n + 1));
+                rec = t + 0x1804 + 12 * n;
+            }
+            st32(rec, 0, h);
+            st32(rec, 4, 0);
+            st32(rec, 8, 0);
+        }
+        st32(rec, 4, st);
+        st32(rec, 8, map);
+    }
+}
+
+void map_res_free(uint8_t *m)
+{
+    if (ldp(m, 0x34) != NULL) {
+        g_eng.op_delete(ldp(m, 0x34));
+        stp(m, 0x34, NULL);
+    }
+    if (ldp(m, 0x38) != NULL) {
+        g_eng.op_delete(ldp(m, 0x38));
+        stp(m, 0x38, NULL);
+    }
+    if (ldp(m, 0x3c) == NULL) return;
+    for (int32_t i = 0; i < ld32(m, 0x2c); i++)
+        for (uint32_t k = 0; k < 4; k++) {
+            void *p = ldp((uint8_t *)ldp(m, 0x3c) + 16u * (uint32_t)i, 4 * k);
+            if (p != NULL) {
+                g_eng.op_delete(p);
+                stp((uint8_t *)ldp(m, 0x3c) + 16u * (uint32_t)i, 4 * k, NULL);
+            }
+        }
+    if (ldp(m, 0x3c) != NULL) {
+        g_eng.op_delete(ldp(m, 0x3c));
+        stp(m, 0x3c, NULL);
+    }
+}
+
+void *map_res_delete(uint8_t *m, int32_t flags)
+{
+    map_res_free(m);   /* the same frees, inlined in retail */
+    if (flags & 1) g_eng.op_delete(m);
+    return m;
+}
+
+void *pool_head_delete(uint8_t *h, int32_t flags)
+{
+    for (uint16_t i = 0; i < ld16(h, 4); i++) {
+        uint8_t *r = ldp((uint8_t *)ldp(h, 0) + 4u * i, 0);
+        if (r == NULL) continue;
+        if (ldp(r, 0x48) != NULL) {
+            for (uint16_t j = 0; j < ld16(r, 0x4c); j++) {
+                void *o = ldp((uint8_t *)ldp(r, 0x48) + 4u * j, 0);
+                if (o == NULL) continue;
+                g_eng.h40e0c0(o);
+                g_eng.op_delete(o);
+                stp((uint8_t *)ldp(r, 0x48) + 4u * j, 0, NULL);
+            }
+            if (ldp(r, 0x48) != NULL) {
+                g_eng.op_delete(ldp(r, 0x48));
+                stp(r, 0x48, NULL);
+            }
+        }
+        g_eng.op_delete(r);
+        stp((uint8_t *)ldp(h, 0) + 4u * i, 0, NULL);
+    }
+    if (ldp(h, 0) != NULL) {
+        g_eng.op_delete(ldp(h, 0));
+        stp(h, 0, NULL);
+    }
+    if (flags & 1) g_eng.op_delete(h);
+    return h;
+}
+
 /* the view's 27 draw pools: (record offset, capacity, buffer bytes = capacity x 60), in retail's
  * allocation order (record 0 stays empty) */
 static const struct { uint8_t off; uint16_t cap; uint32_t size; } POOLS[26] = {
@@ -253,22 +535,6 @@ static void map_palette(void)
     g_eng.h491770(ldp(g_eng.sys, 0xcd8), IP(src));
 }
 
-static void gate_fatal(void)
-{
-    char *lb = (char *)g_eng.log;
-    g_eng.h560900(g_eng.log);
-    st32(lb, 0, 1);
-    char *t = lb + 4;
-    if (strlen(t) != 0) {
-        strcat(t, S(0x854570u));   /* "\n" */
-        strcat(t, S(0x8a2d50u));   /* "The gate is not found. " */
-    } else {
-        strcpy(t, S(0x8a2d50u));
-    }
-    strcat(t, S(TRAILER));
-    g_eng.log_fail_406440(g_eng.log, S(0x8a2d50u), S(TRAILER));
-    g_eng.h5bf5db(0);
-}
 
 int load_room(wl_roomloop *rl, wl_room *rooms, uint16_t nrooms, uint8_t *areas, uint8_t *rinfo, int32_t gate,
               int32_t a7, const uint8_t *keep, const uint8_t *fill, int32_t fd4, int32_t wide, int32_t f2c,
@@ -301,16 +567,16 @@ int load_room(wl_roomloop *rl, wl_room *rooms, uint16_t nrooms, uint8_t *areas, 
     /* the world */
     wl_world *old = W;
     if (old != NULL) {
-        g_eng.h54bfb0(old);
+        world_free(old);
         g_eng.op_delete(old);
         W = NULL;
     }
     if (rl->fe8 != NULL) {
-        g_eng.h562d50(rl->fe8, 1);
+        pool_head_delete(rl->fe8, 1);
         rl->fe8 = NULL;
     }
     void *mem = g_eng.op_new(0x27b8);
-    W = mem != NULL ? (wl_world *)(intptr_t)g_eng.h4017d0(mem) : NULL;
+    W = mem != NULL ? world_new(mem) : NULL;
     g_world = W;
     W->f105c = f105c;
     W->f1044 = (uint8_t *)rl;
@@ -475,8 +741,8 @@ int load_room(wl_roomloop *rl, wl_room *rooms, uint16_t nrooms, uint8_t *areas, 
     g_eng.h587e00(W->grid, IP(mr), ld32(rinfo, 0x110), loc, ld32(rinfo, 0x10c));
     g_eng.h58d460(rl, ld32(rinfo, 0), IP(mr));
     grid_refresh(W->grid, 1);
-    g_eng.h5878a0(mr);
-    if (mr != NULL) g_eng.h59db70(mr, 1);
+    map_res_free(mr);
+    if (mr != NULL) map_res_delete(mr, 1);
     step_log(0x8a2d7cu);   /* "Load Map Data" */
     if (fill != NULL)
         for (int i = 0; i < 128; i++) {
@@ -531,7 +797,7 @@ int load_room(wl_roomloop *rl, wl_room *rooms, uint16_t nrooms, uint8_t *areas, 
                 break;
             }
         }
-        if (gt == NULL) gate_fatal();
+        if (gt == NULL) log_fatal(0x8a2d50u);   /* "The gate is not found. " */
     }
 
     /* the map NPCs present at entry.  `pct` is one local across the loop: classes 3..8 keep
@@ -599,7 +865,7 @@ int load_room(wl_roomloop *rl, wl_room *rooms, uint16_t nrooms, uint8_t *areas, 
         step_log2(0x8a2ce8u);   /* "UpdateFormation" */
         room_input_flush(&rl->rooms[j]);
         wl_room *r = &rl->rooms[j];
-        if (r->f40a4 != 0) g_eng.h58d210((uint8_t *)rl + 0x128 + 0x3ecu * r->partner, IP(r), r->f40a4);
+        if (r->f40a4 != 0) view_record_init((uint8_t *)rl + 0x128 + 0x3ecu * r->partner, r, r->f40a4);
     }
 
     /* a two-room wait record: where its actor stands */
@@ -620,7 +886,7 @@ int load_room(wl_roomloop *rl, wl_room *rooms, uint16_t nrooms, uint8_t *areas, 
         W->f27ac = NULL;
     }
 
-    g_eng.h58e6a0(rl, 1);
+    camera_snap(rl, 1);
     step_log2(0x8a2cd4u);   /* "SetViewPosNormal" */
     st32(rl->f11c, 0x20, 0);
     st32(rl->f11c, 0, 0);
@@ -637,7 +903,7 @@ int load_room(wl_roomloop *rl, wl_room *rooms, uint16_t nrooms, uint8_t *areas, 
     if (r0 > 0 && r0 <= 3) res = r0;
     else if (r0 == 6) res = 6;
     else {
-        if (W->room != NULL) g_eng.h58d0b0(&rl->zones, IP(room_leader(W->room)));
+        if (W->room != NULL) zones_reset(&rl->zones, room_leader(W->room));
         step_log2(0x8a2cb8u);   /* "Start Area Loop" */
         for (;;) {
             res = room_loop_run(rl);
@@ -661,7 +927,7 @@ int load_room(wl_roomloop *rl, wl_room *rooms, uint16_t nrooms, uint8_t *areas, 
         }
     }
 
-    if (W->room != NULL) g_eng.h58e330(rl, W->room->f40ac);
+    if (W->room != NULL) room_state_save(W->room->f40ac);
     g_eng.h56dc20(g_eng.sys, 0, 0, 0);
     if (res > 0 && res <= 2 && rl->scene != NULL && W->f27ac == NULL) {
         g_eng.h41a890(rl->scene, 10020, 0, 0, 0);
