@@ -140,6 +140,14 @@ understates how much actual instruction volume is ported.
   ahead, `0x4418e0`, `0x440e40`, `0x441700`, `0x43ee30`, …; scratch bodies from retail's heap via
   `g_eng.op_new`). Hybrid gate with all 12 movement functions replacing retail: PASS.
 - **Next (port side):**
+  0000. (2026-10-16) the USER records `combat` next (`rhost.py record combat`; the GDI cap that killed the last
+     attempt is fixed).  With it: (a) re-run `rhost.py verify` — the attack pipeline's struck-char path
+     (`0x5b15e0` → `0x5b3890` / `0x5b5600`, slots) gets its first calls; (b) port Arche's sword skills `0x461790`
+     (19 KB, 117 cases: the prologue's combo chaining → 10115, codes 10108..10122, 10107, 10102..10106, 10101,
+     the common poses 3 / 4 / 11 / 12 / 100 / 101 / 114) — every helper is ported now (`src/char_attack.c`)
+     except `0x4505c0` / `0x450590` / `0x447c10` / `0x4483c0` / `0x466750`; the case entry VAs (for trap-count
+     coverage) are in the asm's jump tables `0x461a1c` / `0x462150` / `0x463138`; then the skill casts `0x45a300`.
+     The save writer `0x41a890` needs an rhost uninit-fix first (quirk #161).
   000. `load_room 0x586010` RUNS AS PORT CODE (`src/room_load.c`, REPLACE-verified; quirk #138), the world it makes /
      frees too (`src/world_alloc.c`), the map decode (`map_decode_room`), the population + device / structure
      inits, and now the CHARACTER INIT `0x41f200` (`src/char_init.c` + 42 helpers `src/char_def.c`; quirk #139).

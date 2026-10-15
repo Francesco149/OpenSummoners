@@ -4925,6 +4925,17 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   [+0x1c8, +0x1cc], carries its riders, and the pusher moves by the crate's dx.  The movers' "pass" argument is
   the body byte +0x20 loaded into cx over the crate's speed (the speed's high word rides along).
 
+### #161 — the save writer stores uninitialized stack bytes (RE 2026-10-16)
+- `0x41a890` (every room start: the retry snapshot into memory bank 0 / 1 `0x8a93f0[]`; `savedataNN.dat` /
+  `.bak` files; the `.sdt` bank 2 flushed for 10040) writes a 4-byte size (604) then a 604-byte header taken
+  straight from its stack frame: {+0 164 (the scene object), 16, 284, 12, 8, 12, 2, 8, then a 512-byte block the
+  function never fills, 12, 16, the save time (`time()` or the caller's), 10001, the kind, the version string
+  sys+0x324 (32 B), 8 padding bytes}.  So every snapshot carries 520 bytes of whatever the stack held — the same
+  class as #123.  A port verified by REPLACE needs an rhost uninit-fix there first (zero the block at the retail
+  site, write zeros in the port) and a corpus re-bless.  The rest: the scene object (164 B), its 16-B records,
+  per member 284 B + the 12-B / 16-B lists, the two record tables (+0x37d0 / +0x3800 counts), the u16-counted 8-B
+  list at +0xc28c.  Disk / bank failures: the inline fatal logger ("…" + the file name) and exit(0).
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`
