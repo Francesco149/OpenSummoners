@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **745** (47.8% of engine-proper) — tested 249, ported 496
-- code bytes touched: **34.4%** (611,031 / 1,776,526 B of engine-proper)
-- unported: **1079**
+- touched: **756** (48.5% of engine-proper) — tested 249, ported 507
+- code bytes touched: **34.6%** (615,117 / 1,776,526 B of engine-proper)
+- unported: **1068**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (496) — reimplemented, no host test yet
+## ported (507) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -333,12 +333,14 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x40c380 | sub_40C380 | 5077 | script_engine.c, script_engine.h |
 | 0x40d960 | sub_40D960 | 69 | char_state.h |
 | 0x40d9b0 | sub_40D9B0 | 437 | room_loop.h |
+| 0x40dbc0 | sub_40DBC0 | 776 | ui_menu.h |
 | 0x40df40 | sub_40DF40 | 374 | ui_core.h |
 | 0x40e2f0 | sub_40E2F0 | 100 | ui_core.h |
 | 0x40f1c0 | sub_40F1C0 | 530 | ui_core.h |
 | 0x40f5a0 | sub_40F5A0 | 25 | ui_core.h |
 | 0x40f800 | sub_40F800 | 511 | ui_core.h |
 | 0x40fdb0 | sub_40FDB0 | 70 | ui_core.h |
+| 0x410300 | sub_410300 | 196 | sprite_slot.h |
 | 0x4103d0 | sub_4103D0 | 389 | ui_core.h |
 | 0x410560 | sub_410560 | 164 | ui_text.h |
 | 0x410610 | sub_410610 | 3103 | ui_text.h |
@@ -537,6 +539,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x448c80 | sub_448C80 | 47 | particle_init.h |
 | 0x448cb0 | sub_448CB0 | 264 | entity_fx.c, entity_fx.h |
 | 0x44bbc0 | sub_44BBC0 | 66 | entity_fx.c, entity_fx.h |
+| 0x44ce20 | sub_44CE20 | 505 | char_attack.h |
 | 0x44d020 | sub_44D020 | 308 | char_status.h |
 | 0x44e6c0 | sub_44E6C0 | 108 | char_status.h |
 | 0x450e00 | sub_450E00 | 237 | entity_fx.h |
@@ -551,9 +554,17 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4593e0 | sub_4593E0 | 1399 | arche_pose.h |
 | 0x459990 | sub_459990 | 1313 | arche_pose.h |
 | 0x459ed0 | sub_459ED0 | 72 | arche_pose.h |
+| 0x460de0 | sub_460DE0 | 87 | char_attack.h |
 | 0x460e40 | sub_460E40 | 143 | particle_init.h |
+| 0x460ed0 | sub_460ED0 | 525 | char_attack.h |
+| 0x4610e0 | sub_4610E0 | 209 | char_attack.h |
+| 0x461240 | sub_461240 | 434 | char_attack.h |
+| 0x4665d0 | sub_4665D0 | 293 | char_attack.h |
+| 0x466700 | sub_466700 | 73 | char_attack.h |
+| 0x466e80 | sub_466E80 | 803 | char_attack.h |
 | 0x4671c0 | sub_4671C0 | 158 | char_integrate.h |
 | 0x467380 | ambient_event_timer_467380 | 376 | sound_fx.h |
+| 0x467500 | sub_467500 | 185 | char_attack.h |
 | 0x4678f0 | sub_4678F0 | 482 | arche_pose.h |
 | 0x467ae0 | sub_467AE0 | 199 | arche_pose.h |
 | 0x468a20 | sub_468A20 | 237 | room_loop.h |

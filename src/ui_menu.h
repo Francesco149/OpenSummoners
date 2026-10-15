@@ -12,6 +12,7 @@
  *   FUN_00412590  menu_msg_set        FUN_004129a0  menu_party_close    FUN_00413b70  msg_window_open
  *   FUN_00414410  sys_msg_style       FUN_004140c0  msg_pages           FUN_00414490  item_list_fill
  *   FUN_00413130  storage_deposit     FUN_00414cb0  storage_withdraw    FUN_00411610  storage_run
+ *   FUN_0040dbc0  book_read
  *
  * The menu context M (0x34 B, on the caller's stack; set up by 0x415420): +0 the window manager, +4, +8,
  * +0xc the room, +0x10, +0x14 the result, u16 +0x18 the sprite set (sys+0xaac[i]), +0x20 the message window,
@@ -91,5 +92,8 @@ void item_list_fill(uint8_t *m, wl_room *room, int32_t at_item, int32_t at_row, 
 int32_t storage_deposit(uint8_t *m, int32_t kind);                                     /* 0x413130 */
 int32_t storage_withdraw(uint8_t *m);                                                  /* 0x414cb0 */
 int32_t storage_run(wl_event *ev);                                                     /* 0x411610 */
+/* a book (a 2052-byte page each from +0x28; the title at +0): "'title'" window, confirm / right = on, left
+ * = back, the last page's confirm closes it (sound 5); 0, or the menu result that ended it */
+int32_t book_read(wl_event *ev, const uint8_t *book);                                  /* 0x40dbc0 */
 
 #endif /* OSS_UI_MENU_H */

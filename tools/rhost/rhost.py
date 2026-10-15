@@ -469,13 +469,15 @@ VERIFY_HOOKS = ["rand", "input_poll", "mover_v", "sweep_h", "ent_move_h", "ent_m
                 "cast_cmd_clear", "scene_cast_to", "scene_cast_to_rec", "scene_cast_step", "scene_party_gather",
                 "scene_device_spawn", "char_unload", "script_switch",
                 "facing_back", "char_mag_sum", "char_atk_roll", "char_skill_roll", "char_lunge", "char_attack_hits",
-                "body_hit_spawn", "char_hit_target"]
+                "body_hit_spawn", "char_hit_target",
+                "angle_wrap", "char_particle", "entity_slide_step", "orbit_init", "orbit_step@16", "body_pose_set",
+                "slash_step@16", "slash_trail", "crate_push@256"]
 # REPLACE-only hooks (a whole room per call / DirectInput): proven by `corpus --check --hook replace:…`
 REPLACE_ONLY_HOOKS = ["room_loop", "input_repoll_flush", "load_room", "scene_loop", "menu_pace", "menu_run",
                       "shop_run", "shop_buy", "shop_who", "menu_ctx_clear", "scene_run",
                       "world_new", "world_free",
                       "menu_party_close", "msg_pages", "storage_deposit", "storage_withdraw", "storage_run",
-                      "item_find", "furniture_search", "scene_yes_no", "item_give"]   # (their shadows skip: the grid's 2.9 MB block moves the arena commit)
+                      "item_find", "furniture_search", "scene_yes_no", "item_give", "book_read", "sprite_set_free"]   # (their shadows skip: the grid's 2.9 MB block moves the arena commit)
 # name@N = shadow every Nth call (the full-state shadows cost ~10-20 ms per compared call)
 
 

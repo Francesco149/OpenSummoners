@@ -95,6 +95,15 @@ DirectDraw): in the PORT phase they skip the call and `rh_shadow_abort()`; the s
 result and counts the call `skipped`. Those calls are proven by `replace:` + `corpus --check`. Check
 that a set of shadows does not perturb the run with `corpus --check --hook shadow:…`.
 
+**Caller-stack objects (2026-10-16):** the arena snapshot does not cover the stack, so a function writing
+through a pointer into its CALLER's frame (the body copies the integrator hands its per-type handlers, a
+menu context, a text buffer) used to leak the retail phase's writes into the port phase (the port then
+ran on retail's result — found by `slash_step` 0x461240: ret 1/0 with "equal" state).  The GX hooks
+(TC_HOOK / ST_HOOK / TC_HOOK_R) now go through `full_shadow_gx`: every argument (or `this`) pointing into
+the fixed stack above the wrapper's frame gets a 0x300-byte window saved before the retail phase, put
+back for the port phase, compared after it ("the caller-stack object differs at …"), and left as retail
+had it.  Custom wrappers with stack objects do the same by hand (`key_token_replace`).
+
 **Hybrid proof (2026-10-14):** with `rand` + `input_poll` either SHADOWED or REPLACED, all 6 scenarios
 (EN-old + EN-SE) end byte-identical (semantic) to pure retail (`corpus --check --hook …` PASS); verify:
 rand 69,420 calls / 0 diverge, input_poll 42,125 / 0. This needs retail's uninitialized stack reads

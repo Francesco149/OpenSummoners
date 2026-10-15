@@ -37,6 +37,13 @@ void slot_frames_free_all(ar_sprite_slot *s)
         if (s->entries != NULL) entry_frames_free(s, &s->entries[k]);
 }
 
+void sprite_set_free(void *sys, uint16_t idx)
+{
+    slot_frames_free_all(ldp(sys, 0xaacu + 4u * idx));
+    uint8_t *st = ldp(sys, 0x18e0u + 4u * idx);
+    memcpy(st + 0x10, &(int32_t){ 0 }, 4);   /* unloaded */
+}
+
 void slots_free_graded(void *sys)
 {
     for (uint32_t k = 0; k < 909; k++) {

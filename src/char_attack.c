@@ -7,9 +7,13 @@
 #include "arche_pose.h"    /* switch_touch 0x5b1aa0 */
 #include "char_ai.h"       /* body_frame_box 0x4411e0 */
 #include "char_def.h"      /* stat_jitter 0x426e00 */
+#include "char_status.h"   /* entity_sprite_desc 0x44d160, entity_part_descs 0x44d020 */
 #include "engine_calls.h"
+#include "entity_life.h"   /* entity_carry_riders 0x5563d0 */
 #include "entity_move.h"   /* entity_move_horizontal 0x54db10, faction_relation 0x4416c0 */
-#include "gimmick.h"       /* entity_rect_hit 0x4804b0 */
+#include "gimmick.h"       /* entity_rect_hit 0x4804b0, world_next_serial 0x40be00 */
+#include "particle_init.h" /* polar_milli 0x55cdb0 */
+#include "particle_spawn.h"
 #include "rng.h"
 
 #define IP(p) ((intptr_t)(p))
@@ -246,4 +250,280 @@ wl_char *char_hit_target(const wl_char *self, const wl_char *skip, uint16_t part
         }
     }
     return nearest ? best : NULL;
+}
+
+/* ---- the skills' helpers: angles, orbits, poses, the slash sequence, the trail, the crate push ---- */
+
+int32_t angle_wrap(int32_t a, int32_t d, int32_t n)
+{
+    int32_t s = a + d, m = 360 * n;
+    if (s >= 0) return s - mul(m, s / m);
+    return s - mul(m, s / m - 1);   /* (an exact negative multiple wraps to m, not 0) */
+}
+
+wl_entity *char_particle(wl_char *c, int32_t code, const wl_body *b, int32_t dx, int32_t dy, int32_t a6, int32_t a7,
+                         int32_t a8, int32_t unused, int32_t a10, int32_t a11, int32_t twins, int32_t a13)
+{
+    (void)unused;
+    wl_entity *r = particle_spawn(&c->base, &c->base, code, b, dx, dy, a6, a7, a8, 0, a10, a11, 0, a13);
+    if (twins == 0 || ld32(c, 0xc7f4) == 0) return r;
+    particle_spawn(&c->base, &c->base, code, b, dx + ld32(c, 0xc7f8), dy, a6, a7, a8, 0, a10, a11, 0, a13);
+    return particle_spawn(&c->base, &c->base, code, b, dx - ld32(c, 0xc7f8), dy, a6, a7, a8, 0, a10, a11, 0, a13);
+}
+
+/* the movers' `pass` argument: the body's byte +0x20 loaded into cx over the entity's speed (+0x1c4) */
+static int32_t mover_pass(const wl_entity *e, const uint8_t *bp)
+{
+    return (int32_t)(((uint32_t)ld32(e, 0x1c4) & 0xffff0000u) | bp[0x20]);
+}
+
+int entity_slide_step(wl_entity *e, int32_t dir, uint16_t part, int32_t *dx_out)
+{
+    wl_body *bp = (wl_body *)((uint8_t *)e->body + 660u * part);
+    int32_t x0 = bp->x, y0 = bp->y;
+    if (ld32(e, 0x1c4) == 0) return 0;
+    int32_t y = bp->y;
+    int stuck = entity_move_vertical(e, bp, 1, mover_pass(e, (const uint8_t *)bp), part, &y,
+                                     (wl_entity **)((uint8_t *)bp + 0x284)) != 0;
+    if (ldp(bp, 0x284) != NULL) bp->y = y;
+    if (stuck) return 0;
+    int32_t lo = ld32(e, 0x1c8), hi = ld32(e, 0x1cc);
+    if ((lo == hi || ((lo < bp->x || dir >= 0) && (hi > bp->x || dir <= 0))) && dir != 0)
+        entity_move_horizontal(e, bp, mul(dir, ld32(e, 0x1c4)), 1, 1, 0, part, 0);
+    int32_t dx = bp->x - x0, dy = bp->y - y0;
+    *dx_out = dx;
+    entity_carry_riders(e, dx, dy, part);
+    st32(e, 0x3c, dx);
+    return iabs(dx) > 0 || iabs(dy) > 0;
+}
+
+int32_t *orbit_init(int32_t *o, int32_t x, int32_t y, int32_t r, int32_t ang, int32_t dang, int16_t delay, int16_t limit,
+                    int32_t skip)
+{
+    if (skip != 0) return (int32_t *)(intptr_t)skip;
+    o[0] = x;
+    o[1] = y;
+    o[2] = r;
+    o[3] = ang;
+    o[4] = dang;
+    st16(o, 0x18, 0);
+    st16(o, 0x1a, (uint16_t)delay);
+    st16(o, 0x1c, (uint16_t)limit);
+    return o;
+}
+
+int32_t orbit_step(wl_char *c, const wl_body *b, int32_t *o, int32_t accel, int32_t n, int32_t hold, int32_t code,
+                   int32_t after)
+{
+    if (hold != 0) return hold;
+    uint16_t t = ld16(o, 0x18);
+    if (t < ld16(o, 0x1a)) {   /* the start delay */
+        st16(o, 0x18, (uint16_t)(t + 1));
+        return t + 1;
+    }
+    int frozen = 0;
+    if (t >= ld16(o, 0x1c)) {   /* past the limit: only the particles (`after`) */
+        if (after == 0) return after;
+        frozen = 1;
+    }
+    if ((uint16_t)n == 0) return n;
+    for (uint16_t i = (uint16_t)n; i != 0; i--) {
+        if (!frozen) {
+            int32_t d = o[4];
+            st16(o, 0x18, (uint16_t)(ld16(o, 0x18) + 1));
+            int32_t s = o[3] + d;
+            o[3] = s >= 0 ? s % 360000 : s + 360000 * (1 - s / 360000);
+            o[4] = accel + d;
+            polar_milli(o[0], o[1], o[2], o[3], &o[0], &o[1]);
+        }
+        if (code != 0) {
+            int32_t x = o[0], y = o[1], f = b->facing;
+            particle_spawn(&c->base, &c->base, code, b, x, y, f, 1, 0, 0, 2, 1, 0, 0);
+            if (ld32(c, 0xc7f4) != 0) {
+                particle_spawn(&c->base, &c->base, code, b, x + ld32(c, 0xc7f8), y, f, 1, 0, 0, 2, 1, 0, 0);
+                particle_spawn(&c->base, &c->base, code, b, x - ld32(c, 0xc7f8), y, f, 1, 0, 0, 2, 1, 0, 0);
+            }
+        }
+    }
+    return 0;   /* (retail's eax: the spent counter) */
+}
+
+void body_pose_set(wl_body *b, uint16_t pose, uint16_t prio, uint16_t a4, int32_t a5, int32_t a6)
+{
+    if (ld16(b, 0x56) / 100 > prio / 100 && ld16(b, 0x48) != 0) return;
+    if (pose == ld16(b, 0x48)) return;
+    st16(b, 0x48, pose);
+    st16(b, 0x54, a4);
+    st16(b, 0x56, prio);
+    st16(b, 0x58, 0);
+    st32(b, 0x5c, 0);
+    st32(b, 0x78, 0);
+    st16(b, 0x5a, 0);
+    st16(b, 0x64, 0);
+    st32(b, 0x4c, a6);
+    st32(b, 0x50, a5);
+    st32(b, 0x60, (int32_t)world_next_serial(W));
+}
+
+/* the clip record `clip` on b (+0x6c; a new one restarts +0x70 / +0x72 / +0x74) */
+static void clip_to(uint8_t *b, intptr_t clip)
+{
+    if ((intptr_t)ld32(b, 0x6c) == clip) return;
+    st32(b, 0x6c, (int32_t)clip);
+    b[0x74] = 0;
+    st16(b, 0x72, 0);
+    st16(b, 0x70, 0);
+}
+
+int slash_step(wl_char *c, wl_body *b, int32_t keep, intptr_t clips, int32_t d1, int32_t d2, int32_t a7, int32_t a8)
+{
+    uint8_t *bb = (uint8_t *)b;
+    int32_t d;
+    switch (ld16(bb, 0x58)) {
+    case 0:   /* the wind-up clip */
+        clip_to(bb, clips);
+        st16(bb, 0x58, 1);
+        if (bb[0x74] == 0) return 1;
+        goto stage1;
+    case 1:
+        if (bb[0x74] == 0) return 0;
+    stage1:
+        if (ld16((const void *)clips, 0x1d6) != 0) {   /* a second wind-up record */
+            clip_to(bb, clips + 404);
+            st16(bb, 0x58, 2);
+            return 1;
+        }
+        __attribute__((fallthrough));   /* straight to the first lunge */
+    case 2:
+        if (bb[0x74] == 0) return 0;
+        clip_to(bb, clips + 808);
+        d = b->facing == 3 ? -d1 : d1;
+        st32(bb, 0x78, ld32(bb, 0x78) - d);
+        if (entity_move_horizontal(&c->base, b, d, 1, 1, 0, 0, 0) != 0 && keep == 0) st32(c, 0x14834, ld32(c, 0x14834) - d1);
+        st16(bb, 0x58, 3);
+        return 1;
+    case 3:
+        if (bb[0x74] == 0 && !(a7 == 1 && a8 == 1)) return 0;
+        clip_to(bb, clips + 1212);
+        d = b->facing == 3 ? -d2 : d2;
+        st32(bb, 0x78, ld32(bb, 0x78) - d);
+        if (entity_move_horizontal(&c->base, b, d, 1, 1, 0, 0, 0) != 0 && keep == 0) st32(c, 0x14834, ld32(c, 0x14834) - d2);
+        st16(bb, 0x58, 4);
+        return 1;
+    case 4:
+        if (bb[0x74] == 0) return 0;
+        st16(bb, 0x48, 0);
+        st16(bb, 0x56, 210);
+        st32(bb, 0x5c, 0);
+        st32(bb, 0x78, 0);
+        st16(bb, 0x54, 0);
+        st32(bb, 0x4c, 0);
+        st32(bb, 0x50, 0);
+        st16(bb, 0x5a, 0);
+        st16(bb, 0x64, 0);
+        st16(bb, 0x58, 5);
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+intptr_t slash_trail(wl_entity *e, wl_body *b, int32_t quiet, int32_t a4, int32_t a5)
+{
+    es_desc d[32];
+    uint16_t n = 1;
+    uint32_t code = (uint32_t)e->code;
+    intptr_t res;
+    if (code <= 100168) {
+        if ((code >= 100165 || code == 51027 || (code > 51251 && code <= 51253)) && b->pose == 3 && ld16(b, 0x58) == 2) {
+            /* the bow's string: a second descriptor, its alpha by the draw time +0x5c */
+            uint16_t slot = ld16(e, 0x48);
+            d[1].frame = b->facing == 3 ? (uint16_t)(ld16(ldp(g_eng.sys, 0x18e0u + 4u * slot), 0) + 1) : 1;
+            d[1].slot = slot;
+            n = 2;
+            d[1].x = 0;
+            d[1].y = 0;
+            int32_t k = mul(20, ld32(b, 0x5c)) / 16;
+            if (k < 0) k = 0;
+            d[1].alpha = k >= 20 ? 0 : ld32(g_eng.sys, 0x27a8u + 4u * (uint32_t)k);
+        }
+        res = entity_sprite_desc(e, b, d);
+    } else if (code >= 100179 && code <= 100180) {
+        res = entity_part_descs(e, b, d, &n);
+    } else {
+        res = entity_sprite_desc(e, b, d);
+    }
+    if (res == 0) return res;
+    for (uint16_t i = 0; i < n; i++) {
+        wl_entity *p = particle_spawn(e, e, 100082, b, b->x + mul(100, d[i].x + ld32(b, 0x40)),
+                                      b->y + mul(100, d[i].y + ld32(b, 0x44)), 99, 0, quiet, 0, 0, 0, 0, 10);
+        res = (intptr_t)p;
+        if (p == NULL) continue;
+        st16(p, 0x48, d[i].slot);
+        st16(p, 0x4a, d[i].frame);
+        ((uint8_t *)p)[0x4c] = 1;
+        st32(p, 0x54, 0);
+        st32(p, 0x50, 0);
+        st32(p, 0x58, 0);
+        st32(p, 0x25c, a4);
+        if (ld32(p, 0x1d4) == 100044) {
+            int32_t v = ld32(g_eng.sys, 0x2758u + 4u * (uint32_t)a4);
+            st32(p, 0xf4, v);
+            st32(p, 0xf8, v);
+        }
+        st32(p, 0x260, a5);
+    }
+    return res;
+}
+
+int crate_push(wl_entity *e, const int32_t *cmd, wl_body *b, int32_t armed, uint16_t part, int32_t dir_in, int32_t probe)
+{
+    if (dir_in != 0 || armed == 0 || ld32(b, 0x28) > ld32(e, 0x1596c)) return 0;
+    int32_t dir, ax;
+    switch (cmd[0]) {
+    case 1: case 5:   /* pushing left */
+        if (b->facing != 3) return 0;
+        dir = -1;
+        ax = b->x - 400;
+        break;
+    case 2: case 6:   /* pushing right */
+        if (b->facing != 1) return 0;
+        dir = 1;
+        ax = b->w + b->x + 400;
+        break;
+    default:
+        return 0;
+    }
+    int32_t px = mul(100, ax / 100);
+    int32_t bot = b->h + b->y - 1, top = ld32(b, 0x14) + b->y + 400;
+    /* the last pushable (collide mode 3, kind 3) in W's collide list with its box across the probe */
+    wl_entity *crate = NULL;
+    const wl_list *l = W->collide;
+    for (uint16_t i = 0, cnt = l->count; i < cnt; i++) {
+        wl_entity *o = l->items[i];
+        if (o == e || o->coll_mode != 3 || o->coll_kind != 3) continue;
+        uint16_t p = part < ld16(o, 0x44) ? part : 0;
+        const uint8_t *ob = (const uint8_t *)o->body + 660u * p;
+        if (top < ld32(ob, 0x10) + ld32(ob, 8) - 1 && bot > ld32(ob, 8) + ld32(ob, 0x14) &&
+            px <= ld32(ob, 0xc) + ld32(ob, 4) && px >= ld32(ob, 4))
+            crate = o;
+    }
+    if (crate == NULL) return 0;
+    if (probe != 0) return 1;
+    wl_body *cb = (wl_body *)((uint8_t *)crate->body + 660u * part);
+    int32_t x0 = cb->x, y0 = cb->y;
+    if (ld32(crate, 0x1c4) == 0) return 1;
+    int32_t y = cb->y;
+    int stuck = entity_move_vertical(crate, cb, 1, mover_pass(crate, (const uint8_t *)cb), part, &y,
+                                     (wl_entity **)((uint8_t *)cb + 0x284)) != 0;
+    if (ldp(cb, 0x284) != NULL) cb->y = y;
+    if (stuck) return 1;
+    int32_t lo = ld32(crate, 0x1c8), hi = ld32(crate, 0x1cc);
+    if ((lo == hi || ((lo < cb->x || dir >= 0) && (hi > cb->x || dir <= 0))) && dir != 0)
+        entity_move_horizontal(crate, cb, mul(dir, ld32(crate, 0x1c4)), 1, 1, 0, part, 0);
+    int32_t dx = cb->x - x0, dy = cb->y - y0;
+    entity_carry_riders(crate, dx, dy, part);
+    st32(crate, 0x3c, dx);
+    if (iabs(dx) > 0 || iabs(dy) > 0) entity_move_horizontal(e, b, dx, 1, 1, 0, part, 0);
+    return 1;
 }

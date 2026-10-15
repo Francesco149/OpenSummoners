@@ -6,6 +6,22 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-16 — combat chip 2: the skills' helpers (9) + the book reader + the rhost stack-object fix
+
+- rhost: a shadowed function writing through a pointer into its CALLER's stack frame leaked the retail
+  phase's writes into the port phase (the arena snapshot does not cover the stack) — found by `slash_step`
+  `0x461240` (ret 1/0, "equal" state: the integrator hands its per-type handlers STACK COPIES of the body).
+  The GX hooks now go through `full_shadow_gx`: a 0x300-byte window behind every argument / `this` pointing
+  above the wrapper's frame is saved, restored for the port phase, compared, and left as retail had it.  The
+  session's hooks re-verified under it: 0 divergences (lunge 621, hit boxes 3,236, attack hits 2,206 …).
+- `src/char_attack.c`: the slash stages `0x461240`, the orbit record / step `0x466700` / `0x460ed0` (the x87 polar
+  step reused), `0x460de0`, the particle + twins `0x4610e0`, the slide step `0x4665d0`, the pose set `0x467500`,
+  the afterimage `0x44ce20`, the crate push `0x466e80`.  `src/ui_menu.c`: the book reader `0x40dbc0`;
+  `src/sprite_slot.c`: `0x410300`.  Quirk #160.
+- rhost shadow: crate_push 2.19M (8,539 sampled), slash_step 17,821, orbit_step 12,670 (791), entity_slide_step
+  680, slash_trail 224, orbit_init 60, angle_wrap 36, char_particle 36, body_pose_set 4 — 0 divergences;
+  replace: book_read 1.  Hybrid gate 505 PASS.
+
 ## 2026-10-15 — combat chip 1: the attack pipeline (8 functions)
 
 - `src/char_attack.c` (new): the power rolls `0x4481f0` / `0x447f30` + the magic sum `0x4483a0`, the lunge

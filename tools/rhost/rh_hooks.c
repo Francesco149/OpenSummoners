@@ -215,6 +215,10 @@ typedef struct {
     X(H_AT_BACK, "facing_back", 0x4478e0u) X(H_AT_MAG, "char_mag_sum", 0x4483a0u) X(H_AT_ROLL, "char_atk_roll", 0x4481f0u) \
     X(H_AT_SROLL, "char_skill_roll", 0x447f30u) X(H_AT_LUNGE, "char_lunge", 0x447ed0u) X(H_AT_HITS, "char_attack_hits", 0x447900u) \
     X(H_AT_SPAWN, "body_hit_spawn", 0x5b15e0u) X(H_AT_TGT, "char_hit_target", 0x5b1c50u) \
+    X(H_AT_WRAP, "angle_wrap", 0x460de0u) X(H_AT_PART, "char_particle", 0x4610e0u) X(H_AT_SLIDE, "entity_slide_step", 0x4665d0u) \
+    X(H_AT_OINIT, "orbit_init", 0x466700u) X(H_AT_ORBIT, "orbit_step", 0x460ed0u) X(H_AT_POSE, "body_pose_set", 0x467500u) \
+    X(H_AT_SLASH, "slash_step", 0x461240u) X(H_AT_TRAIL, "slash_trail", 0x44ce20u) X(H_AT_PUSH, "crate_push", 0x466e80u) \
+    X(H_BOOK, "book_read", 0x40dbc0u) X(H_SSETFREE, "sprite_set_free", 0x410300u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
 
@@ -3245,10 +3249,55 @@ typedef struct { void *self; intptr_t a[23]; intptr_t rr, rp; } gx_ctx;
 #define GX21 GX20, x->a[20]
 #define GX22 GX21, x->a[21]
 #define GX23 GX22, x->a[22]
+/* A GX hook's argument (or self) pointing into a CALLER's stack frame (the body copies the integrator hands
+ * its per-type handlers, a menu context, a text buffer) is outside the arena snapshot: the retail phase's
+ * writes through it would leak into the port phase.  A STKW-byte window behind each such pointer is saved
+ * before the retail phase, put back for the port phase, compared after it, and left as retail had it. */
+#define STKW 0x300u
+#define STACK_TOP 0x59000000u   /* rhost.c MAIN_STACK_HI */
+typedef struct { void (*r)(void *), (*p)(void *); gx_ctx *x; int n; uint8_t *ptr[24]; uint32_t len[24]; int diff; uint32_t at; } stkx_t;
+static uint8_t g_stk_pre[24][STKW], g_stk_ret[24][STKW];
+static void stkx_r(void *c)
+{
+    stkx_t *s = c;
+    for (int i = 0; i < s->n; i++) memcpy(g_stk_pre[i], s->ptr[i], s->len[i]);
+    s->r(s->x);
+    for (int i = 0; i < s->n; i++) memcpy(g_stk_ret[i], s->ptr[i], s->len[i]);
+}
+static void stkx_p(void *c)
+{
+    stkx_t *s = c;
+    for (int i = 0; i < s->n; i++) memcpy(s->ptr[i], g_stk_pre[i], s->len[i]);
+    s->p(s->x);
+    for (int i = 0; i < s->n; i++) {
+        for (uint32_t k = 0; !s->diff && k < s->len[i]; k++)
+            if (s->ptr[i][k] != g_stk_ret[i][k]) { s->diff = 1; s->at = (uint32_t)(uintptr_t)s->ptr[i] + k; }
+        memcpy(s->ptr[i], g_stk_ret[i], s->len[i]);
+    }
+}
+static int __attribute__((noinline)) full_shadow_gx(hook_t *h, const char *name, void (*r)(void *), void (*p)(void *), gx_ctx *x)
+{
+    stkx_t s = { r, p, x, 0, { 0 }, { 0 }, 0, 0 };
+    uint32_t sp = SP();
+    for (int i = -1; i < 23; i++) {
+        uint32_t v = (uint32_t)(uintptr_t)(i < 0 ? x->self : (void *)x->a[i]);
+        if (v <= (uint32_t)(uintptr_t)x || v >= STACK_TOP || sp >= STACK_TOP) continue;   /* above this frame's ctx: a caller's */
+        s.ptr[s.n] = (uint8_t *)(uintptr_t)v;
+        s.len[s.n] = STACK_TOP - v < STKW ? STACK_TOP - v : STKW;
+        s.n++;
+    }
+    if (s.n == 0) return full_shadow(h, name, r, p, x, name);
+    int d = full_shadow(h, name, stkx_r, stkx_p, &s, name);
+    if (d == 0 && s.diff) {
+        diverged(h, "f%u %s: the caller-stack object differs at %08x", g_frame, name, s.at);
+        return 1;
+    }
+    return d;
+}
 #define GX_TAIL(ID, NAME, CMP)                                                                       \
     if (h->mode == 2) { h->calls++; ID##_p(&x); return x.rp; }                                        \
     if (!sample(h)) { ID##_r(&x); return x.rr; }                                                      \
-    if (!full_shadow(h, NAME, ID##_r, ID##_p, &x, NAME) && (CMP) && x.rr != x.rp)                   \
+    if (!full_shadow_gx(h, NAME, ID##_r, ID##_p, &x) && (CMP) && x.rr != x.rp)                     \
         diverged(h, "f%u %s ret %p/%p", g_frame, NAME, (void *)x.rr, (void *)x.rp);                \
     return x.rr;
 #define TC_HOOK(ID, NAME, N, CMP, PORT)                                                              \
@@ -3269,7 +3318,7 @@ typedef struct { void *self; intptr_t a[23]; intptr_t rr, rp; } gx_ctx;
         hook_t *h = &H[ID]; gx_ctx x = { self, { GA##N }, 0, 0 };                                    \
         if (h->mode == 2) { h->calls++; ID##_p(&x); return x.rp; }                                    \
         if (!sample_rare(h, (RARE))) { ID##_r(&x); return x.rr; }                                     \
-        if (!full_shadow(h, NAME, ID##_r, ID##_p, &x, NAME) && (CMP) && x.rr != x.rp)               \
+        if (!full_shadow_gx(h, NAME, ID##_r, ID##_p, &x) && (CMP) && x.rr != x.rp)                 \
             diverged(h, "f%u %s ret %p/%p", g_frame, NAME, (void *)x.rr, (void *)x.rp);            \
         return x.rr;                                                                                 \
     }
@@ -3904,6 +3953,36 @@ TC_HOOK(H_AT_SPAWN, "body_hit_spawn", 23, 1,
                               a15, a16, a17, a18, a19, a20, a21, a22, a23))
 TC_HOOK(H_AT_TGT, "char_hit_target", 6, 1,
         return (intptr_t)char_hit_target(self, CP(a1), U16(a2), CP(a3), a4, a5, (int32_t *)a6))
+ST_HOOK(H_AT_WRAP, "angle_wrap", 3, 1, return angle_wrap(a1, a2, a3))
+TC_HOOK(H_AT_PART, "char_particle", 12, 1,
+        return (intptr_t)char_particle(self, a1, CP(a2), a3, a4, a5, a6, a7, a8, a9, a10, a11, a12))
+TC_HOOK(H_AT_SLIDE, "entity_slide_step", 3, 1, return entity_slide_step(self, a1, U16(a2), (int32_t *)a3))
+ST_HOOK(H_AT_OINIT, "orbit_init", 9, 1, return (intptr_t)orbit_init((int32_t *)a1, a2, a3, a4, a5, a6, (int16_t)a7, (int16_t)a8, a9))
+TC_HOOK(H_AT_ORBIT, "orbit_step", 7, 1, return orbit_step(self, CP(a1), (int32_t *)a2, a3, a4, a5, a6, a7))
+ST_HOOK(H_AT_POSE, "body_pose_set", 6, 0, body_pose_set((wl_body *)a1, U16(a2), U16(a3), U16(a4), a5, a6); return 0)
+/* slash_step: its divergence line carries the stage / clip / end flag it started from */
+typedef intptr_t (__attribute__((thiscall)) *slash_t)(void *, GP7);
+static void slash_r(void *c) { gx_ctx *x = c; x->rr = ((slash_t)(uintptr_t)H[H_AT_SLASH].va)(x->self, GX7); }
+static void slash_p(void *c) { gx_ctx *x = c; port_world(); x->rp = slash_step(x->self, (wl_body *)x->a[0], x->a[1], x->a[2], x->a[3], x->a[4], x->a[5], x->a[6]); }
+static intptr_t __attribute__((thiscall)) H_AT_SLASH_w(void *self, GP7)
+{
+    hook_t *h = &H[H_AT_SLASH];
+    gx_ctx x = { self, { GA7 }, 0, 0 };
+    if (h->mode == 2) { h->calls++; slash_p(&x); return x.rp; }
+    if (!sample(h)) { slash_r(&x); return x.rr; }
+    const uint8_t *b = (const uint8_t *)a1;
+    unsigned st = *(const uint16_t *)(b + 0x58), end = b[0x74];
+    uint32_t clip = *(const uint32_t *)(b + 0x6c);
+    if (!full_shadow_gx(h, "slash_step", slash_r, slash_p, &x) && x.rr != x.rp)
+        diverged(h, "f%u slash_step ret %d/%d (body %p stage %u->%u end %u clip %08x clips %08x a7 %d a8 %d)", g_frame,
+                 (int)x.rr, (int)x.rp, (void *)b, st, *(const uint16_t *)(b + 0x58), end, clip, (unsigned)a3, (int)a6, (int)a7);
+    return x.rr;
+}
+TC_HOOK(H_AT_TRAIL, "slash_trail", 4, 1, return slash_trail(self, (wl_body *)a1, a2, a3, a4))
+TC_HOOK(H_AT_PUSH, "crate_push", 6, 1, return crate_push(self, CP(a1), (wl_body *)a2, a3, U16(a4), a5, a6))
+/* the book reader (a frame loop) + the sprite set free (surface frees) — REPLACE only */
+TC_HOOK(H_BOOK, "book_read", 1, 1, return book_read(self, CP(a1)))
+TC_HOOK(H_SSETFREE, "sprite_set_free", 1, 0, sprite_set_free(self, U16(a1)); return 0)
 /* 0x412800 rewrites its caller's (stack) string in place: retail and the port each run on a copy, compared */
 typedef intptr_t (__attribute__((stdcall)) *ktok_t)(char *, const void *);
 static intptr_t __attribute__((stdcall)) H_UT_KTOK_w(char *s, const void *e)
@@ -4259,7 +4338,7 @@ void rh_hooks_install(void)
         if (!h->mode) continue;
         if ((h == &H[H_RLOOP] || h == &H[H_REPOLL] || h == &H[H_LROOM] || h == &H[H_SLOOP] || h == &H[H_MPACE] || h == &H[H_MRUN] ||
              h == &H[H_UM_PAGES] || h == &H[H_ST_DEP] || h == &H[H_ST_WD] || h == &H[H_ST_RUN] || h == &H[H_IFIND] ||
-             h == &H[H_FURN] || h == &H[H_UM_PCLOSE] || h == &H[H_SC_YN] || h == &H[H_IGIVE]) && h->mode == 1)
+             h == &H[H_FURN] || h == &H[H_UM_PCLOSE] || h == &H[H_SC_YN] || h == &H[H_IGIVE] || h == &H[H_BOOK] || h == &H[H_SSETFREE]) && h->mode == 1)
             rh_fatal("%s: replace only (it runs a room / repolls DirectInput)", h->name);
         if (h == &H[H_MAP_DECODE]) {
             if (h->mode == 2) rh_fatal("map_decode: shadow only (the port decode needs the recorded resource)");

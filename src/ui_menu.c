@@ -1116,3 +1116,80 @@ int32_t storage_run(wl_event *ev)
     }
     return res;
 }
+
+/* ---- the book reader (a chapter script's 0x40dbc0: a bookshelf's book) ---- */
+
+int32_t book_read(wl_event *ev, const uint8_t *book)
+{
+    uint8_t m[0x34] = { 0 };   /* (retail clears +0..+0x10, +0x1c..+0x2c, +0x18, +0x30; the rest is unread) */
+    wl_roomloop *rl = ev->f00;
+    wl_room *room = ev->room;
+    int32_t res = 0;
+    g_eng.h40fe00(g_eng.sys);
+    for (uint16_t i = 0; i < rl->nrooms; i++) room_input_flush(&rl->rooms[i]);
+    room_views_mark(rl, 0);
+    for (int j = 0; j < 32; j++) {
+        wl_char *ch = (*g_eng.world)->chars[j];
+        if (ld32(ch, 0x1d0) != 0) cmd_clear(&ch->cmd);
+    }
+    menu_ctx_clear(m);
+    stp(m, 8, (*g_eng.world)->room->in);
+    stp(m, 0xc, room);
+    stp(m, 0, rl->fe8);
+    stp(m, 4, rl);
+    st32(m, 0x10, 1);
+    char title[512];
+    g_eng.h5bf3ee(title, S(0x854854u), (const char *)book);   /* "'%s'" */
+    uint8_t *win = sys_win_open(g_eng.sys, ldp(m, 0), 120, 8, 400, 464, 4, title, 0);
+    uint8_t *c = win_text_add(win, 40, 48, 44, 14);
+    sys_msg_keys(g_eng.sys, (int32_t)(intptr_t)win, c);
+    sys_box_cursor(g_eng.sys, win, c, -8, -8);
+    st32(ldp(c, 0x170), 0x1c, 12);
+    text_metrics_set(c, 0, 0, 1, 0);
+    st32(c, 0x1a4, ld32(g_eng.sys, 0x2728));
+    sys_page_arrows(g_eng.sys, win, c);
+    /* the pages: 2052 B each from +0x28 (the text), the first with its end word +0x800 set counts them */
+    uint16_t n = 0;
+    if (ld32(book, 0x828) == 0)
+        do n++; while (ld32(book, 0x828u + 2052u * n) == 0);
+    uint16_t page = 0;
+    int show = 1;
+    for (;;) {
+        if (show) {
+            show = 0;
+            sfx_play(g_eng.sys, 0, 0, 0);
+            ctrl_text_set(c, (const char *)book + 2052u * page + 0x28);
+            st16(c, 0x162, n);
+            st16(c, 0x160, (uint16_t)(page + 1));
+        }
+        int32_t r = menu_run(m, NULL, win, 0, 1, 0, 1, 0, 0, 0);
+        if (r == 12) {   /* on: the next page, or closed after the last */
+            page++;
+            show = 1;
+            if (page < n) continue;
+            sfx_play(g_eng.sys, 5, 0, 0);
+            res = 0;
+            break;
+        }
+        if (r == 13) continue;
+        if (r == 16) {   /* back a page */
+            if (page != 0) {
+                page--;
+                show = 1;
+            }
+            continue;
+        }
+        if (r == 17) {   /* on a page */
+            if ((int32_t)page < (int32_t)n - 1) {
+                page++;
+                show = 1;
+            }
+            continue;
+        }
+        res = r;
+        break;
+    }
+    st32(win, 0x50, 0);
+    if (ld16(m, 0x18) != 0) sprite_set_free(g_eng.sys, ld16(m, 0x18));
+    return res;
+}

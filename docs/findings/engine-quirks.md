@@ -4904,6 +4904,27 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   by |dx| + |dy| of centres.  Nothing struck → a switch may be (`0x5b1aa0`, the party side only, not in a
   two-room world).
 
+### #160 — the skills' helpers: slash stages, orbits, afterimages, poses, the crate push (port 2026-10-16)
+- **The slash** (`0x461240`, on body +0x58): 0 → the wind-up clip (clips + 0), 1 → a second wind-up (clips + 404)
+  when its record has u16 +0x1d6, 2 → the first lunge clip (+ 808) moving d1 forward (also off +0x78; unless
+  `keep`, char +0x14834 −= d1), 3 → the second (+ 1212, d2; also forced by (a7, a8) = (1, 1)), 4 → the action
+  ends (pose 0, priority 210).  Each stage waits for the clip's end flag (+0x74).
+- **Orbits** (`0x466700` / `0x460ed0`): {x, y, r, angle in milli-degrees, angular speed, a u16 clock, start delay,
+  limit}; each step adds the speed to the angle (mod 360000, floored), the acceleration to the speed, and moves
+  the point by the x87 polar step (`0x55cdb0`: r sin a / −r cos a, ±0.5, __ftol) — then drops a particle (+ the
+  twin copies at ±char +0xc7f8 when +0xc7f4).  `0x460de0` = (a + d) mod 360 n floored (an exact negative multiple
+  gives 360 n, not 0).
+- **The afterimage** (`0x44ce20`): particle 100082 per sprite descriptor of the body (`0x44d160`; multi-part codes
+  100179 / 100180 through `0x44d020`) at x + 100 (desc + body +0x40); a drawn bow (codes 100165..100168, 51027,
+  51252 / 51253, pose 3, stage 2) adds the string as a second descriptor.
+- **Pose set** (`0x467500`): a new action replaces the running one unless that one's priority / 100 is higher
+  (or none runs); it restarts the action fields and takes the next world action serial.
+- **The push** (`0x466e80`, every tick while walking into something — ~1M calls per errands run): commands 1 / 5
+  (facing 3) or 2 / 6 (facing 1) probe 400 ahead (x rounded to 100) for the LAST pushable (collide mode 3 / kind 3)
+  in the collide list across the pusher's height; the crate falls 1, slides by its speed +0x1c4 inside
+  [+0x1c8, +0x1cc], carries its riders, and the pusher moves by the crate's dx.  The movers' "pass" argument is
+  the body byte +0x20 loaded into cx over the crate's speed (the speed's high word rides along).
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 496,
-  "unported": 1079,
+  "ported": 507,
+  "unported": 1068,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 745,
-  "pct_touched": 47.8,
+  "touched": 756,
+  "pct_touched": 48.5,
   "pct_tested": 15.7,
-  "engine_proper_touched": 732,
+  "engine_proper_touched": 743,
   "bytes_total": 1776526,
-  "bytes_touched": 611031,
-  "pct_bytes_touched": 34.4
+  "bytes_touched": 615117,
+  "pct_bytes_touched": 34.6
  },
  "orphan_refs": [],
  "functions": [
@@ -1011,8 +1011,10 @@
    "name": "sub_40DBC0",
    "size": 776,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_menu.h"
+   ]
   },
   {
    "va": "0x40dee0",
@@ -1214,8 +1216,10 @@
    "name": "sub_410300",
    "size": 196,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/sprite_slot.h"
+   ]
   },
   {
    "va": "0x4103d0",
@@ -4405,8 +4409,10 @@
    "name": "sub_44CE20",
    "size": 505,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_attack.h"
+   ]
   },
   {
    "va": "0x44d020",
@@ -4860,8 +4866,10 @@
    "name": "sub_460DE0",
    "size": 87,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_attack.h"
+   ]
   },
   {
    "va": "0x460e40",
@@ -4878,16 +4886,20 @@
    "name": "sub_460ED0",
    "size": 525,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_attack.h"
+   ]
   },
   {
    "va": "0x4610e0",
    "name": "sub_4610E0",
    "size": 209,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_attack.h"
+   ]
   },
   {
    "va": "0x4611c0",
@@ -4902,8 +4914,10 @@
    "name": "sub_461240",
    "size": 434,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_attack.h"
+   ]
   },
   {
    "va": "0x461410",
@@ -4934,16 +4948,20 @@
    "name": "sub_4665D0",
    "size": 293,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_attack.h"
+   ]
   },
   {
    "va": "0x466700",
    "name": "sub_466700",
    "size": 73,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_attack.h"
+   ]
   },
   {
    "va": "0x466750",
@@ -4969,8 +4987,10 @@
    "name": "sub_466E80",
    "size": 803,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_attack.h"
+   ]
   },
   {
    "va": "0x4671c0",
@@ -5013,8 +5033,10 @@
    "name": "sub_467500",
    "size": 185,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_attack.h"
+   ]
   },
   {
    "va": "0x4675c0",

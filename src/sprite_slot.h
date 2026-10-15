@@ -9,7 +9,7 @@
  * index bytes, 0-terminated) copies entries of the source bank's palette (or the given one) into
  * the given palette.
  *
- *   FUN_00417870  slot_frames_free     FUN_004118b0  slot_frames_free_all
+ *   FUN_00417870  slot_frames_free     FUN_004118b0  slot_frames_free_all  FUN_00410300  sprite_set_free
  *   FUN_0056df10  slots_free_graded    FUN_00491770  slot_palette_set
  *   FUN_00417bc0  pal_swap_apply       FUN_0049a050  sprite_slot_ready
  *   FUN_00491740  sprite_slot_tint     FUN_00417b50  slot_entries_free
@@ -26,6 +26,8 @@
 void slot_frames_free(ar_sprite_slot *s, uint16_t k);
 /* 0x4118b0 (thiscall slot): ... every entry's */
 void slot_frames_free_all(ar_sprite_slot *s);
+/* 0x410300 (thiscall sys): sprite set `idx` (sys+0xaac[idx]) freed, its state (sys+0x18e0[idx]) +0x10 = 0 */
+void sprite_set_free(void *sys, uint16_t idx);
 /* 0x56df10 (thiscall sys): every graded slot's (the palette descriptor has a kind) */
 void slots_free_graded(void *sys);
 /* 0x491770 (thiscall slot): entry 0's palette = pal (1 KB, allocated on first use) */

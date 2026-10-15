@@ -5,6 +5,9 @@
  *   FUN_004478e0  facing_back         FUN_004483a0  char_mag_sum        FUN_004481f0  char_atk_roll
  *   FUN_00447f30  char_skill_roll     FUN_00447ed0  char_lunge          FUN_00447900  char_attack_hits
  *   FUN_005b15e0  body_hit_spawn      FUN_005b1c50  char_hit_target
+ *   FUN_00460de0  angle_wrap          FUN_004610e0  char_particle       FUN_004665d0  entity_slide_step
+ *   FUN_00466700  orbit_init          FUN_00460ed0  orbit_step          FUN_00467500  body_pose_set
+ *   FUN_00461240  slash_step          FUN_0044ce20  slash_trail         FUN_00466e80  crate_push
  *
  * Slots (unreached in the corpus: no foe is hit yet): the hit's on-spawn effect 0x5b3890 and the damage
  * application 0x5b5600 — PORT-DEBT(engine-call-slots), the combat recording reaches them.
@@ -47,5 +50,31 @@ int body_hit_spawn(wl_char *self, wl_char *atk, wl_body *b, int32_t dx, int32_t 
  * relation `rel`, not hit by this attack id within part + 30): the first, or the nearest when `nearest` */
 wl_char *char_hit_target(const wl_char *self, const wl_char *skip, uint16_t part, const uint8_t *rec, int32_t rel,
                          int32_t nearest, int32_t *part_out);                          /* 0x5b1c50 */
+
+/* (a + d) mod 360 n, floored (an exact negative multiple gives 360 n) */
+int32_t angle_wrap(int32_t a, int32_t d, int32_t n);                                   /* 0x460de0 */
+/* a particle at `b` + (dx, dy) for `c` (+ the twin copies at ±+0xc7f8 when `twins`); the last one */
+wl_entity *char_particle(wl_char *c, int32_t code, const wl_body *b, int32_t dx, int32_t dy, int32_t a6, int32_t a7,
+                         int32_t a8, int32_t unused, int32_t a10, int32_t a11, int32_t twins, int32_t a13); /* 0x4610e0 */
+/* a pushed / sliding entity's step on part `part`: fall 1, then `dir` x its speed +0x1c4 inside [+0x1c8, +0x1cc]
+ * (no range when equal), carrying its riders; *dx_out the x moved; 1 when it moved */
+int entity_slide_step(wl_entity *e, int32_t dir, uint16_t part, int32_t *dx_out);     /* 0x4665d0 */
+/* an orbit record {x, y, r, ang (milli-degrees), dang, u16 +0x18 clock, +0x1a delay, +0x1c limit} (`skip`: as is) */
+int32_t *orbit_init(int32_t *o, int32_t x, int32_t y, int32_t r, int32_t ang, int32_t dang, int16_t delay, int16_t limit,
+                    int32_t skip);                                                     /* 0x466700 */
+/* `n` orbit steps (the angle + dang, dang + accel; the x87 polar step) each dropping particle `code` (+ twins);
+ * past the limit only the particles, when `after` */
+int32_t orbit_step(wl_char *c, const wl_body *b, int32_t *o, int32_t accel, int32_t n, int32_t hold, int32_t code,
+                   int32_t after);                                                     /* 0x460ed0 */
+/* the body's action `pose` at priority `prio` (kept while a running one's prio / 100 is higher), a new world serial */
+void body_pose_set(wl_body *b, uint16_t pose, uint16_t prio, uint16_t a4, int32_t a5, int32_t a6); /* 0x467500 */
+/* the slash's stages on +0x58 (the clips at clips + 0 / 404 / 808 / 1212; the two lunges d1 / d2): 1 = advanced */
+int slash_step(wl_char *c, wl_body *b, int32_t keep, intptr_t clips, int32_t d1, int32_t d2, int32_t a7, int32_t a8); /* 0x461240 */
+/* the swing's afterimage: particle 100082 per sprite descriptor (two for a drawn bow); the last particle */
+intptr_t slash_trail(wl_entity *e, wl_body *b, int32_t quiet, int32_t a4, int32_t a5);  /* 0x44ce20 */
+/* the push: the crate ahead (commands 1 / 5 left, 2 / 6 right) slides by its speed and the pusher follows;
+ * `probe`: only whether one is there */
+int crate_push(wl_entity *e, const int32_t *cmd, wl_body *b, int32_t armed, uint16_t part, int32_t dir_in,
+               int32_t probe);                                                         /* 0x466e80 */
 
 #endif /* OSS_CHAR_ATTACK_H */
