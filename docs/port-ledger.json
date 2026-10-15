@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 366,
-  "unported": 1209,
+  "ported": 367,
+  "unported": 1208,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 615,
-  "pct_touched": 39.3,
+  "touched": 616,
+  "pct_touched": 39.4,
   "pct_tested": 15.7,
-  "engine_proper_touched": 602,
+  "engine_proper_touched": 603,
   "bytes_total": 1776526,
-  "bytes_touched": 534299,
-  "pct_bytes_touched": 30.1
+  "bytes_touched": 537396,
+  "pct_bytes_touched": 30.2
  },
  "orphan_refs": [],
  "functions": [
@@ -3101,8 +3101,10 @@
    "name": "sub_42EB20",
    "size": 3097,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x42f840",

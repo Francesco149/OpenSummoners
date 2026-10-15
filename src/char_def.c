@@ -737,3 +737,71 @@ void char_idle_voice_set(wl_char *c, int32_t on, uint16_t span)
     if (span != 0) st16(c, 0x20c, (uint16_t)((mul(rnd(), 1000) / 0x8000) % span));
     else st16(c, 0x20c, 0);
 }
+
+/* 0x4287d0 with (0, 3, f120 = 1000): the AI records 0x42eb20 adds (some inlined there: the same stores) */
+static uint8_t *pai(wl_char *c, int32_t id, int32_t x0, int32_t x1, int32_t y0, int32_t y1, uint16_t f11a, uint16_t f124,
+                    uint16_t f126, int32_t bx0, int32_t bx1, int32_t by0, int32_t by1)
+{
+    return char_ai_skill_add(c, id, 0, 3, x0, x1, y0, y1, f11a, 1000, f124, f126, bx0, bx1, by0, by1, 0);
+}
+static void pai_hold(uint8_t *r, int32_t t) { if (r != NULL) st32(r, 0x138, t); }
+
+void char_party_ai_skills(wl_char *c, uint16_t f2, uint16_t f3, uint16_t f4, int32_t cls)
+{
+    if (f4 == 0) f4 = f3;
+    for (uint16_t k = 0; k < ld16(c, 0xc754); k++) {
+        uint8_t *sk = B(c) + 0x754 + 768u * k;
+        int32_t id = ld32(sk, 0);
+        uint8_t *r;
+        switch (id) {
+        case 47: pai_hold(pai(c, id, 6000, 48000, -9600, 20000, 200, 25, 15, 6000, 48000, -9600, 20000), 2000); break;
+        case 48: pai(c, id, 0, 48000, -10000, 30000, 1000, 20, 10, 4000, 40000, -10000, 28000); break;
+        case 134: case 135: case 136: case 137: case 138: case 20135:
+            pai(c, id, 0, 0, 0, 0, f4, 0, 0, 0, 0, 0, 0); break;
+        case 140: case 10113: case 20110: case 20111: case 20113: case 20115: case 20119: case 20124: case 20133:
+        case 20136:
+            pai(c, id, 0, 0, 0, 0, f3, 0, 0, 0, 0, 0, 0); break;
+        case 20102: case 20105: case 20106: case 20120: case 20125: case 20132: case 20134:
+            pai(c, id, 0, 0, 0, 0, f2, 0, 0, 0, 0, 0, 0); break;
+        case 10114: case 10121:
+            pai_hold(pai(c, id, 4800, 20000, -8000, 14400, 200, 20, 10, 4800, 18000, -6400, 12800), 1500); break;
+        case 20101: case 20108: case 20109:
+            r = pai(c, id, 6400, 14000, -4800, 14000, 200, 20, 10, 6400, 14000, -4800, 14000);
+            if (r != NULL) {
+                ai_skill_boxes_add(r, 20800, 14000, 6000, 14000, 20800, 14000, 6000, 14000);
+                st32(r, 0x138, 1500);
+            }
+            break;
+        case 20103: case 20104: pai(c, id, -28000, 56000, -3200, 6400, 500, 20, 10, -24000, 48000, 0, 5600); break;
+        case 20112: case 20128:
+            r = pai(c, id, 4000, 18000, -3200, 9600, 200, 20, 10, 4000, 12800, 0, 6400);
+            if (r != NULL) {
+                ai_skill_boxes_add(r, -22000, 18000, -3200, 9600, -16800, 12800, 0, 6400);
+                st32(r, 0x138, 1500);
+            }
+            break;
+        case 20114: case 20129:
+            pai_hold(pai(c, id, 12800, 48000, -6400, 16000, 500, 25, 15, 16000, 40000, -3200, 9600), 2000); break;
+        case 139: case 20116:
+            pai_hold(pai(c, id, 4000, 24000, -3200, 9600, 200, 20, 10, 4000, 20000, 0, 6400), 2000); break;
+        case 20117:
+            pai_hold(pai(c, id, 6000, 32000, -16000, 32000, 500, 25, 15, 8000, 28000, -14000, 28000), 2500); break;
+        case 20118: pai(c, id, -28000, 56000, -24000, 48000, 1000, 20, 10, -24000, 48000, -22000, 44000); break;
+        case 20122: case 20130: pai(c, id, 8000, 40000, -6000, 12000, 200, 20, 10, 8000, 32000, -4800, 8000); break;
+        case 20123: pai(c, id, 0, 40000, -6400, 12800, 500, 20, 10, 4000, 20000, -4800, 9600); break;
+        case 20126:
+            pai_hold(pai(c, id, -20000, 40000, -14000, 40000, 200, 20, 10, -20000, 40000, -14000, 40000), 500); break;
+        case 20127: pai_hold(pai(c, id, 0, 51200, -8000, 19200, 500, 25, 15, 6000, 51200, -6400, 16000), 3000); break;
+        case 20131:
+            r = pai(c, id, 4000, 22000, -16000, 20000, 200, 5, 10, 4000, 16000, -10800, 12800);
+            if (r != NULL) {
+                ai_skill_boxes_add(r, 20000, 16000, -17000, 16000, 20000, 12800, -16000, 12800);
+                st32(r, 0x138, 3000);
+            }
+            break;
+        default:
+            continue;   /* (no class fix) */
+        }
+        if (ld32(sk, 0xc0) == 0xf00000 && cls != 0xf00000) st32(sk, 0xc0, cls);
+    }
+}

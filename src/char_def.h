@@ -42,6 +42,7 @@
  *   FUN_00428950  ai_skill_boxes_add   FUN_004289f0  char_voice_init
  *   FUN_00431930  char_npc_default     FUN_00431b90  char_form0_set
  *   FUN_00431ba0  char_party_mode_set  FUN_00431cb0  char_idle_voice_set
+ *   FUN_0042eb20  char_party_ai_skills
  */
 #ifndef OSS_CHAR_DEF_H
 #define OSS_CHAR_DEF_H
@@ -131,5 +132,9 @@ void char_npc_default(wl_char *c, int32_t reach, const void *stand);            
 void char_form0_set(wl_char *c, uint16_t v);                                        /* 0x431b90 */
 void char_party_mode_set(wl_char *c, int32_t mode);                                 /* 0x431ba0 */
 void char_idle_voice_set(wl_char *c, int32_t on, uint16_t span);                    /* 0x431cb0 */
+/* 0x42eb20: an AI skill record for each known party skill (47 / 48 / 134..140 / 10113.. / 20101..20136: ranges
+ * by skill; the plain ones take a recharge f2 / f3 / f4 (f4 0 = f3)), and the skills still of class 0xf00000
+ * take `cls` */
+void char_party_ai_skills(wl_char *c, uint16_t f2, uint16_t f3, uint16_t f4, int32_t cls);
 
 #endif /* OSS_CHAR_DEF_H */

@@ -187,7 +187,7 @@ typedef struct engine_calls {
     /* the character init 0x41f200's per-type inits (`this` = the character) */
     eng_tc3 h428c00; eng_tc0 h429060; eng_tc1 h429db0; eng_tc1 h42a500; eng_tc0 h42a9a0; eng_tc1 h42b9a0;
     eng_tc1 h42c130; eng_tc5 h42c510; eng_tc1 h42c970; eng_tc1 h42cce0; eng_tc0 h42d3c0; eng_tc2 h42da50;
-    eng_tc4 h42e290; eng_tc4 h42eb20; eng_tc1 h42f840; eng_tc3 h42fbf0; eng_tc1 h42ff00; eng_tc1 h430400;
+    eng_tc4 h42e290; eng_tc1 h42f840; eng_tc3 h42fbf0; eng_tc1 h42ff00; eng_tc1 h430400;
     /* the scene loop 0x59f2c0's: the save apply 0x561d20, the demo scene load 0x41b670 + its
      * flag / state adds 0x4c5af0 / 0x52fd80 + merge 0x5a3870, the menu 0x5a00c0 (+ 0x5a3670 under
      * its object's free), the pool head free 0x56c640; the save-file reader (a 0x414-byte object:

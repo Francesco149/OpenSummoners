@@ -215,7 +215,7 @@ static void l506(wl_char *c, ci_args *P, int32_t on)
     uint8_t *r = char_ai_skill_add(c, 10302, 4, 1, -8000, 6000, -800, 4800, 20, 1000, 5, 10, 0, 0, 0, 0, 0);
     if (r != NULL) st32(r, 0x134, 1);
     char_nav_skills_set(c, 10303, 0, 0, 0, 0, 0, 0);
-    g_eng.h42eb20(c, 200, 5000, 0, 0xf00000);
+    char_party_ai_skills(c, 200, 5000, 0, 0xf00000);
     st32(c, 0x14898, 1);
     char_combo_add(c, 1, 10301, 3, 2, 0, 10, 300, 0, 210, 8, 3, 0, 0, 0);
     char_combo_add(c, 1, 10301, 1, 2, 0, 10, 300, 0, 210, 8, 1, 0, 0, 0);
@@ -256,7 +256,7 @@ static void l537(wl_char *c, ci_args *P, int32_t on)
     TRK(324);
     g_eng.h42ff00(c, (intptr_t)P->code);
     char_skill_learn(c, 20126);
-    g_eng.h42eb20(c, 1000, 1000, 0, 0xf00000);
+    char_party_ai_skills(c, 1000, 1000, 0, 0xf00000);
     char_15a5c_set(c, 5, 1, 1600, -5600);
     if (on != 0) {
         guard_post(c);
@@ -454,7 +454,7 @@ static void arche(wl_char *c, ci_args *P)
     char_ai_skill_add(c, 10115, 1, 2, 6400, 12000, -9600, 10000, 60, 900, 25, 5, 8000, 8000, -8000, 6000, 0);
     char_ai_skill_add(c, 10115, 0, 2, 6400, 16000, 0, 6400, 120, 600, 20, 10, 8000, 12800, 800, 3200, 0);
     char_nav_skills_set(c, 10108, 0, 10107, 0, 0, 0, 0);
-    g_eng.h42eb20(c, 200, 2000, 0, 0xf00000);
+    char_party_ai_skills(c, 200, 2000, 0, 0xf00000);
     char_approach_add(c, 16000, 9600, -4800, 12800, 40000, 3200, -3200, 0, 6400, 0, 8000, 1000);
     char_approach_add(c, 6400, 6400, -6400, 8000, 0, 3200, 0, 1600, 4000, 0, 8000, 1000);
     char_approach_add(c, 3200, 6400, -3200, 12800, 0, 3200, 4000, 0, 6400, 0, 9600, 300);
@@ -508,7 +508,7 @@ static void sana(wl_char *c, ci_args *P)
     char_ai_skill_add(c, 10202, 8, 2, 12000, 12800, 0, 6400, 160, 750, 20, 10, 12000, 6400, 800, 3200, 0);
     char_ai_skill_add(c, 10202, 7, 2, 9600, 12800, 4800, 12800, 100, 800, 10, 10, 9600, 6400, 4800, 6400, 0);
     char_ai_skill_add(c, 10202, 0, 2, 22000, 12800, 0, 6400, 240, 600, 20, 10, 24000, 6400, 800, 3200, 0);
-    g_eng.h42eb20(c, 200, 1000, 0, 0xf00000);
+    char_party_ai_skills(c, 200, 1000, 0, 0xf00000);
     char_nav_skills_set(c, 10303, 0, 0, 0, 0, 0, 0);
     char_approach_add(c, 9600, 22000, -6400, 4800, 0, 22000, -3200, 0, 22000, 0, 4000, 1000);
     char_approach_add(c, 16000, 12800, -3200, 16000, 0, 16000, 6000, 12000, 6400, 6400, 9600, 200);
@@ -822,7 +822,7 @@ static int by_code(wl_char *c, ci_args *P, wl_body *b0)
         char_skill_learn(c, 20103);
         char_skill_learn(c, 47);
         char_skill_learn(c, 20123);
-        g_eng.h42eb20(c, 5000, 5000, 0, 1);
+        char_party_ai_skills(c, 5000, 5000, 0, 1);
         char_follow_set(c, 9, NULL, 0, 0);
         char_pace_set(c, 4, 2000, 2000, 200);
         break;
@@ -832,7 +832,7 @@ static int by_code(wl_char *c, ci_args *P, wl_body *b0)
         g_eng.h428c00(c, (intptr_t)P->code, 0, hero ? 300 : 299);
         char_skill_learn(c, 20103);
         if (hero) { char_skill_learn(c, 47); char_skill_learn(c, 20123); }
-        g_eng.h42eb20(c, 5000, 5000, 0, 1);
+        char_party_ai_skills(c, 5000, 5000, 0, 1);
         guard_post(c);
         st32(c, 0x15904, 0);
         char_member_pose_set(c, 0, 65, 0);
@@ -863,7 +863,7 @@ static int by_code(wl_char *c, ci_args *P, wl_body *b0)
         } else {
             char_skill_learn(c, 20101);
             char_skill_learn(c, 20102);
-            g_eng.h42eb20(c, 1000, 1000, 0, 0xf00000);
+            char_party_ai_skills(c, 1000, 1000, 0, 0xf00000);
             char_15a5c_set(c, 5, 1, 1600, -5600);
             char_follow_set(c, 5, NULL, 0, 0);
             char_pace_set(c, 2, 16000, 2000, 300);
@@ -877,7 +877,7 @@ static int by_code(wl_char *c, ci_args *P, wl_body *b0)
         g_eng.h42ff00(c, 0xc763);
         char_skill_learn(c, 20114);
         char_skill_learn(c, 20125);
-        g_eng.h42eb20(c, 1000, 1000, 0, 0xf00000);
+        char_party_ai_skills(c, 1000, 1000, 0, 0xf00000);
         char_15a5c_set(c, 6, 1, 1600, -5600);
         char_follow_set(c, 8, NULL, 0, 0);
         char_pace_set(c, 3, 5600, 2000, 300);

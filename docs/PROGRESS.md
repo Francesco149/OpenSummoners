@@ -6,6 +6,14 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-15 (evening) — the party AI skill records 0x42eb20
+
+- `char_party_ai_skills` (`src/char_def.c`): one AI skill record per known party skill, by id (ranges, the
+  recharge f11a, the AI hold +0x138); the records it inlines are `0x4287d0`'s stores with (0, 3, 1000) plus
+  `0x428950`'s boxes, so it is a switch over those; skills still of class 0xf00000 take the caller's.  Called by
+  the character init (Arche / Sana / the party: 8 sites) — slot `h42eb20` retired.
+- rhost: 16 calls (from retail's `0x41f200`), 0 divergences.  Hybrid gate: 335 hooks, PASS.
+
 ## 2026-10-15 (late afternoon) — the scene COMMAND builders run as port code
 
 - `src/scene_cmd.c`: what the chapter scripts call to build scene commands — the message box `0x49d6e0`
