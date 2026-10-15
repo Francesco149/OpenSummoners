@@ -69,7 +69,8 @@ enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_D
        H_PART_FIND, H_SERIAL, H_SHOT, H_WARP, H_GATHER, H_TPASS, H_TACTOR, H_RFLUSH, H_PROBE_RECT, H_NEAR,
        H_ZPASS, H_ZHIT, H_B96_NEAR, H_RIN, H_RCHAR, H_RACT, H_RANIM, H_RDOWN, H_RLEAD, H_TSOUNDS, H_DIK, H_ENC, H_FOES, H_PFOES, H_PSLOT, H_BGM, H_RLOOP, H_REPOLL,
        H_LROOM, H_BODIES, H_LINKS, H_VPOOLS, H_SHAKECLR, H_VFADE, H_MAPID, H_MAPNPC, H_PSCLR, H_GATE, H_SREADY, H_STINT, H_TSFADE, H_FILL,
-       H_WNEW, H_WFREE, H_EFREE, H_AFREE, H_CFREE, H_CBLK, H_WLEAD, H_CSNAP, H_ZRESET, H_QSTATE, H_VREC, H_RSAVE, H_MFREE, H_MDEL, H_PHDEL, H_N };
+       H_WNEW, H_WFREE, H_EFREE, H_AFREE, H_CFREE, H_CBLK, H_WLEAD, H_CSNAP, H_ZRESET, H_QSTATE, H_VREC, H_RSAVE, H_MFREE, H_MDEL, H_PHDEL,
+       H_FORM, H_FOLLOW, H_ASTATE, H_PTINT, H_MLOAD, H_N };
 
 static void diverged(hook_t *h, const char *fmt, ...)
 {
@@ -255,12 +256,9 @@ static int __attribute__((thiscall)) w_ent_v(void *self, wl_body *b, int32_t del
  * compared; the report breaks the differing bytes down by grid region. */
 #define GRID_BYTES 0x2cb044u
 static uint32_t g_map_hmod, g_map_id;
-typedef int (__attribute__((thiscall)) *map_parse_t)(void *, uint32_t, uint32_t);
-static int __attribute__((thiscall)) w_map_parse(void *mapobj, uint32_t hmod, uint32_t id)
-{
-    g_map_hmod = hmod; g_map_id = id & 0xffffu;
-    return ((map_parse_t)(uintptr_t)0x587970u)(mapobj, hmod, id);
-}
+/* (the recorder is the map resource load's wrapper, w_mload: both hooks share 0x587970's call sites) */
+static int g_mload_sites;
+static int __attribute__((thiscall)) w_mload(uint8_t *m, void *hmod, int32_t id);
 static void rh_bank_dims(void *ctx, uint16_t bank, int32_t *w, int32_t *h)
 {
     (void)ctx;
@@ -2733,6 +2731,82 @@ static void *__attribute__((thiscall)) w_phdel(uint8_t *m, int32_t f)
     return x.rr;
 }
 
+/* ---- the formation, the actor state restore, the palette tint, the map resource load — full state ---- */
+typedef void (__attribute__((thiscall)) *form_t)(wl_room *);
+static void form_retail(void *c) { ((form_t)(uintptr_t)H[H_FORM].va)(c); }
+static void form_port(void *c) { port_world(); room_formation(c); }
+static void __attribute__((thiscall)) w_form(wl_room *r)
+{
+    hook_t *h = &H[H_FORM];
+    if (h->mode == 2) { h->calls++; form_port(r); return; }
+    if (!sample(h)) { form_retail(r); return; }
+    full_shadow(h, "room_formation", form_retail, form_port, r, "room");
+}
+typedef int (__attribute__((thiscall)) *follow_t)(wl_char *, int32_t, wl_char *, int32_t, int32_t);
+typedef struct { wl_char *c; int32_t mode; wl_char *ld; int32_t sd, fd; } follow_ctx;
+static void follow_retail(void *c) { follow_ctx *x = c; ((follow_t)(uintptr_t)H[H_FOLLOW].va)(x->c, x->mode, x->ld, x->sd, x->fd); }
+static void follow_port(void *c) { follow_ctx *x = c; char_follow_set(x->c, x->mode, x->ld, x->sd, x->fd); }
+static int __attribute__((thiscall)) w_follow(wl_char *c, int32_t mode, wl_char *ld, int32_t sd, int32_t fd)
+{
+    hook_t *h = &H[H_FOLLOW];
+    follow_ctx x = { c, mode, ld, sd, fd };
+    if (h->mode == 2) { h->calls++; follow_port(&x); return 0; }
+    if (!sample(h)) { follow_retail(&x); return 0; }
+    full_shadow(h, "char_follow_set", follow_retail, follow_port, &x, "char");
+    return 0;
+}
+typedef void (__attribute__((thiscall)) *astate_t)(wl_actor *, int32_t);
+typedef struct { wl_actor *a; int32_t st; } astate_ctx;
+static void astate_retail(void *c) { astate_ctx *x = c; ((astate_t)(uintptr_t)H[H_ASTATE].va)(x->a, x->st); }
+static void astate_port(void *c) { astate_ctx *x = c; port_world(); actor_state_restore(x->a, x->st); }
+static void __attribute__((thiscall)) w_astate(wl_actor *a, int32_t st)
+{
+    hook_t *h = &H[H_ASTATE];
+    astate_ctx x = { a, st };
+    if (h->mode == 2) { h->calls++; astate_port(&x); return; }
+    if (!sample(h)) { astate_retail(&x); return; }
+    char what[64]; snprintf(what, sizeof what, "actor %p code %d st %d", (void *)a, a->base.code, st);
+    full_shadow(h, "actor_state_restore", astate_retail, astate_port, &x, what);
+}
+typedef void (__stdcall *ptint_t)(uint8_t *, const uint8_t *, int32_t, int32_t, int32_t, int32_t);
+typedef struct { uint8_t *d; const uint8_t *s; int32_t r, g, b, gray; } ptint_ctx;
+static void ptint_retail(void *c) { ptint_ctx *x = c; ((ptint_t)(uintptr_t)H[H_PTINT].va)(x->d, x->s, x->r, x->g, x->b, x->gray); }
+static void ptint_port(void *c) { ptint_ctx *x = c; palette_tint(x->d, x->s, x->r, x->g, x->b, x->gray); }
+static void __stdcall w_ptint(uint8_t *d, const uint8_t *src, int32_t r, int32_t g, int32_t b, int32_t gray)
+{
+    hook_t *h = &H[H_PTINT];
+    ptint_ctx x = { d, src, r, g, b, gray };
+    if (h->mode == 2) { h->calls++; ptint_port(&x); return; }
+    if (!sample(h)) { ptint_retail(&x); return; }
+    /* pure in the 3 dst bytes: compare them, not the whole state (it runs 256 times a palette) */
+    uint8_t pre[3], ret[3];
+    memcpy(pre, d, 3);
+    ptint_retail(&x);
+    memcpy(ret, d, 3);
+    memcpy(d, pre, 3);
+    ptint_port(&x);
+    h->compared++;
+    if (memcmp(ret, d, 3)) diverged(h, "f%u %d/%d/%d gray %d: retail %02x%02x%02x port %02x%02x%02x", g_frame, r, g, b, gray,
+                                    ret[0], ret[1], ret[2], d[0], d[1], d[2]);
+    memcpy(d, ret, 3);
+}
+typedef int (__attribute__((thiscall)) *mload_t)(uint8_t *, void *, int32_t);
+typedef struct { uint8_t *m; void *hmod; int32_t id; int rr, rp; } mload_ctx;
+static void mload_retail(void *c) { mload_ctx *x = c; x->rr = ((mload_t)(uintptr_t)0x587970u)(x->m, x->hmod, x->id); }
+static void mload_port(void *c) { mload_ctx *x = c; x->rp = map_res_load(x->m, x->hmod, x->id); }
+static int __attribute__((thiscall)) w_mload(uint8_t *m, void *hmod, int32_t id)
+{
+    g_map_hmod = (uint32_t)(uintptr_t)hmod; g_map_id = (uint32_t)id & 0xffffu;   /* map_decode's shadow re-reads it */
+    hook_t *h = &H[H_MLOAD];
+    mload_ctx x = { m, hmod, id, 0, 0 };
+    if (h->mode == 2) { h->calls++; mload_port(&x); return x.rp; }
+    if (h->mode == 0 || !sample(h)) { mload_retail(&x); return x.rr; }
+    char what[48]; snprintf(what, sizeof what, "map %u", (uint32_t)id & 0xffffu);
+    if (!full_shadow(h, "map_res_load", mload_retail, mload_port, &x, what) && x.rr != x.rp)
+        diverged(h, "f%u %s ret %d/%d", g_frame, what, x.rr, x.rp);
+    return x.rr;
+}
+
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
     [H_POLL] = { "input_poll", 0x43c110u, (void *)w_poll, 0, 1, 0, 0, 0, 0, "" },
@@ -2900,6 +2974,11 @@ static hook_t H[H_N] = {
     [H_MFREE]      = { "map_res_free",   0x5878a0u, (void *)w_MFREE,  0, 1, 0, 0, 0, 0, "" },
     [H_MDEL]       = { "map_res_delete", 0x59db70u, (void *)w_mdel,   0, 1, 0, 0, 0, 0, "" },
     [H_PHDEL]      = { "pool_head_delete", 0x562d50u, (void *)w_phdel, 0, 1, 0, 0, 0, 0, "" },
+    [H_FORM]       = { "room_formation", 0x41dc90u, (void *)w_form,   0, 1, 0, 0, 0, 0, "" },
+    [H_FOLLOW]     = { "char_follow_set", 0x41e020u, (void *)w_follow, 0, 1, 0, 0, 0, 0, "" },
+    [H_ASTATE]     = { "actor_state_restore", 0x41e600u, (void *)w_astate, 0, 1, 0, 0, 0, 0, "" },
+    [H_PTINT]      = { "palette_tint",   0x4182d0u, (void *)w_ptint,  0, 1, 0, 0, 0, 0, "" },
+    [H_MLOAD]      = { "map_res_load",   0x587970u, (void *)w_mload,  0, 1, 0, 0, 0, 0, "" },
 };
 
 static const void *rh_data_identity(uint32_t va) { return (const void *)(uintptr_t)va; }
@@ -2951,13 +3030,15 @@ static void bind_engine_calls(void)
     B(499ab0); B(4842c0); B(41a7f0); B(59cfc0);
     *(void **)&g_eng.flip_5b8fc0  = g_rh_flip_stub;    /* the virtual clock steps there */
     *(void **)&g_eng.easer_43d1d0 = g_rh_easer_stub;   /* the tick count (+ a camera hook chained behind) */
-    B(5ba120); B(5ba290); B(587970); B(587e00); B(58d460);
-    B(41e600); B(4178e0); B(417bc0); B(4182d0); B(491770); B(418470); B(417c40); B(58e170); B(41dc90);
+    B(5ba120); B(5ba290); B(587e00); B(58d460);
+    B(4178e0); B(417bc0); B(491770); B(418470); B(417c40); B(58e170);
+    *(void **)&g_eng.find_res = iat_lookup("FindResourceA");
+    *(void **)&g_eng.load_res = iat_lookup("LoadResource");
+    *(void **)&g_eng.lock_res = iat_lookup("LockResource");
     B(56dc20); B(41a890); B(40e0c0); B(5bf3ee); B(426110); B(560900); B(5bf5db);
     g_eng.world = (wl_world **)(uintptr_t)WORLD_PTR_VA;
     g_eng.quiet = (int32_t *)(uintptr_t)0x8a6b54u;
     g_eng.dlog  = (void *)(uintptr_t)0x8a6620u;
-    g_eng.tint  = (void *)(uintptr_t)0x8a6610u;
     B(552c70); B(552f60); B(5534d0); B(553520); B(553ec0); B(554570); B(554c40); B(5556d0);
     B(556e50);
     B(47da60); B(482240); B(482460); B(482ac0); B(47de50); B(47f670); B(47f9d0);
@@ -3011,7 +3092,7 @@ void rh_hooks_install(void)
         H[H_MAPNPC].va = H[H_PSCLR].va = H[H_GATE].va = H[H_SREADY].va = H[H_STINT].va = H[H_TSFADE].va = H[H_FILL].va =
         H[H_WNEW].va = H[H_WFREE].va = H[H_EFREE].va = H[H_AFREE].va = H[H_CFREE].va = H[H_CBLK].va = H[H_WLEAD].va =
         H[H_CSNAP].va = H[H_ZRESET].va = H[H_QSTATE].va = H[H_VREC].va = H[H_RSAVE].va = H[H_MFREE].va = H[H_MDEL].va =
-        H[H_PHDEL].va = 0;
+        H[H_PHDEL].va = H[H_FORM].va = H[H_FOLLOW].va = H[H_ASTATE].va = H[H_PTINT].va = H[H_MLOAD].va = 0;
     if (!O.hooks) return;
     char b[4096]; snprintf(b, sizeof b, "%s", O.hooks);
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {
@@ -3029,8 +3110,10 @@ void rh_hooks_install(void)
             rh_fatal("%s: replace only (it runs a room / repolls DirectInput)", h->name);
         if (h == &H[H_MAP_DECODE]) {
             if (h->mode == 2) rh_fatal("map_decode: shadow only (the port decode needs the recorded resource)");
-            rh_log("hook map_decode: parse recorder %d call sites\n", redirect_calls(0x587970u, w_map_parse));
+            if (!g_mload_sites) { rh_log("hook map_decode: parse recorder %d call sites\n", redirect_calls(0x587970u, w_mload)); g_mload_sites = 1; }
         }
+        if (h == &H[H_MLOAD] && g_mload_sites) { rh_log("hook %s:%s: sites already on the recorder\n", mode, name); continue; }
+        if (h == &H[H_MLOAD]) g_mload_sites = 1;
         int n = redirect_calls_chain(h->va, h->wrapper);
         rh_log("hook %s:%s @%08x every=%u: %d call sites\n", mode, name, h->va, every, n);
         if (!n) rh_fatal("hook %s: no direct call sites", name);

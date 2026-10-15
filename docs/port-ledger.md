@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **451** (28.6% of engine-proper) — tested 250, ported 201
-- code bytes touched: **25.1%** (445,435 / 1,776,526 B of engine-proper)
-- unported: **1373**
+- touched: **455** (28.9% of engine-proper) — tested 250, ported 205
+- code bytes touched: **25.2%** (447,710 / 1,776,526 B of engine-proper)
+- unported: **1369**
 - orphan refs in src/ not in this table: 0
 
 ## tested (250) — ported + host unit suite
@@ -172,7 +172,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x582e90 | sub_582E90 | 3560 | cs_dispatch.c, cs_dispatch.h, main.c (+2) |
 | 0x585000 | gw_cross_reference_585000 | 413 | game_world.c, game_world.h, world_tables_data.c (+1) |
 | 0x586010 | load_room_586010 | 6133 | asset_register.c, asset_register.h, game_world.h (+4) |
-| 0x587970 | sub_587970 | 866 | main.c, map_data.c, map_data.h (+4) |
+| 0x587970 | sub_587970 | 866 | main.c, map_data.c, map_data.h (+5) |
 | 0x587e00 | sub_587E00 | 18059 | asset_register.h, collision.h, game_world.h (+6) |
 | 0x58c910 | game_bank_dims_58C910 | 347 | main.c, map_decode.c, map_grid.c (+1) |
 | 0x58ca80 | sub_58CA80 | 167 | map_decode.c, map_grid.c, map_grid.h |
@@ -274,7 +274,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (201) — reimplemented, no host test yet
+## ported (205) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -308,7 +308,11 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x411560 | sub_411560 | 117 | gimmick.h |
 | 0x4115e0 | sub_4115E0 | 33 | room_loop.h |
 | 0x412db0 | sub_412DB0 | 57 | room_loop.h |
+| 0x4182d0 | sub_4182D0 | 408 | room_load.h |
+| 0x41dc90 | sub_41DC90 | 890 | room_load.h |
+| 0x41e020 | sub_41E020 | 70 | room_load.h |
 | 0x41e180 | sub_41E180 | 244 | char_state.h |
+| 0x41e600 | sub_41E600 | 907 | actor_ops.h |
 | 0x41ea70 | sub_41EA70 | 187 | entity_life.h |
 | 0x41ee60 | sub_41EE60 | 252 | char_state.h |
 | 0x41ef80 | sub_41EF80 | 83 | char_state.h |

@@ -12,6 +12,17 @@
  *   FUN_00555790  actor_crate            FUN_00555bd0  actor_break
  *   FUN_00555e90  actor_slide_v          FUN_005564e0  entity_count_riders
  *   FUN_0040ab80  entity_dust
+ *
+ * The STATE RESTORE (0x41e600, the room setup's re-entry of a saved switch state): sets +0xc and
+ * the matching step record's clip at its LAST frame, then the per-code static state without the
+ * switching effects — 70100 / 70281 / 70290 / 70610 / 70620 / 70810 the on flag +0x284 (70281 /
+ * 70290 also the collision: off 3 / 2, on none; 70610 / 70620 / 70810 the body's +0x5c 1000 off,
+ * 0 on), 70120 the grown / shrunk height (the grid refresh flag when on), 70230 the body height
+ * 12800 / 3200 (+0x44 = (h - entity h) / 100), 70251 / 70252 / 70371 its glow particle (100134,
+ * 100135 with +0x2e4 == 1: spawned when off, released when on), 70400 on = unlisted (world +0x2798
+ * + every list), 70440 the y at area y0 (+19200 on), 70820 the collision (off 3 / 3, on none).
+ *
+ *   FUN_0041e600  actor_state_restore
  */
 #ifndef OSS_ACTOR_OPS_H
 #define OSS_ACTOR_OPS_H
@@ -31,5 +42,8 @@ int actor_slide_v(wl_actor *a, wl_body *b, int32_t speed);
 int entity_count_riders(wl_entity *e, int32_t kind, int32_t heavy, int32_t fac, uint16_t *weight, int32_t reach);
 /* n (u16) dust particles (100080) along body `b` (a3 != 0: none) */
 void entity_dust(wl_entity *e, wl_body *b, int32_t a3, uint32_t n, int32_t dx, int32_t dy);
+
+/* 0x41e600 (thiscall actor): put the actor into switch state `st` without its effects */
+void actor_state_restore(wl_actor *a, int32_t st);
 
 #endif /* OSS_ACTOR_OPS_H */

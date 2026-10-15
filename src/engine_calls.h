@@ -160,23 +160,23 @@ typedef struct engine_calls {
     eng_tc9 h47ecd0;
     /* the room setup 0x586010's roots: the world pointer 0x8a9b50 (it deletes and re-creates the
      * world), the loading-log flag 0x8a6b54 (0 = every setup step is logged; set after the first
-     * room loop), the loading log 0x8a6620 (0x406440 / 0x408b90 `this`), the palette tinter 0x8a6610
-     * (0x4182d0 `this`) */
+     * room loop), the loading log 0x8a6620 (0x406440 / 0x408b90 `this`) */
     wl_world  **world;
     int32_t    *quiet;
     void       *dlog;
-    void       *tint;
     /* ... and its callees: the joystick create 0x5ba120 / acquire 0x5ba290 (DirectInput), the map
-     * resource load 0x587970 / decode 0x587e00, the room population 0x58d460, the actor fill
-     * 0x41e600, the map sprite's palette (read 0x4178e0, swap table 0x417bc0, tint 0x4182d0, copy
-     * 0x491770, rebuild 0x418470), the parallax grade 0x417c40, the party member create 0x58e170,
-     * the formation 0x41dc90, 0x56dc20, the scene runner's stop 0x41a890, the pool-head record
+     * decode 0x587e00, the room population 0x58d460, the map sprite's palette (read 0x4178e0,
+     * swap table 0x417bc0, copy 0x491770, rebuild 0x418470), the parallax grade 0x417c40, the party
+     * member create 0x58e170, 0x56dc20, the scene runner's stop 0x41a890, the pool-head record
      * clear 0x40e0c0; the fatal paths: the sprintf 0x5bf3ee, the error box 0x426110, the log reset
-     * 0x560900, exit 0x5bf5db */
+     * 0x560900, exit 0x5bf5db; KERNEL32's resource calls (the map resource reader) */
     eng_tc3 h5ba120; eng_tc0 h5ba290;
-    eng_tc2 h587970; eng_tc4 h587e00; eng_tc2 h58d460; eng_tc1 h41e600;
-    eng_tc1 h4178e0; eng_tc2 h417bc0; eng_tc6 h4182d0; eng_tc1 h491770; eng_tc1 h418470; eng_tc2 h417c40;
-    eng_tc5 h58e170; eng_tc0 h41dc90; eng_tc3 h56dc20;
+    eng_tc4 h587e00; eng_tc2 h58d460;
+    eng_tc1 h4178e0; eng_tc2 h417bc0; eng_tc1 h491770; eng_tc1 h418470; eng_tc2 h417c40;
+    eng_tc5 h58e170; eng_tc3 h56dc20;
+    void *(ENG_STDCALL *find_res)(void *mod, const char *name, const char *type);
+    void *(ENG_STDCALL *load_res)(void *mod, void *res);
+    void *(ENG_STDCALL *lock_res)(void *glob);
     eng_tc4 h41a890; eng_tc0 h40e0c0;
     int (*h5bf3ee)(char *buf, const char *fmt, ...);
     eng_tc3 h426110; eng_tc0 h560900;

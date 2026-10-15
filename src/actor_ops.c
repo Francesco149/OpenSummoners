@@ -6,12 +6,14 @@
 #include "actor_ops.h"
 
 #include <stddef.h>
+#include <string.h>
 
 #include "char_integrate.h"
 #include "engine_calls.h"
 #include "particle_spawn.h"
 #include "entity_life.h"
 #include "entity_move.h"
+#include "gimmick.h"
 #include "rng.h"
 #include "sound_fx.h"
 
@@ -214,4 +216,105 @@ slide:
 done:
     entity_carry_riders(&a->base, b->x - x0, b->y - y0, part);
     return moved;
+}
+
+void actor_state_restore(wl_actor *a, int32_t st)
+{
+    wl_body *b = a->base.body;
+    a->base.f00c = st;
+    for (uint16_t k = 0; k < a->nsteps; k++) {
+        if (a->steps[k].state != st || a->steps[k].clip == NULL) continue;
+        if (b->clip != a->steps[k].clip) {
+            b->clip = a->steps[k].clip;
+            b->clip_done = 0;
+            b->clip_frame = 0;
+            b->clip_timer = 0;
+        }
+        uint16_t nf;
+        memcpy(&nf, (const uint8_t *)a->steps[k].clip + 0x42, 2);   /* the clip's frame count */
+        b->clip_frame = (uint16_t)(nf - 1);
+    }
+    uint32_t code = (uint32_t)a->base.code;
+    int32_t s = a->base.f00c;
+    if (code == 70251 || code == 70252 || code == 70371) {
+        int32_t p = a->f2e4 == 1 ? 100135 : 100134;
+        const wl_body *pb = a->base.body;
+        if (s == 0) {
+            if (particle_find(&a->base, 0) == NULL)
+                particle_spawn(&a->base, &a->base, p, pb, 0, 0, 99, 1, 0, 0, 2, 1, 0, 20);
+        } else if (s == 1) {
+            if (particle_find(&a->base, 0) != NULL) g_eng.h556e50((intptr_t)a, 0, 0);
+        }
+        return;
+    }
+    switch (code) {
+    case 70100:
+        a->f284 = s == 1;
+        return;
+    case 70120:
+        if (s == 1) {
+            b->y += b->h - a->grow_min;
+            b->h = a->grow_min;
+            int32_t one = 1;
+            memcpy(g_world->grid + 0x28, &one, 4);   /* the grid refresh flag (0x58ff50) */
+        } else {
+            b->y += b->h - a->grow_max;
+            b->h = a->grow_max;
+        }
+        return;
+    case 70230:
+        if (s == 0) b->h = 12800;
+        else if (s == 1) b->h = 3200;
+        b->dst_y = (b->h - a->base.height) / 100;
+        return;
+    case 70281:
+    case 70290:
+        if (s == 1) {
+            a->f284 = 1;
+            entity_set_collide(&a->base, 0, 0);
+        } else {
+            a->f284 = 0;
+            entity_set_collide(&a->base, 3, 2);
+        }
+        return;
+    case 70400:
+        if (s == 1) {
+            a->f284 = 1;
+            wl_list *l = g_world->list_2798;
+            uint16_t n = l->count, at = n;
+            for (uint16_t i = 0; i < n; i++)
+                if (l->items[i] == &a->base) {
+                    at = i;
+                    break;
+                }
+            if (at < n) {
+                for (uint16_t i = at; (int32_t)i < (int32_t)l->count - 1; i++) l->items[i] = l->items[i + 1];
+                l->count--;
+            }
+            entity_unlist(&a->base);
+            a->material = 0;
+        }
+        return;
+    case 70440:
+        if (s == 0) b->y = a->area_y0;
+        else if (s == 1) b->y = a->area_y0 + 19200;
+        return;
+    case 70610:
+    case 70620:
+    case 70810:
+        if (s == 0) {
+            a->f284 = 0;
+            b->act_ctr = 1000;
+        } else if (s == 1) {
+            a->f284 = 1;
+            b->act_ctr = 0;
+        }
+        return;
+    case 70820:
+        if (st == 0) entity_set_collide(&a->base, 3, 3);
+        else if (st == 1) entity_set_collide(&a->base, 0, 0);
+        return;
+    default:
+        return;
+    }
 }

@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "camera_follow.h"
+#include "actor_ops.h"
 #include "char_physics.h"
 #include "engine_calls.h"
 #include "entity_life.h"
@@ -464,6 +465,160 @@ void *pool_head_delete(uint8_t *h, int32_t flags)
     return h;
 }
 
+void char_follow_set(wl_char *c, int32_t mode, wl_char *leader, int32_t side_dist, int32_t follow_dist)
+{
+    c->ai_mode = mode;
+    c->leader = leader;
+    c->side_dist = side_dist;
+    c->follow_dist = follow_dist;
+    c->side = c->base.body->facing;
+    c->side_t = 0;
+    c->f14258 = 0;
+}
+
+/* the first active (1 / 2) slot of the room with id `id` (0x41dc90's two inline searches) */
+static wl_pslot *slot_by_id(const wl_room *r, int32_t id)
+{
+    for (int k = 0; k < 8; k++) {
+        wl_pslot *s = r->slot[k];
+        if ((s->active == 1 || s->active == 2) && s->id == id) return s;
+    }
+    return NULL;
+}
+
+void room_formation(wl_room *r)
+{
+    const wl_pslot *lead = r->leader;
+    int32_t lead_order = lead != NULL ? lead->order : 0;
+    /* one set of locals for the whole loop: a formation kind outside 0..4 keeps the previous
+     * member's three values (uninitialized before the first) */
+    uint16_t f0 = 0, f1 = 0, f2 = 0;
+    for (uint16_t j = 0; j < 8; j++) {
+        wl_pslot *s = r->slot[j];
+        if (s->active != 1 || s->ch == NULL) continue;
+        int32_t kind = r->form;
+        if (s->id != 0) {
+            const wl_pslot *m = slot_by_id(r, s->id);
+            if (m != NULL) kind = m->form == 255 ? r->form : m->form;
+        }
+        switch (kind) {
+        case 0: f0 = 0; f1 = 0; f2 = 0; break;
+        case 1: f0 = 0; f1 = 2; f2 = 0; break;
+        case 2: f0 = 1; f1 = 2; f2 = 0; break;
+        case 3: f0 = 2; f1 = 2; f2 = 1; break;
+        case 4: f0 = 4; f1 = 2; f2 = 3; break;
+        default: break;
+        }
+        s->ch->form[0] = f0;
+        s->ch->form[1] = f1;
+        s->ch->form[2] = f2;
+        wl_char *c = s->ch;
+        if (s == lead || lead == NULL) {
+            c->ai_mode = 2;
+            c->leader = NULL;
+            c->side_dist = 0;
+            c->follow_dist = 0;
+            c->side = c->base.body->facing;
+            c->side_t = 0;
+            c->f14258 = 0;
+            continue;
+        }
+        int32_t mode = r->follow;
+        if (s->id != 0) {
+            const wl_pslot *m = slot_by_id(r, s->id);
+            if (m != NULL && m->follow != 255) mode = m->follow;
+        }
+        uint32_t ahead = 0;   /* members placed before it: the leader, a lower order, the same order earlier */
+        for (uint16_t k = 0; k < 8; k++) {
+            const wl_pslot *o = r->slot[k];
+            if (o == s || !pslot_ok(o, 1, 0)) continue;
+            if (o == lead || s->order > o->order || (s->order == o->order && j > k)) ahead++;
+        }
+        int32_t back = (int32_t)(ahead * 4800u);
+        if (s->id == 100000104 && mode == 2) mode = 0;
+        if (mode == 1) {
+            c->ai_mode = 1;
+            c->leader = lead->ch;
+            c->side_dist = 0;
+        } else if (mode == 2) {
+            c->ai_mode = 4;
+            c->leader = lead->ch;
+            c->side_dist = (s->order - lead_order) * 4000;
+        } else {
+            char_follow_set(s->ch, 3, lead->ch, (s->order - lead_order) * 4000, back);
+            continue;
+        }
+        c->follow_dist = back;
+        c->side = c->base.body->facing;
+        c->side_t = 0;
+        c->f14258 = 0;
+    }
+}
+
+void palette_tint(uint8_t *dst, const uint8_t *src, int32_t r, int32_t g, int32_t b, int32_t gray)
+{
+    int32_t v;
+#define CLAMP(x) ((x) > 255 ? 255 : (x) < 0 ? 0 : (x))
+    if (gray != 0) {
+        int32_t m = ((int32_t)src[2] + src[1] + src[0]) / 3;
+        v = b * m / 100; dst[2] = (uint8_t)CLAMP(v);
+        v = g * m / 100; dst[1] = (uint8_t)CLAMP(v);
+        v = r * m / 100; dst[0] = (uint8_t)CLAMP(v);
+    } else {
+        v = b * src[2] / 100; dst[2] = (uint8_t)CLAMP(v);
+        v = g * src[1] / 100; dst[1] = (uint8_t)CLAMP(v);
+        v = r * src[0] / 100; dst[0] = (uint8_t)CLAMP(v);
+    }
+#undef CLAMP
+}
+
+int map_res_load(uint8_t *m, void *hmod, int32_t id)
+{
+    map_res_free(m);   /* the same frees, inlined in retail */
+    /* the reader 0x5b62a0 / 0x5b6340 (mode 1: the locked DATA resource, read front to back) */
+    void *rs = g_eng.find_res(hmod, (const char *)(uintptr_t)(uint16_t)id, "DATA");
+    if (rs == NULL) return 0;
+    void *hg = g_eng.load_res(hmod, rs);
+    if (hg == NULL) return 0;
+    const uint8_t *rd = g_eng.lock_res(hg);
+    if (rd == NULL) return 0;
+    rd += 4 + 0x30;   /* a version word + 48 bytes nobody keeps */
+    memcpy(m, rd, 0x34);
+    rd += 0x34;
+    uint32_t sz = (uint32_t)ld32(m, 0x28) * (uint32_t)ld32(m, 0x24) * (uint32_t)ld32(m, 0x20) * 28u;
+    void *cells = g_eng.op_new(sz);
+    stp(m, 0x34, cells);
+    memcpy(cells, rd, sz);
+    rd += sz;
+    stp(m, 0x38, g_eng.op_new((uint32_t)ld32(m, 0x2c) * 60u));
+    stp(m, 0x3c, g_eng.op_new((uint32_t)ld32(m, 0x2c) << 4));
+    for (int32_t i = 0; i < ld32(m, 0x2c); i++) {
+        uint8_t *rec = (uint8_t *)ldp(m, 0x38) + 60u * (uint32_t)i;
+        memset(rec, 0, 60);
+        uint8_t *bp = (uint8_t *)ldp(m, 0x3c) + 16u * (uint32_t)i;
+        memset(bp, 0, 16);
+        memcpy((uint8_t *)ldp(m, 0x38) + 60u * (uint32_t)i, rd, 60);
+        rd += 60;
+        /* four arrays: counts at +0x1c / +0x20 / +0x24 / +0x28 of 4 / 12 / 256 / 8 bytes */
+        static const struct { uint8_t cnt; uint16_t unit; } A[4] = { { 0x1c, 4 }, { 0x20, 12 }, { 0x24, 256 }, { 0x28, 8 } };
+        for (int k = 0; k < 4; k++) {
+            int32_t c = ld32((uint8_t *)ldp(m, 0x38) + 60u * (uint32_t)i, A[k].cnt);
+            uint8_t *slot = (uint8_t *)ldp(m, 0x3c) + 16u * (uint32_t)i + 4u * (uint32_t)k;
+            if (c == 0) {
+                stp(slot, 0, NULL);
+                continue;
+            }
+            uint32_t n = (uint32_t)c * A[k].unit;
+            void *buf = g_eng.op_new(n);
+            stp((uint8_t *)ldp(m, 0x3c) + 16u * (uint32_t)i + 4u * (uint32_t)k, 0, buf);
+            n = (uint32_t)ld32((uint8_t *)ldp(m, 0x38) + 60u * (uint32_t)i, A[k].cnt) * A[k].unit;
+            memcpy(ldp((uint8_t *)ldp(m, 0x3c) + 16u * (uint32_t)i, 4u * (uint32_t)k), rd, n);
+            rd += n;
+        }
+    }
+    return 1;
+}
+
 /* the view's 27 draw pools: (record offset, capacity, buffer bytes = capacity x 60), in retail's
  * allocation order (record 0 stays empty) */
 static const struct { uint8_t off; uint16_t cap; uint32_t size; } POOLS[26] = {
@@ -521,7 +676,7 @@ static void map_palette(void)
         default: break;
         }
     if (r >= 0) {
-        for (int i = 0; i < 256; i++) g_eng.h4182d0(g_eng.tint, IP(pal + 4 * i), IP(src + 4 * i), r, g, b, 0);
+        for (int i = 0; i < 256; i++) palette_tint(pal + 4 * i, src + 4 * i, r, g, b, 0);
         src = pal;
     }
     if (lut != NULL) {
@@ -732,7 +887,7 @@ int load_room(wl_roomloop *rl, wl_room *rooms, uint16_t nrooms, uint8_t *areas, 
     }
     /* the id goes in as dx over the fd4 still in edx (0x587970 reads the word) */
     uint16_t mid = ld16(rinfo, 0xc);
-    if (g_eng.h587970(mr, IP(hmod), (intptr_t)(((uint32_t)loc & 0xffff0000u) | mid)) == 0) {
+    if (map_res_load(mr, hmod, (int32_t)(((uint32_t)loc & 0xffff0000u) | mid)) == 0) {
         char buf[256];
         g_eng.h5bf3ee(buf, S(0x8a2da8u), (int)mid);   /* "NO:%d" */
         g_eng.h426110(g_eng.log, IP(S(0x8a2d8cu)), 1, IP(S(TRAILER)));   /* "The map data is not found. " */
@@ -748,7 +903,7 @@ int load_room(wl_roomloop *rl, wl_room *rooms, uint16_t nrooms, uint8_t *areas, 
         for (int i = 0; i < 128; i++) {
             const wl_entity *a = W->actors[i];
             if (a->alive == 0 || a->handle == 0) continue;
-            if (fill_lookup(fill, a->handle, &loc)) g_eng.h41e600(W->actors[i], loc);
+            if (fill_lookup(fill, a->handle, &loc)) actor_state_restore((wl_actor *)W->actors[i], loc);
         }
 
     map_palette();
@@ -861,7 +1016,7 @@ int load_room(wl_roomloop *rl, wl_room *rooms, uint16_t nrooms, uint8_t *areas, 
             g_eng.h58e170(rl, IP(r), IP(gt), IP(s), a7, r->f4018);
             step_log2(0x8a2cf8u);   /* "CreatePartyCharacter Af" */
         }
-        g_eng.h41dc90(&rl->rooms[j]);
+        room_formation(&rl->rooms[j]);
         step_log2(0x8a2ce8u);   /* "UpdateFormation" */
         room_input_flush(&rl->rooms[j]);
         wl_room *r = &rl->rooms[j];

@@ -57,6 +57,8 @@
  *   FUN_0058d210  view_record_init     FUN_0058e330  room_state_save
  *   FUN_005878a0  map_res_free         FUN_0059db70  map_res_delete
  *   FUN_00562d50  pool_head_delete
+ *   FUN_0041dc90  room_formation       FUN_0041e020  char_follow_set
+ *   FUN_004182d0  palette_tint         FUN_00587970  map_res_load
  */
 #ifndef OSS_ROOM_LOAD_H
 #define OSS_ROOM_LOAD_H
@@ -125,5 +127,18 @@ void *map_res_delete(uint8_t *m, int32_t flags);
 /* 0x562d50 (thiscall pool head): free its records (their +0x48 objects through 0x40e0c0), + itself
  * when flags & 1 */
 void *pool_head_delete(uint8_t *h, int32_t flags);
+
+/* 0x41dc90 (thiscall room): each active member's formation parameters (char +0x14828, by the
+ * formation kind: the member's slot +0xa00 / room +0x4054) and follow set-up: the leader (or every
+ * member without one) mode 2; others by the follow mode (slot +0x9fc / room +0x4050): 1 behind the
+ * leader, 2 in a line (4000 per order step), else 0x41e020 mode 3; 4800 per member placed ahead */
+void room_formation(wl_room *r);
+/* 0x41e020 (thiscall character): follow `leader` in `mode` at the given distances */
+void char_follow_set(wl_char *c, int32_t mode, wl_char *leader, int32_t side_dist, int32_t follow_dist);
+/* 0x4182d0 (stdcall): dst rgb = src rgb (or their mean, `gray`) x r / g / b percent, clamped 0..255 */
+void palette_tint(uint8_t *dst, const uint8_t *src, int32_t r, int32_t g, int32_t b, int32_t gray);
+/* 0x587970 (thiscall map resource): read DATA resource `id` of `hmod` into it (the 0x34-byte head,
+ * the cells, the 60-byte object records and their four arrays); 0 when the resource is missing */
+int map_res_load(uint8_t *m, void *hmod, int32_t id);
 
 #endif /* OSS_ROOM_LOAD_H */

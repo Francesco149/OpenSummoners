@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 250,
-  "ported": 201,
-  "unported": 1373,
+  "ported": 205,
+  "unported": 1369,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 451,
-  "pct_touched": 28.6,
+  "touched": 455,
+  "pct_touched": 28.9,
   "pct_tested": 15.8,
-  "engine_proper_touched": 438,
+  "engine_proper_touched": 442,
   "bytes_total": 1776526,
-  "bytes_touched": 445435,
-  "pct_bytes_touched": 25.1
+  "bytes_touched": 447710,
+  "pct_bytes_touched": 25.2
  },
  "orphan_refs": [],
  "functions": [
@@ -1760,8 +1760,10 @@
    "name": "sub_4182D0",
    "size": 408,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_load.h"
+   ]
   },
   {
    "va": "0x418470",
@@ -2127,16 +2129,20 @@
    "name": "sub_41DC90",
    "size": 890,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_load.h"
+   ]
   },
   {
    "va": "0x41e020",
    "name": "sub_41E020",
    "size": 70,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_load.h"
+   ]
   },
   {
    "va": "0x41e070",
@@ -2217,8 +2223,10 @@
    "name": "sub_41E600",
    "size": 907,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/actor_ops.h"
+   ]
   },
   {
    "va": "0x41ea70",
@@ -10055,6 +10063,7 @@
     "src/map_data.h",
     "src/map_decode.h",
     "src/map_grid.h",
+    "src/room_load.h",
     "src/town_render.c",
     "src/town_render.h"
    ]

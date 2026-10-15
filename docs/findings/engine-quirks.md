@@ -4292,6 +4292,18 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   0x284, 96 x 0x20c, 128 x 0x1f8, grid 0x2cb044, view 0x78, 0xa52c, runner 0xb2c, 5 lists 12 B + 5 x 0x200); none
   of the big blocks is cleared (retail relies on the room setup / the map decode to fill them). `0x54bfb0` stops a
   character's playing voice lines (`0x5bb8e0`) before freeing its voice set.
+- **The formation `0x41dc90`** (every room entry + scripts): per active member with a character, the formation
+  kind (the first active slot with the same slot id's +0xa00, 255 / no id = room +0x4054) → char +0x14828 x3
+  (0: 0 0 0, 1: 0 2 0, 2: 1 2 0, 3: 2 2 1, 4: 4 2 3; **other kinds keep the previous member's three values** —
+  one set of locals, uninitialized before the first). The leader (or everyone when there is none) gets follow
+  mode 2; the rest by the follow mode (slot +0x9fc, 255 = room +0x4050; slot id 100000104 never 2): 1 = mode 1
+  behind the leader, 2 = mode 4 at 4000 x (order +0x9f8 - the leader's), else `0x41e020` mode 3 at the same;
+  4800 x (members placed ahead: the leader, a lower order, the same order in an earlier slot) as the follow
+  distance; the side = the body's facing.
+- **The map resource `0x587970`** = the DATA resource read front to back (no bounds checks): 4 + 48 skipped
+  bytes, a 0x34-byte head into the object (+0x20 / +0x24 / +0x28 the dims, +0x2c the object count), the cells
+  (28 B x the three dims), then per object a 60-byte record + four arrays (counts at +0x1c / +0x20 / +0x24 /
+  +0x28 of 4 / 12 / 256 / 8 bytes).
 
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)

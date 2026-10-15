@@ -481,7 +481,10 @@ typedef struct wl_pslot {
     struct wl_room *room;      /* +0x9ec  the room it belongs to                          */
     int32_t    id;             /* +0x9f0  (100000104: not flushed by the gimmick pass)     */
     struct wl_char *ch;        /* +0x9f4  the member's character                         */
-    uint8_t    _p9f8[0xe58 - 0x9f8];
+    int32_t    order;          /* +0x9f8  its place in the formation (0x41dc90)            */
+    int32_t    follow;         /* +0x9fc  its follow mode for slot id matches (255 = the room's) */
+    int32_t    form;           /* +0xa00  its formation kind (255 = the room's)            */
+    uint8_t    _pa04[0xe58 - 0xa04];
     uint16_t   fe58[18];       /* +0xe58  (cleared at room entry where 0x628768's row is set) */
 } wl_pslot;
 
@@ -503,7 +506,9 @@ typedef struct wl_room {
     int32_t    f4028;          /* +0x4028 */
     uint8_t    _p402c[0x4030 - 0x402c];
     wl_pslot  *slot[8];        /* +0x4030 */
-    uint8_t    _p4050[0x4058 - 0x4050];
+    int32_t    follow;         /* +0x4050  the members' follow mode: 1 behind the leader, 2 in a
+                                *          line, else beside (0x41dc90)                    */
+    int32_t    form;           /* +0x4054  the formation kind 0..4                         */
     int32_t    lead_mode;      /* +0x4058  the camera lead (0x59d3f0): 0 centred, 1 the partner
                                 *          gap, 2 the facing (ring id 11 cycles it)           */
     uint8_t    _p405c[0x4070 - 0x405c];
@@ -742,7 +747,7 @@ typedef struct wl_char {
     int32_t    f1481c;         /* +0x1481c */
     int32_t    f14820;         /* +0x14820 */
     int32_t    walk_x;         /* +0x14824  ai_state 7: the x it walks to (0x484c10)           */
-    uint8_t    _p14828[0x1482e - 0x14828];
+    uint16_t   form[3];        /* +0x14828  the formation's three parameters (0x41dc90)      */
     uint16_t   f1482e;         /* +0x1482e */
     uint16_t   f14830;         /* +0x14830 */
     uint16_t   f14832;         /* +0x14832 */
