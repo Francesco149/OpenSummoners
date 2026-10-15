@@ -6,7 +6,7 @@ specific commits where relevant.
 
 ---
 
-## 2026-10-15 — the room loop's passes: gimmicks, touch (doors), event zones, per-tick calls
+## 2026-10-15 — the room loop runs as port code: passes (gimmicks, doors, zones), input, encounters
 
 - Ported on retail layout + verified inside retail: the GIMMICK pass 0x59afd0 / 0x59b170 (switch
   plates, levers, followers, timed plates, hits) + switching 0x40afe0 / links 0x40be30 + the event
@@ -19,9 +19,15 @@ specific commits where relevant.
   DeleteObject, DirectInput, the input re-poll, room-start / touch scripts) abort a shadow's port
   phase (keep retail's result, counted skipped) instead of doing them twice; `full_shadow` returns
   -1 when skipped. Shadow sets are checked not to perturb the run with `corpus --check --hook shadow:…`.
-- Hybrid gate: 128 hooks replacing retail, all 7 scenarios byte-identical. Next: the rest under the
-  room loop (pickups 0x59ca90 + the message log, warp 0x59c750, 0x59aa40, 0x58e780, scene start),
-  then the loop itself.
+- Then: the keyboard input producer 0x46a880 (`src/input_dik.c`, DIK events → ring records in
+  retail's test order; title / menus / free roam), the encounter pass 0x58e780 (battle modes, the
+  foe-near flag, the room BGM restore; threat scans 0x58eeb0 / 0x58f0b0, BGM pick 0x40d9b0), and the
+  ROOM LOOP 0x58f360 ITSELF (`room_loop_run`: the pacing machine, update, keys, passes, render +
+  Flip) — REPLACE-verified; rhost's Flip / easer stubs are exposed as slots so a ported caller
+  steps the virtual clock and the tick count like retail's call sites.
+- Hybrid gate: 136 hooks replacing retail (the room loop included), all 7 scenarios byte-identical.
+  Next: load_room 0x586010 + the scene loop 0x59f2c0, then the port binary's free roam on the
+  retail-layout world.
 
 ## 2026-10-15 (night) — the layer under the tick bands: sound / voices, entity lifecycle, particles
 
