@@ -200,9 +200,9 @@ typedef struct engine_calls {
     eng_tc0 h5b64b0;
     int (ENG_STDCALL *h41cfd0)(int32_t save, int32_t sub, char *file, int32_t *slot);
     /* the party API's: a member's stats from a stat row 0x409150 (level up), the level-up cue 0x55fdb0,
-     * the equipment recompute 0x4066d0 (room, id, stats, 0), a member's level / status sync 0x41d780,
+     * a member's level / status sync 0x41d780,
      * the start equipment / skills 0x4e6520 / 0x4e61d0 */
-    eng_tc1 h409150; eng_tc0 h55fdb0; eng_tc3 h4066d0; eng_tc3 h41d780; eng_tc2 h4e6520; eng_tc2 h4e61d0;
+    eng_tc1 h409150; eng_tc0 h55fdb0; eng_tc3 h41d780; eng_tc2 h4e6520; eng_tc2 h4e61d0;
 } engine_calls;
 
 extern engine_calls g_eng;

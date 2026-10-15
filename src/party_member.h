@@ -47,7 +47,7 @@
  *   FUN_00413810  room_stats_refresh   FUN_00416570  room_item_equip
  *   FUN_004e6070  room_party_dismiss   FUN_004c63a0  room_member_leave
  *   FUN_004c6550  room_member_join     FUN_004cc820  room_member_add
- *   FUN_00415e20  room_item_add
+ *   FUN_00415e20  room_item_add        FUN_004066d0  stats_recompute
  */
 #ifndef OSS_PARTY_MEMBER_H
 #define OSS_PARTY_MEMBER_H
@@ -99,5 +99,8 @@ wl_pslot *room_member_join(wl_room *r, int32_t id, wl_char *ch, int32_t mode);  
 wl_pslot *room_member_add(wl_room *r, uint16_t idx, int32_t code, int32_t level, int32_t id, int32_t order,
                           int32_t active);                                               /* 0x4cc820 */
 int room_item_add(wl_room *r, int32_t item, uint16_t *idx, int32_t count, uint8_t flag, int32_t dry); /* 0x415e20 */
+/* 0x4066d0 (thiscall room): member `id`'s (in the party) stats into `st` from its base and its items —
+ * with `with` set, as if that item replaced the one of its equip slot (the equip preview) */
+void stats_recompute(wl_room *r, int32_t id, uint8_t *st, const uint8_t *with);
 
 #endif /* OSS_PARTY_MEMBER_H */

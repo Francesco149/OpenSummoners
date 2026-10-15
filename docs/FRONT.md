@@ -70,7 +70,8 @@
   | its helpers: scene object, event flags, area flag / find / cross-reference, slot reset, inputs, keep lists, retry / heal / gold, room loop new / free, room-end cleanup, frame cache | `0x41a7f0` `0x4c57f0` `0x4c5830` `0x560e90` `0x561c90` `0x585000` `0x560e60` `0x5611d0` `0x5851e0` `0x5a3de0` `0x5a3e20` `0x4cc5a0` `0x5a3c40` `0x585f00` `0x5a3ff0` (REPLACE) `0x562a70` … (34) | 1,251 xref / 29 / 24 / 16 … (21 of 34 reached) | 0 |
   | the room → scene snapshot (what a save stores: room fields, play time, items, members, fill table, flags) | `0x55f790` | 11 | 0 |
   | the PARTY API (the story setups by start area, start members from the config, levels, slot init, skills, starting items, leader, join / leave / dismiss, equip + stat refresh, class fit, item add) | `0x4c5350` `0x4e59a0` `0x408dc0` `0x4c5e00` `0x4c6160` `0x4c6990` `0x4c6830` `0x413b20` `0x408d40` … (25) | 6 / 6 / 6 / 3 / 3 / 3 / 3 / 6 / 3 … (11 of 25 reached: the new-game path) | 0 |
-  Hybrid gate: with all of the above REPLACING retail (292 hooks) (the whole character tick, driver → tile
+  | the member stats recompute (base + items, with an equip-preview item) | `0x4066d0` | 1 | 0 |
+  Hybrid gate: with all of the above REPLACING retail (293 hooks) (the whole character tick, driver → tile
   movers, + the room loop's passes and per-tick calls, runs as port code), every corpus scenario ends byte-identical.
   Shadow guard (rhost): a port phase that reaches an external effect retail already performed (surface free,
   buffer release, DeleteObject, DirectInput, a mode-0/2 script) aborts its comparison (counted skipped); those
@@ -102,9 +103,8 @@
      save writer `0x41a890`,
      the save apply `0x561d20`, the demo scene `0x41b670` (+ `0x4c5af0` / `0x52fd80` / `0x5a3870`), the menu
      `0x5a00c0` (13.7 KB), the file reader `0x5b6060`.. (platform). The party API (`src/party_member.c`, quirk
-     #142) is ported; its slots: the level-up stats `0x409150`, the cue `0x55fdb0`, the equipment recompute
-     `0x4066d0`, the level / status sync `0x41d780`, the start gear `0x4e6520` / `0x4e61d0`. Next: `0x41a890`
-     (the save writer, every room start) or `0x4066d0` (reached in play).
+     #142) is ported; its slots: the level-up stats `0x409150`, the cue `0x55fdb0`, the level / status sync `0x41d780`, the start gear `0x4e6520` / `0x4e61d0`. Next: `0x41a890`
+     (the save writer, every room start).
   00. the ROOM LOOP `0x58f360` RUNS AS PORT CODE (`room_loop_run`, REPLACE-verified; Flip / the camera
      easer go through rhost's own stubs). Left under it as slots: the pickups `0x59ca90` (+ the world
      message log world+4 / +0x1024, "You got %s!"), the warp countdown `0x59c750`, the leader swap

@@ -7,7 +7,7 @@ own engine callees ported, so it can land today with zero new dependencies. Sort
 
 For the *forward* port path (the title-menu scene runner and what it calls) and the semantic milestone order, see `ROADMAP.md` — some of that path isn't yet reachable from ported code so won't appear here.
 
-- frontier functions: **355**
+- frontier functions: **354**
 - of those, zero-dependency **leaves: 183** (recommended order below)
 
 ## Leaf shortlist — portable today (top 40 by ported-caller count)
@@ -48,16 +48,16 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x495e40 | 411 | 2 | tile/sprite grid render + spell fx + battle UI + palette |
 | 0x407f30 | 453 | 2 | object-pool ctor + game-loop FSM + font/glyph + msg fmt |
 | 0x40f800 | 511 | 2 | object-pool ctor + game-loop FSM + font/glyph + msg fmt |
-| 0x4066d0 | 989 | 2 | object-pool ctor + game-loop FSM + font/glyph + msg fmt |
 | 0x4051d0 | 3244 | 2 | object-pool ctor + game-loop FSM + font/glyph + msg fmt |
 | 0x4034f0 | 7330 | 2 | object-pool ctor + game-loop FSM + font/glyph + msg fmt |
 | 0x4a5f80 | 10 | 1 | scene-event dispatch (narrative scripting) + party/inventory |
 | 0x4a5f90 | 11 | 1 | scene-event dispatch (narrative scripting) + party/inventory |
 | 0x58ffc0 | 14 | 1 | master sprite-group register + audio/music init + anim pump |
+| 0x5ba3f0 | 17 | 1 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 
 ## Full frontier by address band
 
-### object-pool ctor + game-loop FSM + font/glyph + msg fmt (26)
+### object-pool ctor + game-loop FSM + font/glyph + msg fmt (25)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
@@ -67,7 +67,6 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x40ac90 | 834 | 3 | 5 |  |
 | 0x407f30 | 453 | 2 | 0 | ✓ |
 | 0x40f800 | 511 | 2 | 0 | ✓ |
-| 0x4066d0 | 989 | 2 | 0 | ✓ |
 | 0x4051d0 | 3244 | 2 | 0 | ✓ |
 | 0x40c380 | 5077 | 2 | 88 |  |
 | 0x4034f0 | 7330 | 2 | 0 | ✓ |
@@ -79,7 +78,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x401e60 | 232 | 1 | 0 | ✓ |
 | 0x40df40 | 374 | 1 | 0 | ✓ |
 | 0x402330 | 431 | 1 | 0 | ✓ |
-| 0x406500 | 454 | 1 | 1 |  |
+| 0x406500 | 454 | 1 | 0 | ✓ |
 | 0x402d40 | 470 | 1 | 0 | ✓ |
 | 0x4020a0 | 503 | 1 | 0 | ✓ |
 | 0x406210 | 555 | 1 | 1 |  |
@@ -374,7 +373,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x56c640 | 690 | 1 | 2 |  |
 | 0x568de0 | 998 | 1 | 13 |  |
 | 0x56a670 | 1011 | 1 | 17 |  |
-| 0x561d20 | 1259 | 1 | 6 |  |
+| 0x561d20 | 1259 | 1 | 5 |  |
 | 0x5624c0 | 1355 | 1 | 9 |  |
 
 ### master sprite-group register + audio/music init + anim pump (9)

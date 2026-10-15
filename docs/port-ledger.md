@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **574** (36.6% of engine-proper) — tested 250, ported 324
-- code bytes touched: **30.1%** (534,067 / 1,776,526 B of engine-proper)
-- unported: **1250**
+- touched: **575** (36.7% of engine-proper) — tested 250, ported 325
+- code bytes touched: **30.1%** (535,056 / 1,776,526 B of engine-proper)
+- unported: **1249**
 - orphan refs in src/ not in this table: 0
 
 ## tested (250) — ported + host unit suite
@@ -274,7 +274,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (324) — reimplemented, no host test yet
+## ported (325) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -286,6 +286,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4022d0 | sub_4022D0 | 88 | room_load.h |
 | 0x402a60 | sub_402A60 | 435 | char_state.h |
 | 0x4060d0 | sub_4060D0 | 241 | char_state.h |
+| 0x4066d0 | sub_4066D0 | 989 | party_member.h |
 | 0x406ec0 | sub_406EC0 | 813 | party_member.h |
 | 0x4071f0 | sub_4071F0 | 196 | party_member.h |
 | 0x4072c0 | sub_4072C0 | 85 | char_def.h |

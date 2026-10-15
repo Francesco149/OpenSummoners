@@ -615,6 +615,39 @@ void item_stats_add(const uint8_t *item, uint8_t *st)
     }
 }
 
+void stats_recompute(wl_room *r, int32_t id, uint8_t *st, const uint8_t *with)
+{
+    const uint8_t *m = NULL;
+    for (int i = 0; i < 8; i++) if (r->slot[i]->id == id) { m = (const uint8_t *)r->slot[i]; break; }
+    if (m == NULL || ld32(m, 0x9c4) != 1) return;
+    st32(st, 0x64, ld32(m, 0xa74));
+    st32(st, 0x68, ld32(m, 0xa78));
+    st32(st, 0x6c, ld32(m, 0xa7c));
+    st32(st, 0x70, ld32(m, 0xa80));
+    st32(st, 0x8c, ld32(m, 0xa9c));
+    st32(st, 0x90, ld32(m, 0xaa0));
+    st32(st, 0x94, ld32(m, 0xaa4));
+    st32(st, 0x98, ld32(m, 0xaa8));
+    for (uint32_t o = 0x74; o <= 0x88; o += 4) st32(st, o, 0);
+    st16(st, 0x120, 0);
+    for (uint32_t o = 0x124; o <= 0x134; o += 4) st32(st, o, 0);
+    stats_fill1000(st);
+    for (uint16_t i = 0; i < ld16(r, 0x4010); i++) {
+        const uint8_t *it = ITEM(r, i);
+        if (ld32(it, 4) != id) continue;
+        const uint8_t *d = ldp(it, 0xc);
+        int32_t kind = ld32(d, 0x78);
+        if (kind != 0 && (with == NULL || ld32(with, 0x78) != kind)) item_stats_add(d, st);
+    }
+    if (with != NULL && ld32(with, 0x78) != 0) item_stats_add(with, st);
+    int32_t hp = ld32(st, 0x58) + ld32(st, 0x9c) + ld32(st, 0x84);
+    if (hp >= ld32(st, 0x54)) hp = ld32(st, 0x54);
+    st32(st, 0x54, hp);
+    int32_t mp = ld32(st, 0x88) + ld32(st, 0x60) + ld32(st, 0xa0);
+    if (mp >= ld32(st, 0x5c)) mp = ld32(st, 0x5c);
+    st32(st, 0x5c, mp);
+}
+
 /* a member's stats from its base and its equipment */
 static void member_stats_refresh(wl_room *r, wl_pslot *s)
 {
@@ -702,7 +735,7 @@ void room_party_dismiss(wl_room *r)
         member_unequip_all(r, s);
         for (int j = 0; j < 8; j++) {
             wl_pslot *t = r->slot[j];
-            if (pslot_ok(t, 1, 1)) g_eng.h4066d0(r, t->id, IP(t->stats), 0);
+            if (pslot_ok(t, 1, 1)) stats_recompute(r, t->id, t->stats, NULL);
             if (pslot_ok(r->slot[j], 1, 0) && r->slot[j]->ch != NULL) member_palette(r->slot[j]->ch);
         }
         s->active = 2;
@@ -716,7 +749,7 @@ void room_member_leave(wl_room *r, wl_pslot *s, int32_t check)
     member_unequip_all(r, s);
     for (int j = 0; j < 8; j++) {
         wl_pslot *t = r->slot[j];
-        if (t->active == 1 || t->active == 2) g_eng.h4066d0(r, t->id, IP(t->stats), 0);
+        if (t->active == 1 || t->active == 2) stats_recompute(r, t->id, t->stats, NULL);
         if (r->slot[j]->active == 1 && r->slot[j]->ch != NULL) member_palette(r->slot[j]->ch);
     }
     if (check != 0) {

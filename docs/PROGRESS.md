@@ -16,6 +16,7 @@ specific commits where relevant.
 - rhost: the new-game path shadowed (room_story_setup 6 / setup2 6 / party level 6 / slot by id 6 /
   stat row 6 / init 3 / skills 3 / items 3 / leader 3 / heal 3), 0 divergences; the rest (join /
   leave / equip / add / dismiss) unreached by the corpus.  Hybrid gate: 292 hooks, PASS.
+- + the stats recompute 0x4066d0 (`stats_recompute`, with the equip preview; 1 shadowed); hybrid 293.
 
 ## 2026-10-15 (dawn) — the SCENE LOOP 0x59f2c0 runs as port code
 

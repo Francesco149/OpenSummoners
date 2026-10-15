@@ -7,15 +7,15 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 250,
-  "ported": 324,
-  "unported": 1250,
+  "ported": 325,
+  "unported": 1249,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 574,
-  "pct_touched": 36.6,
+  "touched": 575,
+  "pct_touched": 36.7,
   "pct_tested": 15.8,
-  "engine_proper_touched": 561,
+  "engine_proper_touched": 562,
   "bytes_total": 1776526,
-  "bytes_touched": 534067,
+  "bytes_touched": 535056,
   "pct_bytes_touched": 30.1
  },
  "orphan_refs": [],
@@ -496,8 +496,10 @@
    "name": "sub_4066D0",
    "size": 989,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/party_member.h"
+   ]
   },
   {
    "va": "0x406ab0",
