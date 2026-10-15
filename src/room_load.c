@@ -22,6 +22,7 @@
 #include "particle_init.h"
 #include "device_init.h"
 #include "rng.h"
+#include "char_init.h"
 #include "room_loop.h"
 #include "sprite_slot.h"
 #include "world_alloc.h"
@@ -410,8 +411,8 @@ void room_populate(wl_roomloop *rl, int32_t map, const uint8_t *mres)
                 if (++n >= 32) break;
             }
             if (c == NULL) log_fatal(0x8a2e64u);   /* "Character object ..." */
-            g_eng.h41f200(c, x, y, 1, 1, ld32(rec, 0x0), code, (intptr_t)(((uint32_t)r2c & 0xffff0000u) | w18), facing,
-                          id1, r30, r2c, a5, id2, a11);
+            char_init(c, x, y, 1, 1, ld32(rec, 0x0), code, (int32_t)(((uint32_t)r2c & 0xffff0000u) | w18), facing,
+                      id1, r30, r2c, a5, id2, a11);
             c->presence = a6;
         }
         code = ld32(rec, 0x10);

@@ -62,7 +62,9 @@
   | the ROOM POPULATION (map objects → characters / effects / devices / structures) | `0x58d460` | 16 (all full-state) | 0 |
   | the STRUCTURE init (box + track by code) + the handle list filing | `0x438a60` / `0x555f00` | 596 / 544 | 0 |
   | the DEVICE init (~95 codes: box, track, collision, steps, zones, lists) + sound-channel reset, step add, zone, link state, night glow, grid mark D, parts copy, sub-device spawn | `0x431e30` (+ `0x426490` `0x438630` `0x438670` `0x4386a0` `0x4386f0` `0x438520` `0x438740` `0x556ef0`) | 425 (34 codes) / 418 | 0 |
-  Hybrid gate: with all of the above REPLACING retail (170 hooks) (the whole character tick, driver → tile
+  | the CHARACTER INIT (dramatist override, resets, base stats + difficulty, pacing, ~150 codes: Arche / Sana / townsfolk / animals in place, the rest → 18 per-type inits as slots) | `0x41f200` | 103 (all full-state; 17 codes incl. the dramatist path) | 0 |
+  | its 42 definition helpers: skill find / learn / define / by code, AI skill records + boxes, approach records, combos, base stats `0x426fd0` + jitter `0x426e00`, voice set init / free, pacing, idle, clips / walk / run / jump / crouch / hit / carry / move / nav setters, party mode, idle voice | `0x4072c0` `0x4282f0` `0x4285f0` `0x427fb0` `0x4287d0` `0x428950` `0x427f00` `0x427430` `0x426fd0` `0x426e00` `0x4289f0` `0x426380` `0x427670` `0x427360` … `0x431cb0` | 320 learn / 288 combo / 224 ai / 206 jitter / 103 stats … (33 of 42 reached; via retail's 0x41f200) | 0 |
+  Hybrid gate: with all of the above REPLACING retail (222 hooks) (the whole character tick, driver → tile
   movers, + the room loop's passes and per-tick calls, runs as port code), every corpus scenario ends byte-identical.
   Shadow guard (rhost): a port phase that reaches an external effect retail already performed (surface free,
   buffer release, DeleteObject, DirectInput, a mode-0/2 script) aborts its comparison (counted skipped); those
@@ -79,18 +81,18 @@
   `g_eng.op_new`). Hybrid gate with all 12 movement functions replacing retail: PASS.
 - **Next (port side):**
   000. `load_room 0x586010` RUNS AS PORT CODE (`src/room_load.c`, REPLACE-verified; quirk #138), the world it makes /
-     frees too (`src/world_alloc.c`), and the map decode (`map_decode_room`). Slots left under it: the population's inits — character
-     `0x41f200` (27 KB, 61 unported callees) —, the party member create `0x58e170` (→ `0x41f200`,
-     `0x5b4530`), the palette read `0x4178e0` (bitmap resource) + frames `0x418470` / `0x417c40` (DirectDraw), `0x56dc20`
-     (Now Loading text + Flip: platform), `0x41a890`, `0x40e0c0`, the room-start script `0x40c380`, the joystick
-     create `0x5ba120` / `0x5ba290` (platform). Next: the CHARACTER INIT `0x41f200` — 27 KB: the reset (+0x158d0
-     0x1d8, stats via the base table `0x426fd0`, difficulty scaling by world+0x2780, the brain / skill / voice set-up),
-     then by code (50000..59999, 100xxx) either inline set-ups or the ~20 per-type inits `0x428c00`..`0x430400`
-     (~30 KB) over ~40 shared helpers (`0x4072c0` skill lookup, `0x427430` combo add, `0x427670` look by kind,
-     `0x427f00` ai record, `0x4282f0` / `0x4285f0` skill add, `0x4287d0` attack box, `0x428950`, `0x4289f0` voice
-     set, `0x427fb0` the char→skill table 0x6907c0, setters `0x427580`..`0x427eb0` / `0x428780`); plan: helpers →
-     0x41f200 with the per-type inits as slots (shadow full-state over the corpus' characters) → each per-type init.
-     Then the scene loop `0x59f2c0` (its save-load half is unexercised by the corpus: a save scenario is needed).
+     frees too (`src/world_alloc.c`), the map decode (`map_decode_room`), the population + device / structure
+     inits, and now the CHARACTER INIT `0x41f200` (`src/char_init.c` + 42 helpers `src/char_def.c`; quirk #139).
+     Slots left under it: the 18 per-type inits `0x428c00` `0x429060` `0x429db0` `0x42a500` `0x42a9a0` `0x42b9a0`
+     `0x42c130` `0x42c510` `0x42c970` `0x42cce0` `0x42d3c0` `0x42da50` `0x42e290` `0x42eb20` `0x42f840` `0x42fbf0`
+     `0x42ff00` `0x430400` (monsters / bosses / party allies; ~30 KB, built from the char_def helpers + 0x41e020 /
+     0x426db0 / 0x556380 + a few leaves 0x429d00 0x429d50 0x42b550.. 0x42da20 0x42ea50) — **the corpus reaches NONE
+     of them** (no dungeon / monster room: 17 townsfolk / party codes only), so porting them needs a monster-room
+     scenario first (USER `rhost.py record`); the party member create `0x58e170` (→ `0x5b4530`), the palette read
+     `0x4178e0` + frames `0x418470` / `0x417c40` (DirectDraw), `0x56dc20` (Now Loading + Flip), `0x41a890`,
+     `0x40e0c0`, the room-start script `0x40c380`, the joysticks `0x5ba120` / `0x5ba290` (platform). Next: the
+     party member create `0x58e170` + `0x5b4530` (reached by every room load), then the scene loop `0x59f2c0`
+     (its save-load half needs a save scenario).
   00. the ROOM LOOP `0x58f360` RUNS AS PORT CODE (`room_loop_run`, REPLACE-verified; Flip / the camera
      easer go through rhost's own stubs). Left under it as slots: the pickups `0x59ca90` (+ the world
      message log world+4 / +0x1024, "You got %s!"), the warp countdown `0x59c750`, the leader swap

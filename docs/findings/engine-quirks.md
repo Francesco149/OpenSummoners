@@ -4327,6 +4327,41 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   (`0x438740`) unless multipart, the offset to the followed entity. 70480 spawns its own platform 100144
   (`0x556ef0`, anchor 2 below it).
 
+### #139 — the character init `0x41f200`: the dramatist override, the tint = the code, the difficulty HP (port 2026-10-15)
+- **Dramatist table 0x6b6ea8** (52-byte rows: handle, code, name +8, u16 track +0x30; 0 ends it) keyed by the
+  handle argument: the row's code replaces the argument's only when a5 == 1 (the party) or the argument's code is 0;
+  its track (when != 0) wins over the variant's; its name (when non-empty) is copied over the stat block's name at
+  the very end.
+- **The tint = the code** when a11 is not 0 / 1 (0 → 13, 1 → 7; there is no else): the entity +0xfc / +0x100 and
+  char +0x15910 then hold the character's code.  58010 forces 12.
+- **Difficulty** (world+0x2780): the stat row's HP h: 10 → h - min(h/2, max(40% h, 8)), stats +0x64 / +0x6c -4;
+  20 → h - min(h/2, max(25% h, 4)), -2; 40 → h + max(10% h, 4), +4; 50 → h + max(15% h, 8), +8 (stats clamped at
+  0); then HP (at least 1) and MP each go through `0x426e00(v, 1000, rand x 1000 / 0x8000)` = q + r x d / 1000 - d
+  with d = min(50% q, max(20% q, 2), 100) — a jitter of up to +-d.  Cur = max + the +0x84 / +0x9c (HP) and +0x88 /
+  +0xa0 (MP) bonuses.  The base row (0x426fd0: stat table 0x67ac58, 220-byte rows, level 1) also draws one rand for
+  +0xf4 = row[11] x (750 + rand x 500 / 0x8000) / 1000.
+- **The pacing** (5 draws, retail evaluates the last argument first): +0xc87c = 950 + 50r, +0xc87a = 750 + 100r,
+  +0xc878 = 750 + 100r, +0xc876 = 950 + 50r, +0xc874 = 650 + 100r (each r = rand x n / 0x8000 in draw order); the
+  per-type `0x427670` kinds 2..5 redraw the same five with other bases, 0 / 1 / 6 / 7 are flat.
+- **Gates (return before ANY epilogue: no list, no handle, no AI reset)**: 58010 spawns only when the time of
+  day sys+0x289c is not 1..4 (`0x426420`); 51022 / 51061 / 51062 only when `0x426440(1,1,1)` or the grid's +0x1c or
+  world+0x27b4 is set.  Townsfolk (and 50013 / 58010) get +0x15908 = 1 INSTEAD of the world list +0x2788.
+- **Skill / AI records**: skills (cap 64) carry the empty string 0x8a9b6c as their +4 name and mode +0x2f8 = 1; the
+  AI skill records (+0xca28, 320 B, u16 count +0x14228) and the approach records (+0xc8a4, 48 B, u16 +0xca24) have
+  **no capacity check**; an AI skill record binds only a LEARNT skill (u16 id match), else nothing is added.  A
+  combo (`0x427430`, cap 64; skipped for a non-direct one whose skill is not learnt) sets its id count to 1, the
+  second id SETS it to 2 and each later non-zero id increments it — so a zero second id with a non-zero third
+  leaves the third past the count.
+- **Arche (50010)** is built in place (not `0x426620`): her own box (2000 x 5600, -30 / -24), every body reset
+  (state, action, clip, region flags of part 0 copied to the rest), the multi-part table freed, tracks 139..141 +
+  142, her skills from 0x6907c0 (16-byte rows: code, skill), six hand-built AI records (10101 / 10117 / 10102 /
+  10104 / 10109 / 10118; 10117 gets +0x128 = 20) + 13 by `0x4287d0`, 18 combos, voice 50010.  `0x431ba0` (every
+  character, the party mode = stat +0xd4) re-tunes only her: mode 1 = the look-up pose 700 / 75, +0xc848 600,
+  +0xe8 1, stand clip 0x62def8; else 500 / 78, 200, 0, 0x62a8c8.
+- **Home posts**: part 0's right / left +- 32000 / 16000 / 20000 for the AI modes 5 / 6 / 12 (8000 for 58010),
+  y = part 0's bottom; for anchor 3 body 0 is lifted by +0x1f4 unless +0x1f8 == 1.  0x555f00 takes ONE argument
+  (the handle; the decompile shows two).
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

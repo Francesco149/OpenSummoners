@@ -6,6 +6,44 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-15 (late night) — the CHARACTER INIT 0x41f200 runs as port code
+
+- `char_init` (`src/char_init.c`, 27 KB retail): the dramatist override (0x6b6ea8), the per-character
+  resets, the base stats (0x426fd0 on the retail stat block +0x274) + the difficulty HP / stat scaling +
+  the 0x426e00 jitter, the pacing draws, then ~150 codes flattened from the compiled case tree: Arche /
+  Sana / 50012 / 50013 / 59993 / 100178 built in place, the townsfolk and animals (track by variant,
+  clips, walk / run, mode 12 / 13, name), the rest via the 18 per-type inits (slots); the epilogue
+  (lists, AI reset, ground probe, handle, party mode, home posts, stand clip, idle pick).  42 helpers in
+  `src/char_def.c` (skills, AI skill / approach records, combos, voice set, setters).  quirk #139.
+- rhost shadow: char_init 103 calls / 3 scenarios (17 codes incl. the dramatist path), 0 divergences;
+  helpers (through retail's 0x41f200) 33 of 42 reached, 0 divergences; replace: corpus --check PASS
+  (char_init + helpers; the hybrid gate with 222 hooks).  A generic X-macro wrapper family
+  (`TC_HOOK` / `ST_HOOK`) now makes a full-state shadow hook one line.
+- The corpus reaches no per-type init (no monster room): they are the next layer once a dungeon
+  scenario exists; the room setup's remaining slots are the party member create 0x58e170 (+ 0x5b4530)
+  and the platform calls.
+
+## 2026-10-15 (late) — the room SETUP runs as port code: load_room, the world, the map, the population
+
+- `load_room 0x586010` (`src/room_load.c`, REPLACE-verified on all 16 corpus room loads): the room
+  loop reset, a NEW world per room (`src/world_alloc.c`: ctor 0x4017d0 / dtor 0x54bfb0 + the entity
+  frees), the draw pools, the entry gate, the room-start script, the map (resource read 0x587970 →
+  the existing grid decoder fed the retail map object + the prologue's engine-side effects =
+  `map_decode_room` 0x587e00), the POPULATION 0x58d460 (characters / effects with prio eviction /
+  devices / structures; the structure init 0x438a60 ported), the actor state restore 0x41e600, the
+  map sprite's palette (tint 0x4182d0, swap table, `src/sprite_slot.c` frame frees), the NPC entry
+  roll, the party + FORMATION 0x41dc90, the camera snap 0x58e6a0, zone reset, view record / quest
+  states, the start event and the room-loop result loop, the room-end state save 0x58e330.
+  ~45 functions; each leaf shadow-verified per call (0 divergences). quirk #138.
+- Retail reads several UNINITIALIZED stack locals carried across loop iterations (the NPC presence
+  pct, the formation triple, the structure kind, room_state_save's map): ported as one local per
+  loop starting at 0 — retail-undefined only before the first assignment; none reached in the corpus.
+- rhost: the map decode shadow's resource recorder is the map resource load's wrapper now.
+- Hybrid gate: 177 hooks replacing retail, all 7 scenarios byte-identical. Left under load_room:
+  the character init 0x41f200 (27 KB) / device init 0x431e30 (25 KB), the party member create
+  0x58e170 (+ 0x5b4530), the bitmap palette read 0x4178e0 + DirectDraw frame builds, the script
+  engine 0x40c380, the scene runner stop 0x41a890; then the scene loop 0x59f2c0.
+
 ## 2026-10-15 — the room loop runs as port code: passes (gimmicks, doors, zones), input, encounters
 
 - Ported on retail layout + verified inside retail: the GIMMICK pass 0x59afd0 / 0x59b170 (switch
@@ -7957,24 +7995,3 @@ from the NPC's spawn + idle→walk timer; the NPC's `0x442a70`/`0x43f880` walk A
 collision + its RENDER (its path 41600→43024 is near Arche's arrival point ⇒ likely
 on-screen — flagged for USER visual check) are deferred.  1105 host pass;
 `town_npc_pertick` test.  `errands-rng-census.md` "The NPC walk PORTED".
-
-## 2026-10-15 (late) — the room SETUP runs as port code: load_room, the world, the map, the population
-
-- `load_room 0x586010` (`src/room_load.c`, REPLACE-verified on all 16 corpus room loads): the room
-  loop reset, a NEW world per room (`src/world_alloc.c`: ctor 0x4017d0 / dtor 0x54bfb0 + the entity
-  frees), the draw pools, the entry gate, the room-start script, the map (resource read 0x587970 →
-  the existing grid decoder fed the retail map object + the prologue's engine-side effects =
-  `map_decode_room` 0x587e00), the POPULATION 0x58d460 (characters / effects with prio eviction /
-  devices / structures; the structure init 0x438a60 ported), the actor state restore 0x41e600, the
-  map sprite's palette (tint 0x4182d0, swap table, `src/sprite_slot.c` frame frees), the NPC entry
-  roll, the party + FORMATION 0x41dc90, the camera snap 0x58e6a0, zone reset, view record / quest
-  states, the start event and the room-loop result loop, the room-end state save 0x58e330.
-  ~45 functions; each leaf shadow-verified per call (0 divergences). quirk #138.
-- Retail reads several UNINITIALIZED stack locals carried across loop iterations (the NPC presence
-  pct, the formation triple, the structure kind, room_state_save's map): ported as one local per
-  loop starting at 0 — retail-undefined only before the first assignment; none reached in the corpus.
-- rhost: the map decode shadow's resource recorder is the map resource load's wrapper now.
-- Hybrid gate: 177 hooks replacing retail, all 7 scenarios byte-identical. Left under load_room:
-  the character init 0x41f200 (27 KB) / device init 0x431e30 (25 KB), the party member create
-  0x58e170 (+ 0x5b4530), the bitmap palette read 0x4178e0 + DirectDraw frame builds, the script
-  engine 0x40c380, the scene runner stop 0x41a890; then the scene loop 0x59f2c0.

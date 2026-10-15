@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 250,
-  "ported": 221,
-  "unported": 1353,
+  "ported": 263,
+  "unported": 1311,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 471,
-  "pct_touched": 29.9,
+  "touched": 513,
+  "pct_touched": 32.6,
   "pct_tested": 15.8,
-  "engine_proper_touched": 458,
+  "engine_proper_touched": 500,
   "bytes_total": 1776526,
-  "bytes_touched": 481184,
-  "pct_bytes_touched": 27.1
+  "bytes_touched": 516210,
+  "pct_bytes_touched": 29.1
  },
  "orphan_refs": [],
  "functions": [
@@ -534,8 +534,10 @@
    "name": "sub_4072C0",
    "size": 85,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x407320",
@@ -2171,8 +2173,10 @@
    "name": "sub_41E280",
    "size": 47,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x41e2b0",
@@ -2211,8 +2215,10 @@
    "name": "sub_41E440",
    "size": 125,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x41e4c0",
@@ -2331,8 +2337,11 @@
    "name": "sub_41F200",
    "size": 27403,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_init.c",
+    "src/char_init.h"
+   ]
   },
   {
    "va": "0x426110",
@@ -2351,16 +2360,20 @@
    "name": "sub_426380",
    "size": 157,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x426420",
    "name": "sub_426420",
    "size": 24,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x426440",
@@ -2377,8 +2390,10 @@
    "name": "sub_426480",
    "size": 4,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x426490",
@@ -2446,8 +2461,10 @@
    "name": "sub_426E00",
    "size": 188,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x426ec0",
@@ -2509,6 +2526,7 @@
    "src": [
     "src/base_stat_table.c",
     "src/base_stat_table.h",
+    "src/char_def.h",
     "src/party.c",
     "src/party.h"
    ]
@@ -2538,240 +2556,300 @@
    "name": "sub_427360",
    "size": 83,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x4273c0",
    "name": "sub_4273C0",
    "size": 39,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x4273f0",
    "name": "sub_4273F0",
    "size": 50,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x427430",
    "name": "sub_427430",
    "size": 321,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x427580",
    "name": "sub_427580",
    "size": 109,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x4275f0",
    "name": "sub_4275F0",
    "size": 23,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x427610",
    "name": "sub_427610",
    "size": 63,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x427650",
    "name": "sub_427650",
    "size": 25,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x427670",
    "name": "sub_427670",
    "size": 1242,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x427b70",
    "name": "sub_427B70",
    "size": 132,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x427c00",
    "name": "sub_427C00",
    "size": 43,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x427c30",
    "name": "sub_427C30",
    "size": 83,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x427c90",
    "name": "sub_427C90",
    "size": 43,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x427cc0",
    "name": "sub_427CC0",
    "size": 23,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x427ce0",
    "name": "sub_427CE0",
    "size": 73,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x427d30",
    "name": "sub_427D30",
    "size": 141,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x427dc0",
    "name": "sub_427DC0",
    "size": 33,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x427df0",
    "name": "sub_427DF0",
    "size": 79,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x427e40",
    "name": "sub_427E40",
    "size": 41,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x427e70",
    "name": "sub_427E70",
    "size": 63,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x427eb0",
    "name": "sub_427EB0",
    "size": 73,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x427f00",
    "name": "sub_427F00",
    "size": 162,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x427fb0",
    "name": "sub_427FB0",
    "size": 824,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x4282f0",
    "name": "sub_4282F0",
    "size": 754,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x4285f0",
    "name": "sub_4285F0",
    "size": 392,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x428780",
    "name": "sub_428780",
    "size": 33,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x4287b0",
    "name": "sub_4287B0",
    "size": 27,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x4287d0",
    "name": "sub_4287D0",
    "size": 384,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x428950",
    "name": "sub_428950",
    "size": 146,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x4289f0",
    "name": "sub_4289F0",
    "size": 522,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x428c00",
@@ -2994,32 +3072,40 @@
    "name": "sub_431930",
    "size": 599,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x431b90",
    "name": "sub_431B90",
    "size": 15,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x431ba0",
    "name": "sub_431BA0",
    "size": 266,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x431cb0",
    "name": "sub_431CB0",
    "size": 87,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/char_def.h"
+   ]
   },
   {
    "va": "0x431d10",

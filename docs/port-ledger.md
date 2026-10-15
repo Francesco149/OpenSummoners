@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **471** (29.9% of engine-proper) — tested 250, ported 221
-- code bytes touched: **27.1%** (481,184 / 1,776,526 B of engine-proper)
-- unported: **1353**
+- touched: **513** (32.6% of engine-proper) — tested 250, ported 263
+- code bytes touched: **29.1%** (516,210 / 1,776,526 B of engine-proper)
+- unported: **1311**
 - orphan refs in src/ not in this table: 0
 
 ## tested (250) — ported + host unit suite
@@ -55,7 +55,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x419900 | picker_seek_value_419900 | 128 | newgame_picker.c, newgame_picker.h |
 | 0x426110 | sub_426110 | 610 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
 | 0x426f50 | sub_426F50 | 26 | char_integrate.h, character.c |
-| 0x426fd0 | sub_426FD0 | 781 | base_stat_table.c, base_stat_table.h, party.c (+1) |
+| 0x426fd0 | sub_426FD0 | 781 | base_stat_table.c, base_stat_table.h, char_def.h (+2) |
 | 0x4385e0 | sub_4385E0 | 45 | char_physics.c, char_physics.h |
 | 0x43b980 | sub_43B980 | 783 | cutscene.c, dialogue.h |
 | 0x43bca0 | sub_43BCA0 | 1105 | cutscene.c, dialogue.h, newgame_drive.c (+1) |
@@ -274,7 +274,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (221) — reimplemented, no host test yet
+## ported (263) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -285,6 +285,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4022d0 | sub_4022D0 | 88 | room_load.h |
 | 0x402a60 | sub_402A60 | 435 | char_state.h |
 | 0x4060d0 | sub_4060D0 | 241 | char_state.h |
+| 0x4072c0 | sub_4072C0 | 85 | char_def.h |
 | 0x407320 | sub_407320 | 190 | char_integrate.h |
 | 0x407b80 | sub_407B80 | 32 | char_integrate.h |
 | 0x407ba0 | sub_407BA0 | 907 | sound_fx.h |
@@ -313,23 +314,64 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x41dc90 | sub_41DC90 | 890 | room_load.h |
 | 0x41e020 | sub_41E020 | 70 | room_load.h |
 | 0x41e180 | sub_41E180 | 244 | char_state.h |
+| 0x41e280 | sub_41E280 | 47 | char_def.h |
+| 0x41e440 | sub_41E440 | 125 | char_def.h |
 | 0x41e600 | sub_41E600 | 907 | actor_ops.h |
 | 0x41ea70 | sub_41EA70 | 187 | entity_life.h |
 | 0x41ee60 | sub_41EE60 | 252 | char_state.h |
 | 0x41ef80 | sub_41EF80 | 83 | char_state.h |
+| 0x41f200 | sub_41F200 | 27403 | char_init.c, char_init.h |
+| 0x426380 | sub_426380 | 157 | char_def.h |
+| 0x426420 | sub_426420 | 24 | char_def.h |
 | 0x426440 | sub_426440 | 47 | char_state.h |
+| 0x426480 | sub_426480 | 4 | char_def.h |
 | 0x426490 | sub_426490 | 322 | device_init.h |
 | 0x4265e0 | sub_4265E0 | 53 | particle_init.h |
 | 0x426620 | sub_426620 | 1437 | particle_init.c, particle_init.h |
 | 0x426be0 | sub_426BE0 | 395 | char_integrate.h |
 | 0x426d70 | sub_426D70 | 57 | particle_init.h |
 | 0x426db0 | sub_426DB0 | 72 | char_state.h |
+| 0x426e00 | sub_426E00 | 188 | char_def.h |
 | 0x426ec0 | sub_426EC0 | 82 | particle_init.h |
 | 0x426f20 | sub_426F20 | 47 | char_integrate.h |
 | 0x426f70 | sub_426F70 | 37 | npc_ai.h |
 | 0x426fa0 | sub_426FA0 | 45 | npc_ai.h |
 | 0x4272e0 | sub_4272E0 | 79 | particle_init.h |
 | 0x427330 | sub_427330 | 43 | device_init.h |
+| 0x427360 | sub_427360 | 83 | char_def.h |
+| 0x4273c0 | sub_4273C0 | 39 | char_def.h |
+| 0x4273f0 | sub_4273F0 | 50 | char_def.h |
+| 0x427430 | sub_427430 | 321 | char_def.h |
+| 0x427580 | sub_427580 | 109 | char_def.h |
+| 0x4275f0 | sub_4275F0 | 23 | char_def.h |
+| 0x427610 | sub_427610 | 63 | char_def.h |
+| 0x427650 | sub_427650 | 25 | char_def.h |
+| 0x427670 | sub_427670 | 1242 | char_def.h |
+| 0x427b70 | sub_427B70 | 132 | char_def.h |
+| 0x427c00 | sub_427C00 | 43 | char_def.h |
+| 0x427c30 | sub_427C30 | 83 | char_def.h |
+| 0x427c90 | sub_427C90 | 43 | char_def.h |
+| 0x427cc0 | sub_427CC0 | 23 | char_def.h |
+| 0x427ce0 | sub_427CE0 | 73 | char_def.h |
+| 0x427d30 | sub_427D30 | 141 | char_def.h |
+| 0x427dc0 | sub_427DC0 | 33 | char_def.h |
+| 0x427df0 | sub_427DF0 | 79 | char_def.h |
+| 0x427e40 | sub_427E40 | 41 | char_def.h |
+| 0x427e70 | sub_427E70 | 63 | char_def.h |
+| 0x427eb0 | sub_427EB0 | 73 | char_def.h |
+| 0x427f00 | sub_427F00 | 162 | char_def.h |
+| 0x427fb0 | sub_427FB0 | 824 | char_def.h |
+| 0x4282f0 | sub_4282F0 | 754 | char_def.h |
+| 0x4285f0 | sub_4285F0 | 392 | char_def.h |
+| 0x428780 | sub_428780 | 33 | char_def.h |
+| 0x4287b0 | sub_4287B0 | 27 | char_def.h |
+| 0x4287d0 | sub_4287D0 | 384 | char_def.h |
+| 0x428950 | sub_428950 | 146 | char_def.h |
+| 0x4289f0 | sub_4289F0 | 522 | char_def.h |
+| 0x431930 | sub_431930 | 599 | char_def.h |
+| 0x431b90 | sub_431B90 | 15 | char_def.h |
+| 0x431ba0 | sub_431BA0 | 266 | char_def.h |
+| 0x431cb0 | sub_431CB0 | 87 | char_def.h |
 | 0x431e30 | sub_431E30 | 25293 | device_init.c, device_init.h |
 | 0x438520 | sub_438520 | 153 | device_init.h |
 | 0x4385c0 | sub_4385C0 | 19 | device_init.h, particle_init.h |

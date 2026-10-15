@@ -171,14 +171,12 @@ typedef struct engine_calls {
     int32_t    *quiet;
     void       *dlog;
     /* ... and its callees: the joystick create 0x5ba120 / acquire 0x5ba290 (DirectInput), the map
-     * the room population's character init 0x41f200, the
      * map sprite's palette read 0x4178e0 (the bitmap resource)
      * and frames 0x418470 (DirectDraw surfaces), the parallax grade 0x417c40, the party
      * member create 0x58e170, 0x56dc20, the scene runner's stop 0x41a890, the pool-head record
      * clear 0x40e0c0; the fatal paths: the sprintf 0x5bf3ee, the error box 0x426110, the log reset
      * 0x560900, exit 0x5bf5db; KERNEL32's resource calls (the map resource reader) */
     eng_tc3 h5ba120; eng_tc0 h5ba290;
-    eng_tc14 h41f200;
     eng_tc1 h4178e0; eng_tc1 h418470; eng_tc2 h417c40;
     eng_tc5 h58e170; eng_tc3 h56dc20;
     void *(ENG_STDCALL *find_res)(void *mod, const char *name, const char *type);
@@ -189,6 +187,10 @@ typedef struct engine_calls {
     int (*h5bf3ee)(char *buf, const char *fmt, ...);
     eng_tc3 h426110; eng_tc0 h560900;
     void (*h5bf5db)(int code);
+    /* the character init 0x41f200's per-type inits (`this` = the character) */
+    eng_tc3 h428c00; eng_tc0 h429060; eng_tc1 h429db0; eng_tc1 h42a500; eng_tc0 h42a9a0; eng_tc1 h42b9a0;
+    eng_tc1 h42c130; eng_tc5 h42c510; eng_tc1 h42c970; eng_tc1 h42cce0; eng_tc0 h42d3c0; eng_tc2 h42da50;
+    eng_tc4 h42e290; eng_tc4 h42eb20; eng_tc1 h42f840; eng_tc3 h42fbf0; eng_tc1 h42ff00; eng_tc1 h430400;
 } engine_calls;
 
 extern engine_calls g_eng;

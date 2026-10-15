@@ -45,6 +45,8 @@
 #include "world_alloc.h"
 #include "sprite_slot.h"
 #include "device_init.h"
+#include "char_def.h"
+#include "char_init.h"
 #include "engine_calls.h"
 
 typedef struct {
@@ -53,6 +55,32 @@ typedef struct {
     uint32_t every;        /* shadow sampling */
     long calls, compared, diverge, skipped; char first[256];
 } hook_t;
+
+/* the character definition helpers + the character init (src/char_def.c, src/char_init.c) */
+#define CDEF_HOOKS(X) \
+    X(H_CD_SKFIND, "char_skill_find", 0x4072c0u) X(H_CD_GPROBE, "char_ground_probe", 0x41e280u) \
+    X(H_CD_VSFREE, "voice_set_free", 0x426380u) X(H_CD_VSSTOP, "voice_set_stop", 0x41e440u) \
+    X(H_CD_TODOFF, "tod_off", 0x426420u) X(H_CD_GF1C, "grid_f1c", 0x426480u) \
+    X(H_CD_JITTER, "stat_jitter", 0x426e00u) X(H_CD_STATS, "char_stats_init", 0x426fd0u) \
+    X(H_CD_IDLEI, "char_idle_init", 0x427360u) X(H_CD_IDLEA, "char_idle_add", 0x4273c0u) \
+    X(H_CD_MSKILL, "char_member_skill_add", 0x4273f0u) X(H_CD_COMBO, "char_combo_add", 0x427430u) \
+    X(H_CD_CLIPS, "char_clips_set", 0x427580u) X(H_CD_CLIPS2, "char_clips2_set", 0x4275f0u) \
+    X(H_CD_CARRY, "char_carry_set", 0x427610u) X(H_CD_STEP, "char_step_set", 0x427650u) \
+    X(H_CD_PACE, "char_pace_set", 0x427670u) X(H_CD_PACER, "char_pace_raw", 0x427b70u) \
+    X(H_CD_C880, "char_c880_set", 0x427c00u) X(H_CD_MOVE, "char_move_set", 0x427c30u) \
+    X(H_CD_15A5C, "char_15a5c_set", 0x427c90u) X(H_CD_TURN, "char_turn_set", 0x427cc0u) \
+    X(H_CD_WALK, "char_walk_set", 0x427ce0u) X(H_CD_JUMP, "char_jump_set", 0x427d30u) \
+    X(H_CD_RUN, "char_run_set", 0x427dc0u) X(H_CD_HIT, "char_hit_set", 0x427df0u) \
+    X(H_CD_MPOSE, "char_member_pose_set", 0x427e40u) X(H_CD_CROUCH, "char_crouch_set", 0x427e70u) \
+    X(H_CD_NAVSK, "char_nav_skills_set", 0x427eb0u) X(H_CD_APPR, "char_approach_add", 0x427f00u) \
+    X(H_CD_SKCODE, "char_skills_by_code", 0x427fb0u) X(H_CD_LEARN, "char_skill_learn", 0x4282f0u) \
+    X(H_CD_SKDEF, "char_skill_def", 0x4285f0u) X(H_CD_NAV, "char_nav_set", 0x428780u) \
+    X(H_CD_RETGT, "char_retarget_set", 0x4287b0u) X(H_CD_AISK, "char_ai_skill_add", 0x4287d0u) \
+    X(H_CD_BOXES, "ai_skill_boxes_add", 0x428950u) X(H_CD_VOICE, "char_voice_init", 0x4289f0u) \
+    X(H_CD_NPCDEF, "char_npc_default", 0x431930u) X(H_CD_FORM0, "char_form0_set", 0x431b90u) \
+    X(H_CD_PMODE, "char_party_mode_set", 0x431ba0u) X(H_CD_IVOICE, "char_idle_voice_set", 0x431cb0u) \
+    X(H_CINIT, "char_init", 0x41f200u)
+#define CDEF_ENUM(id, n, va) id,
 
 static hook_t H[];
 enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_DECODE, H_CAM_FOLLOW, H_CAM_SHAKE, H_CHAR_AI, H_CHAR_PHYS, H_CHAR_ANIM, H_CHAR_INT, H_HAZARD, H_NPC_AI, H_CHAR_APPLY, H_WORLD_TICK,
@@ -73,7 +101,8 @@ enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_D
        H_LROOM, H_BODIES, H_LINKS, H_VPOOLS, H_SHAKECLR, H_VFADE, H_MAPID, H_MAPNPC, H_PSCLR, H_GATE, H_SREADY, H_STINT, H_TSFADE, H_FILL,
        H_WNEW, H_WFREE, H_EFREE, H_AFREE, H_CFREE, H_CBLK, H_WLEAD, H_CSNAP, H_ZRESET, H_QSTATE, H_VREC, H_RSAVE, H_MFREE, H_MDEL, H_PHDEL,
        H_FORM, H_FOLLOW, H_ASTATE, H_PTINT, H_MLOAD,
-       H_SFREE, H_SFREEALL, H_SGRADED, H_PSWAP, H_POPULATE, H_SINIT, H_SETH, H_DINIT, H_SNDFREE, H_N };
+       H_SFREE, H_SFREEALL, H_SGRADED, H_PSWAP, H_POPULATE, H_SINIT, H_SETH, H_DINIT, H_SNDFREE,
+       CDEF_HOOKS(CDEF_ENUM) H_N };
 
 static void diverged(hook_t *h, const char *fmt, ...)
 {
@@ -2944,6 +2973,190 @@ static void __attribute__((thiscall)) w_sndfree(wl_entity *e)
     full_shadow(h, "entity_snd_free", sndfree_retail, sndfree_port, e, "entity");
 }
 
+/* ---- the character definition helpers (src/char_def.c) — full state, generic wrappers: a
+ * thiscall / stdcall helper of N stack words; the adapter returns what retail returns where a
+ * caller reads it (CMP = compared) ---- */
+typedef struct { void *self; intptr_t a[22]; intptr_t rr, rp; } gx_ctx;
+#define GP1 intptr_t a1
+#define GP2 GP1, intptr_t a2
+#define GP3 GP2, intptr_t a3
+#define GP4 GP3, intptr_t a4
+#define GP5 GP4, intptr_t a5
+#define GP6 GP5, intptr_t a6
+#define GP7 GP6, intptr_t a7
+#define GP8 GP7, intptr_t a8
+#define GP9 GP8, intptr_t a9
+#define GP10 GP9, intptr_t a10
+#define GP11 GP10, intptr_t a11
+#define GP12 GP11, intptr_t a12
+#define GP13 GP12, intptr_t a13
+#define GP14 GP13, intptr_t a14
+#define GP15 GP14, intptr_t a15
+#define GP16 GP15, intptr_t a16
+#define GP17 GP16, intptr_t a17
+#define GP18 GP17, intptr_t a18
+#define GP19 GP18, intptr_t a19
+#define GP20 GP19, intptr_t a20
+#define GP21 GP20, intptr_t a21
+#define GP22 GP21, intptr_t a22
+#define GA1 a1
+#define GA2 GA1, a2
+#define GA3 GA2, a3
+#define GA4 GA3, a4
+#define GA5 GA4, a5
+#define GA6 GA5, a6
+#define GA7 GA6, a7
+#define GA8 GA7, a8
+#define GA9 GA8, a9
+#define GA10 GA9, a10
+#define GA11 GA10, a11
+#define GA12 GA11, a12
+#define GA13 GA12, a13
+#define GA14 GA13, a14
+#define GA15 GA14, a15
+#define GA16 GA15, a16
+#define GA17 GA16, a17
+#define GA18 GA17, a18
+#define GA19 GA18, a19
+#define GA20 GA19, a20
+#define GA21 GA20, a21
+#define GA22 GA21, a22
+#define GX1 x->a[0]
+#define GX2 GX1, x->a[1]
+#define GX3 GX2, x->a[2]
+#define GX4 GX3, x->a[3]
+#define GX5 GX4, x->a[4]
+#define GX6 GX5, x->a[5]
+#define GX7 GX6, x->a[6]
+#define GX8 GX7, x->a[7]
+#define GX9 GX8, x->a[8]
+#define GX10 GX9, x->a[9]
+#define GX11 GX10, x->a[10]
+#define GX12 GX11, x->a[11]
+#define GX13 GX12, x->a[12]
+#define GX14 GX13, x->a[13]
+#define GX15 GX14, x->a[14]
+#define GX16 GX15, x->a[15]
+#define GX17 GX16, x->a[16]
+#define GX18 GX17, x->a[17]
+#define GX19 GX18, x->a[18]
+#define GX20 GX19, x->a[19]
+#define GX21 GX20, x->a[20]
+#define GX22 GX21, x->a[21]
+#define GX_TAIL(ID, NAME, CMP)                                                                       \
+    if (h->mode == 2) { h->calls++; ID##_p(&x); return x.rp; }                                        \
+    if (!sample(h)) { ID##_r(&x); return x.rr; }                                                      \
+    if (!full_shadow(h, NAME, ID##_r, ID##_p, &x, NAME) && (CMP) && x.rr != x.rp)                   \
+        diverged(h, "f%u %s ret %p/%p", g_frame, NAME, (void *)x.rr, (void *)x.rp);                \
+    return x.rr;
+#define TC_HOOK(ID, NAME, N, CMP, PORT)                                                              \
+    typedef intptr_t (__attribute__((thiscall)) *ID##_t)(void *, GP##N);                             \
+    static intptr_t ID##_port(void *self, GP##N) { PORT; }                                          \
+    static void ID##_r(void *c) { gx_ctx *x = c; x->rr = ((ID##_t)(uintptr_t)H[ID].va)(x->self, GX##N); } \
+    static void ID##_p(void *c) { gx_ctx *x = c; port_world(); x->rp = ID##_port(x->self, GX##N); } \
+    static intptr_t __attribute__((thiscall)) ID##_w(void *self, GP##N)                              \
+    { hook_t *h = &H[ID]; gx_ctx x = { self, { GA##N }, 0, 0 }; GX_TAIL(ID, NAME, CMP) }
+#define TC_HOOK0(ID, NAME, CMP, PORT)                                                                \
+    typedef intptr_t (__attribute__((thiscall)) *ID##_t)(void *);                                    \
+    static intptr_t ID##_port(void *self) { PORT; }                                                 \
+    static void ID##_r(void *c) { gx_ctx *x = c; x->rr = ((ID##_t)(uintptr_t)H[ID].va)(x->self); }    \
+    static void ID##_p(void *c) { gx_ctx *x = c; port_world(); x->rp = ID##_port(x->self); }         \
+    static intptr_t __attribute__((thiscall)) ID##_w(void *self)                                     \
+    { hook_t *h = &H[ID]; gx_ctx x = { self, { 0 }, 0, 0 }; GX_TAIL(ID, NAME, CMP) }
+#define ST_HOOK(ID, NAME, N, CMP, PORT)                                                              \
+    typedef intptr_t (__attribute__((stdcall)) *ID##_t)(GP##N);                                      \
+    static intptr_t ID##_port(GP##N) { PORT; }                                                      \
+    static void ID##_r(void *c) { gx_ctx *x = c; x->rr = ((ID##_t)(uintptr_t)H[ID].va)(GX##N); }      \
+    static void ID##_p(void *c) { gx_ctx *x = c; port_world(); x->rp = ID##_port(GX##N); }           \
+    static intptr_t __attribute__((stdcall)) ID##_w(GP##N)                                           \
+    { hook_t *h = &H[ID]; gx_ctx x = { 0, { GA##N }, 0, 0 }; GX_TAIL(ID, NAME, CMP) }
+#define CP(v) ((const void *)(v))
+#define U16(v) ((uint16_t)(v))
+TC_HOOK(H_CD_SKFIND, "char_skill_find", 1, 1, return (intptr_t)char_skill_find(self, U16(a1)))
+TC_HOOK0(H_CD_GPROBE, "char_ground_probe", 1, return char_ground_probe(self))
+TC_HOOK0(H_CD_VSFREE, "voice_set_free", 0, voice_set_free(self); return 0)
+TC_HOOK0(H_CD_VSSTOP, "voice_set_stop", 0, voice_set_stop(self); return 0)
+TC_HOOK0(H_CD_TODOFF, "tod_off", 1, return tod_off(self))
+TC_HOOK0(H_CD_GF1C, "grid_f1c", 1, return grid_f1c(self))
+ST_HOOK(H_CD_JITTER, "stat_jitter", 3, 1, return stat_jitter(a1, a2, a3))
+ST_HOOK(H_CD_STATS, "char_stats_init", 3, 0, char_stats_init((uint8_t *)a1, a2, a3); return 0)
+TC_HOOK(H_CD_IDLEI, "char_idle_init", 3, 1, char_idle_init(self, a1, a2, a3); return ((wl_char *)self)->idle_t)
+TC_HOOK(H_CD_IDLEA, "char_idle_add", 1, 0, char_idle_add(self, a1); return 0)
+TC_HOOK(H_CD_MSKILL, "char_member_skill_add", 2, 0, char_member_skill_add(self, a1, a2); return 0)
+TC_HOOK(H_CD_COMBO, "char_combo_add", 14, 1,
+        return (intptr_t)char_combo_add(self, a1, a2, a3, a4, a5, a6, a7, a8, a9, U16(a10), U16(a11), U16(a12), U16(a13), U16(a14)))
+TC_HOOK(H_CD_CLIPS, "char_clips_set", 5, 0, char_clips_set(self, CP(a1), CP(a2), CP(a3), a4, a5); return 0)
+TC_HOOK(H_CD_CLIPS2, "char_clips2_set", 2, 1, char_clips2_set(self, CP(a1), CP(a2)); return a1)
+TC_HOOK(H_CD_CARRY, "char_carry_set", 6, 1, char_carry_set(self, a1, CP(a2), CP(a3), a4, a5, a6); return a5)
+TC_HOOK(H_CD_STEP, "char_step_set", 2, 1, char_step_set(self, a1, U16(a2)); return a1)
+TC_HOOK(H_CD_PACE, "char_pace_set", 4, 0, char_pace_set(self, a1, a2, a3, a4); return 0)
+TC_HOOK(H_CD_PACER, "char_pace_raw", 9, 1,
+        char_pace_raw(self, a1, a2, U16(a3), U16(a4), U16(a5), U16(a6), U16(a7), U16(a8), a9); return a9)
+TC_HOOK(H_CD_C880, "char_c880_set", 3, 1, char_c880_set(self, a1, a2, a3); return a3)
+TC_HOOK(H_CD_MOVE, "char_move_set", 8, 1, char_move_set(self, a1, a2, a3, a4, a5, a6, a7, a8); return a8)
+TC_HOOK(H_CD_15A5C, "char_15a5c_set", 4, 1, char_15a5c_set(self, a1, a2, a3, a4); return a3)
+TC_HOOK(H_CD_TURN, "char_turn_set", 2, 1, char_turn_set(self, a1, a2); return a1)
+TC_HOOK(H_CD_WALK, "char_walk_set", 6, 1, char_walk_set(self, a1, a2, a3, a4, a5, CP(a6)); return a5)
+TC_HOOK(H_CD_JUMP, "char_jump_set", 10, 1,
+        char_jump_set(self, a1, a2, a3, a4, a5, a6, CP(a7), CP(a8), CP(a9), U16(a10)); return 0)
+TC_HOOK(H_CD_RUN, "char_run_set", 2, 1, char_run_set(self, a1, CP(a2)); return a1)
+TC_HOOK(H_CD_HIT, "char_hit_set", 5, 1, char_hit_set(self, U16(a1), CP(a2), a3, a4, a5); return 0)
+TC_HOOK(H_CD_MPOSE, "char_member_pose_set", 3, 1, char_member_pose_set(self, U16(a1), U16(a2), a3); return a3)
+TC_HOOK(H_CD_CROUCH, "char_crouch_set", 4, 1, char_crouch_set(self, a1, CP(a2), CP(a3), CP(a4)); return a3)
+TC_HOOK(H_CD_NAVSK, "char_nav_skills_set", 7, 1, char_nav_skills_set(self, a1, a2, a3, a4, a5, a6, a7); return a7)
+TC_HOOK(H_CD_APPR, "char_approach_add", 12, 0,
+        char_approach_add(self, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, U16(a12)); return 0)
+TC_HOOK(H_CD_SKCODE, "char_skills_by_code", 1, 0, char_skills_by_code(self, a1); return 0)
+TC_HOOK(H_CD_LEARN, "char_skill_learn", 1, 1, return (intptr_t)char_skill_learn(self, a1))
+TC_HOOK(H_CD_SKDEF, "char_skill_def", 22, 1,
+        return (intptr_t)char_skill_def(self, a1, U16(a2), a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, U16(a13), a14, a15,
+                                        a16, a17, a18, U16(a19), U16(a20), a21, (const char *)a22))
+TC_HOOK(H_CD_NAV, "char_nav_set", 3, 1, char_nav_set(self, a1, a2, a3); return a3)
+TC_HOOK(H_CD_RETGT, "char_retarget_set", 2, 0, char_retarget_set(self, U16(a1), U16(a2)); return 0)
+TC_HOOK(H_CD_AISK, "char_ai_skill_add", 16, 1,
+        return (intptr_t)char_ai_skill_add(self, a1, a2, a3, a4, a5, a6, a7, U16(a8), U16(a9), U16(a10), U16(a11), a12, a13,
+                                           a14, a15, a16))
+ST_HOOK(H_CD_BOXES, "ai_skill_boxes_add", 9, 1, return (intptr_t)ai_skill_boxes_add((uint8_t *)a1, a2, a3, a4, a5, a6, a7, a8, a9))
+TC_HOOK(H_CD_VOICE, "char_voice_init", 3, 1, char_voice_init(self, a1, a2, a3); return (intptr_t)self)
+TC_HOOK(H_CD_NPCDEF, "char_npc_default", 2, 1, char_npc_default(self, a1, CP(a2)); return 12800)
+TC_HOOK(H_CD_FORM0, "char_form0_set", 1, 0, char_form0_set(self, U16(a1)); return 0)
+TC_HOOK(H_CD_PMODE, "char_party_mode_set", 1, 0, char_party_mode_set(self, a1); return 0)
+TC_HOOK(H_CD_IVOICE, "char_idle_voice_set", 2, 0, char_idle_voice_set(self, a1, U16(a2)); return 0)
+
+/* ---- the character init (src/char_init.c) — full state, per-code coverage ---- */
+typedef void (__attribute__((thiscall)) *cinit_t)(wl_char *, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t,
+                                                int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t);
+typedef struct { wl_char *c; int32_t v[14]; } cinit_ctx;
+static void cinit_retail(void *p)
+{
+    cinit_ctx *x = p; int32_t *v = x->v;
+    ((cinit_t)(uintptr_t)H[H_CINIT].va)(x->c, v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8], v[9], v[10], v[11], v[12], v[13]);
+}
+static void cinit_port(void *p)
+{
+    cinit_ctx *x = p; int32_t *v = x->v;
+    port_world();
+    char_init(x->c, v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8], v[9], v[10], v[11], v[12], v[13]);
+}
+#define NCCODES 160
+static int32_t g_ccode_id[NCCODES]; static long g_ccodes[NCCODES]; static int g_nccodes;
+static void __attribute__((thiscall)) H_CINIT_w(wl_char *c, int32_t x0, int32_t y0, int32_t an, int32_t f8, int32_t fc, int32_t code,
+                                                 int32_t a8, int32_t fa, int32_t hd, int32_t a11, int32_t a12, int32_t a13,
+                                                 int32_t a14, int32_t a15)
+{
+    hook_t *h = &H[H_CINIT];
+    cinit_ctx x = { c, { x0, y0, an, f8, fc, code, a8, fa, hd, a11, a12, a13, a14, a15 } };
+    if (h->mode == 2) { h->calls++; cinit_port(&x); return; }
+    if (!sample(h)) { cinit_retail(&x); return; }
+    char what[64]; snprintf(what, sizeof what, "code %d handle %d", code, hd);
+    if (!full_shadow(h, "char_init", cinit_retail, cinit_port, &x, what)) {
+        int k; for (k = 0; k < g_nccodes && g_ccode_id[k] != code; k++) {}
+        if (k == g_nccodes && g_nccodes < NCCODES) g_ccode_id[g_nccodes++] = code;
+        if (k < NCCODES) g_ccodes[k]++;
+    }
+}
+#define CDEF_ROW(id, n, va) [id] = { n, va, (void *)id##_w, 0, 1, 0, 0, 0, 0, "" },
+
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
     [H_POLL] = { "input_poll", 0x43c110u, (void *)w_poll, 0, 1, 0, 0, 0, 0, "" },
@@ -3125,6 +3338,7 @@ static hook_t H[H_N] = {
     [H_SETH]       = { "entity_set_handle", 0x555f00u, (void *)w_seth, 0, 1, 0, 0, 0, 0, "" },
     [H_DINIT]      = { "device_init",    0x431e30u, (void *)w_dinit,  0, 1, 0, 0, 0, 0, "" },
     [H_SNDFREE]    = { "entity_snd_free", 0x426490u, (void *)w_sndfree, 0, 1, 0, 0, 0, 0, "" },
+    CDEF_HOOKS(CDEF_ROW)
 };
 
 static const void *rh_data_identity(uint32_t va) { return (const void *)(uintptr_t)va; }
@@ -3176,13 +3390,15 @@ static void bind_engine_calls(void)
     B(499ab0); B(4842c0); B(41a7f0); B(59cfc0);
     *(void **)&g_eng.flip_5b8fc0  = g_rh_flip_stub;    /* the virtual clock steps there */
     *(void **)&g_eng.easer_43d1d0 = g_rh_easer_stub;   /* the tick count (+ a camera hook chained behind) */
-    B(5ba120); B(5ba290); B(41f200);
+    B(5ba120); B(5ba290);
     g_eng.tod = (int32_t *)(uintptr_t)0x8a93fcu;
     B(4178e0); B(418470); B(417c40); B(58e170);
     *(void **)&g_eng.find_res = iat_lookup("FindResourceA");
     *(void **)&g_eng.load_res = iat_lookup("LoadResource");
     *(void **)&g_eng.lock_res = iat_lookup("LockResource");
     B(56dc20); B(41a890); B(40e0c0); B(5bf3ee); B(426110); B(560900); B(5bf5db);
+    B(428c00); B(429060); B(429db0); B(42a500); B(42a9a0); B(42b9a0); B(42c130); B(42c510); B(42c970);
+    B(42cce0); B(42d3c0); B(42da50); B(42e290); B(42eb20); B(42f840); B(42fbf0); B(42ff00); B(430400);
     g_eng.world = (wl_world **)(uintptr_t)WORLD_PTR_VA;
     g_eng.quiet = (int32_t *)(uintptr_t)0x8a6b54u;
     g_eng.dlog  = (void *)(uintptr_t)0x8a6620u;
@@ -3241,6 +3457,7 @@ void rh_hooks_install(void)
         H[H_CSNAP].va = H[H_ZRESET].va = H[H_QSTATE].va = H[H_VREC].va = H[H_RSAVE].va = H[H_MFREE].va = H[H_MDEL].va =
         H[H_PHDEL].va = H[H_FORM].va = H[H_FOLLOW].va = H[H_ASTATE].va = H[H_PTINT].va = H[H_MLOAD].va =
         H[H_SFREE].va = H[H_SFREEALL].va = H[H_SGRADED].va = H[H_PSWAP].va = H[H_POPULATE].va = H[H_SINIT].va = H[H_SETH].va = H[H_DINIT].va = H[H_SNDFREE].va = 0;
+    if (strcmp(g_ed->tag, "enold")) for (int i = H_CD_SKFIND; i <= H_CINIT; i++) H[i].va = 0;
     if (!O.hooks) return;
     char b[4096]; snprintf(b, sizeof b, "%s", O.hooks);
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {
@@ -3288,6 +3505,8 @@ void rh_hooks_report(void)
     if (H[H_GSTEP].mode == 1) rh_log("gimmick_step: %ld live (switching) calls shadowed\n", g_gstep_live);
     if (H[H_DINIT].mode == 1)
         for (int k = 0; k < g_ndcodes; k++) rh_log("device_init coverage: code %d compared %ld\n", g_dcode_id[k], g_dcodes[k]);
+    if (H[H_CINIT].mode == 1)
+        for (int k = 0; k < g_nccodes; k++) rh_log("char_init coverage: code %d compared %ld\n", g_ccode_id[k], g_ccodes[k]);
     if (H[H_DIK].mode == 1) rh_log("input_dik_produce: %ld keyboard events shadowed\n", g_dik_events);
     if (H[H_ZPASS].mode == 1) rh_log("zone_pass: %ld calls with a zone under the leader shadowed\n", g_zone_live);
     if (H[H_PARTICLE].mode == 1)
