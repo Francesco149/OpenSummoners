@@ -7,16 +7,16 @@ own engine callees ported, so it can land today with zero new dependencies. Sort
 
 For the *forward* port path (the title-menu scene runner and what it calls) and the semantic milestone order, see `ROADMAP.md` — some of that path isn't yet reachable from ported code so won't appear here.
 
-- frontier functions: **378**
+- frontier functions: **379**
 - of those, zero-dependency **leaves: 160** (recommended order below)
 
 ## Leaf shortlist — portable today (top 40 by ported-caller count)
 
 | VA | size | ported callers | band |
 |----|-----:|---------------:|------|
-| 0x5bb870 | 16 | 30 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
-| 0x5bb8c0 | 31 | 26 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
-| 0x5bb890 | 40 | 24 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
+| 0x5bb870 | 16 | 31 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
+| 0x5bb8c0 | 31 | 27 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
+| 0x5bb890 | 40 | 25 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x5bb880 | 16 | 22 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x5bb8e0 | 9 | 14 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x5bb3a0 | 39 | 4 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
@@ -180,7 +180,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x45a300 | 14079 | 1 | 16 |  |
 | 0x461790 | 19423 | 1 | 25 |  |
 
-### battle phase controller + NPC AI + particle fx + damage UI (17)
+### battle phase controller + NPC AI + particle fx + damage UI (18)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
@@ -200,6 +200,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x47f9d0 | 874 | 1 | 0 | ✓ |
 | 0x479f90 | 875 | 1 | 1 |  |
 | 0x47ecd0 | 2303 | 1 | 7 |  |
+| 0x47ae00 | 2364 | 1 | 3 |  |
 | 0x4710c0 | 20681 | 1 | 37 |  |
 
 ### char anim + hit-test/knockback + GDI glyph + sfx trigger (25)
@@ -417,13 +418,13 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x583c90 | 580 | 1 | 0 | ✓ |
 | 0x583fe0 | 979 | 1 | 13 |  |
 
-### inventory/menu + audio cue mgr + render dispatch + scene load (13)
+### inventory/menu + audio cue mgr + render dispatch + scene load (12)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
 | 0x59a910 | 302 | 1 | 0 | ✓ |
 | 0x59d540 | 334 | 1 | 4 |  |
-| 0x590480 | 465 | 1 | 4 |  |
+| 0x590480 | 465 | 1 | 3 |  |
 | 0x590230 | 478 | 1 | 5 |  |
 | 0x590f20 | 498 | 1 | 0 | ✓ |
 | 0x59ec30 | 531 | 1 | 4 |  |
@@ -431,17 +432,16 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x59ad60 | 615 | 1 | 5 |  |
 | 0x59d160 | 644 | 1 | 1 |  |
 | 0x59e230 | 924 | 1 | 13 |  |
-| 0x5908a0 | 1011 | 1 | 5 |  |
 | 0x59e5d0 | 1033 | 1 | 8 |  |
 | 0x591120 | 1096 | 1 | 22 |  |
 
-### launcher config parse + spell fx + bitmap/ZDD render + RNG (75)
+### launcher config parse + spell fx + bitmap/ZDD render + RNG (76)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
-| 0x5bb870 | 16 | 30 | 0 | ✓ |
-| 0x5bb8c0 | 31 | 26 | 0 | ✓ |
-| 0x5bb890 | 40 | 24 | 0 | ✓ |
+| 0x5bb870 | 16 | 31 | 0 | ✓ |
+| 0x5bb8c0 | 31 | 27 | 0 | ✓ |
+| 0x5bb890 | 40 | 25 | 0 | ✓ |
 | 0x5bb880 | 16 | 22 | 0 | ✓ |
 | 0x5bb8e0 | 9 | 14 | 0 | ✓ |
 | 0x5bb2f0 | 140 | 5 | 2 |  |
@@ -514,4 +514,5 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x5bc7c0 | 880 | 1 | 3 |  |
 | 0x5b0890 | 961 | 1 | 0 | ✓ |
 | 0x5b0450 | 1075 | 1 | 0 | ✓ |
+| 0x5b1f10 | 2345 | 1 | 5 |  |
 

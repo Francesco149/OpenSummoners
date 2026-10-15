@@ -4,7 +4,7 @@
  *
  *   FUN_0059c750  room_warp_tick      FUN_0059aa40  room_leader_next   FUN_0059acc0  char_lead_ok
  *   FUN_0059ad20  char_on_ground      FUN_0059ca90  room_pickups       FUN_0059ce60  pickup_touch
- *   FUN_00557060  item_sparkle
+ *   FUN_00557060  item_sparkle        FUN_005908a0  room_party_tick    FUN_00590660  room_item_pick
  */
 #ifndef OSS_ROOM_TICK_H
 #define OSS_ROOM_TICK_H
@@ -33,5 +33,13 @@ int pickup_touch(const wl_entity *e, const wl_entity *o, uint16_t part);
 /* 0x557060 (thiscall entity): the item-get sparkle 100137 on `e` (+0x25c the item), with `sound` the pool
  * sys+0x6d0 cue */
 wl_entity *item_sparkle(wl_entity *e, int32_t item, int32_t sound);
+
+/* 0x590660 (thiscall room): for an item of kind `kind` (`a4` its parameter), the member it helps most and the
+ * best usable inventory record (unequipped, usable, not combat-only in a scene); `hp_max` (per mille) skips a
+ * member above it; -1 = none */
+int room_item_pick(wl_room *room, wl_pslot **out, int32_t kind, int32_t a4, int32_t hp_max);
+/* 0x5908a0 (thiscall room): the low-HP beep (below 30 %, once), the screen flash fading (+0x40e4), the queued
+ * item use (u16 +0x4070: 1 the auto-heal picks, 2 the chosen one; 0x5b1f10 applies it) */
+void room_party_tick(wl_room *room);
 
 #endif /* OSS_ROOM_TICK_H */

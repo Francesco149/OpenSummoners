@@ -146,6 +146,7 @@ typedef struct {
     X(H_RT_LEADOK, "char_lead_ok", 0x59acc0u) X(H_RT_GROUND, "char_on_ground", 0x59ad20u) \
     X(H_RT_PICK, "room_pickups", 0x59ca90u) X(H_RT_TOUCH, "pickup_touch", 0x59ce60u) \
     X(H_RT_SPARK, "item_sparkle", 0x557060u) \
+    X(H_RT_PARTY, "room_party_tick", 0x5908a0u) X(H_RT_IPICK, "room_item_pick", 0x590660u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
 
@@ -3388,6 +3389,8 @@ TC_HOOK(H_RT_GROUND, "char_on_ground", 1, 1, return char_on_ground(self, U16(a1)
 ST_HOOK(H_RT_PICK, "room_pickups", 1, 0, room_pickups((wl_room *)a1); return 0)
 TC_HOOK(H_RT_TOUCH, "pickup_touch", 2, 1, return pickup_touch(self, CP(a1), U16(a2)))
 TC_HOOK(H_RT_SPARK, "item_sparkle", 2, 0, item_sparkle(self, a1, a2); return 0)
+TC_HOOK0(H_RT_PARTY, "room_party_tick", 0, room_party_tick(self); return 0)
+TC_HOOK(H_RT_IPICK, "room_item_pick", 4, 1, return room_item_pick(self, (wl_pslot **)a1, a2, a3, a4))
 TC_HOOK(H_CS_SHOT, "shot_spawn", 19, 1,
         return (intptr_t)shot_spawn(self, a1, a2, a3, (wl_body *)a4, a5, a6, a7, a8, (int16_t)a9, a10, a11, a12, a13, a14,
                                     a15, a16, a17, a18, a19))
@@ -3664,7 +3667,7 @@ static void bind_engine_calls(void)
     B(408b90); B(54f140);
     B(40ac90); B(54ed80); B(468b10); B(5bc0c0); B(409520);
     B(5b1030); B(48c150); B(495e40); B(59d160); B(58ffa0); B(590480); B(590f20); B(590ca0); B(59d540);
-    B(591120); B(562a70); B(58ffc0); B(59a910); B(415350); B(590230); B(59ad60); B(5908a0);
+    B(591120); B(562a70); B(58ffc0); B(59a910); B(415350); B(590230); B(59ad60);
     B(499ab0);
     *(void **)&g_eng.flip_5b8fc0  = g_rh_flip_stub;    /* the virtual clock steps there */
     *(void **)&g_eng.easer_43d1d0 = g_rh_easer_stub;   /* the tick count (+ a camera hook chained behind) */
@@ -3677,7 +3680,7 @@ static void bind_engine_calls(void)
     B(56dc20); B(41a890); B(5bf3ee); B(426110); B(560900); B(5bf5db);
     B(428c00); B(429060); B(429db0); B(42a500); B(42a9a0); B(42b9a0); B(42c130); B(42c510); B(42c970);
     B(42cce0); B(42d3c0); B(42da50); B(42e290); B(42f840); B(42fbf0); B(42ff00); B(430400);
-    B(49ce70); B(5bcfb0); B(405e80); B(55d140);
+    B(49ce70); B(5bcfb0); B(405e80); B(55d140); B(47ae00); B(5b1f10);
     B(561d20); B(409150); B(55fdb0); B(41d780); B(4e6520); B(4e61d0); B(41b670); B(4c5af0); B(52fd80); B(5a3870); B(5a00c0);
     B(5a3670); B(56c640); B(5b6060); B(5b60d0); B(5b61b0); B(5b6200); B(5b6bc0); B(5b6340); B(5b64b0);
     B(41cfd0);

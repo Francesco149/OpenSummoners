@@ -793,7 +793,7 @@ int room_loop_run(wl_roomloop *rl)
                 return 1;
             }
         }
-        for (uint16_t j = 0; j < rl->nrooms; j++) g_eng.h5908a0(&rl->rooms[j]);
+        for (uint16_t j = 0; j < rl->nrooms; j++) room_party_tick(&rl->rooms[j]);
         camera_snap(rl, 0);
         g_eng.easer_43d1d0(g_world->view);
         {

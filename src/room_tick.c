@@ -242,3 +242,123 @@ void room_pickups(wl_room *room)
         }
     }
 }
+
+int room_item_pick(wl_room *room, wl_pslot **out, int32_t kind, int32_t a4, int32_t hp_max)
+{
+    int busy = W->f2770 != 0 || ld32(W, 0x2764) == 1;
+    wl_pslot *best = NULL;
+    int32_t top = 0;
+    for (int k = 0; k < 8; k++) {
+        wl_pslot *s = room->slot[k];
+        if (s->active != 1 || s->id == 100000104) continue;
+        int32_t v;
+        if (g_eng.h47ae00(s->ch, 0, kind, (uint16_t)a4, 0, 0, 0, (intptr_t)&v, 0, 0, 1, 0, 0) == 0) continue;
+        if (v <= 0 || (best != NULL && top >= v)) continue;
+        top = v;
+        best = s;
+    }
+    if (best == NULL) return -1;
+    if (hp_max != 0) {
+        const uint8_t *pt = (const uint8_t *)best->ch->party;
+        if (hp_max < mul(ld32(pt, 0x54), 1000) / ld32(pt, 0x58)) return -1;
+    }
+    int32_t pick = -1, bestv = 0, bestn = 0;
+    int32_t v = 0;   /* (0x47ae00 may leave it unwritten: retail's stack slot then keeps the last value) */
+    for (uint16_t i = 0; i < ld16(room, 0x4010); i++) {
+        const uint8_t *rec = (const uint8_t *)room + 0x2010 + 16u * i;
+        if (rec[0xa] != 0) continue;
+        const uint8_t *def = ldp(rec, 0xc);
+        if (ld32(def, 0x5c) != 1) continue;
+        int32_t cls = ld32(def, 0x2ac);
+        if (cls != 0 && !(cls == 100 && ld16(room, 0x4060) == 0)) continue;
+        if (ld32(def, 0x2b0) == 1 && busy) continue;
+        if (ld32(def, 0x58) != kind) continue;
+        g_eng.h47ae00(best->ch, 0, kind, ld32(def, 0x68), ld32(def, 0x6c), ld32(def, 0x70), ld32(def, 0x74), 0,
+                      (intptr_t)&v, 0, 0, 0, 0);
+        uint16_t n = ld16(rec, 8);
+        if (v > bestv || (v == bestv && bestn > n) || pick < 0) {
+            bestv = v;
+            pick = i;
+            bestn = n;
+        }
+    }
+    if (pick < 0) return -1;
+    if (out != NULL) *out = best;
+    return pick;
+}
+
+/* the item-use messages (8 x 512 B) into the log; the queued use is done */
+static void use_lines(wl_room *room, const char (*lines)[512], uint16_t n)
+{
+    for (uint16_t i = 0; i < n; i++) world_log_line(W, lines[i]);
+    st16(room, 0x4070, 0);
+}
+
+void room_party_tick(wl_room *room)
+{
+    if (ld32(room, 0x40a4) != 0)
+        for (int k = 0; k < 8; k++) {
+            const wl_pslot *s = room->slot[k];
+            if (s->active != 1 || s->id == 100000104) continue;
+            int32_t hp = mul(ld32(s, 0xa64), 1000) / (ld32(s, 0xa68) + ld32(s, 0xa94) + ld32(s, 0xaac));
+            if (hp >= 300) { st32(room, 0x4084 + 4u * k, 0); continue; }
+            if (ld32(room, 0x4084 + 4u * k) != 0) continue;
+            wl_voice *v = vpool_take(ldp(g_eng.sys, 0x3d8), 0);
+            if (v != NULL) {
+                g_eng.dsb_volume_5bb870(v->buf, ld32(cfg(), 0x168));
+                g_eng.dsb_freq_5bb890(v->buf, 0);
+                g_eng.dsb_play_5bb8c0(v->buf);
+            }
+            st32(room, 0x4084 + 4u * k, 1);
+        }
+    int32_t f = ld32(room, 0x40e4);
+    if (f > 0) {
+        f -= 16;
+        if (f < 0) f = 0;
+        st32(room, 0x40e4, f);
+        if (f == 0) {
+            st32(room, 0x40e0, 0); st32(room, 0x40e8, 0);
+            st32(room, 0x40f0, 255); st32(room, 0x40f4, 255); st32(room, 0x40f8, 255); st32(room, 0x40fc, 255);
+            st32(room, 0x4100, 0); st32(room, 0x40ec, 0);
+        }
+    }
+    uint16_t mode = ld16(room, 0x4070);
+    if (mode == 0) return;
+    if (W->f2770 != 0 || ld32(W, 0x2764) == 1) {
+        if (ld32(room, 0x4074) > 0) st32(room, 0x4074, ld32(room, 0x4074) - 1);
+    } else {
+        st32(room, 0x4074, 0);
+    }
+    if (ld32(room, 0x4074) > 0) return;
+    char lines[8][512];
+    uint16_t n = 0;
+    if (mode == 1) {
+        wl_pslot *s = NULL;
+        int32_t i = room_item_pick(room, &s, 9, 0, 300);
+        if (i < 0 && ld16(room, 0x405c) == 0) i = room_item_pick(room, &s, 11, 6, 0);
+        if (i < 0) i = room_item_pick(room, &s, 9, 0, 750);
+        if (i < 0 && ld16(room, 0x405e) == 0) i = room_item_pick(room, &s, 9, 0, 0);
+        if (i >= 0 && g_eng.h5b1f10(room, (intptr_t)s, i, (intptr_t)lines, (intptr_t)&n, 0, 0) != 0) {
+            use_lines(room, lines, n);
+            return;
+        }
+        wl_voice *v = vpool_take(ldp(g_eng.sys, 0x37c), 0);
+        if (v != NULL) {
+            g_eng.dsb_volume_5bb870(v->buf, ld32(cfg(), 0x168));
+            g_eng.dsb_freq_5bb890(v->buf, 0);
+            g_eng.dsb_play_5bb8c0(v->buf);
+        }
+        st16(room, 0x4070, 0);
+        return;
+    }
+    if (mode == 2) {
+        const wl_pslot *s = ldp(room, 0x407c);
+        if (s == NULL || (s->active == 1 && s->id != 100000104)) {
+            if (g_eng.h5b1f10(room, (intptr_t)s, ld16(room, 0x4078), (intptr_t)lines, (intptr_t)&n, 0, 0) != 0) {
+                use_lines(room, lines, n);
+                return;
+            }
+        }
+    }
+    st16(room, 0x4070, 0);
+}

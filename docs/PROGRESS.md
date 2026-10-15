@@ -15,6 +15,9 @@ specific commits where relevant.
   ported twice (`actor_by_handle` in actor_update.c, my `actor_by_record`) — folded into `actor_by_handle`.
 - rhost: warp / pickups 8,750 calls (1,093 full-state), leader swap 3, actor_by_handle 129, 0 divergences
   (the corpus rooms hold no pickups: their touch / sparkle REPLACE-only).  Hybrid gate: 350 hooks, PASS.
+- + the party tick `0x5908a0` (low-HP beep, the screen-flash fade, the queued item use: `0x590660` picks
+  the member / item, `0x5b1f10` + `0x47ae00` stay slots): 8,742 calls (1,092 full-state), 0 divergences;
+  hybrid 352.
 
 ## 2026-10-15 (night) — the per-tick STATUS pass 0x487dc0 + the FADE 0x4878b0
 

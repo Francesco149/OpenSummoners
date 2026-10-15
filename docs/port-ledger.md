@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **630** (40.3% of engine-proper) — tested 249, ported 381
-- code bytes touched: **30.9%** (548,939 / 1,776,526 B of engine-proper)
-- unported: **1194**
+- touched: **632** (40.4% of engine-proper) — tested 249, ported 383
+- code bytes touched: **31.0%** (550,516 / 1,776,526 B of engine-proper)
+- unported: **1192**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (381) — reimplemented, no host test yet
+## ported (383) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -617,6 +617,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x58ff50 | sub_58FF50 | 66 | room_loop.h |
 | 0x58ffd0 | sub_58FFD0 | 595 | room_loop.h |
 | 0x590410 | sub_590410 | 112 | room_loop.h |
+| 0x590660 | sub_590660 | 566 | room_tick.h |
+| 0x5908a0 | sub_5908A0 | 1011 | room_tick.h |
 | 0x59a1f0 | sub_59A1F0 | 1485 | gimmick.h |
 | 0x59a7c0 | sub_59A7C0 | 181 | gimmick.h |
 | 0x59a880 | sub_59A880 | 138 | gimmick.h |

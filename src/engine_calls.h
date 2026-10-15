@@ -127,7 +127,7 @@ typedef struct engine_calls {
     eng_tc1 h58ffa0; eng_tc0 h590480; eng_tc1 h590f20; eng_tc0 h590ca0;
     eng_tc2 h59d540; eng_tc0 h591120; eng_tc0 h562a70; eng_tc0 h58ffc0; eng_tc0 h59a910; eng_tc0 h415350;
     eng_tc0 h590230; eng_tc1 h59ad60;
-    eng_tc0 h5908a0; eng_tc0 h499ab0;
+    eng_tc0 h499ab0;
     /* the integrator 0x442a70's callees: per-type behaviour handlers + helpers (by VA) */
     eng_tc3 h467260; eng_tc6 h44a740; eng_tc8 h45a300;
     eng_tc4 h44bc10; eng_tc4 h44c250; eng_tc4 h44bf60; eng_tc7 h446900; eng_tc7 h452020;
@@ -216,6 +216,8 @@ typedef struct engine_calls {
     eng_tc5 h405e80;
     /* the status pass's: the shot init 0x55d140 (thiscall shot, 17 args) */
     eng_tc17 h55d140;
+    /* the room's item use: the effect value 0x47ae00 (thiscall char, 12 args), the use 0x5b1f10 (thiscall room) */
+    eng_tc12 h47ae00; eng_tc6 h5b1f10;
 } engine_calls;
 
 extern engine_calls g_eng;

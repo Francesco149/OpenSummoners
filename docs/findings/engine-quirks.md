@@ -4573,6 +4573,13 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   the cap it stays (state 4) and the leader is told "You have all the money you can carry." at most once a
   minute (world +0x102c); an item (+0x1fc 2, +0x208) only by the leader: "You got %s!" (item table 0x6c0cd0,
   736-B rows, the name at +4) + the sparkle 100137, or "Your bags are full ..." at most every 10 s (+0x1028).
+- **Party tick `0x5908a0`** (per room): while the room logs (+0x40a4), a member below 30 % HP (+0xa64 over
+  +0xa68 + +0xa94 + +0xaac) beeps once (cue sys+0x3d8; re-armed at 30 %); the screen flash (+0x40e4) fades 16 a
+  tick and clears its colour (+0x40f0.. = 255) at 0; a queued item use (u16 +0x4070, held while a scene runs by
+  +0x4074): 1 = the auto-heal — `0x590660` picks the member an item of kind 9 helps most (≤ 30 % HP), else kind
+  11 / 6 (unless +0x405c), else kind 9 at ≤ 75 %, else any (unless +0x405e), and that member's best usable item
+  (by the value, then the fewest held); its use `0x5b1f10` logs up to 8 lines, else cue sys+0x37c; 2 = the chosen
+  item +0x4078 on the slot +0x407c.
 
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
