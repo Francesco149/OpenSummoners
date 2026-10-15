@@ -102,3 +102,4 @@ void rh_handles_install(void)
 }
 
 long rh_handles_live(void) { return g_live; }
+uint32_t rh_handles_issued(void) { return g_next; }

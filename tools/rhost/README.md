@@ -57,7 +57,7 @@ Saves are the game's `user\` dir (savedataNN.dat…): user data, gitignored (`_s
 | `srand(time(0))` in WinMain | pinned: `srand(--seed)`, default 0x4f5347 = the port's OSS_RNG_DEFAULT_SEED |
 | heap placement (NT heap/LFH; Global/LocalAlloc) | fixed-address arena 0x20000000.. (rh_heap.c) |
 | kernel handle numbers (CRT `__pioinfo`, mutex) | sequence-numbered fake handles (rh_handles.c) |
-| GDI handle numbers kept in the heap (fonts/brushes/pens) | sequence-numbered fake GDI handles (rh_gdi.c) |
+| GDI handle numbers kept in the heap (fonts/brushes/pens) | fake GDI handles (rh_gdi.c): slots reused LIFO like GDI's table, generation in the high byte (stale handle ⇒ invalid); retail does GetDC/ReleaseDC every flip. Periodic log: `kh=` kernel / `gdi=issued/live/hw` |
 | stack placement + **system-DLL stack garbage read by retail** (uninitialized palette byte 3 at 0x586010 / 0x417c40) | fixed stack 0x58800000..0x59000000; every external call (IAT + DirectDraw7/DirectShow/fake DSound COM) runs on a separate system stack 0x58010000..0x58700000 (rh_scrub.c) |
 | command line / environment / startup info / std handles | fixed values |
 | temp file names (BGM .wma extraction), user's saves/config | `GetTempPathA` = `<game>\tmp\` (run-independent string) + deterministic names; overlay: game dir read-only, writes copy-on-write into the run dir, `user\` + `temp\` whited-out unless the run dir provides them |

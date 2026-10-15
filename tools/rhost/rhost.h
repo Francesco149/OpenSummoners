@@ -107,10 +107,12 @@ void rh_files_install(void);
 void rh_gdi_install(void);
 long rh_gdi_live(void);
 void *rh_gdi_real(void *h);   /* fake → real (pass-through for others) */
+void rh_gdi_stats(char *b, int n);   /* "gdi=issued/live(per-import fresh fakes)" */
 
 /* rh_handles.c */
 void rh_handles_install(void);
 long rh_handles_live(void);
+uint32_t rh_handles_issued(void);   /* of FAKE_MAX (never reused) */
 
 /* rh_state.c */
 typedef struct { uint64_t full, semantic; uint32_t masked, ranges, bytes; } rh_hash_t;

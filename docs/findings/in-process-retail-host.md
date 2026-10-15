@@ -26,7 +26,7 @@ All numbers: Win11 native (cutestation, 24 threads), EN-old unless noted.
 | finding | how found | fix |
 |---|---|---|
 | boot parks at frame 47 / pump spins | `WaitMessage while inactive` | WM_ACTIVATEAPP goes to the GAME window (shown via `SetWindowPos(SWP_SHOWWINDOW)`, quirk #125), not the first (WAIT splash) window |
-| GDI handle values in the heap (fonts/brushes/pens: type byte 0x0a/0x10/0x30) | det gate at frame 1: 96 dwords in the CRT SBH region | rh_gdi.c fake handle numbering (+ translate WNDCLASS.hbrBackground) |
+| GDI handle values in the heap (fonts/brushes/pens: type byte 0x0a/0x10/0x30) | det gate at frame 1: 96 dwords in the CRT SBH region | rh_gdi.c fake handle numbering (+ translate WNDCLASS.hbrBackground); SLOTS reused LIFO + a generation high byte (2026-10-15: retail GetDC/ReleaseDCs every flip ⇒ the never-reused sequence capped at 16384 died at flip ~16.3k) |
 | HWND slot 0x8a93ec | det gate (`data` region) | masked (volatile) |
 | byte 3 of 256 palette dwords (0x586010, 0x417c40) | det gate: 87+22 heap dwords differing in byte 3 only; `--watch-write` → writer 0x49179d / 0x418216; disasm → stack palette, 3 of 4 bytes written (quirk #123) | external calls run on a separate system stack (rh_scrub.c) |
 | BGM positions (music loop) | RE of 0x5bb9b0 (quirk #127) | DirectShow patched onto a virtual playback clock |

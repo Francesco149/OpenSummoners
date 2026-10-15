@@ -647,8 +647,9 @@ static void __cdecl pre_flip(void)
     if (O.log_every && g_frame % O.log_every == 0) {
         uint16_t cw; __asm__ volatile("fnstcw %0" : "=m"(cw));
         char wb[256]; watch_str(wb, sizeof wb);
-        rh_log("frame %u tick=%u vclock=%u rng=%08x cw=%04x creep=%u%s\n", g_frame, g_ticks, g_vclock,
-               G32(g_ed->rng_seed), cw, g_creep_total, wb);
+        char gb[128]; rh_gdi_stats(gb, sizeof gb);
+        rh_log("frame %u tick=%u vclock=%u rng=%08x cw=%04x creep=%u %s%s\n", g_frame, g_ticks, g_vclock,
+               G32(g_ed->rng_seed), cw, g_creep_total, gb, wb);
     }
     if (O.hash_every && g_frame % O.hash_every == 0) {
         rh_hash_t h; rh_state_hash(&h);
