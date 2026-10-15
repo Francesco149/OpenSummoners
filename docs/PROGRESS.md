@@ -6,6 +6,18 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-15 (noon) — the party characters' POSE handler 0x457ff0 runs as port code
+
+- `src/arche_pose.c`: Arche / Sana / 50012's pose handler (turn-around, the hit reactions with their voice
+  lines, stagger, the knockdowns 107 / 111 / 115 via `0x459990`, the blown-back falls 110 / 112 via the drift
+  `0x4678f0` / `0x467ae0`, get-up 113, revive 116) + the status inflict `0x4593e0` (the double jitter draw),
+  the switch touch `0x5b1aa0` / `0x459ed0`, live particle `0x459370`, hitstop `0x54d060`, room logs
+  `0x5b4510`; quirk #143.  The integrator's `h457ff0` slot retired.
+- rhost: `arche_pose` 1.43M calls, 72,685 full-state compared (a new TC_HOOK_R wrapper: every non-zero pose
+  plus 1/64 of the rest — the AI probe passes run the integrator ~30× a frame), `switch_touch` 414 (via
+  `0x5b15e0`), 0 divergences; the knockdowns / status inflict are unreached (no combat).  Hybrid gate: 305
+  hooks, PASS.
+
 ## 2026-10-15 (morning) — the party API runs as port code
 
 - `src/party_member.c`: the story setups 0x4c5350 / 0x4e59a0 (the start party from the config, the

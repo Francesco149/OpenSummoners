@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **577** (36.8% of engine-proper) — tested 250, ported 327
-- code bytes touched: **30.2%** (535,705 / 1,776,526 B of engine-proper)
-- unported: **1247**
+- touched: **586** (37.4% of engine-proper) — tested 249, ported 337
+- code bytes touched: **29.5%** (523,946 / 1,776,526 B of engine-proper)
+- unported: **1238**
 - orphan refs in src/ not in this table: 0
 
-## tested (250) — ported + host unit suite
+## tested (249) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -118,7 +118,6 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4c5350 | map_resolve_room_key_4C5350 | 1169 | game_map.c, game_map.h, party_member.h |
 | 0x4cc820 | sub_4CC820 | 508 | party.c, party.h, party_member.h |
 | 0x4e59a0 | sub_4E59A0 | 1676 | party.h, party_member.h |
-| 0x4f19e0 | sub_4F19E0 | 20437 | party.c |
 | 0x54c970 | map_grid_clear_cell_54C970 | 84 | map_grid.c, map_grid.h |
 | 0x54db10 | mover_horizontal_54DB10 | 946 | collision.c, collision.h, entity_move.c (+1) |
 | 0x54ded0 | sub_54DED0 | 1555 | collision.c, collision.h |
@@ -274,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (327) — reimplemented, no host test yet
+## ported (337) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -438,10 +437,17 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x451250 | sub_451250 | 119 | char_integrate.h |
 | 0x4537d0 | sub_4537D0 | 283 | entity_fx.c, entity_fx.h |
 | 0x453960 | velocity_scatter_453960 | 70 | char_state.h |
+| 0x457ff0 | sub_457FF0 | 4675 | arche_pose.c, arche_pose.h |
+| 0x459370 | sub_459370 | 71 | arche_pose.h |
 | 0x4593c0 | sub_4593C0 | 32 | char_state.h |
+| 0x4593e0 | sub_4593E0 | 1399 | arche_pose.h |
+| 0x459990 | sub_459990 | 1313 | arche_pose.h |
+| 0x459ed0 | sub_459ED0 | 72 | arche_pose.h |
 | 0x460e40 | sub_460E40 | 143 | particle_init.h |
 | 0x4671c0 | sub_4671C0 | 158 | char_integrate.h |
 | 0x467380 | ambient_event_timer_467380 | 376 | sound_fx.h |
+| 0x4678f0 | sub_4678F0 | 482 | arche_pose.h |
+| 0x467ae0 | sub_467AE0 | 199 | arche_pose.h |
 | 0x468a20 | sub_468A20 | 237 | room_loop.h |
 | 0x46cd70 | actor_update_all_46CD70 | 1031 | world_tick.c, world_tick.h |
 | 0x46d180 | sub_46D180 | 798 | entity_fx.c, entity_fx.h |
@@ -506,6 +512,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x54c3c0 | sub_54C3C0 | 358 | world_alloc.h |
 | 0x54c640 | sub_54C640 | 812 | grid_refresh.c, grid_refresh.h |
 | 0x54c9d0 | sub_54C9D0 | 214 | grid_refresh.c, grid_refresh.h |
+| 0x54d060 | sub_54D060 | 36 | arche_pose.h |
 | 0x54d090 | sub_54D090 | 2636 | entity_fx.c, entity_fx.h |
 | 0x54ecf0 | sub_54ECF0 | 137 | gimmick.h |
 | 0x54efd0 | sub_54EFD0 | 358 | gimmick.h |
@@ -594,6 +601,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5a4200 | sub_5A4200 | 276 | scene_loop.h |
 | 0x5a4460 | sub_5A4460 | 30 | scene_loop.h |
 | 0x5a4480 | sub_5A4480 | 312 | scene_loop.h |
+| 0x5b1aa0 | sub_5B1AA0 | 405 | arche_pose.h |
+| 0x5b4510 | sub_5B4510 | 26 | arche_pose.h |
 | 0x5b4530 | sub_5B4530 | 1209 | party_member.h |
 | 0x5b4a10 | sub_5B4A10 | 741 | party_member.h |
 | 0x5b54d0 | sub_5B54D0 | 166 | char_state.h |

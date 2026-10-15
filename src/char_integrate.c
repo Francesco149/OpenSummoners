@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <string.h>
 
+#include "arche_pose.h"
 #include "char_physics.h"
 #include "char_state.h"
 #include "engine_calls.h"
@@ -498,11 +499,11 @@ t814:
                 goto t914;
             }
             if (code == 50010) {
-                r = g_eng.h457ff0(self, IP(out), probe, part, IP(&ctl));
+                r = arche_pose(self, out, probe, part, &ctl);
                 g_eng.h45a300(self, IP(out), probe, IP(&ctl), IP(cmd), out->grounded, IP(&dt), IP(g_eng.data(0x62f868)), 210);
                 if (r == 0 && g_eng.h461790(self, IP(out), probe, IP(&ctl), out->grounded, part, IP(cmd)) == 0) PHYS();
             } else if (code == 50011) {
-                r = g_eng.h457ff0(self, IP(out), probe, part, IP(&ctl));
+                r = arche_pose(self, out, probe, part, &ctl);
                 g_eng.h45a300(self, IP(out), probe, IP(&ctl), IP(cmd), out->grounded, IP(&dt), IP(g_eng.data(0x636a58)), 210);
                 g_eng.h45e830(self, IP(out), probe, IP(&ctl), IP(cmd), out->grounded);
                 if (r == 0) PHYS();
@@ -522,7 +523,7 @@ t814:
         goto t834;
 
 t861:
-        r = g_eng.h457ff0(self, IP(out), probe, part, IP(&ctl));
+        r = arche_pose(self, out, probe, part, &ctl);
         g_eng.h45a300(self, IP(out), probe, IP(&ctl), IP(cmd), out->grounded, IP(&dt), IP(g_eng.data(0x63cde8)), 210);
         g_eng.h45e830(self, IP(out), probe, IP(&ctl), IP(cmd), out->grounded);
         if (r == 0) PHYS();

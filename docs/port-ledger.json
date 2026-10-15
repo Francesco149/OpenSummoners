@@ -6,17 +6,17 @@
   "non_thunk_functions": 1824,
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
-  "tested": 250,
-  "ported": 327,
-  "unported": 1247,
+  "tested": 249,
+  "ported": 337,
+  "unported": 1238,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 577,
-  "pct_touched": 36.8,
-  "pct_tested": 15.8,
-  "engine_proper_touched": 564,
+  "touched": 586,
+  "pct_touched": 37.4,
+  "pct_tested": 15.7,
+  "engine_proper_touched": 573,
   "bytes_total": 1776526,
-  "bytes_touched": 535705,
-  "pct_bytes_touched": 30.2
+  "bytes_touched": 523946,
+  "pct_bytes_touched": 29.5
  },
  "orphan_refs": [],
  "functions": [
@@ -4490,16 +4490,21 @@
    "name": "sub_457FF0",
    "size": 4675,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/arche_pose.c",
+    "src/arche_pose.h"
+   ]
   },
   {
    "va": "0x459370",
    "name": "sub_459370",
    "size": 71,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/arche_pose.h"
+   ]
   },
   {
    "va": "0x4593c0",
@@ -4516,24 +4521,30 @@
    "name": "sub_4593E0",
    "size": 1399,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/arche_pose.h"
+   ]
   },
   {
    "va": "0x459990",
    "name": "sub_459990",
    "size": 1313,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/arche_pose.h"
+   ]
   },
   {
    "va": "0x459ed0",
    "name": "sub_459ED0",
    "size": 72,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/arche_pose.h"
+   ]
   },
   {
    "va": "0x459f20",
@@ -4789,16 +4800,20 @@
    "name": "sub_4678F0",
    "size": 482,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/arche_pose.h"
+   ]
   },
   {
    "va": "0x467ae0",
    "name": "sub_467AE0",
    "size": 199,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/arche_pose.h"
+   ]
   },
   {
    "va": "0x467bb0",
@@ -8032,10 +8047,8 @@
    "name": "sub_4F19E0",
    "size": 20437,
    "is_thunk": false,
-   "status": "tested",
-   "src": [
-    "src/party.c"
-   ]
+   "status": "unported",
+   "src": []
   },
   {
    "va": "0x4f69c0",
@@ -8452,8 +8465,10 @@
    "name": "sub_54D060",
    "size": 36,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/arche_pose.h"
+   ]
   },
   {
    "va": "0x54d090",
@@ -11646,8 +11661,10 @@
    "name": "sub_5B1AA0",
    "size": 405,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/arche_pose.h"
+   ]
   },
   {
    "va": "0x5b1c50",
@@ -11758,8 +11775,10 @@
    "name": "sub_5B4510",
    "size": 26,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/arche_pose.h"
+   ]
   },
   {
    "va": "0x5b4530",

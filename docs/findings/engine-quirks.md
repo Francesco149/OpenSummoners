@@ -4448,6 +4448,36 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   class-1 skill holds, else the first free class-2 slot, else class 255; a non-equippable one class 1 / slot 0;
   an unknown skill class 255.
 
+### #143 — the party characters' POSE handler: hit reactions, knockdowns, get-up, status inflict (port 2026-10-15)
+- **`0x457ff0`** runs every integrator tick for 50010 (Arche) / 50011 (Sana) / 50012, BEFORE the action
+  handler `0x45a300`; its return 1 (only the knockdown poses 107 / 111 / 112 / 115) skips the physics step.
+  By the body pose +0x48: 2 turn-around (clip 0x62c8a8; the facing flips when frame +0x72 hits 1, then the
+  pose resets when the clip ends); 98 / 99 hit reactions (clip 0x62bf18 / 0x62bd80; on the first tick
+  (+0x5c == 0) a voice line by the hit kind char+0x15ad0: 8 / 14 a 20% roll for line 17, 12 a 20% roll for 18,
+  13 / 16 always 19; if that line was not played (no roll / not live / voice_place fails) line 9 — the
+  fallback re-runs voice_place; the probe pass plays none; kind 8 also adds the effect record 100156 for 12);
+  102 / 103 stagger (top margin 3200); 108 / 109 lie (no collide); 110 / 112 the blown-back falls in 6 phases
+  (`0x4678f0` ramps vx to -20000 / -15000 / -10000 / -5000 / 0, vy to 64000, landing = dust ×8 + sound 132 at
+  500 - rand·1000/0x8000; 110 phase 4 waits 10 ticks then gets up only when grounded); 113 get-up (a 10..19
+  tick hold, then clip 0x62d898, then the landing sound of pool sys+0x574 at the effects gain - 500 + clip
+  0x62da30; while waiting the clip follows the body state as the per-state animator does); 116 revive (clips
+  0x62dbc8 → 0x62dd60, ends when char+0x268 is set or status 1 is clear); 125 / 126 look-up / revive clips.
+- **Knockdown `0x459990`** (107 / 111 / 115; `aura` = 1): knocked to -40000 / -40000, phase 0 kind 8 (not the
+  probe) re-arms the burn record 100157 for 60 ticks in the FIRST free effect slot (removing the old one), and
+  Arche (party +0xd4 == 1) / Sana spawn their aura particle 100128 / 100129 unless one is alive; phase 2 lands
+  with 8 debris particles 100080 + the pool sys+0x574 sound (the freq roll is drawn even in the probe pass).
+  107 then sets pose 109 + status 10 (not in the probe); 111 lies 100 ticks then clip 0x62d0a0; 115 sets the
+  room loop's hitstop (+0x3c = 1, +0x3a = 200) on phase 1 and clears it at phase 5.  All knockdown poses touch
+  the switch below the body (`0x5b1aa0`, rect y + 3200, mode 0) outside the probe.
+- **Status inflict `0x4593e0`** (status 1..18): length = row(0x628708 + 140·st) u16 +0x64 (+ dword +0x68 when
+  char+0x15a94 == 0) + u16 +0x66 · rand / 0x8000 — **the jitter term is DRAWN TWICE** (the `max(0, x)` macro
+  evaluates x again: a second rand when the first sum is >= 0); the party's u16 +0x46c[st] = length, the timer
+  +0x448[st] = it, dword +0x490[st] = the value.  When it was 0 before: the party log line (1 "%s has fallen",
+  2 paralyzed, 3 confused, 5 asleep, 6 poison, 7 "%s's defenses were reduced by %d.", 13 attack power) into
+  the world message log (8 slots of 516 B from world +0x1024, the first free) when char+0xc794's room logs
+  (+0x40a4).  Status 1 clears every other timer.  Sounds: 3 → pool sys+0x534, 7 → +0x530, 13 → +0x52c (13's
+  plays before its message), freq 0.
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

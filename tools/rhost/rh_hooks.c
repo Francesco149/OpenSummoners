@@ -49,6 +49,7 @@
 #include "char_init.h"
 #include "party_member.h"
 #include "scene_loop.h"
+#include "arche_pose.h"
 #include "engine_calls.h"
 
 typedef struct {
@@ -113,6 +114,11 @@ typedef struct {
     X(H_PA_ADD, "room_member_add", 0x4cc820u) X(H_PA_IADD, "room_item_add", 0x415e20u) \
     X(H_PA_SROW, "stat_row_find", 0x4090e0u) X(H_PA_PROF, "char_profile_find", 0x4c6110u) \
     X(H_PA_RECOMP, "stats_recompute", 0x4066d0u) X(H_PFACE, "part_facing", 0x4842c0u) \
+    X(H_AP_POSE, "arche_pose", 0x457ff0u) X(H_AP_STATUS, "char_status_inflict", 0x4593e0u) \
+    X(H_AP_KNOCK, "char_knockdown", 0x459990u) X(H_AP_BSW, "body_switch_touch", 0x459ed0u) \
+    X(H_AP_DRIFT, "char_drift", 0x4678f0u) X(H_AP_DMOVE, "char_drift_move", 0x467ae0u) \
+    X(H_AP_PLIVE, "particle_live", 0x459370u) X(H_AP_HSTOP, "room_hitstop_set", 0x54d060u) \
+    X(H_AP_SWT, "switch_touch", 0x5b1aa0u) X(H_AP_LOGS, "char_room_logs", 0x5b4510u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
 
@@ -3090,6 +3096,21 @@ typedef struct { void *self; intptr_t a[22]; intptr_t rr, rp; } gx_ctx;
     static void ID##_p(void *c) { gx_ctx *x = c; port_world(); x->rp = ID##_port(x->self, GX##N); } \
     static intptr_t __attribute__((thiscall)) ID##_w(void *self, GP##N)                              \
     { hook_t *h = &H[ID]; gx_ctx x = { self, { GA##N }, 0, 0 }; GX_TAIL(ID, NAME, CMP) }
+/* TC_HOOK with a RARE expression (over self / a1..): those calls always compare, the rest every @N */
+#define TC_HOOK_R(ID, NAME, N, CMP, RARE, PORT)                                                      \
+    typedef intptr_t (__attribute__((thiscall)) *ID##_t)(void *, GP##N);                             \
+    static intptr_t ID##_port(void *self, GP##N) { PORT; }                                          \
+    static void ID##_r(void *c) { gx_ctx *x = c; x->rr = ((ID##_t)(uintptr_t)H[ID].va)(x->self, GX##N); } \
+    static void ID##_p(void *c) { gx_ctx *x = c; port_world(); x->rp = ID##_port(x->self, GX##N); } \
+    static intptr_t __attribute__((thiscall)) ID##_w(void *self, GP##N)                              \
+    {                                                                                                \
+        hook_t *h = &H[ID]; gx_ctx x = { self, { GA##N }, 0, 0 };                                    \
+        if (h->mode == 2) { h->calls++; ID##_p(&x); return x.rp; }                                    \
+        if (!sample_rare(h, (RARE))) { ID##_r(&x); return x.rr; }                                     \
+        if (!full_shadow(h, NAME, ID##_r, ID##_p, &x, NAME) && (CMP) && x.rr != x.rp)               \
+            diverged(h, "f%u %s ret %p/%p", g_frame, NAME, (void *)x.rr, (void *)x.rp);            \
+        return x.rr;                                                                                 \
+    }
 #define TC_HOOK0(ID, NAME, CMP, PORT)                                                                \
     typedef intptr_t (__attribute__((thiscall)) *ID##_t)(void *);                                    \
     static intptr_t ID##_port(void *self) { PORT; }                                                 \
@@ -3231,6 +3252,19 @@ ST_HOOK(H_PA_SROW, "stat_row_find", 2, 1, return (intptr_t)stat_row_find(a1, a2)
 ST_HOOK(H_PA_PROF, "char_profile_find", 1, 1, return (intptr_t)char_profile_find(a1))
 TC_HOOK(H_PA_RECOMP, "stats_recompute", 3, 0, stats_recompute(self, a1, (uint8_t *)a2, CP(a3)); return 0)
 TC_HOOK(H_PFACE, "part_facing", 1, 1, return part_facing(self, a1))
+/* Arche's pose handler + helpers (src/arche_pose.c) */
+TC_HOOK_R(H_AP_POSE, "arche_pose", 4, 1, ((wl_body *)a1)->pose != 0,
+          return arche_pose(self, (wl_body *)a1, a2, a3, (int32_t *)a4))
+TC_HOOK(H_AP_STATUS, "char_status_inflict", 2, 0, char_status_inflict(self, U16(a1), a2); return 0)
+TC_HOOK(H_AP_KNOCK, "char_knockdown", 4, 1, return char_knockdown(self, (wl_body *)a1, a2, a3, a4))
+ST_HOOK(H_AP_BSW, "body_switch_touch", 3, 1, return body_switch_touch(CP(a1), a2, U16(a3)))
+TC_HOOK(H_AP_DRIFT, "char_drift", 12, 1,
+        return char_drift(self, (wl_body *)a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12))
+TC_HOOK(H_AP_DMOVE, "char_drift_move", 6, 1, return char_drift_move(self, (wl_body *)a1, a2, a3, a4, a5, a6))
+ST_HOOK(H_AP_PLIVE, "particle_live", 1, 1, return particle_live(a1))
+ST_HOOK(H_AP_HSTOP, "room_hitstop_set", 2, 0, room_hitstop_set(a1, U16(a2)); return 0)
+ST_HOOK(H_AP_SWT, "switch_touch", 3, 1, return switch_touch((const int32_t *)a1, U16(a2), a3))
+TC_HOOK0(H_AP_LOGS, "char_room_logs", 1, return char_room_logs(self))
 /* the scene loop itself — REPLACE only (a whole session per call) */
 typedef int32_t (__attribute__((thiscall)) *scloop_t)(uint8_t *, int32_t, uint32_t, int32_t, int32_t *, int32_t);
 static int32_t __attribute__((thiscall)) w_scloop(uint8_t *ss, int32_t save, uint32_t sub, int32_t demo, int32_t *out, int32_t start)
@@ -3491,7 +3525,7 @@ static void bind_engine_calls(void)
     *(void **)&g_eng.op_delete = (void *)(uintptr_t)0x5bef0eu;   /* operator delete (cdecl) */
 #define B(n) *(void **)&g_eng.h##n = (void *)(uintptr_t)0x##n##u
     B(467260); B(44a740); B(45a300); B(44bc10); B(44c250); B(44bf60); B(446900);
-    B(452020); B(449810); B(4539b0); B(44d8f0); B(448dc0); B(452730); B(457ff0); B(45e830);
+    B(452020); B(449810); B(4539b0); B(44d8f0); B(448dc0); B(452730); B(45e830);
     B(455d80); B(44b160); B(4516e0); B(4484b0); B(4512d0); B(44a200); B(44e8d0); B(44f690); B(450810);
     B(44d2e0); B(456d30); B(461790); B(445e50);
 #undef B

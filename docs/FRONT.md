@@ -72,7 +72,8 @@
   | the PARTY API (the story setups by start area, start members from the config, levels, slot init, skills, starting items, leader, join / leave / dismiss, equip + stat refresh, class fit, item add) | `0x4c5350` `0x4e59a0` `0x408dc0` `0x4c5e00` `0x4c6160` `0x4c6990` `0x4c6830` `0x413b20` `0x408d40` … (25) | 6 / 6 / 6 / 3 / 3 / 3 / 3 / 6 / 3 … (11 of 25 reached: the new-game path) | 0 |
   | the member stats recompute (base + items, with an equip-preview item) | `0x4066d0` | 1 | 0 |
   | the scene start (next area / retry point, actor states, room snapshot) + a part's facing | `0x59cfc0` / `0x4842c0` | 8 / 8 | 0 |
-  Hybrid gate: with all of the above REPLACING retail (295 hooks) (the whole character tick, driver → tile
+  | the party POSE handler (turn-around, hit reactions + voice, stagger, knockdowns, blown-back falls, get-up, revive) + knockdown, status inflict, drift, switch touch, particle live, hitstop | `0x457ff0` (+ `0x459990` `0x4593e0` `0x4678f0` `0x467ae0` `0x459ed0` `0x5b1aa0` `0x459370` `0x54d060` `0x5b4510`) | 1.43M (72,685 full-state: every non-zero pose) / – / – / – / – / – / 414 / – / – / – | 0 |
+  Hybrid gate: with all of the above REPLACING retail (305 hooks) (the whole character tick, driver → tile
   movers, + the room loop's passes and per-tick calls, runs as port code), every corpus scenario ends byte-identical.
   Shadow guard (rhost): a port phase that reaches an external effect retail already performed (surface free,
   buffer release, DeleteObject, DirectInput, a mode-0/2 script) aborts its comparison (counted skipped); those
@@ -116,8 +117,10 @@
      `0x59f2c0`, so the port binary can run free roam on the retail-layout world (item 2).
      Slots left in the passes: the script engine `0x40c380` (5 KB), the key use `0x54ed80`, the input
      re-poll `0x40fe00`, the shot emitters `0x40ac90` / `0x55cfc0`.
-  0. the Arche handlers `0x457ff0` (4.6 KB),
-     `0x45a300` (14 KB), `0x461790` (19 KB) and the apply-pass `0x487dc0` (5 KB) / `0x4878b0`; the DirectSound
+  0. the Arche handlers: the POSE handler `0x457ff0` is ported (`src/arche_pose.c`, quirk #143; the knockdowns /
+     status inflict unreached: no combat in the corpus); left: `0x45a300` (14 KB, the skill casts; also 0x446900 /
+     0x4484b0), `0x461790` (19 KB, Arche's sword skills 10101..; its helpers 0x4665d0 0x447900 0x5b15e0 0x447ed0
+     0x447f30 0x4483a0 0x450590 ...) and the apply-pass status tick `0x487dc0` (5 KB) / sink `0x4878b0`; the DirectSound
      calls `0x5bb250`..`0x5bb8e0` + `0x5b9390` stay platform slots (PORT-DEBT(engine-call-slots)).
   1. the band updaters under the tick driver `0x46cd70` (`src/world_tick.c`): ALL ported except shots `0x4710c0` (20 KB)
      + the 96-band `0x46da00` never run in the corpus (no combat yet). Arms ported but NOT yet exercised by
@@ -132,7 +135,7 @@
      the corpus reaches only these four (+ `0x484c10`'s early return, `0x47e330`'s self-centred pick). The actor behaviours behind
      slots: `0x555790` (doors), `0x554c40`, `0x553ec0`, `0x553520`, `0x552c70`, `0x552f60`, `0x554570`,
      `0x54f140`, `0x5556d0`, `0x5531b0` (ambient timers), the channel start `0x450ef0`;
-     the type handlers behind the integrator (Arche: `0x457ff0`, `0x45a300`, `0x45e830`).
+     the type handlers behind the integrator (Arche: `0x45a300`, `0x461790`, `0x45e830`).
   2. SWITCH the port's freeroam drive onto the retail-layout world (`g_world`, wl_char bodies,
      `char_ai` → `char_integrate`) and retire the `character.c` reductions; prove it with
      `--det-clock` portshots/portstate vs rhost on `rh-my-play`.

@@ -273,7 +273,7 @@ void party_init_errands(party *p)
      * scene dispatcher.  BOTH char-init paths CLEAR it (426fd0:105 + 4c5e00:85),
      * and every non-zero +0xdc write in the corpus is a scene-beat index on the
      * scene object (*in_ECX), not the stats block.  The setter VA is unidentified
-     * (the plan's "FUN_004f19e0" was WRONG — 4f19e0 is the Weathervane Tower story
+     * (the plan's "0x4f19e0" was WRONG — 4f19e0 is the Weathervane Tower story
      * script); find it via a live mem_watch on the leader stats+0xdc.  Arche's 2
      * errands stars stay a stand-in until that lands.  HP/MP/level/EXP are real. */
     p->slots[0].stats.star_count = 2;
