@@ -171,14 +171,14 @@ typedef struct engine_calls {
     int32_t    *quiet;
     void       *dlog;
     /* ... and its callees: the joystick create 0x5ba120 / acquire 0x5ba290 (DirectInput), the map
-     * the room population's inits (character 0x41f200, device 0x431e30, structure 0x438a60), the
+     * the room population's inits (character 0x41f200, device 0x431e30), the
      * map sprite's palette read 0x4178e0 (the bitmap resource)
      * and frames 0x418470 (DirectDraw surfaces), the parallax grade 0x417c40, the party
      * member create 0x58e170, 0x56dc20, the scene runner's stop 0x41a890, the pool-head record
      * clear 0x40e0c0; the fatal paths: the sprintf 0x5bf3ee, the error box 0x426110, the log reset
      * 0x560900, exit 0x5bf5db; KERNEL32's resource calls (the map resource reader) */
     eng_tc3 h5ba120; eng_tc0 h5ba290;
-    eng_tc14 h41f200; eng_tc25 h431e30; eng_tc7 h438a60;
+    eng_tc14 h41f200; eng_tc25 h431e30;
     eng_tc1 h4178e0; eng_tc1 h418470; eng_tc2 h417c40;
     eng_tc5 h58e170; eng_tc3 h56dc20;
     void *(ENG_STDCALL *find_res)(void *mod, const char *name, const char *type);

@@ -15,6 +15,7 @@
 #include "char_integrate.h"
 #include "char_state.h"
 #include "engine_calls.h"
+#include "entity_life.h"
 #include "entity_fx.h"
 #include "rng.h"
 
@@ -330,6 +331,42 @@ void entity_setup(wl_entity *e, int32_t kind, int32_t code, int32_t fac, int32_t
         e->f08 = NULL;
     }
     e->nrects = 0;
+}
+
+/* ── the structure init (0x438a60; 60501 / 60502 inline 0x426620 verbatim) ── */
+
+void structure_init(wl_entity *e, int32_t x, int32_t y, int32_t anchor, uint32_t code, int32_t trk_b, int32_t tint,
+                    int32_t h)
+{
+    static const struct { uint16_t code; uint16_t w, h; int8_t dx, dy, tint4, full; uint16_t trk; } S[] = {
+        { 60501, 32000, 32000, 0, 0, 0, 1, 351 }, { 60502, 32000, 32000, 0, 0, 0, 1, 352 },
+        { 60503, 16000, 16000, 0, 0, 0, 1, 353 }, { 60504, 32000, 32000, 0, 0, 0, 1, 354 },
+        { 60511,  8000,  8000, 0, 0, 0, 1, 355 }, { 60512,  4800,  4800, 0, 0, 0, 1, 356 },
+        { 60513,  9600,  9600, 0, 0, 0, 1, 357 }, { 60514,  8000,  4800, 0, 0, 0, 1, 358 },
+        { 60521,  4000,  4000, 0, 0, 0, 1, 363 }, { 60522,  6400,  6400, 0, 0, 0, 0, 364 },
+        { 60523,  6400,  6400, -8, -16, 0, 0, 366 }, { 60524, 12800, 12800, 0, 0, 1, 0, 367 },
+        { 60525,  6400,  6400, 0, 0, 0, 0, 365 }, { 60526, 12800, 12800, 0, 0, 0, 0, 368 },
+        { 60527,  6400, 12800, -32, 0, 0, 0, 368 }, { 60528, 12800, 22400, 0, 0, 1, 0, 406 },
+        { 62101,  9600,  9600, 0, 0, 0, 0, 119 },
+    };
+    if (code == 60540) {
+        entity_setup(e, 5, 60540, 0, x, y, 8000, 9600, 1, 1, 0, 0, anchor, tint == 8 ? 1 : tint, 0);
+        entity_track_on(e, 0, 397, (int16_t)trk_b);
+    } else if (code == 61101) {
+        entity_setup(e, 5, 61101, 0, x, y, 12800, 12800, 1, 1, 0, 0, anchor, tint, 0);
+        entity_track_on(e, 0, (int16_t)g_world->f27a4, (int16_t)trk_b);
+    } else {
+        for (size_t k = 0; k < sizeof S / sizeof *S; k++) {
+            if (S[k].code != code) continue;
+            entity_setup(e, 5, (int32_t)code, 0, x, y, S[k].w, S[k].h, 1, 1, S[k].dx, S[k].dy, anchor,
+                         S[k].tint4 ? 4 : tint, 0);
+            /* the plain-box ones get the full track record (0x426db0), the rest 0x426d70 */
+            if (S[k].full) entity_set_track(e, 0, (int16_t)S[k].trk, (int16_t)trk_b, 1, 0, 0, 0);
+            else entity_track_on(e, 0, (int16_t)S[k].trk, (int16_t)trk_b);
+            break;
+        }
+    }
+    if (h != 0) entity_set_handle(e, h);
 }
 
 /* ── the init ── */

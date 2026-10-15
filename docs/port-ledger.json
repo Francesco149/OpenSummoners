@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 250,
-  "ported": 208,
-  "unported": 1366,
+  "ported": 210,
+  "unported": 1364,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 458,
-  "pct_touched": 29.0,
+  "touched": 460,
+  "pct_touched": 29.2,
   "pct_tested": 15.8,
-  "engine_proper_touched": 445,
+  "engine_proper_touched": 447,
   "bytes_total": 1776526,
-  "bytes_touched": 451388,
-  "pct_bytes_touched": 25.4
+  "bytes_touched": 454204,
+  "pct_bytes_touched": 25.6
  },
  "orphan_refs": [],
  "functions": [
@@ -3123,8 +3123,10 @@
    "name": "sub_438A60",
    "size": 2639,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/particle_init.h"
+   ]
   },
   {
    "va": "0x439510",
@@ -8497,8 +8499,10 @@
    "name": "sub_555F00",
    "size": 177,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/entity_life.h"
+   ]
   },
   {
    "va": "0x555fc0",

@@ -15,6 +15,7 @@
  *   FUN_00557550  particle_init          FUN_00426620  entity_setup
  *   FUN_004265e0  entity_fx_reset        FUN_00426d70  entity_track_on
  *   FUN_00426ec0  body_clip_jitter       FUN_004272e0  parts_free
+ *   FUN_00438a60  structure_init
  *   FUN_004385c0  entity_tint            FUN_00448c80  tint_fade_a
  *   FUN_00476710  tint_fade_b            FUN_00476c70  entity_ride_part
  *   FUN_00476d00  body_set_angle         FUN_0055cbc0  entity_snd_alloc
@@ -33,6 +34,10 @@
  * (degrees), `prio`, the spawner's faction. */
 int32_t particle_init(wl_particle *p, int32_t code, int32_t x, int32_t y, int32_t facing, uint32_t delay, int32_t anchor,
                       wl_entity *owner, int32_t angle, int32_t prio, int32_t fac);
+/* 0x438a60 (thiscall entity): a map STRUCTURE (world +0x2560; kind 5): its box + track by code
+ * (60501..60528 / 60540 / 61101 / 62101; others stay as they are), then the handle `h` */
+void structure_init(wl_entity *e, int32_t x, int32_t y, int32_t anchor, uint32_t code, int32_t trk_b, int32_t tint,
+                    int32_t h);
 
 void entity_setup(wl_entity *e, int32_t kind, int32_t code, int32_t fac, int32_t x, int32_t y, int32_t w, int32_t h,
                   int32_t facing, uint8_t on, int32_t dx, int32_t dy, int32_t anchor, int32_t tint, int16_t nfx);

@@ -150,3 +150,13 @@ void entity_carry_riders(wl_entity *e, int32_t dx, int32_t dy, uint16_t part)
         entity_carry_riders(r, r->body[part].x - x0, r->body[part].y - y0, part);
     }
 }
+
+void entity_set_handle(wl_entity *e, int32_t h)
+{
+    if (e->handle != 0) wl_list_remove(g_world->list_2790, e);   /* (the same loop, inlined) */
+    if (h != 0) {
+        wl_list *l = g_world->list_2790;
+        if (l->count < l->cap) l->items[l->count++] = e;
+    }
+    e->handle = h;
+}

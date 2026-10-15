@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **458** (29.0% of engine-proper) — tested 250, ported 208
-- code bytes touched: **25.4%** (451,388 / 1,776,526 B of engine-proper)
-- unported: **1366**
+- touched: **460** (29.2% of engine-proper) — tested 250, ported 210
+- code bytes touched: **25.6%** (454,204 / 1,776,526 B of engine-proper)
+- unported: **1364**
 - orphan refs in src/ not in this table: 0
 
 ## tested (250) — ported + host unit suite
@@ -274,7 +274,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (208) — reimplemented, no host test yet
+## ported (210) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -329,6 +329,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x426fa0 | sub_426FA0 | 45 | npc_ai.h |
 | 0x4272e0 | sub_4272E0 | 79 | particle_init.h |
 | 0x4385c0 | sub_4385C0 | 19 | particle_init.h |
+| 0x438a60 | sub_438A60 | 2639 | particle_init.h |
 | 0x43c9b0 | sub_43C9B0 | 130 | room_load.h |
 | 0x43e140 | sub_43E140 | 266 | room_loop.h |
 | 0x43e3a0 | sub_43E3A0 | 516 | event.c, event.h |
@@ -426,6 +427,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x555790 | sub_555790 | 1082 | actor_ops.h |
 | 0x555bd0 | sub_555BD0 | 694 | actor_ops.h |
 | 0x555e90 | sub_555E90 | 109 | actor_ops.h |
+| 0x555f00 | sub_555F00 | 177 | entity_life.h |
 | 0x555fc0 | sub_555FC0 | 433 | entity_life.h |
 | 0x556180 | sub_556180 | 509 | entity_life.h |
 | 0x556380 | sub_556380 | 74 | entity_life.h |

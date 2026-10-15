@@ -457,7 +457,7 @@ void room_populate(wl_roomloop *rl, int32_t map, const uint8_t *mres)
             if (s == NULL) log_fatal(0x8a2e0cu);   /* "Structure object ..." */
             if (r30 == 0) skind = 8;
             else if (r30 == 1) skind = 15;
-            g_eng.h438a60(s, x, y, 1, code, (intptr_t)(((uint32_t)id1 & 0xffff0000u) | w18), skind, id1);
+            structure_init(s, x, y, 1, (uint32_t)code, (int32_t)(((uint32_t)id1 & 0xffff0000u) | w18), skind, id1);
         }
     }
 }

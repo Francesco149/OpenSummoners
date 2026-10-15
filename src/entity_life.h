@@ -13,7 +13,7 @@
  *   FUN_00555fc0  entity_unlist          FUN_00556180  entity_release
  *   FUN_0041ea70  actor_release          FUN_004467d0  char_release
  *   FUN_00556380  entity_set_collide     FUN_005563d0  entity_carry_riders
- *   FUN_0040bd90  wl_list_remove
+ *   FUN_0040bd90  wl_list_remove         FUN_00555f00  entity_set_handle
  */
 #ifndef OSS_ENTITY_LIFE_H
 #define OSS_ENTITY_LIFE_H
@@ -33,5 +33,8 @@ void char_release(wl_char *c);
  * list when it has room. */
 void entity_set_collide(wl_entity *e, int32_t mode, int32_t kind);
 void entity_carry_riders(wl_entity *e, int32_t dx, int32_t dy, uint16_t part);
+/* 0x555f00 (thiscall entity): file it under handle `h` (+0x1d8) in the world's +0x2790 list: out
+ * of it when it had one, back in (while there is room) when h != 0 */
+void entity_set_handle(wl_entity *e, int32_t h);
 
 #endif /* OSS_ENTITY_LIFE_H */

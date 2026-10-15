@@ -72,7 +72,7 @@ enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_D
        H_LROOM, H_BODIES, H_LINKS, H_VPOOLS, H_SHAKECLR, H_VFADE, H_MAPID, H_MAPNPC, H_PSCLR, H_GATE, H_SREADY, H_STINT, H_TSFADE, H_FILL,
        H_WNEW, H_WFREE, H_EFREE, H_AFREE, H_CFREE, H_CBLK, H_WLEAD, H_CSNAP, H_ZRESET, H_QSTATE, H_VREC, H_RSAVE, H_MFREE, H_MDEL, H_PHDEL,
        H_FORM, H_FOLLOW, H_ASTATE, H_PTINT, H_MLOAD,
-       H_SFREE, H_SFREEALL, H_SGRADED, H_PSWAP, H_POPULATE, H_N };
+       H_SFREE, H_SFREEALL, H_SGRADED, H_PSWAP, H_POPULATE, H_SINIT, H_SETH, H_N };
 
 static void diverged(hook_t *h, const char *fmt, ...)
 {
@@ -2870,6 +2870,32 @@ static void __attribute__((thiscall)) w_popul(wl_roomloop *rl, int32_t map, cons
     full_shadow(h, "room_populate", popul_retail, popul_port, &x, what);
 }
 
+typedef void (__attribute__((thiscall)) *sinit_t)(wl_entity *, int32_t, int32_t, int32_t, uint32_t, int32_t, int32_t, int32_t);
+typedef struct { wl_entity *e; int32_t x, y, an; uint32_t code; int32_t b, tint, h; } sinit_ctx;
+static void sinit_retail(void *c) { sinit_ctx *x = c; ((sinit_t)(uintptr_t)H[H_SINIT].va)(x->e, x->x, x->y, x->an, x->code, x->b, x->tint, x->h); }
+static void sinit_port(void *c) { sinit_ctx *x = c; port_world(); structure_init(x->e, x->x, x->y, x->an, x->code, x->b, x->tint, x->h); }
+static void __attribute__((thiscall)) w_sinit(wl_entity *e, int32_t x0, int32_t y0, int32_t an, uint32_t code, int32_t b, int32_t tint, int32_t hd)
+{
+    hook_t *h = &H[H_SINIT];
+    sinit_ctx x = { e, x0, y0, an, code, b, tint, hd };
+    if (h->mode == 2) { h->calls++; sinit_port(&x); return; }
+    if (!sample(h)) { sinit_retail(&x); return; }
+    char what[48]; snprintf(what, sizeof what, "code %u", code);
+    full_shadow(h, "structure_init", sinit_retail, sinit_port, &x, what);
+}
+typedef void (__attribute__((thiscall)) *seth_t)(wl_entity *, int32_t);
+typedef struct { wl_entity *e; int32_t hd; } seth_ctx;
+static void seth_retail(void *c) { seth_ctx *x = c; ((seth_t)(uintptr_t)H[H_SETH].va)(x->e, x->hd); }
+static void seth_port(void *c) { seth_ctx *x = c; port_world(); entity_set_handle(x->e, x->hd); }
+static void __attribute__((thiscall)) w_seth(wl_entity *e, int32_t hd)
+{
+    hook_t *h = &H[H_SETH];
+    seth_ctx x = { e, hd };
+    if (h->mode == 2) { h->calls++; seth_port(&x); return; }
+    if (!sample(h)) { seth_retail(&x); return; }
+    full_shadow(h, "entity_set_handle", seth_retail, seth_port, &x, "entity");
+}
+
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
     [H_POLL] = { "input_poll", 0x43c110u, (void *)w_poll, 0, 1, 0, 0, 0, 0, "" },
@@ -3047,6 +3073,8 @@ static hook_t H[H_N] = {
     [H_SGRADED]    = { "slots_free_graded", 0x56df10u, (void *)w_sgraded, 0, 1, 0, 0, 0, 0, "" },
     [H_PSWAP]      = { "pal_swap_apply", 0x417bc0u, (void *)w_pswap,  0, 1, 0, 0, 0, 0, "" },
     [H_POPULATE]   = { "room_populate",  0x58d460u, (void *)w_popul,  0, 1, 0, 0, 0, 0, "" },
+    [H_SINIT]      = { "structure_init", 0x438a60u, (void *)w_sinit,  0, 1, 0, 0, 0, 0, "" },
+    [H_SETH]       = { "entity_set_handle", 0x555f00u, (void *)w_seth, 0, 1, 0, 0, 0, 0, "" },
 };
 
 static const void *rh_data_identity(uint32_t va) { return (const void *)(uintptr_t)va; }
@@ -3098,7 +3126,7 @@ static void bind_engine_calls(void)
     B(499ab0); B(4842c0); B(41a7f0); B(59cfc0);
     *(void **)&g_eng.flip_5b8fc0  = g_rh_flip_stub;    /* the virtual clock steps there */
     *(void **)&g_eng.easer_43d1d0 = g_rh_easer_stub;   /* the tick count (+ a camera hook chained behind) */
-    B(5ba120); B(5ba290); B(41f200); B(431e30); B(438a60);
+    B(5ba120); B(5ba290); B(41f200); B(431e30);
     g_eng.tod = (int32_t *)(uintptr_t)0x8a93fcu;
     B(4178e0); B(418470); B(417c40); B(58e170);
     *(void **)&g_eng.find_res = iat_lookup("FindResourceA");
@@ -3162,7 +3190,7 @@ void rh_hooks_install(void)
         H[H_WNEW].va = H[H_WFREE].va = H[H_EFREE].va = H[H_AFREE].va = H[H_CFREE].va = H[H_CBLK].va = H[H_WLEAD].va =
         H[H_CSNAP].va = H[H_ZRESET].va = H[H_QSTATE].va = H[H_VREC].va = H[H_RSAVE].va = H[H_MFREE].va = H[H_MDEL].va =
         H[H_PHDEL].va = H[H_FORM].va = H[H_FOLLOW].va = H[H_ASTATE].va = H[H_PTINT].va = H[H_MLOAD].va =
-        H[H_SFREE].va = H[H_SFREEALL].va = H[H_SGRADED].va = H[H_PSWAP].va = H[H_POPULATE].va = 0;
+        H[H_SFREE].va = H[H_SFREEALL].va = H[H_SGRADED].va = H[H_PSWAP].va = H[H_POPULATE].va = H[H_SINIT].va = H[H_SETH].va = 0;
     if (!O.hooks) return;
     char b[4096]; snprintf(b, sizeof b, "%s", O.hooks);
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {

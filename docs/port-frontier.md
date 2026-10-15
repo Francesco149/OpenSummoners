@@ -7,8 +7,8 @@ own engine callees ported, so it can land today with zero new dependencies. Sort
 
 For the *forward* port path (the title-menu scene runner and what it calls) and the semantic milestone order, see `ROADMAP.md` — some of that path isn't yet reachable from ported code so won't appear here.
 
-- frontier functions: **385**
-- of those, zero-dependency **leaves: 202** (recommended order below)
+- frontier functions: **384**
+- of those, zero-dependency **leaves: 203** (recommended order below)
 
 ## Leaf shortlist — portable today (top 40 by ported-caller count)
 
@@ -125,7 +125,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x41d780 | 942 | 1 | 5 |  |
 | 0x41b670 | 1295 | 1 | 6 |  |
 | 0x410610 | 3103 | 1 | 1 |  |
-| 0x41f200 | 27403 | 1 | 60 |  |
+| 0x41f200 | 27403 | 1 | 59 |  |
 
 ### scene/level init + entity spawn + def-by-id lookup (1)
 
@@ -133,7 +133,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 |----|-----:|---------------:|--------------:|:----:|
 | 0x429d00 | 68 | 1 | 0 | ✓ |
 
-### battle scenario init + turn engine + input poll + save mgr (9)
+### battle scenario init + turn engine + input poll + save mgr (8)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
@@ -142,10 +142,9 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x43c610 | 52 | 1 | 0 | ✓ |
 | 0x43c170 | 53 | 1 | 0 | ✓ |
 | 0x439510 | 67 | 1 | 0 | ✓ |
-| 0x438970 | 235 | 1 | 1 |  |
+| 0x438970 | 235 | 1 | 0 | ✓ |
 | 0x43c650 | 696 | 1 | 1 |  |
-| 0x438a60 | 2639 | 1 | 1 |  |
-| 0x431e30 | 25293 | 1 | 11 |  |
+| 0x431e30 | 25293 | 1 | 10 |  |
 
 ### entity per-frame FSM + action handlers + dialog + skills (18)
 
