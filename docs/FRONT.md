@@ -68,7 +68,8 @@
   | menu / dialog controller geometry free (retail heap; `menu_list.c` keeps the port-heap twin) | `0x40e0c0` | 542 | 0 |
   | the SCENE LOOP (the session: the area / fill / keep tables, the party room, new game / save load, the room loop of load_room with defeat / retry / menu / map-change handling) | `0x59f2c0` | REPLACE only: the whole session in 3 scenarios | – |
   | its helpers: scene object, event flags, area flag / find / cross-reference, slot reset, inputs, keep lists, retry / heal / gold, room loop new / free, room-end cleanup, frame cache | `0x41a7f0` `0x4c57f0` `0x4c5830` `0x560e90` `0x561c90` `0x585000` `0x560e60` `0x5611d0` `0x5851e0` `0x5a3de0` `0x5a3e20` `0x4cc5a0` `0x5a3c40` `0x585f00` `0x5a3ff0` (REPLACE) `0x562a70` … (34) | 1,251 xref / 29 / 24 / 16 … (21 of 34 reached) | 0 |
-  Hybrid gate: with all of the above REPLACING retail (266 hooks) (the whole character tick, driver → tile
+  | the room → scene snapshot (what a save stores: room fields, play time, items, members, fill table, flags) | `0x55f790` | 11 | 0 |
+  Hybrid gate: with all of the above REPLACING retail (267 hooks) (the whole character tick, driver → tile
   movers, + the room loop's passes and per-tick calls, runs as port code), every corpus scenario ends byte-identical.
   Shadow guard (rhost): a port phase that reaches an external effect retail already performed (surface free,
   buffer release, DeleteObject, DirectInput, a mode-0/2 script) aborts its comparison (counted skipped); those
@@ -97,10 +98,11 @@
      (DirectDraw), `0x56dc20` (Now Loading + Flip), `0x41a890`, the room-start script `0x40c380`, the
      joysticks `0x5ba120` / `0x5ba290` (platform). The SCENE LOOP `0x59f2c0` above it runs as port code too
      (`src/scene_loop.c`, quirk #141; its save-load half is unexercised: a save scenario is needed). Its slots: the
-     area key / room setup `0x4c5350` / `0x4e59a0`, the room-entry pipeline `0x55f790`, the save writer `0x41a890`,
+     area key / room setup `0x4c5350` / `0x4e59a0` (story-scripted party setups over the party API `0x413b20` /
+     `0x4c5e00` / `0x4c6830` / `0x4c6550` / `0x4cc820` …), the save writer `0x41a890`,
      the save apply `0x561d20`, the demo scene `0x41b670` (+ `0x4c5af0` / `0x52fd80` / `0x5a3870`), the menu
-     `0x5a00c0` (13.7 KB), the file reader `0x5b6060`.. (platform). Next: `0x55f790` + `0x4c5350` / `0x4e59a0`
-     (every new game / room entry reaches them), then `0x41a890` (the save).
+     `0x5a00c0` (13.7 KB), the file reader `0x5b6060`.. (platform). Next: the party API under `0x4c5350` /
+     `0x4e59a0` (every new game reaches them), then `0x41a890` (the save writer).
   00. the ROOM LOOP `0x58f360` RUNS AS PORT CODE (`room_loop_run`, REPLACE-verified; Flip / the camera
      easer go through rhost's own stubs). Left under it as slots: the pickups `0x59ca90` (+ the world
      message log world+4 / +0x1024, "You got %s!"), the warp countdown `0x59c750`, the leader swap

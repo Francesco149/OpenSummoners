@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **551** (35.1% of engine-proper) — tested 250, ported 301
-- code bytes touched: **29.6%** (526,009 / 1,776,526 B of engine-proper)
-- unported: **1273**
+- touched: **552** (35.2% of engine-proper) — tested 250, ported 302
+- code bytes touched: **29.7%** (527,567 / 1,776,526 B of engine-proper)
+- unported: **1272**
 - orphan refs in src/ not in this table: 0
 
 ## tested (250) — ported + host unit suite
@@ -274,7 +274,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (301) — reimplemented, no host test yet
+## ported (302) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -508,6 +508,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x55cd50 | sub_55CD50 | 85 | particle_init.h |
 | 0x55cdb0 | sub_55CDB0 | 145 | particle_init.h |
 | 0x55ce50 | sub_55CE50 | 18 | particle_init.h |
+| 0x55f790 | sub_55F790 | 1558 | scene_loop.h |
 | 0x560e90 | sub_560E90 | 700 | scene_loop.h |
 | 0x561150 | sub_561150 | 126 | scene_loop.h |
 | 0x5611d0 | sub_5611D0 | 173 | scene_loop.h |

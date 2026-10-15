@@ -190,12 +190,12 @@ typedef struct engine_calls {
     eng_tc1 h42c130; eng_tc5 h42c510; eng_tc1 h42c970; eng_tc1 h42cce0; eng_tc0 h42d3c0; eng_tc2 h42da50;
     eng_tc4 h42e290; eng_tc4 h42eb20; eng_tc1 h42f840; eng_tc3 h42fbf0; eng_tc1 h42ff00; eng_tc1 h430400;
     /* the scene loop 0x59f2c0's: the area key / room setup 0x4c5350 / 0x4e59a0 (`this` = {mode, room}),
-     * the room-entry pipeline 0x55f790, the save apply 0x561d20, the demo scene load 0x41b670 + its
+     * the save apply 0x561d20, the demo scene load 0x41b670 + its
      * flag / state adds 0x4c5af0 / 0x52fd80 + merge 0x5a3870, the menu 0x5a00c0 (+ 0x5a3670 under
      * its object's free), the pool head free 0x56c640; the save-file reader (a 0x414-byte object:
      * ctor 0x5b6060, dtor 0x5b60d0, open file 0x5b61b0 / memory 0x5b6200, the bank file 0x5b6bc0,
      * read 0x5b6340, close 0x5b64b0) and the save path 0x41cfd0 (stdcall) */
-    eng_tc0 h4c5350; eng_tc0 h4e59a0; eng_tc1 h55f790; eng_tc1 h561d20; eng_tc3 h41b670; eng_tc3 h4c5af0;
+    eng_tc0 h4c5350; eng_tc0 h4e59a0; eng_tc1 h561d20; eng_tc3 h41b670; eng_tc3 h4c5af0;
     eng_tc3 h52fd80; eng_tc1 h5a3870; eng_tc0 h5a00c0; eng_tc0 h5a3670; eng_tc0 h56c640;
     eng_tc0 h5b6060; eng_tc0 h5b60d0; eng_tc1 h5b61b0; eng_tc1 h5b6200; eng_tc1 h5b6bc0; eng_tc2 h5b6340;
     eng_tc0 h5b64b0;

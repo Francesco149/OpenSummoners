@@ -652,6 +652,127 @@ void obj_delete(uint8_t *o, int32_t flags)
     if (flags & 1) g_eng.op_delete(o);
 }
 
+/* ---- the room snapshot ---- */
+
+void room_to_scene(const wl_room *r, uint8_t *so)
+{
+    st16(so, 0, 8);
+    st16(so, 8, ld16(r, 0x4010));
+    st32(so, 4, ld32(r, 0x4014));
+    st32(so, 0x1c, ld32(r, 0x401c));
+    st16(so, 0xa, (uint16_t)ld32(r, 0x4050));
+    st16(so, 0xc, (uint16_t)ld32(r, 0x4054));
+    st16(so, 0x80, (uint16_t)ld32(r, 0x4058));
+    st32(so, 0x10, ld32(r, 0x4024));
+    st32(so, 0x14, ld32(r, 0x4028));
+    st32(so, 0x18, ld32(r, 0x402c));
+    st32(so, 0x20, ld32(r, 0x40d0));
+    st32(so, 0x24, ld32(r, 0x40d4));
+    st32(so, 0x28, ld32(r, 0x40d8));
+    st32(so, 0x2c, ld32(r, 0x40b0));
+    st32(so, 0x30, ld32(r, 0x40b4));
+    st32(so, 0x34, ld32(r, 0x40b8));
+    st32(so, 0x38, ld32(r, 0x40bc));
+    st32(so, 0x8c, ld32(r, 0x40c0));
+    st32(so, 0x90, ld32(r, 0x40c4));
+    st32(so, 0x94, ld32(r, 0x40c8));
+    st32(so, 0x98, ld32(r, 0x40cc));
+    st32(so, 0x9c, ld32(r, 0x40dc));
+    uint32_t now = g_eng.tick();
+    st32(so, 0x7c, (int32_t)((now - (uint32_t)ld32(r, 0x4068)) / 1000u + (uint32_t)ld32(r, 0x406c)));
+    st32(so, 0x84, ld32(r, 0x4104));
+    for (int i = 0; i < 3; i++) st16(so, 0x3c + 2u * i, ld16(r, 0x405c + 2u * i));
+    st16(so, 0x88, (uint16_t)ld32(r, 0x4064));
+    for (uint16_t i = 0; i < ld16(r, 0x4010); i++) {
+        st32(so, 0xa4 + 16u * i, ld32(r, 0x2010 + 16u * i));
+        st32(so, 0xa8 + 16u * i, ld32(r, 0x2014 + 16u * i));
+        st16(so, 0xb0 + 16u * i, ld16(r, 0x2018 + 16u * i));
+        so[0xb2 + 16u * i] = ((const uint8_t *)r)[0x201a + 16u * i];
+    }
+    const uint8_t *eq = D(0x628708u);   /* 18 rows of 140 B: +0 the mark */
+    for (int k = 0; k < 8; k++) {
+        const uint8_t *s = (const uint8_t *)r->slot[k];
+        uint8_t *m = so + 0x20a4 + 0x11cu * k, *x = so + 0x2984 + 0x420u * k;
+        int lead = (const void *)s == (const void *)r->leader;
+        memset(m, 0, 0x11c);
+        memset(x, 0, 0x420);
+        st16(m, 0, ld16(s, 0xa0c));
+        st16(m, 8, ld16(s, 0x9c4));
+        if (ld32(s, 0x9c4) == 0) continue;
+        st32(m, 4, ld32(s, 0x9f0));
+        const uint8_t *t = D(0x6b6ea8u);   /* the dramatist row's code, else the slot's */
+        int32_t code = ld32(s, 4);
+        for (uint16_t i = 0; ld32(t, 52u * i) != 0; i++)
+            if (ld32(t, 52u * i) == ld32(s, 0x9f0)) { code = ld32(t, 52u * i + 4); break; }
+        st32(m, 0x54, code);
+        st16(m, 0xa, (uint16_t)lead);
+        st32(m, 0xc, ld32(s, 0x9f8));
+        st32(m, 0x1c, ld32(s, 0xa64));
+        st32(m, 0x20, ld32(s, 0xa68));
+        st32(m, 0x60, ld32(s, 0xaac));
+        st32(m, 0x24, ld32(s, 0xa6c));
+        st32(m, 0x28, ld32(s, 0xa70));
+        st32(m, 0x64, ld32(s, 0xab0));
+        st32(m, 0x2c, ld32(s, 0xa74));
+        st32(m, 0x30, ld32(s, 0xa78));
+        st32(m, 0x34, ld32(s, 0xa7c));
+        st32(m, 0x38, ld32(s, 0xa80));
+        st32(m, 0x68, ld32(s, 0xa9c));
+        st32(m, 0x6c, ld32(s, 0xaa0));
+        st32(m, 0x70, ld32(s, 0xaa4));
+        st32(m, 0x74, ld32(s, 0xaa8));
+        st32(m, 0x3c, ld32(s, 0xaf0));
+        st32(m, 0x40, ld32(s, 0xae8));
+        st32(m, 0x58, ld32(s, 0xaec));
+        st32(m, 0x44, ld32(s, 0xaf8));
+        st32(m, 0x48, ld32(s, 0xafc));
+        for (int i = 0; i < 3; i++) st16(m, 0x78 + 2u * i, ld16(s, 0xb48 + 2u * i));
+        st32(m, 0x5c, ld32(s, 0xb50));
+        st16(m, 0x50, ld16(s, 0xb54));
+        for (uint16_t i = 0; i < ld16(s, 0x9c8); i++) st32(m, 0x9c + 4u * i, ld32(s, 0x9cc + 4u * i));
+        st16(m, 0x98, ld16(s, 0x9c8));
+        for (uint16_t i = 0; i < ld16(s, 0xb54); i++) {
+            st32(x, 12u * i, ld32(s, 0xb58 + 12u * i));
+            st32(x, 4 + 12u * i, ld32(s, 0xb5c + 12u * i));
+            st32(x, 8 + 12u * i, ld16(s, 0xb60 + 12u * i));
+        }
+        st16(m, 0x18, 0);
+        for (int i = 0; i < 18; i++) {
+            uint16_t w = ld16(s, 0xe58 + 2u * i);
+            int32_t mark = ld32(eq, 140u * i);
+            if (w == 0 || mark == 0) continue;
+            uint16_t n = ld16(m, 0x18);
+            st32(x, 0x300 + 16u * n, mark);
+            st16(x, 0x304 + 16u * n, w);
+            st16(x, 0x30c + 16u * n, ld16(s, 0xe7c + 2u * i));
+            st32(x, 0x308 + 16u * n, ld32(s, 0xea0 + 4u * i));
+            st16(m, 0x18, (uint16_t)(n + 1));
+        }
+        st32(m, 0x10, ld32(s, 0x9fc));
+        st32(m, 0x14, ld32(s, 0xa00));
+    }
+    const uint8_t *fill = ldp(r, 0x40ac);
+    if (fill != NULL) {
+        st32(so, 0x4a84, ld32(fill, 0x1800));
+        st32(so, 0x4a88, ld32(fill, 0x7804));
+        for (uint16_t i = 0; (uint32_t)i < (uint32_t)ld32(fill, 0x1800); i++) {
+            st32(so, 0x4a8c + 12u * i, ld32(fill, 12u * i));
+            st32(so, 0x4a90 + 12u * i, ld32(fill, 4 + 12u * i));
+            st16(so, 0x4a94 + 12u * i, ld16(fill, 8 + 12u * i));
+        }
+        for (uint16_t i = 0; (uint32_t)i < (uint32_t)ld32(fill, 0x7804); i++) {
+            st32(so, 0x628c + 12u * i, ld32(fill, 0x1804 + 12u * i));
+            st32(so, 0x6290 + 12u * i, ld32(fill, 0x1808 + 12u * i));
+            st32(so, 0x6294 + 12u * i, ld32(fill, 0x180c + 12u * i));
+        }
+    }
+    st16(so, 0xc28c, r->nflags);
+    for (uint16_t i = 0; i < r->nflags; i++) {
+        st32(so, 0xc290 + 8u * i, r->flags[i].id);
+        st32(so, 0xc294 + 8u * i, r->flags[i].state);
+    }
+}
+
 /* ---- the save reader ---- */
 
 int file_read_section(void *rd, void *dst, int32_t n, uint32_t cap)
@@ -814,7 +935,7 @@ int32_t scene_loop(uint8_t *ss, int32_t save, uint16_t sub, int32_t demo, int32_
         if (!load_save(ss, r, save, sub, so)) goto end;
         wide = 1;
     }
-    g_eng.h55f790(r, IP(so));
+    room_to_scene(r, so);
     g_eng.h41a890(so, 10020, 0, 0, 0);
     if (save == 10020) {
         if (demo != 0) {

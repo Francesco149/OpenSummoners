@@ -42,6 +42,7 @@
  *   FUN_00562ba0  session_end          FUN_00585000  area_xref
  *   FUN_00562a70  frame_cache_clear    FUN_005b6300  file_read_section
  *   FUN_00562e60  pool_obj_delete      FUN_00562e40  world_delete
+ *   FUN_0055f790  room_to_scene
  */
 #ifndef OSS_SCENE_LOOP_H
 #define OSS_SCENE_LOOP_H
@@ -87,5 +88,10 @@ void frame_cache_clear(uint8_t *c);                                  /* 0x562a70
 int file_read_section(void *rd, void *dst, int32_t n, uint32_t cap); /* 0x5b6300 */
 void pool_obj_delete(uint8_t *p, int32_t flags);                     /* 0x562e60 */
 void world_delete(wl_world *w, int32_t flags);                       /* 0x562e40 */
+/* 0x55f790: the room record -> the scene object (what a save stores): the room fields, the play
+ * time (+0x7c = (now - +0x4068) / 1000 + +0x406c), the items (+0x2010, 16 B), each slot's member
+ * (+0x20a4 + 0x11c x k: id, code, leader, stats, skills, ...; its 12-byte skill records and the
+ * 16-byte equipment marks of 0x628708's 18 rows at +0x2984 + 0x420 x k), the fill table, the flags */
+void room_to_scene(const wl_room *r, uint8_t *so);
 
 #endif /* OSS_SCENE_LOOP_H */

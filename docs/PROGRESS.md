@@ -20,6 +20,7 @@ specific commits where relevant.
   roomloop_new 16, pslot_input_set 16, keep_snapshot 13, roomloop_free 13, frame_cache_clear 14 … — 0
   divergences (21 of 34 reached; room_end_cleanup / roomloop_pools_free prove by REPLACE: the unload's
   surface frees and the world free).  Hybrid gate: 266 hooks, PASS.
+- + the room → scene snapshot 0x55f790 (`room_to_scene`, 11 shadowed, 0 divergences); hybrid 267 hooks.
 
 ## 2026-10-15 (late night 2) — the party member create / attach run as port code
 

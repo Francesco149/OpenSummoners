@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 250,
-  "ported": 301,
-  "unported": 1273,
+  "ported": 302,
+  "unported": 1272,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 551,
-  "pct_touched": 35.1,
+  "touched": 552,
+  "pct_touched": 35.2,
   "pct_tested": 15.8,
-  "engine_proper_touched": 538,
+  "engine_proper_touched": 539,
   "bytes_total": 1776526,
-  "bytes_touched": 526009,
-  "pct_bytes_touched": 29.6
+  "bytes_touched": 527567,
+  "pct_bytes_touched": 29.7
  },
  "orphan_refs": [],
  "functions": [
@@ -8896,8 +8896,10 @@
    "name": "sub_55F790",
    "size": 1558,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_loop.h"
+   ]
   },
   {
    "va": "0x55fdb0",

@@ -100,6 +100,7 @@ typedef struct {
     X(H_SL_RLFREE, "roomloop_free", 0x585f00u) X(H_SL_SEND, "session_end", 0x562ba0u) X(H_SL_XREF, "area_xref", 0x585000u) \
     X(H_SL_FCACHE, "frame_cache_clear", 0x562a70u) X(H_SL_FREAD, "file_read_section", 0x5b6300u) \
     X(H_SL_POBJDEL, "pool_obj_delete", 0x562e60u) X(H_SL_WDEL, "world_delete", 0x562e40u) \
+    X(H_SL_TOSC, "room_to_scene", 0x55f790u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
 
@@ -3188,6 +3189,7 @@ TC_HOOK0(H_SL_FCACHE, "frame_cache_clear", 0, frame_cache_clear(self); return 0)
 TC_HOOK(H_SL_FREAD, "file_read_section", 3, 0, return file_read_section(self, (void *)a1, a2, (uint32_t)a3))
 TC_HOOK(H_SL_POBJDEL, "pool_obj_delete", 1, 0, pool_obj_delete(self, a1); return (intptr_t)self)
 TC_HOOK(H_SL_WDEL, "world_delete", 1, 0, world_delete(self, a1); return (intptr_t)self)
+TC_HOOK(H_SL_TOSC, "room_to_scene", 1, 0, room_to_scene(self, (uint8_t *)a1); return 0)
 /* the scene loop itself — REPLACE only (a whole session per call) */
 typedef int32_t (__attribute__((thiscall)) *scloop_t)(uint8_t *, int32_t, uint32_t, int32_t, int32_t *, int32_t);
 static int32_t __attribute__((thiscall)) w_scloop(uint8_t *ss, int32_t save, uint32_t sub, int32_t demo, int32_t *out, int32_t start)
@@ -3474,7 +3476,7 @@ static void bind_engine_calls(void)
     B(56dc20); B(41a890); B(5bf3ee); B(426110); B(560900); B(5bf5db);
     B(428c00); B(429060); B(429db0); B(42a500); B(42a9a0); B(42b9a0); B(42c130); B(42c510); B(42c970);
     B(42cce0); B(42d3c0); B(42da50); B(42e290); B(42eb20); B(42f840); B(42fbf0); B(42ff00); B(430400);
-    B(4c5350); B(4e59a0); B(55f790); B(561d20); B(41b670); B(4c5af0); B(52fd80); B(5a3870); B(5a00c0);
+    B(4c5350); B(4e59a0); B(561d20); B(41b670); B(4c5af0); B(52fd80); B(5a3870); B(5a00c0);
     B(5a3670); B(56c640); B(5b6060); B(5b60d0); B(5b61b0); B(5b6200); B(5b6bc0); B(5b6340); B(5b64b0);
     B(41cfd0);
     g_eng.world = (wl_world **)(uintptr_t)WORLD_PTR_VA;
