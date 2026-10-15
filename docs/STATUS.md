@@ -7,15 +7,15 @@
 ## Port coverage (engine-proper functions of `sotes.exe`)
 
 ```
-██████░░░░░░░░░░░░░░  28.9% touched   (15.8% host-tested, 25.2% of code bytes)
+██████░░░░░░░░░░░░░░  29.0% touched   (15.8% host-tested, 25.2% of code bytes)
 ```
 
 | status      | count | what it means                                          |
 |-------------|------:|--------------------------------------------------------|
 | tested      |   250 | ported + module covered by the host unit suite       |
-| ported      |   205 | reimplemented in src/, no host test for that module  |
-| **touched** | **455** | tested + ported (FUN_ provenance ref in src/)    |
-| unported    |  1369 | exists in engine, never referenced from src/         |
+| ported      |   207 | reimplemented in src/, no host test for that module  |
+| **touched** | **457** | tested + ported (FUN_ provenance ref in src/)    |
+| unported    |  1367 | exists in engine, never referenced from src/         |
 
 **Denominator note (read this before judging the %):** the headline % is over
 **engine-proper** functions — the **1532** below
@@ -83,6 +83,7 @@ understates how much actual instruction volume is ported.
   | room-setup leaves: leader, camera snap, zone reset, quest state, view record, state save, map-resource frees, pool-head free | `0x54bf90` `0x58e6a0` `0x58d0b0` `0x58d3b0` `0x58d210` `0x58e330` `0x5878a0` `0x59db70` `0x562d50` | 8,758 / 8,758 / 10 / 448 / 16 / 13 / 16 / 16 / 6 | 0 |
   | formation + follow set-up, actor state restore, palette tint, map resource load | `0x41dc90` `0x41e020` `0x41e600` `0x4182d0` `0x587970` | 16 / 71 / 452 / 34,304 / 16 | 0 |
   | the map DECODE as port code: the existing grid decoder fed the retail map object + the prologue's engine-side effects | `0x587e00` | REPLACE (in load_room): all 16 room loads | – |
+  | sprite-slot helpers: frame frees (entry / all / every graded slot), palette set, swap table | `0x417870` `0x4118b0` `0x56df10` `0x491770` (REPLACE) `0x417bc0` | 13,240 / 3 (REPLACE) / 6 / – / 14 | 0 |
   Hybrid gate: with all of the above REPLACING retail (170 hooks) (the whole character tick, driver → tile
   movers, + the room loop's passes and per-tick calls, runs as port code), every corpus scenario ends byte-identical.
   Shadow guard (rhost): a port phase that reaches an external effect retail already performed (surface free,
@@ -102,7 +103,7 @@ understates how much actual instruction volume is ported.
   000. `load_room 0x586010` RUNS AS PORT CODE (`src/room_load.c`, REPLACE-verified; quirk #138), the world it makes /
      frees too (`src/world_alloc.c`), and the map decode (`map_decode_room`). Slots left under it: the room population
      `0x58d460` (3.3 KB → the 27 KB character init `0x41f200`), the party member create `0x58e170` (→ `0x41f200`,
-     `0x5b4530`), the palette chain (`0x4178e0` / `0x417bc0` / `0x491770` / `0x418470` / `0x417c40`), `0x56dc20`
+     `0x5b4530`), the palette read `0x4178e0` (bitmap resource) + frames `0x418470` / `0x417c40` (DirectDraw), `0x56dc20`
      (Now Loading text + Flip: platform), `0x41a890`, `0x40e0c0`, the room-start script `0x40c380`, the joystick
      create `0x5ba120` / `0x5ba290` (platform). Next: those leaves + the scene loop `0x59f2c0`.
   00. the ROOM LOOP `0x58f360` RUNS AS PORT CODE (`room_loop_run`, REPLACE-verified; Flip / the camera

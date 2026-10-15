@@ -7,15 +7,15 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 250,
-  "ported": 205,
-  "unported": 1369,
+  "ported": 207,
+  "unported": 1367,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 455,
-  "pct_touched": 28.9,
+  "touched": 457,
+  "pct_touched": 29.0,
   "pct_tested": 15.8,
-  "engine_proper_touched": 442,
+  "engine_proper_touched": 444,
   "bytes_total": 1776526,
-  "bytes_touched": 447710,
+  "bytes_touched": 448047,
   "pct_bytes_touched": 25.2
  },
  "orphan_refs": [],
@@ -1219,8 +1219,10 @@
    "name": "sub_4118B0",
    "size": 134,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/sprite_slot.h"
+   ]
   },
   {
    "va": "0x411940",
@@ -1691,7 +1693,8 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/map_decode.h"
+    "src/map_decode.h",
+    "src/sprite_slot.h"
    ]
   },
   {
@@ -1738,7 +1741,8 @@
    "status": "tested",
    "src": [
     "src/asset_register.c",
-    "src/asset_register.h"
+    "src/asset_register.h",
+    "src/sprite_slot.h"
    ]
   },
   {
@@ -6207,7 +6211,7 @@
    "is_thunk": false,
    "status": "ported",
    "src": [
-    "src/room_load.h"
+    "src/sprite_slot.h"
    ]
   },
   {
@@ -6218,7 +6222,8 @@
    "status": "tested",
    "src": [
     "src/asset_register.c",
-    "src/asset_register.h"
+    "src/asset_register.h",
+    "src/sprite_slot.h"
    ]
   },
   {
@@ -6696,7 +6701,7 @@
    "is_thunk": false,
    "status": "ported",
    "src": [
-    "src/room_load.h"
+    "src/sprite_slot.h"
    ]
   },
   {
@@ -9624,8 +9629,10 @@
    "name": "sub_56DF10",
    "size": 203,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/sprite_slot.h"
+   ]
   },
   {
    "va": "0x56dfe0",

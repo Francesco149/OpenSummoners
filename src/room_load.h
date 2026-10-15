@@ -50,7 +50,6 @@
  *   FUN_00587d30  shake_clear          FUN_0043c9b0  volume_fade
  *   FUN_0058cfe0  char_map_id          FUN_0058cfc0  char_map_npc
  *   FUN_0058d060  pslot_status_clear   FUN_004022d0  gate_actor
- *   FUN_0049a050  sprite_slot_ready    FUN_00491740  sprite_slot_tint
  *   FUN_00587ce0  timed_sounds_fade    FUN_00587db0  fill_lookup
  *   FUN_0054bf90  world_leader         FUN_0058e6a0  camera_snap
  *   FUN_0058d0b0  zones_reset          FUN_0058d3b0  quest_state
@@ -95,10 +94,6 @@ int char_map_npc(const wl_char *c);
 void pslot_status_clear(wl_pslot *s);
 /* 0x4022d0 (stdcall): the first live actor with a zone kind and zone id `id` (any for 0) */
 wl_actor *gate_actor(int32_t id);
-/* 0x49a050 (thiscall sprite slot): its surface is built */
-int sprite_slot_ready(const void *slot);
-/* 0x491740 (thiscall sprite slot): the per-channel tint (per mille) + the gamma LUT */
-void sprite_slot_tint(void *slot, int32_t r, int32_t g, int32_t b, const uint8_t *lut);
 /* 0x587ce0 (thiscall timed-sound list): every sound still playing fades out at `rate` a tick */
 void timed_sounds_fade(void *list, int32_t rate);
 /* 0x587db0 (thiscall fill table): *out = the value for `id`; 0 when absent */

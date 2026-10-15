@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **455** (28.9% of engine-proper) — tested 250, ported 205
-- code bytes touched: **25.2%** (447,710 / 1,776,526 B of engine-proper)
-- unported: **1369**
+- touched: **457** (29.0% of engine-proper) — tested 250, ported 207
+- code bytes touched: **25.2%** (448,047 / 1,776,526 B of engine-proper)
+- unported: **1367**
 - orphan refs in src/ not in this table: 0
 
 ## tested (250) — ported + host unit suite
@@ -42,11 +42,11 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x412160 | sub_412160 | 459 | newgame_menu.c, newgame_menu.h, newgame_picker.c (+1) |
 | 0x412c10 | sub_412C10 | 46 | obj_container.c, obj_container.h |
 | 0x414080 | sub_414080 | 63 | obj_container.c, obj_container.h |
-| 0x417870 | sub_417870 | 106 | map_decode.h |
+| 0x417870 | sub_417870 | 106 | map_decode.h, sprite_slot.h |
 | 0x4178e0 | sub_4178E0 | 194 | asset_register.c, asset_register.h, bitmap_session.c (+1) |
 | 0x4179b0 | sub_4179B0 | 415 | asset_register.c, asset_register.h, wnd_proc.h |
 | 0x417b50 | sub_417B50 | 109 | asset_register.c, asset_register.h |
-| 0x417bc0 | ar_pal_swap_table_for_va_417BC0 | 123 | asset_register.c, asset_register.h |
+| 0x417bc0 | ar_pal_swap_table_for_va_417BC0 | 123 | asset_register.c, asset_register.h, sprite_slot.h |
 | 0x417c40 | game_arm_parallax_grade_417C40 | 1625 | actor_render.h, actor_spawn.c, color_grade.c (+2) |
 | 0x418470 | sub_418470 | 40 | asset_register.c, asset_register.h, color_grade.h (+4) |
 | 0x4184a0 | sub_4184A0 | 1035 | asset_register.c, asset_register.h, bitmap_session.h (+1) |
@@ -97,7 +97,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x490b90 | sub_490B90 | 307 | dialogue.c, map_present.c, map_present.h (+1) |
 | 0x490cd0 | sub_490CD0 | 603 | color_grade.h, main.c, parallax.c (+3) |
 | 0x490f30 | sub_490F30 | 2002 | color_grade.h, draw_pool.h, main.c (+6) |
-| 0x491770 | sub_491770 | 52 | asset_register.c, asset_register.h |
+| 0x491770 | sub_491770 | 52 | asset_register.c, asset_register.h, sprite_slot.h |
 | 0x4917b0 | draw_pool_emit_layered_4917B0 | 106 | draw_pool.c, draw_pool.h, map_render.c |
 | 0x492670 | draw_pool_emit_actor_492670 | 118 | actor_render.h, actor_spawn.h, draw_pool.c (+2) |
 | 0x494e60 | sub_494E60 | 3904 | base_stat_table.h, hud.c, hud.h (+2) |
@@ -274,7 +274,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (205) — reimplemented, no host test yet
+## ported (207) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -307,6 +307,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x411390 | sub_411390 | 413 | sound_fx.h |
 | 0x411560 | sub_411560 | 117 | gimmick.h |
 | 0x4115e0 | sub_4115E0 | 33 | room_loop.h |
+| 0x4118b0 | sub_4118B0 | 134 | sprite_slot.h |
 | 0x412db0 | sub_412DB0 | 57 | room_loop.h |
 | 0x4182d0 | sub_4182D0 | 408 | room_load.h |
 | 0x41dc90 | sub_41DC90 | 890 | room_load.h |
@@ -408,8 +409,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x487570 | sub_487570 | 437 | char_state.h |
 | 0x487730 | sub_487730 | 366 | char_state.h |
 | 0x489280 | sub_489280 | 818 | sound_fx.h |
-| 0x491740 | sub_491740 | 38 | room_load.h |
-| 0x49a050 | sub_49A050 | 13 | room_load.h |
+| 0x491740 | sub_491740 | 38 | sprite_slot.h |
+| 0x49a050 | sub_49A050 | 13 | sprite_slot.h |
 | 0x49be60 | sub_49BE60 | 290 | room_loop.h |
 | 0x54bf90 | sub_54BF90 | 30 | room_load.h |
 | 0x54bfb0 | sub_54BFB0 | 801 | world_alloc.c, world_alloc.h |
@@ -442,6 +443,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x55cdb0 | sub_55CDB0 | 145 | particle_init.h |
 | 0x55ce50 | sub_55CE50 | 18 | particle_init.h |
 | 0x562d50 | sub_562D50 | 239 | room_load.h |
+| 0x56df10 | sub_56DF10 | 203 | sprite_slot.h |
 | 0x5878a0 | sub_5878A0 | 207 | room_load.h |
 | 0x587ce0 | sub_587CE0 | 71 | room_load.h |
 | 0x587d30 | sub_587D30 | 28 | room_load.h |

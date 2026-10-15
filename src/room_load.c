@@ -21,6 +21,7 @@
 #include "npc_ai.h"
 #include "rng.h"
 #include "room_loop.h"
+#include "sprite_slot.h"
 #include "world_alloc.h"
 
 #define IP(p) ((intptr_t)(p))
@@ -148,20 +149,6 @@ wl_actor *gate_actor(int32_t id)
             return (wl_actor *)g_world->actors[i];
     }
     return NULL;
-}
-
-int sprite_slot_ready(const void *slot)
-{
-    return ld32(ldp(slot, 0), 0) != 0;
-}
-
-void sprite_slot_tint(void *slot, int32_t r, int32_t g, int32_t b, const uint8_t *lut)
-{
-    st32(slot, 0xc, r);
-    st32(slot, 0x10, g);
-    st32(slot, 0x8, 1);
-    st32(slot, 0x14, b);
-    stp(slot, 0x18, lut);
 }
 
 void timed_sounds_fade(void *list, int32_t rate)
@@ -658,9 +645,9 @@ static void bank_dims(void *ctx, uint16_t bank, int32_t *w, int32_t *h)
     *w = p != NULL ? ld32(p, 0x20) : 0;
     *h = p != NULL ? ld32(p, 0x24) : 0;
 }
-static void slot_flush(void *slot)
+static void slot_flush(ar_sprite_slot *slot)
 {
-    for (uint16_t i = 0; i < ld16(slot, 4); i++) g_eng.h417870(slot, i);
+    for (uint16_t i = 0; i < slot->entry_count; i++) slot_frames_free(slot, i);
 }
 
 void map_decode_room(uint8_t *grid, uint8_t *mres, int32_t type, int32_t scene, int32_t tileset)
@@ -701,7 +688,7 @@ void map_decode_room(uint8_t *grid, uint8_t *mres, int32_t type, int32_t scene, 
     }
     if (*g_eng.tod != cfg.scene_norm) {
         *g_eng.tod = cfg.scene_norm;
-        g_eng.h56df10(g_eng.sys);
+        slots_free_graded(g_eng.sys);
     }
     uint16_t b0 = ld16(grid, 0x0), b4 = ld16(grid, 0x4), b10 = ld16(grid, 0x10);
     uint16_t cur = ld16(g_eng.sys, 0x302);
@@ -711,12 +698,12 @@ void map_decode_room(uint8_t *grid, uint8_t *mres, int32_t type, int32_t scene, 
     }
     cur = ld16(g_eng.sys, 0x304);
     if (cur != b4) {
-        if (cur != 0) g_eng.h4118b0(ldp(g_eng.sys, 0xaac + 4u * cur));
+        if (cur != 0) slot_frames_free_all(ldp(g_eng.sys, 0xaac + 4u * cur));
         st16(g_eng.sys, 0x304, b4);
     }
     cur = ld16(g_eng.sys, 0x306);
     if (cur != b10) {
-        if (cur != 0) g_eng.h4118b0(ldp(g_eng.sys, 0xaac + 4u * cur));
+        if (cur != 0) slot_frames_free_all(ldp(g_eng.sys, 0xaac + 4u * cur));
         st16(g_eng.sys, 0x306, b10);
     }
 }
@@ -752,12 +739,12 @@ static void map_palette(void)
         }
         return;
     }
-    uint8_t pal[1024], gam[1024];
+    uint8_t pal[1024] = { 0 }, gam[1024];   /* (retail: stack bytes where 0x4178e0 writes nothing) */
     uint8_t *src = ldp(pd, 0xc);
     if (src == NULL) {
         if (ld32(pd, 8) != 0) {
             g_eng.h4178e0(ldp(g_eng.sys, 0xcd8), IP(pal));
-            g_eng.h417bc0(g_eng.sys, IP(ldp(ldp(g_eng.sys, 0x1b0c), 8)), IP(pal));
+            pal_swap_apply(g_eng.sys, ldp(ldp(g_eng.sys, 0x1b0c), 8), pal);
         } else {
             g_eng.h4178e0(ldp(g_eng.sys, 0xcd8), IP(pal));
         }
@@ -789,7 +776,7 @@ static void map_palette(void)
     /* byte 3 of every entry is never written (retail passes stack garbage there, or the
      * descriptor's own); rhost's uninit-fix zeroes it at every call of the copy */
     for (int i = 0; i < 256; i++) src[4 * i + 3] = 0;
-    g_eng.h491770(ldp(g_eng.sys, 0xcd8), IP(src));
+    slot_palette_set(ldp(g_eng.sys, 0xcd8), src);
 }
 
 

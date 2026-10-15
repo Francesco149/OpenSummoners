@@ -43,6 +43,7 @@
 #include "input_dik.h"
 #include "room_load.h"
 #include "world_alloc.h"
+#include "sprite_slot.h"
 #include "engine_calls.h"
 
 typedef struct {
@@ -70,7 +71,8 @@ enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_D
        H_ZPASS, H_ZHIT, H_B96_NEAR, H_RIN, H_RCHAR, H_RACT, H_RANIM, H_RDOWN, H_RLEAD, H_TSOUNDS, H_DIK, H_ENC, H_FOES, H_PFOES, H_PSLOT, H_BGM, H_RLOOP, H_REPOLL,
        H_LROOM, H_BODIES, H_LINKS, H_VPOOLS, H_SHAKECLR, H_VFADE, H_MAPID, H_MAPNPC, H_PSCLR, H_GATE, H_SREADY, H_STINT, H_TSFADE, H_FILL,
        H_WNEW, H_WFREE, H_EFREE, H_AFREE, H_CFREE, H_CBLK, H_WLEAD, H_CSNAP, H_ZRESET, H_QSTATE, H_VREC, H_RSAVE, H_MFREE, H_MDEL, H_PHDEL,
-       H_FORM, H_FOLLOW, H_ASTATE, H_PTINT, H_MLOAD, H_N };
+       H_FORM, H_FOLLOW, H_ASTATE, H_PTINT, H_MLOAD,
+       H_SFREE, H_SFREEALL, H_SGRADED, H_PSWAP, H_N };
 
 static void diverged(hook_t *h, const char *fmt, ...)
 {
@@ -2807,6 +2809,52 @@ static int __attribute__((thiscall)) w_mload(uint8_t *m, void *hmod, int32_t id)
     return x.rr;
 }
 
+/* ---- the sprite slot helpers (src/sprite_slot.c) — full state (a freed surface aborts the port phase) ---- */
+typedef void (__attribute__((thiscall)) *sfree_t)(ar_sprite_slot *, uint32_t);
+typedef struct { ar_sprite_slot *s; uint32_t k; } sfree_ctx;
+static void sfree_retail(void *c) { sfree_ctx *x = c; ((sfree_t)(uintptr_t)H[H_SFREE].va)(x->s, x->k); }
+static void sfree_port(void *c) { sfree_ctx *x = c; slot_frames_free(x->s, (uint16_t)x->k); }
+static void __attribute__((thiscall)) w_sfree(ar_sprite_slot *sl, uint32_t k)
+{
+    hook_t *h = &H[H_SFREE];
+    sfree_ctx x = { sl, k };
+    if (h->mode == 2) { h->calls++; sfree_port(&x); return; }
+    if (!sample(h)) { sfree_retail(&x); return; }
+    full_shadow(h, "slot_frames_free", sfree_retail, sfree_port, &x, "slot");
+}
+typedef void (__attribute__((thiscall)) *sfreeall_t)(ar_sprite_slot *);
+static void sfreeall_retail(void *c) { ((sfreeall_t)(uintptr_t)H[H_SFREEALL].va)(c); }
+static void sfreeall_port(void *c) { slot_frames_free_all(c); }
+static void __attribute__((thiscall)) w_sfreeall(ar_sprite_slot *sl)
+{
+    hook_t *h = &H[H_SFREEALL];
+    if (h->mode == 2) { h->calls++; sfreeall_port(sl); return; }
+    if (!sample(h)) { sfreeall_retail(sl); return; }
+    full_shadow(h, "slot_frames_free_all", sfreeall_retail, sfreeall_port, sl, "slot");
+}
+typedef void (__attribute__((thiscall)) *sgraded_t)(void *);
+static void sgraded_retail(void *c) { ((sgraded_t)(uintptr_t)H[H_SGRADED].va)(c); }
+static void sgraded_port(void *c) { slots_free_graded(c); }
+static void __attribute__((thiscall)) w_sgraded(void *sys)
+{
+    hook_t *h = &H[H_SGRADED];
+    if (h->mode == 2) { h->calls++; sgraded_port(sys); return; }
+    if (!sample(h)) { sgraded_retail(sys); return; }
+    full_shadow(h, "slots_free_graded", sgraded_retail, sgraded_port, sys, "sys");
+}
+typedef void (__attribute__((thiscall)) *pswap_t)(void *, const uint8_t *, uint8_t *);
+typedef struct { void *sys; const uint8_t *t; uint8_t *p; } pswap_ctx;
+static void pswap_retail(void *c) { pswap_ctx *x = c; ((pswap_t)(uintptr_t)H[H_PSWAP].va)(x->sys, x->t, x->p); }
+static void pswap_port(void *c) { pswap_ctx *x = c; pal_swap_apply(x->sys, x->t, x->p); }
+static void __attribute__((thiscall)) w_pswap(void *sys, const uint8_t *t, uint8_t *p)
+{
+    hook_t *h = &H[H_PSWAP];
+    pswap_ctx x = { sys, t, p };
+    if (h->mode == 2) { h->calls++; pswap_port(&x); return; }
+    if (!sample(h)) { pswap_retail(&x); return; }
+    full_shadow(h, "pal_swap_apply", pswap_retail, pswap_port, &x, "palette");
+}
+
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
     [H_POLL] = { "input_poll", 0x43c110u, (void *)w_poll, 0, 1, 0, 0, 0, 0, "" },
@@ -2979,6 +3027,10 @@ static hook_t H[H_N] = {
     [H_ASTATE]     = { "actor_state_restore", 0x41e600u, (void *)w_astate, 0, 1, 0, 0, 0, 0, "" },
     [H_PTINT]      = { "palette_tint",   0x4182d0u, (void *)w_ptint,  0, 1, 0, 0, 0, 0, "" },
     [H_MLOAD]      = { "map_res_load",   0x587970u, (void *)w_mload,  0, 1, 0, 0, 0, 0, "" },
+    [H_SFREE]      = { "slot_frames_free", 0x417870u, (void *)w_sfree, 0, 1, 0, 0, 0, 0, "" },
+    [H_SFREEALL]   = { "slot_frames_free_all", 0x4118b0u, (void *)w_sfreeall, 0, 1, 0, 0, 0, 0, "" },
+    [H_SGRADED]    = { "slots_free_graded", 0x56df10u, (void *)w_sgraded, 0, 1, 0, 0, 0, 0, "" },
+    [H_PSWAP]      = { "pal_swap_apply", 0x417bc0u, (void *)w_pswap,  0, 1, 0, 0, 0, 0, "" },
 };
 
 static const void *rh_data_identity(uint32_t va) { return (const void *)(uintptr_t)va; }
@@ -3030,9 +3082,9 @@ static void bind_engine_calls(void)
     B(499ab0); B(4842c0); B(41a7f0); B(59cfc0);
     *(void **)&g_eng.flip_5b8fc0  = g_rh_flip_stub;    /* the virtual clock steps there */
     *(void **)&g_eng.easer_43d1d0 = g_rh_easer_stub;   /* the tick count (+ a camera hook chained behind) */
-    B(5ba120); B(5ba290); B(58d460); B(417870); B(4118b0); B(56df10);
+    B(5ba120); B(5ba290); B(58d460);
     g_eng.tod = (int32_t *)(uintptr_t)0x8a93fcu;
-    B(4178e0); B(417bc0); B(491770); B(418470); B(417c40); B(58e170);
+    B(4178e0); B(418470); B(417c40); B(58e170);
     *(void **)&g_eng.find_res = iat_lookup("FindResourceA");
     *(void **)&g_eng.load_res = iat_lookup("LoadResource");
     *(void **)&g_eng.lock_res = iat_lookup("LockResource");
@@ -3093,7 +3145,8 @@ void rh_hooks_install(void)
         H[H_MAPNPC].va = H[H_PSCLR].va = H[H_GATE].va = H[H_SREADY].va = H[H_STINT].va = H[H_TSFADE].va = H[H_FILL].va =
         H[H_WNEW].va = H[H_WFREE].va = H[H_EFREE].va = H[H_AFREE].va = H[H_CFREE].va = H[H_CBLK].va = H[H_WLEAD].va =
         H[H_CSNAP].va = H[H_ZRESET].va = H[H_QSTATE].va = H[H_VREC].va = H[H_RSAVE].va = H[H_MFREE].va = H[H_MDEL].va =
-        H[H_PHDEL].va = H[H_FORM].va = H[H_FOLLOW].va = H[H_ASTATE].va = H[H_PTINT].va = H[H_MLOAD].va = 0;
+        H[H_PHDEL].va = H[H_FORM].va = H[H_FOLLOW].va = H[H_ASTATE].va = H[H_PTINT].va = H[H_MLOAD].va =
+        H[H_SFREE].va = H[H_SFREEALL].va = H[H_SGRADED].va = H[H_PSWAP].va = 0;
     if (!O.hooks) return;
     char b[4096]; snprintf(b, sizeof b, "%s", O.hooks);
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {
