@@ -4386,6 +4386,39 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   class) advances (mod 10, 9 tries) to the next member skill that is learnt, has +0xa8 and passes `0x407320`; none →
   the cursor is 0.  The first try passes 0x4071f0 the cursor over a register's stale upper half (it compares u16).
 
+### #141 — the scene loop `0x59f2c0`: the session object, keep lists, defeat, the save header (port 2026-10-15)
+- **The session object** (`this`): +0 the room loop object (a fresh 0x910 per room: `0x5a3c40` clears the WORLD
+  POINTER 0x8a9b50 and builds three 0x24-byte pool objects {.., +0xc: {0x5a0 buffer, 40, u16 0, u16 0}}), +4..+0xc
+  three KEEP lists (0x88: map id, up to 32 NPC ids, u16 +0x84 count, u16 +0x86 age), +0x10 the AREA table
+  (0x5400c: +0 the map table 0x693848 (64-byte rows), the 336-byte areas copied from 0x6940c8 from +4, u16 count
+  +0x54004), +0x14 the FILL table (0x7808).  The party ROOM record (0x4120, 8 slots x 0xeec) is allocated here
+  and deleted at the end.  Globals 0x8a9400 (u16) / 0x8a9408 are zeroed at start.
+- **Area cross-reference `0x585000`** (every area at start): the map table row of the area's map (+4) fills the
+  area's zero fields (+0x110 / +0x10c / +0x114 / +0x140 from row +0x2c / +0x34 / +0x30 / +0x38; u16 +0x144 /
+  +0x146 from +0x3c / +0x3e); then every OTHER area's zone (20 x 12 B from +0x1c: u16 gate, +4 target area, u16
+  +8 back gate) that targets this area becomes a reverse link here (when no zone of this area has that back gate
+  yet: the first free one = {back gate, from-area, gate, 0}).
+- **Start flags**: event flag 100100101 is found / added and then its record's ID is set to 0 (a free slot);
+  100100102 gets value 20.  `flag_add 0x4c5830` takes the LAST free record of the 512, else appends.
+- **Per room**: the area's flag in the room record (+8, 1024 x {id, state}, u16 count +0x2008; full → "Area
+  state over" + exit) = 1; its keep list is used only when it is at most 2 rooms old (else its map id is
+  cleared); the leader slot (+0x200c) gets the room's input array (`0x4cc5a0`: the brain reset — NPC brain
+  without input, the AI timers / u16 cooldowns re-armed from +0xcb44, a ground probe).  After the room:
+  `0x5a3e20` ages every keep list, then refreshes the current map's (or the first empty / the OLDEST one,
+  age 1) with the live map NPCs (alive, body 0 active, party +0x44a 0, +0x1f8 1, their +0x1fc id, +0x1dc 2);
+  `0x5a3ff0` drops every slot's character, releases every entity of every band, frees the room loop, zeroes
+  25 descriptors at sys+0x26b0 +0x10, unloads resource group >= 3 and clears the frame cache sys+0x2754 (28-byte
+  records, u16 count +4).  A change of map (results 1 / 2 / 10) drops every MAPPED actor state (+0x1804 records
+  with a map: handle = 0).
+- **Defeat (results 4 / 5)**: with a retry point (room +0x40d0, and +0x4080 == 0) the next area = it, every
+  active member (not 100000104; status-2 members too) healed to max HP / MP with +0xe58 cleared, gold (+0x4014)
+  loses 10% (`0x419c00` with a negative amount: no cap check), `*out` = 1; the defeat counter +0x40b0 counts up
+  (saturating); then the defeat scene (`0x59cfc0`) and save 10030.
+- **The save header** (load path): a 4-byte length, then up to 0x25c bytes: [139] = 10001, [140] = the save id
+  (else the load fails and the session ends at once); [0..7], [136], [137] = each section's STORED size (the
+  reader zero-fills each record to its capacity: version tolerance).  A new game's room record: +0x405c..+0x4063
+  = 0, 0, 0, 1 (u16) and +0x4064 = 0 (a u16 1 written there first is overwritten by the dword).
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

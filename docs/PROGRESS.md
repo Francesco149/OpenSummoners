@@ -6,6 +6,21 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-15 (dawn) — the SCENE LOOP 0x59f2c0 runs as port code
+
+- `scene_loop` (`src/scene_loop.c`): the session (area table copy + cross-reference, the fill table, the
+  three keep lists, the party room record), new game / save load (the header + sections, behind the
+  reader slots), the room-entry pipeline, then the load_room loop with its result handling (next area,
+  defeat retry / heal / gold, the defeat scene, the menu, a map change dropping the mapped actor states),
+  the keep snapshot and the room-end cleanup per room, the session end.  34 helpers ported with it
+  (event flags, area flags, inputs (MSVC vector new / delete), the room loop object, cleanups via
+  sys_unload).  quirk #141.
+- rhost: REPLACE scene_loop: corpus --check PASS (the whole session as port code in 3 scenarios);
+  helpers shadowed: area_xref 1,251, area_find 29, pslot_reset 24, room_flag_set 16, keep_find 16,
+  roomloop_new 16, pslot_input_set 16, keep_snapshot 13, roomloop_free 13, frame_cache_clear 14 … — 0
+  divergences (21 of 34 reached; room_end_cleanup / roomloop_pools_free prove by REPLACE: the unload's
+  surface frees and the world free).  Hybrid gate: 266 hooks, PASS.
+
 ## 2026-10-15 (late night 2) — the party member create / attach run as port code
 
 - `member_create` 0x58e170 / `member_attach` 0x5b4530 (`src/party_member.c`): the next free character,

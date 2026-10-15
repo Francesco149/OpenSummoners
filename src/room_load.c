@@ -342,7 +342,7 @@ void view_record_init(uint8_t *r, wl_room *room, int32_t v)
 }
 
 /* 0x560900 + the error-log append + 0x406440 + exit, as 0x586010 / 0x58e330 inline them */
-static void log_fatal(uint32_t msg)
+void engine_fatal(uint32_t msg)
 {
     char *lb = (char *)g_eng.log;
     g_eng.h560900(g_eng.log);
@@ -411,7 +411,7 @@ void room_populate(wl_roomloop *rl, int32_t map, const uint8_t *mres)
                 if (t->base.alive == 0) { c = t; break; }
                 if (++n >= 32) break;
             }
-            if (c == NULL) log_fatal(0x8a2e64u);   /* "Character object ..." */
+            if (c == NULL) engine_fatal(0x8a2e64u);   /* "Character object ..." */
             char_init(c, x, y, 1, 1, ld32(rec, 0x0), code, (int32_t)(((uint32_t)r2c & 0xffff0000u) | w18), facing,
                       id1, r30, r2c, a5, id2, a11);
             c->presence = a6;
@@ -437,7 +437,7 @@ void room_populate(wl_roomloop *rl, int32_t map, const uint8_t *mres)
                     best = t;
                     bp = t->prio;
                 }
-                if (best == NULL) log_fatal(0x8a2e48u);   /* "Effect object ..." */
+                if (best == NULL) engine_fatal(0x8a2e48u);   /* "Effect object ..." */
                 entity_release(&best->base, 1);
                 p = &best->base;
             }
@@ -448,7 +448,7 @@ void room_populate(wl_roomloop *rl, int32_t map, const uint8_t *mres)
             wl_entity *a = NULL;
             for (uint16_t n = 0; n < 128; n++)
                 if (g_world->actors[n]->alive == 0) { a = g_world->actors[n]; break; }
-            if (a == NULL) log_fatal(0x8a2e2cu);   /* "Device object ..." */
+            if (a == NULL) engine_fatal(0x8a2e2cu);   /* "Device object ..." */
             device_init((wl_actor *)a, x, y, 1, (uint32_t)code, r2c, (int16_t)w18, id1, a0, a2, a5, facing, x0, x1, y0, y1,
                         a6, a7, a8, a9, b6, b7, id2, a11, map, NULL);
         }
@@ -457,7 +457,7 @@ void room_populate(wl_roomloop *rl, int32_t map, const uint8_t *mres)
             wl_entity *s = NULL;
             for (uint16_t n = 0; n < 128; n++)
                 if (g_world->band2560[n]->alive == 0) { s = g_world->band2560[n]; break; }
-            if (s == NULL) log_fatal(0x8a2e0cu);   /* "Structure object ..." */
+            if (s == NULL) engine_fatal(0x8a2e0cu);   /* "Structure object ..." */
             if (r30 == 0) skind = 8;
             else if (r30 == 1) skind = 15;
             structure_init(s, x, y, 1, (uint32_t)code, (int32_t)(((uint32_t)id1 & 0xffff0000u) | w18), skind, id1);
@@ -491,7 +491,7 @@ void room_state_save(uint8_t *t)
             for (uint16_t k = 0; k < n; k++)
                 if (ld32(t, 0x1804 + 12u * k) == 0) rec = t + 0x1804 + 12u * k;
             if (rec == NULL) {
-                if (n == 0x800) log_fatal(0x859388u);   /* "The object perpetuity state area exceed..." */
+                if (n == 0x800) engine_fatal(0x859388u);   /* "The object perpetuity state area exceed..." */
                 st32(t, 0x7804, (int32_t)(n + 1));
                 rec = t + 0x1804 + 12 * n;
             }
@@ -1204,7 +1204,7 @@ int load_room(wl_roomloop *rl, wl_room *rooms, uint16_t nrooms, uint8_t *areas, 
                 break;
             }
         }
-        if (gt == NULL) log_fatal(0x8a2d50u);   /* "The gate is not found. " */
+        if (gt == NULL) engine_fatal(0x8a2d50u);   /* "The gate is not found. " */
     }
 
     /* the map NPCs present at entry.  `pct` is one local across the loop: classes 3..8 keep

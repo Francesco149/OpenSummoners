@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **519** (33.0% of engine-proper) — tested 250, ported 269
-- code bytes touched: **29.3%** (519,681 / 1,776,526 B of engine-proper)
-- unported: **1305**
+- touched: **551** (35.1% of engine-proper) — tested 250, ported 301
+- code bytes touched: **29.6%** (526,009 / 1,776,526 B of engine-proper)
+- unported: **1273**
 - orphan refs in src/ not in this table: 0
 
 ## tested (250) — ported + host unit suite
@@ -125,8 +125,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x54e5c0 | mover_vertical_54E5C0 | 945 | entity_move.c, entity_move.h |
 | 0x54e990 | sub_54E990 | 861 | collision.c, collision.h |
 | 0x560900 | sub_560900 | 251 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
-| 0x560e60 | actor_slot_reset_560E60 | 42 | game_map.c, game_map.h |
-| 0x561c90 | sub_561C90 | 94 | game_map.h, game_world.h |
+| 0x560e60 | actor_slot_reset_560E60 | 42 | game_map.c, game_map.h, scene_loop.h |
+| 0x561c90 | sub_561C90 | 94 | game_map.h, game_world.h, scene_loop.h |
 | 0x562210 | _WinMain@16 | 688 | app_pump.h, rng.h |
 | 0x562a10 | sub_562A10 | 92 | asset_register.c, asset_register.h |
 | 0x562ea0 | build_title_drive_562EA0 | 4062 | app_flow.c, app_flow.h, asset_register.c (+10) |
@@ -170,7 +170,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x582d00 | sub_582D00 | 15 | asset_register.c, asset_register.h |
 | 0x582d10 | sub_582D10 | 379 | asset_register.c, asset_register.h |
 | 0x582e90 | sub_582E90 | 3560 | cs_dispatch.c, cs_dispatch.h, main.c (+2) |
-| 0x585000 | gw_cross_reference_585000 | 413 | game_world.c, game_world.h, world_tables_data.c (+1) |
+| 0x585000 | gw_cross_reference_585000 | 413 | game_world.c, game_world.h, scene_loop.h (+2) |
 | 0x586010 | load_room_586010 | 6133 | asset_register.c, asset_register.h, game_world.h (+4) |
 | 0x587970 | sub_587970 | 866 | main.c, map_data.c, map_data.h (+5) |
 | 0x587e00 | sub_587E00 | 18059 | asset_register.h, collision.h, game_world.h (+7) |
@@ -178,7 +178,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x58ca80 | sub_58CA80 | 167 | map_decode.c, map_grid.c, map_grid.h |
 | 0x58cb30 | layer_hdr_u32_58CB30 | 1065 | map_decode.c, map_decode.h |
 | 0x58ffa0 | sub_58FFA0 | 23 | wnd_proc.h, wnd_proc_win32.c |
-| 0x59f2c0 | sub_59F2C0 | 3522 | game_map.c, game_map.h, game_world.c (+3) |
+| 0x59f2c0 | sub_59F2C0 | 3522 | game_map.c, game_map.h, game_world.c (+5) |
 | 0x5a00c0 | sub_5A00C0 | 13690 | map_data.h |
 | 0x5a4770 | sub_5A4770 | 45963 | app_pump.h, main.c |
 | 0x5b1030 | sub_5B1030 | 156 | app_pump.c, app_pump.h, title_scene.c (+2) |
@@ -274,10 +274,11 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (269) — reimplemented, no host test yet
+## ported (301) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
+| 0x4017a0 | sub_4017A0 | 40 | scene_loop.h |
 | 0x4017d0 | sub_4017D0 | 1175 | world_alloc.c, world_alloc.h |
 | 0x401c70 | sub_401C70 | 54 | world_alloc.h |
 | 0x401cb0 | sub_401CB0 | 140 | world_alloc.h |
@@ -314,6 +315,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4118b0 | sub_4118B0 | 134 | sprite_slot.h |
 | 0x412db0 | sub_412DB0 | 57 | room_loop.h |
 | 0x4182d0 | sub_4182D0 | 408 | room_load.h |
+| 0x419c00 | sub_419C00 | 110 | scene_loop.h |
+| 0x41a7f0 | sub_41A7F0 | 152 | scene_loop.h |
 | 0x41dc90 | sub_41DC90 | 890 | room_load.h |
 | 0x41e020 | sub_41E020 | 70 | room_load.h |
 | 0x41e180 | sub_41E180 | 244 | char_state.h |
@@ -468,6 +471,11 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x491740 | sub_491740 | 38 | sprite_slot.h |
 | 0x49a050 | sub_49A050 | 13 | sprite_slot.h |
 | 0x49be60 | sub_49BE60 | 290 | room_loop.h |
+| 0x4c57f0 | sub_4C57F0 | 50 | scene_loop.h |
+| 0x4c5830 | sub_4C5830 | 694 | scene_loop.h |
+| 0x4cc5a0 | sub_4CC5A0 | 628 | scene_loop.h |
+| 0x4e1950 | sub_4E1950 | 135 | scene_loop.h |
+| 0x4e61a0 | sub_4E61A0 | 33 | scene_loop.h |
 | 0x54bf90 | sub_54BF90 | 30 | room_load.h |
 | 0x54bfb0 | sub_54BFB0 | 801 | world_alloc.c, world_alloc.h |
 | 0x54c2e0 | sub_54C2E0 | 217 | world_alloc.h |
@@ -500,8 +508,20 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x55cd50 | sub_55CD50 | 85 | particle_init.h |
 | 0x55cdb0 | sub_55CDB0 | 145 | particle_init.h |
 | 0x55ce50 | sub_55CE50 | 18 | particle_init.h |
+| 0x560e90 | sub_560E90 | 700 | scene_loop.h |
+| 0x561150 | sub_561150 | 126 | scene_loop.h |
+| 0x5611d0 | sub_5611D0 | 173 | scene_loop.h |
+| 0x561280 | sub_561280 | 37 | scene_loop.h |
+| 0x5612b0 | sub_5612B0 | 56 | scene_loop.h |
+| 0x5614e0 | sub_5614E0 | 113 | scene_loop.h |
+| 0x562a70 | sub_562A70 | 127 | scene_loop.h |
+| 0x562ba0 | sub_562BA0 | 432 | scene_loop.h |
 | 0x562d50 | sub_562D50 | 239 | room_load.h |
+| 0x562e40 | sub_562E40 | 30 | scene_loop.h |
+| 0x562e60 | sub_562E60 | 58 | scene_loop.h |
 | 0x56df10 | sub_56DF10 | 203 | sprite_slot.h |
+| 0x5851e0 | sub_5851E0 | 114 | scene_loop.h |
+| 0x585f00 | sub_585F00 | 258 | scene_loop.h |
 | 0x5878a0 | sub_5878A0 | 207 | room_load.h |
 | 0x587ce0 | sub_587CE0 | 71 | room_load.h |
 | 0x587d30 | sub_587D30 | 28 | room_load.h |
@@ -537,11 +557,23 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x59ca10 | sub_59CA10 | 114 | room_loop.h |
 | 0x59d3f0 | sub_59D3F0 | 323 | room_loop.h |
 | 0x59db70 | sub_59DB70 | 227 | room_load.h |
+| 0x59e1a0 | sub_59E1A0 | 34 | scene_loop.h |
+| 0x5a3bb0 | sub_5A3BB0 | 62 | scene_loop.h |
+| 0x5a3bf0 | sub_5A3BF0 | 27 | scene_loop.h |
+| 0x5a3c10 | sub_5A3C10 | 37 | scene_loop.h |
+| 0x5a3c40 | sub_5A3C40 | 404 | scene_loop.h |
+| 0x5a3de0 | sub_5A3DE0 | 49 | scene_loop.h |
+| 0x5a3e20 | sub_5A3E20 | 455 | scene_loop.h |
+| 0x5a3ff0 | sub_5A3FF0 | 516 | scene_loop.h |
+| 0x5a4200 | sub_5A4200 | 276 | scene_loop.h |
+| 0x5a4460 | sub_5A4460 | 30 | scene_loop.h |
+| 0x5a4480 | sub_5A4480 | 312 | scene_loop.h |
 | 0x5b4530 | sub_5B4530 | 1209 | party_member.h |
 | 0x5b4a10 | sub_5B4A10 | 741 | party_member.h |
 | 0x5b54d0 | sub_5B54D0 | 166 | char_state.h |
 | 0x5b5580 | sub_5B5580 | 121 | char_state.h |
 | 0x5b5990 | sub_5B5990 | 202 | char_state.h |
+| 0x5b6300 | sub_5B6300 | 60 | scene_loop.h |
 | 0x5bf3ee | emit_last_error_line_5BF3EE | 82 | cs_dispatch_win32.c |
 | 0x5bf440 | _fclose | 86 | cs_dispatch_win32.c |
 | 0x5bf496 | _fprintf | 50 | cs_dispatch_win32.c |

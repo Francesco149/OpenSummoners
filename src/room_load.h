@@ -129,6 +129,9 @@ void *pool_head_delete(uint8_t *h, int32_t flags);
  * +0 a record with an owned buffer, +4, +8; the counts from the header +0x174: rows +4, cells +8),
  * the header — through retail's allocator (menu_list.c's menu_ctrl_clear is the port-heap twin) */
 void ctrl_geometry_free(uint8_t *c);
+/* the engine's fatal path (inlined across retail): 0x560900 (the last OS error to the error log),
+ * the message appended to the log's error box text (+4), the log line (0x406440), exit(0) */
+void engine_fatal(uint32_t msg_va);
 
 /* 0x41dc90 (thiscall room): each active member's formation parameters (char +0x14828, by the
  * formation kind: the member's slot +0xa00 / room +0x4054) and follow set-up: the leader (or every

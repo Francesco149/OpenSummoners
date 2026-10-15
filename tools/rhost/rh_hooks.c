@@ -48,6 +48,7 @@
 #include "char_def.h"
 #include "char_init.h"
 #include "party_member.h"
+#include "scene_loop.h"
 #include "engine_calls.h"
 
 typedef struct {
@@ -85,6 +86,20 @@ typedef struct {
     X(H_PM_SKREF, "char_skills_refresh", 0x406ec0u) X(H_PM_USABLE, "char_skill_usable", 0x407320u) \
     X(H_PM_SKAT, "member_skill_at", 0x4071f0u) X(H_SS_EFREE, "slot_entries_free", 0x417b50u) \
     X(H_SS_CLONE, "slot_clone", 0x4179b0u) X(H_CTRL_FREE, "ctrl_geometry_free", 0x40e0c0u) \
+    X(H_SL_OBJ, "scene_obj_init", 0x41a7f0u) X(H_SL_FFIND, "flag_find", 0x4c57f0u) X(H_SL_FADD, "flag_add", 0x4c5830u) \
+    X(H_SL_RFLAG, "room_flag_set", 0x560e90u) X(H_SL_PSRESET, "pslot_reset", 0x560e60u) \
+    X(H_SL_PDEF, "room_party_defaults", 0x5612b0u) X(H_SL_INALLOC, "room_inputs_alloc", 0x5611d0u) \
+    X(H_SL_RDEL, "room_delete", 0x5614e0u) X(H_SL_AFIND, "area_find", 0x561c90u) X(H_SL_ININIT, "input_init", 0x5851e0u) \
+    X(H_SL_AENTER, "room_area_enter", 0x59e1a0u) X(H_SL_FCLR, "fill_clear_mapped", 0x5a3bb0u) \
+    X(H_SL_HASRET, "room_has_retry", 0x5a3bf0u) X(H_SL_RETPT, "room_retry_point", 0x5a3c10u) \
+    X(H_SL_KFIND, "keep_find", 0x5a3de0u) X(H_SL_NEXT, "room_next_set", 0x4e61a0u) X(H_SL_HEAL, "room_party_heal", 0x4e1950u) \
+    X(H_SL_GOLD, "room_gold_add", 0x419c00u) X(H_SL_RLNEW, "roomloop_new", 0x5a3c40u) \
+    X(H_SL_FROMSC, "room_from_scene", 0x561150u) X(H_SL_ODEL, "obj_delete", 0x5a4460u) X(H_SL_OFREE, "obj_free", 0x5a4480u) \
+    X(H_SL_PSIN, "pslot_input_set", 0x4cc5a0u) X(H_SL_KSNAP, "keep_snapshot", 0x5a3e20u) \
+    X(H_SL_ENDCLN, "room_end_cleanup", 0x5a3ff0u) X(H_SL_RLPOOLS, "roomloop_pools_free", 0x5a4200u) \
+    X(H_SL_RLFREE, "roomloop_free", 0x585f00u) X(H_SL_SEND, "session_end", 0x562ba0u) X(H_SL_XREF, "area_xref", 0x585000u) \
+    X(H_SL_FCACHE, "frame_cache_clear", 0x562a70u) X(H_SL_FREAD, "file_read_section", 0x5b6300u) \
+    X(H_SL_POBJDEL, "pool_obj_delete", 0x562e60u) X(H_SL_WDEL, "world_delete", 0x562e40u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
 
@@ -108,7 +123,7 @@ enum { H_RAND, H_POLL, H_MOVER_V, H_SWEEP_H, H_ENT_MOVE_H, H_ENT_MOVE_V, H_MAP_D
        H_WNEW, H_WFREE, H_EFREE, H_AFREE, H_CFREE, H_CBLK, H_WLEAD, H_CSNAP, H_ZRESET, H_QSTATE, H_VREC, H_RSAVE, H_MFREE, H_MDEL, H_PHDEL,
        H_FORM, H_FOLLOW, H_ASTATE, H_PTINT, H_MLOAD,
        H_SFREE, H_SFREEALL, H_SGRADED, H_PSWAP, H_POPULATE, H_SINIT, H_SETH, H_DINIT, H_SNDFREE,
-       CDEF_HOOKS(CDEF_ENUM) H_N };
+       CDEF_HOOKS(CDEF_ENUM) H_SLOOP, H_N };
 
 static void diverged(hook_t *h, const char *fmt, ...)
 {
@@ -3139,6 +3154,49 @@ ST_HOOK(H_PM_SKAT, "member_skill_at", 3, 1, return (intptr_t)member_skill_at(CP(
 TC_HOOK0(H_SS_EFREE, "slot_entries_free", 0, slot_entries_free(self); return 0)
 TC_HOOK(H_SS_CLONE, "slot_clone", 2, 1, return (intptr_t)slot_clone(self, U16(a1), U16(a2)))
 TC_HOOK0(H_CTRL_FREE, "ctrl_geometry_free", 0, ctrl_geometry_free(self); return 0)
+/* the scene loop's helpers (src/scene_loop.c) */
+TC_HOOK0(H_SL_OBJ, "scene_obj_init", 1, return (intptr_t)scene_obj_init(self))
+TC_HOOK(H_SL_FFIND, "flag_find", 1, 1, return (intptr_t)flag_find(self, a1))
+TC_HOOK(H_SL_FADD, "flag_add", 1, 1, return (intptr_t)flag_add(self, a1))
+TC_HOOK(H_SL_RFLAG, "room_flag_set", 2, 1, return (intptr_t)room_flag_set(self, a1, a2))
+TC_HOOK0(H_SL_PSRESET, "pslot_reset", 1, pslot_reset(self); return 0)
+TC_HOOK0(H_SL_PDEF, "room_party_defaults", 1, room_party_defaults(self); return 0)
+TC_HOOK(H_SL_INALLOC, "room_inputs_alloc", 1, 0, room_inputs_alloc(self, U16(a1)); return 0)
+TC_HOOK(H_SL_RDEL, "room_delete", 1, 0, room_delete(self, a1); return (intptr_t)self)
+TC_HOOK(H_SL_AFIND, "area_find", 1, 1, return (intptr_t)area_find(self, a1))
+TC_HOOK(H_SL_ININIT, "input_init", 4, 1, return (intptr_t)input_init(self, U16(a1), a2, a3, a4))
+TC_HOOK(H_SL_AENTER, "room_area_enter", 2, 0, room_area_enter(self, a1, (wl_room *)a2); return 0)
+TC_HOOK0(H_SL_FCLR, "fill_clear_mapped", 0, fill_clear_mapped(self); return 0)
+TC_HOOK0(H_SL_HASRET, "room_has_retry", 1, return room_has_retry(self))
+TC_HOOK0(H_SL_RETPT, "room_retry_point", 0, room_retry_point(self); return 0)
+TC_HOOK(H_SL_KFIND, "keep_find", 1, 1, return (intptr_t)keep_find(self, a1))
+TC_HOOK(H_SL_NEXT, "room_next_set", 3, 1, room_next_set(self, a1, a2, a3); return a3)
+TC_HOOK(H_SL_HEAL, "room_party_heal", 1, 0, room_party_heal(self, a1); return 0)
+TC_HOOK(H_SL_GOLD, "room_gold_add", 2, 1, return room_gold_add(self, a1, a2))
+TC_HOOK0(H_SL_RLNEW, "roomloop_new", 1, return (intptr_t)roomloop_new(self))
+TC_HOOK(H_SL_FROMSC, "room_from_scene", 1, 1, room_from_scene(self, CP(a1)); return a1)
+TC_HOOK(H_SL_ODEL, "obj_delete", 1, 0, obj_delete(self, a1); return (intptr_t)self)
+TC_HOOK0(H_SL_OFREE, "obj_free", 0, obj_free(self); return 0)
+TC_HOOK(H_SL_PSIN, "pslot_input_set", 1, 1, return pslot_input_set(self, (void *)a1))
+TC_HOOK(H_SL_KSNAP, "keep_snapshot", 1, 0, keep_snapshot(self, (wl_roomloop *)a1); return 0)
+TC_HOOK0(H_SL_ENDCLN, "room_end_cleanup", 0, room_end_cleanup(self); return 0)
+TC_HOOK0(H_SL_RLPOOLS, "roomloop_pools_free", 0, roomloop_pools_free(self); return 0)
+TC_HOOK0(H_SL_RLFREE, "roomloop_free", 0, roomloop_free(self); return 0)
+TC_HOOK0(H_SL_SEND, "session_end", 0, session_end(self); return 0)
+TC_HOOK(H_SL_XREF, "area_xref", 2, 0, area_xref(self, CP(a1), (uint8_t *)a2); return 0)
+TC_HOOK0(H_SL_FCACHE, "frame_cache_clear", 0, frame_cache_clear(self); return 0)
+TC_HOOK(H_SL_FREAD, "file_read_section", 3, 0, return file_read_section(self, (void *)a1, a2, (uint32_t)a3))
+TC_HOOK(H_SL_POBJDEL, "pool_obj_delete", 1, 0, pool_obj_delete(self, a1); return (intptr_t)self)
+TC_HOOK(H_SL_WDEL, "world_delete", 1, 0, world_delete(self, a1); return (intptr_t)self)
+/* the scene loop itself — REPLACE only (a whole session per call) */
+typedef int32_t (__attribute__((thiscall)) *scloop_t)(uint8_t *, int32_t, uint32_t, int32_t, int32_t *, int32_t);
+static int32_t __attribute__((thiscall)) w_scloop(uint8_t *ss, int32_t save, uint32_t sub, int32_t demo, int32_t *out, int32_t start)
+{
+    hook_t *h = &H[H_SLOOP];
+    h->calls++;
+    if (h->mode == 2) { port_world(); return scene_loop(ss, save, (uint16_t)sub, demo, out, start); }
+    return ((scloop_t)(uintptr_t)h->va)(ss, save, sub, demo, out, start);
+}
 
 /* ---- the character init (src/char_init.c) — full state, per-code coverage ---- */
 typedef void (__attribute__((thiscall)) *cinit_t)(wl_char *, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t,
@@ -3356,6 +3414,7 @@ static hook_t H[H_N] = {
     [H_DINIT]      = { "device_init",    0x431e30u, (void *)w_dinit,  0, 1, 0, 0, 0, 0, "" },
     [H_SNDFREE]    = { "entity_snd_free", 0x426490u, (void *)w_sndfree, 0, 1, 0, 0, 0, 0, "" },
     CDEF_HOOKS(CDEF_ROW)
+    [H_SLOOP]      = { "scene_loop", 0x59f2c0u, (void *)w_scloop, 0, 1, 0, 0, 0, 0, "" },
 };
 
 static const void *rh_data_identity(uint32_t va) { return (const void *)(uintptr_t)va; }
@@ -3415,6 +3474,9 @@ static void bind_engine_calls(void)
     B(56dc20); B(41a890); B(5bf3ee); B(426110); B(560900); B(5bf5db);
     B(428c00); B(429060); B(429db0); B(42a500); B(42a9a0); B(42b9a0); B(42c130); B(42c510); B(42c970);
     B(42cce0); B(42d3c0); B(42da50); B(42e290); B(42eb20); B(42f840); B(42fbf0); B(42ff00); B(430400);
+    B(4c5350); B(4e59a0); B(55f790); B(561d20); B(41b670); B(4c5af0); B(52fd80); B(5a3870); B(5a00c0);
+    B(5a3670); B(56c640); B(5b6060); B(5b60d0); B(5b61b0); B(5b6200); B(5b6bc0); B(5b6340); B(5b64b0);
+    B(41cfd0);
     g_eng.world = (wl_world **)(uintptr_t)WORLD_PTR_VA;
     g_eng.quiet = (int32_t *)(uintptr_t)0x8a6b54u;
     g_eng.dlog  = (void *)(uintptr_t)0x8a6620u;
@@ -3473,7 +3535,7 @@ void rh_hooks_install(void)
         H[H_CSNAP].va = H[H_ZRESET].va = H[H_QSTATE].va = H[H_VREC].va = H[H_RSAVE].va = H[H_MFREE].va = H[H_MDEL].va =
         H[H_PHDEL].va = H[H_FORM].va = H[H_FOLLOW].va = H[H_ASTATE].va = H[H_PTINT].va = H[H_MLOAD].va =
         H[H_SFREE].va = H[H_SFREEALL].va = H[H_SGRADED].va = H[H_PSWAP].va = H[H_POPULATE].va = H[H_SINIT].va = H[H_SETH].va = H[H_DINIT].va = H[H_SNDFREE].va = 0;
-    if (strcmp(g_ed->tag, "enold")) for (int i = H_CD_SKFIND; i <= H_CINIT; i++) H[i].va = 0;
+    if (strcmp(g_ed->tag, "enold")) for (int i = H_CD_SKFIND; i <= H_SLOOP; i++) H[i].va = 0;
     if (!O.hooks) return;
     char *b = strdup(O.hooks);   /* (a fixed 4 KB buffer silently dropped the tail of a long spec) */
     if (!b) rh_fatal("hook spec: out of memory");
@@ -3488,7 +3550,7 @@ void rh_hooks_install(void)
         h->mode = !strcmp(mode, "shadow") ? 1 : !strcmp(mode, "replace") ? 2 : 0;
         h->every = every;
         if (!h->mode) continue;
-        if ((h == &H[H_RLOOP] || h == &H[H_REPOLL] || h == &H[H_LROOM]) && h->mode == 1)
+        if ((h == &H[H_RLOOP] || h == &H[H_REPOLL] || h == &H[H_LROOM] || h == &H[H_SLOOP]) && h->mode == 1)
             rh_fatal("%s: replace only (it runs a room / repolls DirectInput)", h->name);
         if (h == &H[H_MAP_DECODE]) {
             if (h->mode == 2) rh_fatal("map_decode: shadow only (the port decode needs the recorded resource)");

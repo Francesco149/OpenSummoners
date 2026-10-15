@@ -7,15 +7,15 @@
 ## Port coverage (engine-proper functions of `sotes.exe`)
 
 ```
-███████░░░░░░░░░░░░░  33.0% touched   (15.8% host-tested, 29.3% of code bytes)
+███████░░░░░░░░░░░░░  35.1% touched   (15.8% host-tested, 29.6% of code bytes)
 ```
 
 | status      | count | what it means                                          |
 |-------------|------:|--------------------------------------------------------|
 | tested      |   250 | ported + module covered by the host unit suite       |
-| ported      |   269 | reimplemented in src/, no host test for that module  |
-| **touched** | **519** | tested + ported (FUN_ provenance ref in src/)    |
-| unported    |  1305 | exists in engine, never referenced from src/         |
+| ported      |   301 | reimplemented in src/, no host test for that module  |
+| **touched** | **551** | tested + ported (FUN_ provenance ref in src/)    |
+| unported    |  1273 | exists in engine, never referenced from src/         |
 
 **Denominator note (read this before judging the %):** the headline % is over
 **engine-proper** functions — the **1532** below
@@ -26,7 +26,7 @@ those like retail rather than porting them (PLAN.md §2-3), so counting them
 would bury real progress. Full table is **1824** non-thunk
 functions (of 1824 incl. thunks).
 
-Code-byte coverage (29.3% of engine-proper bytes) is the truer progress
+Code-byte coverage (29.6% of engine-proper bytes) is the truer progress
 signal: the engine has a long tail of tiny leaf helpers, so function count
 understates how much actual instruction volume is ported.
 
@@ -91,7 +91,9 @@ understates how much actual instruction volume is ported.
   | its 42 definition helpers: skill find / learn / define / by code, AI skill records + boxes, approach records, combos, base stats `0x426fd0` + jitter `0x426e00`, voice set init / free, pacing, idle, clips / walk / run / jump / crouch / hit / carry / move / nav setters, party mode, idle voice | `0x4072c0` `0x4282f0` `0x4285f0` `0x427fb0` `0x4287d0` `0x428950` `0x427f00` `0x427430` `0x426fd0` `0x426e00` `0x4289f0` `0x426380` `0x427670` `0x427360` … `0x431cb0` | 320 learn / 288 combo / 224 ai / 206 jitter / 103 stats … (33 of 42 reached; via retail's 0x41f200) | 0 |
   | the PARTY MEMBER create / attach (next free char, init at the gate's feet, the slot's stat block, pacing, brain, respawn) + equipment recolour, skill refresh, skill usable, member skill find, slot code + the sprite-slot clone / entry free | `0x58e170` / `0x5b4530` `0x5b4a10` `0x406ec0` `0x407320` `0x4071f0` `0x4094d0` `0x4179b0` `0x417b50` | 16 / 16 / 16 / 16 / 1,536 / – / – / 564 / 1,182 | 0 |
   | menu / dialog controller geometry free (retail heap; `menu_list.c` keeps the port-heap twin) | `0x40e0c0` | 542 | 0 |
-  Hybrid gate: with all of the above REPLACING retail (232 hooks) (the whole character tick, driver → tile
+  | the SCENE LOOP (the session: the area / fill / keep tables, the party room, new game / save load, the room loop of load_room with defeat / retry / menu / map-change handling) | `0x59f2c0` | REPLACE only: the whole session in 3 scenarios | – |
+  | its helpers: scene object, event flags, area flag / find / cross-reference, slot reset, inputs, keep lists, retry / heal / gold, room loop new / free, room-end cleanup, frame cache | `0x41a7f0` `0x4c57f0` `0x4c5830` `0x560e90` `0x561c90` `0x585000` `0x560e60` `0x5611d0` `0x5851e0` `0x5a3de0` `0x5a3e20` `0x4cc5a0` `0x5a3c40` `0x585f00` `0x5a3ff0` (REPLACE) `0x562a70` … (34) | 1,251 xref / 29 / 24 / 16 … (21 of 34 reached) | 0 |
+  Hybrid gate: with all of the above REPLACING retail (266 hooks) (the whole character tick, driver → tile
   movers, + the room loop's passes and per-tick calls, runs as port code), every corpus scenario ends byte-identical.
   Shadow guard (rhost): a port phase that reaches an external effect retail already performed (surface free,
   buffer release, DeleteObject, DirectInput, a mode-0/2 script) aborts its comparison (counted skipped); those
@@ -118,9 +120,12 @@ understates how much actual instruction volume is ported.
      of them** (no dungeon / monster room: 17 townsfolk / party codes only), so porting them needs a monster-room
      scenario first (USER `rhost.py record`); the palette read `0x4178e0` + frames `0x418470` / `0x417c40`
      (DirectDraw), `0x56dc20` (Now Loading + Flip), `0x41a890`, the room-start script `0x40c380`, the
-     joysticks `0x5ba120` / `0x5ba290` (platform). Next: the scene loop `0x59f2c0` (its save-load half needs a save
-     scenario; ~40 callees, the session record 0x4120 + 8 slots, the area table copy, the load_room loop), or the
-     scene runner stop `0x41a890` (the save writer) under load_room.
+     joysticks `0x5ba120` / `0x5ba290` (platform). The SCENE LOOP `0x59f2c0` above it runs as port code too
+     (`src/scene_loop.c`, quirk #141; its save-load half is unexercised: a save scenario is needed). Its slots: the
+     area key / room setup `0x4c5350` / `0x4e59a0`, the room-entry pipeline `0x55f790`, the save writer `0x41a890`,
+     the save apply `0x561d20`, the demo scene `0x41b670` (+ `0x4c5af0` / `0x52fd80` / `0x5a3870`), the menu
+     `0x5a00c0` (13.7 KB), the file reader `0x5b6060`.. (platform). Next: `0x55f790` + `0x4c5350` / `0x4e59a0`
+     (every new game / room entry reaches them), then `0x41a890` (the save).
   00. the ROOM LOOP `0x58f360` RUNS AS PORT CODE (`room_loop_run`, REPLACE-verified; Flip / the camera
      easer go through rhost's own stubs). Left under it as slots: the pickups `0x59ca90` (+ the world
      message log world+4 / +0x1024, "You got %s!"), the warp countdown `0x59c750`, the leader swap
