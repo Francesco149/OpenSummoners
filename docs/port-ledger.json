@@ -7,15 +7,15 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 383,
-  "unported": 1192,
+  "ported": 386,
+  "unported": 1189,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 632,
-  "pct_touched": 40.4,
+  "touched": 635,
+  "pct_touched": 40.6,
   "pct_tested": 15.7,
-  "engine_proper_touched": 619,
+  "engine_proper_touched": 622,
   "bytes_total": 1776526,
-  "bytes_touched": 550516,
+  "bytes_touched": 551063,
   "pct_bytes_touched": 31.0
  },
  "orphan_refs": [],
@@ -7136,8 +7136,10 @@
    "name": "sub_49CE70",
    "size": 231,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_tick.h"
+   ]
   },
   {
    "va": "0x49cf60",
@@ -10697,8 +10699,10 @@
    "name": "sub_58FFC0",
    "size": 14,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_tick.h"
+   ]
   },
   {
    "va": "0x58ffd0",
@@ -11103,8 +11107,10 @@
    "name": "sub_59A910",
    "size": 302,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/room_tick.h"
+   ]
   },
   {
    "va": "0x59aa40",

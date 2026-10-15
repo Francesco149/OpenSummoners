@@ -5,6 +5,7 @@
  *   FUN_0059c750  room_warp_tick      FUN_0059aa40  room_leader_next   FUN_0059acc0  char_lead_ok
  *   FUN_0059ad20  char_on_ground      FUN_0059ca90  room_pickups       FUN_0059ce60  pickup_touch
  *   FUN_00557060  item_sparkle        FUN_005908a0  room_party_tick    FUN_00590660  room_item_pick
+ *   FUN_0049ce70  quest_count         FUN_0059a910  room_views_refresh FUN_0058ffc0  world_notice_reset
  */
 #ifndef OSS_ROOM_TICK_H
 #define OSS_ROOM_TICK_H
@@ -41,5 +42,13 @@ int room_item_pick(wl_room *room, wl_pslot **out, int32_t kind, int32_t a4, int3
 /* 0x5908a0 (thiscall room): the low-HP beep (below 30 %, once), the screen flash fading (+0x40e4), the queued
  * item use (u16 +0x4070: 1 the auto-heal picks, 2 the chosen one; 0x5b1f10 applies it) */
 void room_party_tick(wl_room *room);
+
+/* 0x49ce70 (thiscall room): in areas 1010 / 1020, the quest rows of 0x6b7ee8 (1212 B: +0 the done flag, +8 the
+ * gate flag, +0xc its minimum) open in `room` — the gate reached and not done */
+uint16_t quest_count(const wl_room *room);
+/* 0x59a910 (thiscall room loop): both views' quest counts (+0x134; 0 without a room +0x130) */
+void room_views_refresh(wl_roomloop *rl);
+/* 0x58ffc0 (thiscall world): the bag-full / money-full notice stamps (+0x1028 / +0x102c) cleared */
+int32_t *world_notice_reset(wl_world *w);
 
 #endif /* OSS_ROOM_TICK_H */

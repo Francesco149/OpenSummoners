@@ -18,6 +18,9 @@ specific commits where relevant.
 - + the party tick `0x5908a0` (low-HP beep, the screen-flash fade, the queued item use: `0x590660` picks
   the member / item, `0x5b1f10` + `0x47ae00` stay slots): 8,742 calls (1,092 full-state), 0 divergences;
   hybrid 352.
+- + the quest count `0x49ce70` (the open quest rows of 0x6b7ee8 in areas 1010 / 1020; the script end's slot
+  retired), both views' refresh `0x59a910`, the notice-stamp reset `0x58ffc0`; the room loop's stale
+  `h562a70` slot now calls the ported `frame_cache_clear`.  quest_count 30, 0 divergences; hybrid 355.
 
 ## 2026-10-15 (night) — the per-tick STATUS pass 0x487dc0 + the FADE 0x4878b0
 

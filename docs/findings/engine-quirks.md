@@ -4580,6 +4580,9 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   11 / 6 (unless +0x405c), else kind 9 at ≤ 75 %, else any (unless +0x405e), and that member's best usable item
   (by the value, then the fewest held); its use `0x5b1f10` logs up to 8 lines, else cue sys+0x37c; 2 = the chosen
   item +0x4078 on the slot +0x407c.
+- **Quest count `0x49ce70`** (the views' u16 +0x134, refreshed by `0x59a910` after the field menu and at a
+  scene end): only in areas 1010 / 1020, the rows of 0x6b7ee8 (1212 B) whose gate flag (+8) has reached its
+  minimum (+0xc) while the done flag (+0) is unset or 0.
 
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)

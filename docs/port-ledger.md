@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **632** (40.4% of engine-proper) — tested 249, ported 383
-- code bytes touched: **31.0%** (550,516 / 1,776,526 B of engine-proper)
-- unported: **1192**
+- touched: **635** (40.6% of engine-proper) — tested 249, ported 386
+- code bytes touched: **31.0%** (551,063 / 1,776,526 B of engine-proper)
+- unported: **1189**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (383) — reimplemented, no host test yet
+## ported (386) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -514,6 +514,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x49be60 | sub_49BE60 | 290 | room_loop.h |
 | 0x49cb60 | sub_49CB60 | 527 | script_engine.h |
 | 0x49cd70 | sub_49CD70 | 254 | script_engine.h |
+| 0x49ce70 | sub_49CE70 | 231 | room_tick.h |
 | 0x49d6e0 | sub_49D6E0 | 590 | scene_cmd.h |
 | 0x4a5e20 | sub_4A5E20 | 32 | scene_cmd.h |
 | 0x4a5ee0 | sub_4A5EE0 | 72 | scene_cmd.h |
@@ -615,6 +616,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x58f0b0 | sub_58F0B0 | 658 | room_loop.h |
 | 0x58f360 | sub_58F360 | 3030 | room_loop.h |
 | 0x58ff50 | sub_58FF50 | 66 | room_loop.h |
+| 0x58ffc0 | sub_58FFC0 | 14 | room_tick.h |
 | 0x58ffd0 | sub_58FFD0 | 595 | room_loop.h |
 | 0x590410 | sub_590410 | 112 | room_loop.h |
 | 0x590660 | sub_590660 | 566 | room_tick.h |
@@ -622,6 +624,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x59a1f0 | sub_59A1F0 | 1485 | gimmick.h |
 | 0x59a7c0 | sub_59A7C0 | 181 | gimmick.h |
 | 0x59a880 | sub_59A880 | 138 | gimmick.h |
+| 0x59a910 | sub_59A910 | 302 | room_tick.h |
 | 0x59aa40 | sub_59AA40 | 630 | room_tick.c, room_tick.h |
 | 0x59acc0 | sub_59ACC0 | 90 | room_tick.h |
 | 0x59ad20 | sub_59AD20 | 60 | room_tick.h |

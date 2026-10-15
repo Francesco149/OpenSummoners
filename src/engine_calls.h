@@ -125,7 +125,7 @@ typedef struct engine_calls {
     void (*h5b1030)(void);
     eng_tc3 h48c150; eng_tc7 h495e40; eng_tc0 h59d160; eng_tc1 flip_5b8fc0; eng_tc0 easer_43d1d0;
     eng_tc1 h58ffa0; eng_tc0 h590480; eng_tc1 h590f20; eng_tc0 h590ca0;
-    eng_tc2 h59d540; eng_tc0 h591120; eng_tc0 h562a70; eng_tc0 h58ffc0; eng_tc0 h59a910; eng_tc0 h415350;
+    eng_tc2 h59d540; eng_tc0 h591120; eng_tc0 h415350;
     eng_tc0 h590230; eng_tc1 h59ad60;
     eng_tc0 h499ab0;
     /* the integrator 0x442a70's callees: per-type behaviour handlers + helpers (by VA) */
@@ -210,7 +210,7 @@ typedef struct engine_calls {
      * 0x5bcfb0, has / differs 0x5bbc60 / 0x5bbc90, fade 0x5bbcd0, playing 0x5bbc20, play 0x5bcb80 */
     int (*script_call)(uint32_t va, wl_event *ev);
     eng_tc1 h439690; eng_tc6 h4081d0; eng_tc1 h408730; eng_tc2 h407970; eng_tc0 h40a340;
-    eng_tc2 h402d40; eng_tc4 h406210; eng_tc0 h411610; eng_tc2 h4031c0; eng_tc0 h49ce70;
+    eng_tc2 h402d40; eng_tc4 h406210; eng_tc0 h411610; eng_tc2 h4031c0;
     eng_tc3 h5bcfb0; eng_tc1 h5bbc60; eng_tc1 h5bbc90; eng_tc1 h5bbcd0; eng_tc0 h5bbc20; eng_tc5 h5bcb80;
     /* the scene commands': the party gather after a talk turn 0x405e80 (thiscall runner) */
     eng_tc5 h405e80;

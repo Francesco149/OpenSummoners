@@ -362,3 +362,32 @@ void room_party_tick(wl_room *room)
     }
     st16(room, 0x4070, 0);
 }
+
+uint16_t quest_count(const wl_room *room)
+{
+    if (W->f105c != 1010 && W->f105c != 1020) return 0;
+    const uint8_t *row = (const uint8_t *)g_eng.data(0x6b7ee8u);
+    uint8_t *flags = room->f40ac;
+    uint16_t n = 0;
+    for (uint16_t k = 0; ld32(row, 1212u * k) != 0; k++) {
+        const uint8_t *r = row + 1212u * k;
+        const uint8_t *fb = flag_find(flags, ld32(r, 8));
+        if ((fb != NULL ? ld32(fb, 4) : 0) < ld32(r, 0xc)) continue;
+        const uint8_t *fa = flag_find(flags, ld32(r, 0));
+        if (fa == NULL || ld32(fa, 4) == 0) n++;
+    }
+    return n;
+}
+
+void room_views_refresh(wl_roomloop *rl)
+{
+    for (int v = 0; v < 2; v++)
+        st16(&rl->view[v], 0xc, rl->view[v].f8 != 0 ? quest_count((const wl_room *)(intptr_t)rl->view[v].f4) : 0);
+}
+
+int32_t *world_notice_reset(wl_world *w)
+{
+    st32(w, 0x1028, 0);
+    st32(w, 0x102c, 0);
+    return (int32_t *)((uint8_t *)w + 0x1028);
+}

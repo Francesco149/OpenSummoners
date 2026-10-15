@@ -17,6 +17,7 @@
 #include "gimmick.h"
 #include "particle_spawn.h"
 #include "room_loop.h"
+#include "room_tick.h"
 #include "scene_cmd.h"
 #include "sound_fx.h"
 
@@ -196,7 +197,7 @@ void script_end(wl_event *ev)
     W->busy = 0;
     rl->f40[0] = 0;
     for (int v = 0; v < 2; v++)
-        st16(&rl->view[v], 0xc, rl->view[v].f8 != 0 ? (uint16_t)g_eng.h49ce70((void *)(intptr_t)rl->view[v].f4) : 0);
+        st16(&rl->view[v], 0xc, rl->view[v].f8 != 0 ? quest_count((const wl_room *)(intptr_t)rl->view[v].f4) : 0);
     for (int i = 0; i < 32; i++) {
         wl_char *c = W->chars[i];
         if (c->base.alive == 0) continue;

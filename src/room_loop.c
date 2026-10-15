@@ -593,10 +593,10 @@ static int room_keys(wl_roomloop *rl, wl_room *room, uint32_t now)
         g_eng.h59d540(rl, IP(room), IP(ctx));
         res = g_eng.h591120(ctx);
         rl->in_menu = 0;
-        g_eng.h562a70(sysp(0x2754));
+        frame_cache_clear(sysp(0x2754));
         input_repoll_flush(rl);
-        g_eng.h58ffc0(g_world);
-        g_eng.h59a910(rl);
+        world_notice_reset(g_world);
+        room_views_refresh(rl);
         goto done;
     }
     {
