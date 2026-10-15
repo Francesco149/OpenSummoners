@@ -7,15 +7,15 @@
 ## Port coverage (engine-proper functions of `sotes.exe`)
 
 ```
-████████░░░░░░░░░░░░  41.8% touched   (15.7% host-tested, 31.2% of code bytes)
+████████░░░░░░░░░░░░  42.2% touched   (15.7% host-tested, 31.4% of code bytes)
 ```
 
 | status      | count | what it means                                          |
 |-------------|------:|--------------------------------------------------------|
 | tested      |   249 | ported + module covered by the host unit suite       |
-| ported      |   404 | reimplemented in src/, no host test for that module  |
-| **touched** | **653** | tested + ported (FUN_ provenance ref in src/)    |
-| unported    |  1171 | exists in engine, never referenced from src/         |
+| ported      |   410 | reimplemented in src/, no host test for that module  |
+| **touched** | **659** | tested + ported (FUN_ provenance ref in src/)    |
+| unported    |  1165 | exists in engine, never referenced from src/         |
 
 **Denominator note (read this before judging the %):** the headline % is over
 **engine-proper** functions — the **1532** below
@@ -26,7 +26,7 @@ those like retail rather than porting them (PLAN.md §2-3), so counting them
 would bury real progress. Full table is **1824** non-thunk
 functions (of 1824 incl. thunks).
 
-Code-byte coverage (31.2% of engine-proper bytes) is the truer progress
+Code-byte coverage (31.4% of engine-proper bytes) is the truer progress
 signal: the engine has a long tail of tiny leaf helpers, so function count
 understates how much actual instruction volume is ported.
 
@@ -77,6 +77,7 @@ understates how much actual instruction volume is ported.
   | ROOM LOOP per-tick calls: input update, character step (probe + AI), actor step, tile-anim phase, party check, camera lead, timed sounds | `0x468a20` `0x590410` `0x58ffd0` `0x58ff50` `0x59ca10` `0x59d3f0` `0x43e140` | 1.4k / 832 / 4.1k / 545 / 8.8k / 545 / 1.5k compared | 0 |
   | the room loop's party chores: warp countdown (+ the party fade-out, the screen dissolve), leader swap (+ zone re-arm), pickups (gold cap / items / the throttled notices), the party tick (low-HP beep, flash fade, queued item use), the quest counts + stand checks, pickup touch, item sparkle, item pick, notice reset | `0x59c750` `0x59aa40` `0x59ca90` `0x5908a0` `0x59a910` `0x49ce70` (+ `0x59acc0` `0x59ad20` `0x59ce60` `0x557060` `0x590660` `0x58ffc0`) | 8,750 (1,093 full-state) / 3 / 8,750 (1,093) / 8,742 (1,092) / – (after the field menu) / 30 / – (no pickups / item uses in the corpus) | 0 |
   | the UI toolkit core (window manager / windows / controls: open, init, take, grid add + rows / columns, text add + metrics, cursor / icon / frame styles, page fit, scroll) + money / inventory / party counts | `0x4124d0` `0x40f3e0` `0x411c50` `0x40df40` `0x411f40` … (24, `docs/plans/ui-toolkit.md` chip 1) | 76 / 68 / 87 / 378 / 445 / 411 / 71 / 69 … (22 of 24 reached) | 0 (`0x412570`: 1 shadow artifact — its object is on the caller's stack, which the shadow does not restore; REPLACE passes) |
+  | the UI text layer (cell text + ruby pass, glyph records, %-code parse, word wrap, layout / control text set, the message key-token table: alloc / add / expand / defaults, the box cursor) + the SJIS search | `0x40fa00` `0x4031c0` `0x40f040` `0x40e5e0` `0x413ed0` `0x40e360` `0x43cf30` `0x411230` `0x43cf90` `0x410610` `0x410560` `0x40fd20` | 151 / 74 / 14 / 72 / 58 / 14 / 1 / 969 / 58 / 36 / 34 / 297k (8k compared) — EN text only: the SJIS wrap + ruby paths unreached | 0 |
   | KEYBOARD input producer (DIK events → ring records in retail's test order, held axes) | `0x46a880` | 1,694 compared (every call with events: 1,164 events, title / menus / free roam) | 0 |
   | ENCOUNTER pass (roam / battle / strong-foe modes, foe-near flag, battle linger, room BGM restore) + threat scans, slot check, BGM pick | `0x58e780` / `0x58eeb0` / `0x58f0b0` / `0x412db0` / `0x40d9b0` | 1,471 (every call) / 1.4k / 1.4k / 63k / 1.4k — idle path (no foes in the corpus) | 0 |
   | the ROOM LOOP itself (pacing machine, update, keys / menus, passes, render + Flip) + input re-poll / flush | `0x58f360` / `0x49be60` | REPLACE only: every room of the corpus (rh-my-play 9 runs) | – |
@@ -104,7 +105,7 @@ understates how much actual instruction volume is ported.
   | the party POSE handler (turn-around, hit reactions + voice, stagger, knockdowns, blown-back falls, get-up, revive) + knockdown, status inflict, drift, switch touch, particle live, hitstop | `0x457ff0` (+ `0x459990` `0x4593e0` `0x4678f0` `0x467ae0` `0x459ed0` `0x5b1aa0` `0x459370` `0x54d060` `0x5b4510`) | 1.43M (72,685 full-state: every non-zero pose) / – / – / – / – / – / 414 / – / – / – | 0 |
   | the SCRIPT ENGINE (chapter scripts by area / flag, then the default event: room arrival + BGM + area title, doors, switched furniture / chest / save statue / talk records, time of day) + scene begin / end, room flag, leader, party cast, cast add, scene wait, actor by record | `0x40c380` (+ `0x49cb60` `0x49cd70` `0x41e2f0` `0x402f20` `0x402060` `0x401f50` `0x439680` `0x556eb0`) | 61 (11 full-state; 49 guarded: the BGM / frame loop) / 31 / 30 / 251 / 29 / 13 / 13 / – (REPLACE: 146) / 129; REPLACE: every event of the corpus | 0 |
   | the scene COMMAND builders (message box + voice row, face, weapon stance, talk turn, flag set, camera, fades / waits / pause, area title, door place / spawn / by record, next event, room BGM restart) | `0x49d6e0` `0x4a5ee0` `0x401e60` `0x4a5e20` `0x402d40` `0x406210` `0x41d190` `0x4a5f50` `0x401d40` `0x4a5f30` `0x4a5f90` `0x4cc060` `0x4cc080` `0x4cc0a0` `0x4cc0c0` `0x403100` `0x41ec20` `0x41f0e0` `0x4cbf80` `0x4cca70` | 101 / 34 / 7 / 1 / 13 / 13 / 8 / 18 / 6 / 1 / 5 / 1 / 2 / 2 / 1 / 3 (guarded: the title text) / 1 / 15 / 1 / 2 (guarded: the BGM) — from retail's chapter scripts | 0 |
-  Hybrid gate: with all of the above REPLACING retail (379 hooks) (the whole character tick, driver → tile
+  Hybrid gate: with all of the above REPLACING retail (391 hooks) (the whole character tick, driver → tile
   movers, + the room loop's passes and per-tick calls, runs as port code), every corpus scenario ends byte-identical.
   Shadow guard (rhost): a port phase that reaches an external effect retail already performed (surface free,
   buffer release, DeleteObject, DirectInput, a mode-0/2 script) aborts its comparison (counted skipped); those

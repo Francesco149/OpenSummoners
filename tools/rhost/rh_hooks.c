@@ -55,6 +55,8 @@
 #include "char_status.h"
 #include "room_tick.h"
 #include "ui_core.h"
+#include "ui_text.h"
+#include "glyph_text.h"
 #include "engine_calls.h"
 
 typedef struct {
@@ -159,6 +161,11 @@ typedef struct {
     X(H_UI_CSTY, "sys_cursor_style", 0x413760u) X(H_UI_PAGE, "grid_page_fit", 0x4192b0u) \
     X(H_UI_SCROLL, "ui_scroll_init", 0x415420u) X(H_UI_MTXT, "money_text", 0x415930u) X(H_UI_MVAL, "money_value", 0x417440u) \
     X(H_UI_ICNT, "room_item_count", 0x415990u) X(H_UI_PCNT, "room_party_count", 0x416500u) \
+    X(H_UT_CELL, "grid_cell_text", 0x40fa00u) X(H_UT_RECS, "glyph_recs_set", 0x4031c0u) X(H_UT_PARSE, "text_parse", 0x40f040u) \
+    X(H_UT_WRAP, "text_wrap", 0x40e5e0u) X(H_UT_LAY, "text_layout_set", 0x413ed0u) X(H_UT_SET, "ctrl_text_set", 0x40e360u) \
+    X(H_UT_KALLOC, "ctrl_keys_alloc", 0x43cf30u) X(H_UT_KADD, "ctrl_key_add", 0x411230u) \
+    X(H_UT_KEXP, "ctrl_keys_expand", 0x43cf90u) X(H_UT_MSGK, "sys_msg_keys", 0x410610u) \
+    X(H_UT_BOXC, "sys_box_cursor", 0x410560u) X(H_UT_TOK, "glyph_token_search", 0x40fd20u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
 
@@ -3432,6 +3439,20 @@ ST_HOOK(H_UI_MTXT, "money_text", 4, 1, return (intptr_t)money_text((char *)a1, a
 ST_HOOK(H_UI_MVAL, "money_value", 3, 1, return money_value(a1, a2, a3))
 TC_HOOK(H_UI_ICNT, "room_item_count", 3, 1, return room_item_count(self, a1, (uint16_t *)a2, a3))
 TC_HOOK(H_UI_PCNT, "room_party_count", 2, 1, return room_party_count(self, a1, a2))
+/* the UI toolkit's text layer (src/ui_text.c) */
+TC_HOOK(H_UT_CELL, "grid_cell_text", 3, 0, grid_cell_text(self, a1, a2, (const char *)a3); return 0)
+TC_HOOK(H_UT_RECS, "glyph_recs_set", 2, 0, glyph_recs_set(self, (const char *)a1, a2); return 0)
+TC_HOOK(H_UT_PARSE, "text_parse", 1, 1, return (intptr_t)text_parse(self, (const char *)a1))
+TC_HOOK(H_UT_WRAP, "text_wrap", 1, 1, return (intptr_t)text_wrap(self, U16(a1)))
+TC_HOOK(H_UT_LAY, "text_layout_set", 2, 1, return text_layout_set(self, (const char *)a1, U16(a2)))
+TC_HOOK(H_UT_SET, "ctrl_text_set", 1, 1, return ctrl_text_set(self, (const char *)a1))
+TC_HOOK(H_UT_KALLOC, "ctrl_keys_alloc", 1, 1, return (intptr_t)ctrl_keys_alloc(self, a1))
+TC_HOOK(H_UT_KADD, "ctrl_key_add", 6, 1,
+        return ctrl_key_add(self, (const char *)a1, (const char *)a2, a3, (int16_t)a4, a5, a6))
+TC_HOOK(H_UT_KEXP, "ctrl_keys_expand", 2, 1, return (intptr_t)ctrl_keys_expand(self, (const char *)a1, (char *)a2))
+TC_HOOK(H_UT_MSGK, "sys_msg_keys", 2, 1, return sys_msg_keys(self, a1, (uint8_t *)a2))
+TC_HOOK(H_UT_BOXC, "sys_box_cursor", 4, 1, return (intptr_t)sys_box_cursor(self, CP(a1), (uint8_t *)a2, a3, a4))
+ST_HOOK(H_UT_TOK, "glyph_token_search", 3, 1, return glyph_token_search((const char *)a1, (const char *)a2, a3))
 TC_HOOK(H_CS_SHOT, "shot_spawn", 19, 1,
         return (intptr_t)shot_spawn(self, a1, a2, a3, (wl_body *)a4, a5, a6, a7, a8, (int16_t)a9, a10, a11, a12, a13, a14,
                                     a15, a16, a17, a18, a19))
@@ -3721,7 +3742,7 @@ static void bind_engine_calls(void)
     B(56dc20); B(41a890); B(5bf3ee); B(426110); B(560900); B(5bf5db);
     B(428c00); B(429060); B(429db0); B(42a500); B(42a9a0); B(42b9a0); B(42c130); B(42c510); B(42c970);
     B(42cce0); B(42d3c0); B(42da50); B(42e290); B(42f840); B(42fbf0); B(42ff00); B(430400);
-    B(5bcfb0); B(405e80); B(55d140); B(47ae00); B(5b1f10); B(40fa00);
+    B(5bcfb0); B(405e80); B(55d140); B(47ae00); B(5b1f10); B(4034f0); B(4051d0);
     B(561d20); B(409150); B(55fdb0); B(41d780); B(4e6520); B(4e61d0); B(41b670); B(4c5af0); B(52fd80); B(5a3870); B(5a00c0);
     B(5a3670); B(56c640); B(5b6060); B(5b60d0); B(5b61b0); B(5b6200); B(5b6bc0); B(5b6340); B(5b64b0);
     B(41cfd0);

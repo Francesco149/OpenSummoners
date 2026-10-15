@@ -9,6 +9,7 @@
 
 #include "engine_calls.h"
 #include "room_load.h"
+#include "ui_text.h"
 
 static int32_t  ld32(const void *p, uint32_t off) { int32_t v; memcpy(&v, (const uint8_t *)p + off, 4); return v; }
 static uint16_t ld16(const void *p, uint32_t off) { uint16_t v; memcpy(&v, (const uint8_t *)p + off, 2); return v; }
@@ -195,7 +196,7 @@ int32_t grid_row_reset(uint8_t *c, int32_t row)
 {
     for (uint16_t k = 0; (int32_t)k < ld32(ldp(c, 0x174), 8); k++) {
         uint8_t *cells = ldp((uint8_t *)ldp(c, 0x17c) + 16 * row, 0xc);
-        if (ld32(cells, 24u * k) != 0) g_eng.h40fa00(c, row, k, (intptr_t)D(0x8a9b6cu));
+        if (ld32(cells, 24u * k) != 0) grid_cell_text(c, row, k, D(0x8a9b6cu));
         cells = ldp((uint8_t *)ldp(c, 0x17c) + 16 * row, 0xc);
         const uint8_t *gi = ldp(c, 0x174);
         if (ldp(cells, 24u * k + 4) != NULL && ld32(gi, 8) > k && ld32(gi, 0x10) > row) {

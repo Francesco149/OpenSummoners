@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 404,
-  "unported": 1171,
+  "ported": 410,
+  "unported": 1165,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 653,
-  "pct_touched": 41.8,
+  "touched": 659,
+  "pct_touched": 42.2,
   "pct_tested": 15.7,
-  "engine_proper_touched": 640,
+  "engine_proper_touched": 646,
   "bytes_total": 1776526,
-  "bytes_touched": 553467,
-  "pct_bytes_touched": 31.2
+  "bytes_touched": 558153,
+  "pct_bytes_touched": 31.4
  },
  "orphan_refs": [],
  "functions": [
@@ -432,7 +432,8 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/glyph_wrap.h"
+    "src/glyph_wrap.h",
+    "src/ui_text.h"
    ]
   },
   {
@@ -1041,7 +1042,8 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/main.c"
+    "src/main.c",
+    "src/ui_text.h"
    ]
   },
   {
@@ -1053,7 +1055,8 @@
    "src": [
     "src/glyph_wrap.c",
     "src/glyph_wrap.h",
-    "src/main.c"
+    "src/main.c",
+    "src/ui_text.h"
    ]
   },
   {
@@ -1064,7 +1067,8 @@
    "status": "tested",
    "src": [
     "src/glyph_wrap.c",
-    "src/glyph_wrap.h"
+    "src/glyph_wrap.h",
+    "src/ui_text.h"
    ]
   },
   {
@@ -1129,7 +1133,8 @@
     "src/newgame_menu.c",
     "src/newgame_menu.h",
     "src/newgame_picker.c",
-    "src/newgame_scene.c"
+    "src/newgame_scene.c",
+    "src/ui_text.h"
    ]
   },
   {
@@ -1198,24 +1203,30 @@
    "name": "sub_410560",
    "size": 164,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_text.h"
+   ]
   },
   {
    "va": "0x410610",
    "name": "sub_410610",
    "size": 3103,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_text.h"
+   ]
   },
   {
    "va": "0x411230",
    "name": "sub_411230",
    "size": 347,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_text.h"
+   ]
   },
   {
    "va": "0x411390",
@@ -1537,8 +1548,10 @@
    "name": "sub_413ED0",
    "size": 426,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_text.h"
+   ]
   },
   {
    "va": "0x414080",
@@ -3512,16 +3525,20 @@
    "name": "sub_43CF30",
    "size": 82,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_text.h"
+   ]
   },
   {
    "va": "0x43cf90",
    "name": "sub_43CF90",
    "size": 564,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ui_text.h"
+   ]
   },
   {
    "va": "0x43d1d0",

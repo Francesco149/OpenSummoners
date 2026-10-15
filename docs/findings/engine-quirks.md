@@ -4584,6 +4584,38 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   scene end): only in areas 1010 / 1020, the rows of 0x6b7ee8 (1212 B) whose gate flag (+8) has reached its
   minimum (+0xc) while the done flag (+0) is unset or 0.
 
+### #148 — the UI text layer: %-codes, word wrap, key tokens, the ruby table (port 2026-10-16)
+- **Objects** (text control +0x170 → T; T+0 → W; W+0xc → G): W {+0 one 12-B position per glyph (u16 column,
+  u16 line, +4 the %m value, u8 +8 forced break, u8 +9 break class), u16 +4 cap, +8 the plain text}; G {+0
+  0x24-B glyph records (the 1- / 2-byte glyph + NUL, u16 +0x1c ruby-consumed, +0x20 ruby offset), +4 cap, u16 +8
+  count, u16 +0xa bytes}.  A grid cell's text (`0x40fa00`) is its own G (cap 80, made on first use).
+- **%-codes** (`0x40f040`, inlined again in `0x413ed0`): `%mN%` (≤ 10 digits, atol) = the next glyph's value
+  (+4: a key-icon id), `%n` = a forced break before the next glyph, `%w` = break class 5; any other `%x` is
+  dropped (2 bytes).  Only +4 / +8 / +9 are cleared first — the column / line words keep stale values until
+  the wrap writes them.
+- **Wrap** (`0x40e5e0`, width in BYTES: an SJIS glyph counts 2): words are a letter run (+ `'`), a digit run
+  continued by `1`-`9` `,` `.` (a `0` ENDS it), an SJIS run continued while the next glyph is ・。、！？!? or
+  the one after it is ）」』, else one glyph.  A letter word swallows one trailing blank or ! , - . ; ?, a number
+  one blank.  A word that would pass the width (and is not first on its line) starts the next line; a %n
+  inside a word breaks there too.  Break class per glyph: blank 4, `,` 2, `!.;?` 3 unless another of those
+  follows; for an SJIS word's last glyph: ）」』 next → 4, else ・ 1, 。！？!? 3, 、 2.
+- **Retail bug in that SJIS case**: the guard `idx < count - 1` loads only AX = G's count over a register
+  still holding the position record's ADDRESS (`lea eax, [ecx+eax+9]` … `mov ax, [ebp+8]; dec eax; cmp edx,
+  eax` at 0x40ec42), so it compares against `(address & 0xffff0000 | count) - 1` — always true for heap
+  addresses below 2 GB: the record PAST the last glyph (a stale glyph of an earlier, longer text) is read.
+  (IDA's decompile shows the intended guard.)  The EN corpus never reaches the SJIS path.
+- **Key tokens** (`0x410610` on a message control: margins +0x14 = 1 / +0x18 = -9 unless config+0x254,
+  line pad T+0x1c = 20; 33 entries via `0x411230`, 100 B: token, replacement, id 10000 + i, sprite sys+0xbbc,
+  frame, dx, dy): `@@ZK` / `@@XK` / `@@CK` (8 / 9 / 10), `@@↑K` `@@→K` `@@↓K` `@@←K` (0..3), `@@ENK` (4, dy -4),
+  `@@↑` .. `@@←`, `@@F1K`..`@@F5K` (16..20, four blanks), `@@AB` 9, `@@SB` 8, `@@+M` 24 / `@@-M` 25 (dx 2), `@@Z`
+  `@@X` `@@C`, `@@EN`, `@@F1`..`@@F5`, `↑` `→` `←` (0 / 1 / 3).  Expansion (`0x43cf90`; inlined in `0x40e360`)
+  is a plain BYTE search (no SJIS stepping), each hit → `%m<id>%` + the blanks; the search resumes after the
+  replacement.
+- **Ruby** (`0x4031c0` / `0x40fa00`): every record set walks the 2,267-entry furigana table 0x5cd978 (164 B:
+  the kanji word, one reading per character at +0x10 + 9k, a context test id at +0xa0 for `0x4034f0`) with
+  the SJIS-aware search `0x40fd20` — ~300k searches for the corpus's EN text, none matching.  A `#`-prefixed
+  word blanks its first two records.
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

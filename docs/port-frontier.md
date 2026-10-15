@@ -7,7 +7,7 @@ own engine callees ported, so it can land today with zero new dependencies. Sort
 
 For the *forward* port path (the title-menu scene runner and what it calls) and the semantic milestone order, see `ROADMAP.md` — some of that path isn't yet reachable from ported code so won't appear here.
 
-- frontier functions: **367**
+- frontier functions: **366**
 - of those, zero-dependency **leaves: 149** (recommended order below)
 
 ## Leaf shortlist — portable today (top 40 by ported-caller count)
@@ -77,7 +77,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x408730 | 1114 | 1 | 11 |  |
 | 0x4081d0 | 1366 | 1 | 0 | ✓ |
 
-### menu/dialog controller + char init + shop/NPC + save path (13)
+### menu/dialog controller + char init + shop/NPC + save path (12)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
@@ -93,7 +93,6 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x4134f0 | 613 | 1 | 0 | ✓ |
 | 0x411610 | 657 | 1 | 9 |  |
 | 0x41b670 | 1295 | 1 | 5 |  |
-| 0x410610 | 3103 | 1 | 1 |  |
 
 ### scene/level init + entity spawn + def-by-id lookup (16)
 
@@ -125,7 +124,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x43c170 | 53 | 1 | 0 | ✓ |
 | 0x43c650 | 696 | 1 | 1 |  |
 | 0x430400 | 5039 | 1 | 0 | ✓ |
-| 0x439690 | 8866 | 1 | 27 |  |
+| 0x439690 | 8866 | 1 | 21 |  |
 
 ### entity per-frame FSM + action handlers + dialog + skills (18)
 
@@ -248,7 +247,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x49ac80 | 664 | 1 | 0 | ✓ |
 | 0x491820 | 696 | 1 | 0 | ✓ |
 | 0x497c20 | 788 | 1 | 1 |  |
-| 0x49c2f0 | 808 | 1 | 5 |  |
+| 0x49c2f0 | 808 | 1 | 2 |  |
 | 0x496560 | 1028 | 1 | 2 |  |
 | 0x4975e0 | 1054 | 1 | 2 |  |
 | 0x498960 | 1449 | 1 | 0 | ✓ |
@@ -383,14 +382,14 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x56dfe0 | 417 | 1 | 0 | ✓ |
 | 0x5642e0 | 440 | 1 | 7 |  |
 | 0x5644a0 | 483 | 1 | 5 |  |
-| 0x565b00 | 528 | 1 | 3 |  |
+| 0x565b00 | 528 | 1 | 1 |  |
 | 0x566350 | 540 | 1 | 3 |  |
 | 0x568780 | 554 | 1 | 2 |  |
 | 0x5658c0 | 565 | 1 | 9 |  |
 | 0x568b40 | 659 | 1 | 3 |  |
 | 0x56c640 | 690 | 1 | 2 |  |
-| 0x568de0 | 998 | 1 | 8 |  |
-| 0x56a670 | 1011 | 1 | 15 |  |
+| 0x568de0 | 998 | 1 | 7 |  |
+| 0x56a670 | 1011 | 1 | 14 |  |
 | 0x561d20 | 1259 | 1 | 5 |  |
 | 0x5624c0 | 1355 | 1 | 9 |  |
 

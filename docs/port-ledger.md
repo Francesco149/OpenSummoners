@@ -14,27 +14,27 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **653** (41.8% of engine-proper) — tested 249, ported 404
-- code bytes touched: **31.2%** (553,467 / 1,776,526 B of engine-proper)
-- unported: **1171**
+- touched: **659** (42.2% of engine-proper) — tested 249, ported 410
+- code bytes touched: **31.4%** (558,153 / 1,776,526 B of engine-proper)
+- unported: **1165**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
-| 0x4031c0 | sub_4031C0 | 815 | glyph_wrap.h |
+| 0x4031c0 | sub_4031C0 | 815 | glyph_wrap.h, ui_text.h |
 | 0x406440 | cs_fail_406440 | 184 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
 | 0x408b90 | sub_408B90 | 419 | wnd_proc.h |
 | 0x40a540 | sub_40A540 | 133 | char_integrate.h, character.h |
 | 0x40dee0 | sub_40DEE0 | 85 | main.c, ui_core.h |
 | 0x40e0c0 | menu_ctrl_clear_40E0C0 | 555 | menu_list.c, menu_list.h, room_load.h |
-| 0x40e360 | sub_40E360 | 636 | main.c |
-| 0x40e5e0 | wrap_class_40E5E0 | 2553 | glyph_wrap.c, glyph_wrap.h, main.c |
-| 0x40f040 | wrap_parse_40F040 | 379 | glyph_wrap.c, glyph_wrap.h |
+| 0x40e360 | sub_40E360 | 636 | main.c, ui_text.h |
+| 0x40e5e0 | wrap_class_40E5E0 | 2553 | glyph_wrap.c, glyph_wrap.h, main.c (+1) |
+| 0x40f040 | wrap_parse_40F040 | 379 | glyph_wrap.c, glyph_wrap.h, ui_text.h |
 | 0x40f3e0 | sub_40F3E0 | 434 | menu_list.c, menu_list.h, newgame_menu.c (+1) |
 | 0x40f5c0 | menu_ctrl_build_40F5C0 | 563 | menu_list.c, menu_list.h |
-| 0x40fa00 | sub_40FA00 | 800 | glyph_text.c, glyph_text.h, newgame_menu.c (+3) |
+| 0x40fa00 | sub_40FA00 | 800 | glyph_text.c, glyph_text.h, newgame_menu.c (+4) |
 | 0x40fd20 | glyph_token_search_40FD20 | 143 | glyph_text.c, glyph_text.h |
 | 0x411530 | sub_411530 | 38 | char_ai.h |
 | 0x411940 | sub_411940 | 770 | main.c, newgame_picker.c, newgame_picker.h |
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (404) — reimplemented, no host test yet
+## ported (410) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -326,6 +326,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x40e2f0 | sub_40E2F0 | 100 | ui_core.h |
 | 0x40f5a0 | sub_40F5A0 | 25 | ui_core.h |
 | 0x40fdb0 | sub_40FDB0 | 70 | ui_core.h |
+| 0x410560 | sub_410560 | 164 | ui_text.h |
+| 0x410610 | sub_410610 | 3103 | ui_text.h |
+| 0x411230 | sub_411230 | 347 | ui_text.h |
 | 0x411390 | sub_411390 | 413 | sound_fx.h |
 | 0x411560 | sub_411560 | 117 | gimmick.h |
 | 0x4115e0 | sub_4115E0 | 33 | room_loop.h |
@@ -341,6 +344,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x413810 | sub_413810 | 444 | party_member.h |
 | 0x413a00 | sub_413A00 | 286 | party_member.h |
 | 0x413b20 | sub_413B20 | 68 | party_member.h |
+| 0x413ed0 | sub_413ED0 | 426 | ui_text.h |
 | 0x414c40 | sub_414C40 | 98 | ui_core.h |
 | 0x415420 | sub_415420 | 58 | ui_core.h |
 | 0x415930 | sub_415930 | 92 | ui_core.h |
@@ -434,6 +438,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x438a60 | sub_438A60 | 2639 | particle_init.h |
 | 0x439680 | sub_439680 | 9 | script_engine.h |
 | 0x43c9b0 | sub_43C9B0 | 130 | room_load.h |
+| 0x43cf30 | sub_43CF30 | 82 | ui_text.h |
+| 0x43cf90 | sub_43CF90 | 564 | ui_text.h |
 | 0x43e140 | sub_43E140 | 266 | room_loop.h |
 | 0x43e3a0 | sub_43E3A0 | 516 | event.c, event.h |
 | 0x43ee30 | sub_43EE30 | 228 | npc_ai.h |

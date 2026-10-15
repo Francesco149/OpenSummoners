@@ -6,6 +6,18 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-16 — the UI widget toolkit, chip 2: the text layer (`src/ui_text.c`)
+
+- The text a menu cell / text control shows: the cell text `0x40fa00` (its own 80-glyph buffer; ui_core's slot
+  retired), glyph records `0x4031c0`, the `%m` / `%n` / `%w` parse `0x40f040`, the word wrap `0x40e5e0`, the
+  layout / control text set `0x413ed0` / `0x40e360`, the message key-token table (`@@ZK` → a key icon:
+  `0x43cf30` / `0x411230` / `0x43cf90` / `0x410610`) and the message box cursor `0x410560`.  Transcribed from
+  the asm: IDA's decompile of the wrap hides a retail bug (an AX-only reload over a pointer turns the
+  SJIS end-of-word guard into "always", reading the record past the text) — quirk #148.  The ruby (furigana)
+  table pass runs (2,267 words, ~300k searches in the corpus, no EN match); its `0x4034f0` / `0x4051d0` stay slots.
+- rhost: cell text 151, records 74, parse 14, wrap 72, layout 58, control text 14, key add 969, expand 58,
+  key defaults 36, box cursor 34, search 8,026 (sampled of 297k) — 0 divergences.  Hybrid gate: 391 hooks, PASS.
+
 ## 2026-10-16 — the UI widget toolkit, chip 1 (`src/ui_core.c`)
 
 - New arc `docs/plans/ui-toolkit.md` (the band 0x40d000..0x41a000: 49.6 KB, 33.4 KB reached; the old port's

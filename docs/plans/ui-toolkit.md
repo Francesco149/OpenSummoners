@@ -1,6 +1,7 @@
 # Plan — the retail UI widget toolkit on the retail layout (0x40d000..0x41a000)
 
-Status: chip 1 DONE 2026-10-16 (`src/ui_core.c`, 24 functions, hybrid 379).  Shadow note: a function whose
+Status: chip 1 DONE 2026-10-16 (`src/ui_core.c`, 24 functions, hybrid 379); chip 2 DONE 2026-10-16
+(`src/ui_text.c`, 12 functions, hybrid 391; quirk #148 — the SJIS wrap / ruby paths are JP-only: unexercised).  Shadow note: a function whose
 `this` is a caller's stack object can show a false divergence (the shadow restores only below ESP between its
 retail and port phases) — confirm with REPLACE (`0x412570` did).  Owner: the porting loop (rhost shadow per function, REPLACE in the hybrid).
 
@@ -30,9 +31,10 @@ names for the runner were 4 bytes off past +0x2e0, quirk #144)
    `0x40f5a0` `0x412570` `0x40f3e0` `0x40dee0` `0x40df40` `0x411c50` `0x411f40` `0x40e2f0` `0x411ec0`
    `0x414c40` `0x412d30` `0x413760` `0x4192b0` `0x415420`; the inventory / money leaves `0x415930`
    `0x417440` `0x415990` `0x416500`.
-2. text: `0x40fa00` (cell text), `0x40f040` / `0x40e5e0` (parse / justify: the old `glyph_wrap.c` is a
-   fused reduction), `0x4031c0`, `0x43cf30` / `0x43cf90`, `0x413ed0`, `0x410610` (3 KB layout),
-   `0x410560`, `0x411230` (the key glyphs).
+2. ~~text~~ DONE: `0x40fa00` (cell text), `0x40f040` / `0x40e5e0` (parse / wrap), `0x4031c0`, `0x43cf30` /
+   `0x43cf90`, `0x413ed0`, `0x410610` (the message key table), `0x410560`, `0x411230`, `0x40e360`; reuses
+   `glyph_text.c`'s `0x40fd20`.  Slots left: the ruby context test `0x4034f0` (7 KB) + reading writer `0x4051d0`
+   (3 KB) — need a JP-text scenario (ense-jp) before porting.
 3. the menus: `0x4123a0` `0x4129b0` `0x412c40` `0x412df0` `0x4134f0` `0x415460` `0x415f60` `0x4169e0` …
 4. the cutscene runner `0x439690` on top (its other callees: `0x43c650` `0x43d830` `0x43e5b0` …).
 Render / DirectDraw (`0x4178e0` `0x417c40` `0x418470` `0x4184a0` `0x4188b0`) stay platform slots.

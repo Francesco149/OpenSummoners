@@ -218,8 +218,10 @@ typedef struct engine_calls {
     eng_tc17 h55d140;
     /* the room's item use: the effect value 0x47ae00 (thiscall char, 12 args), the use 0x5b1f10 (thiscall room) */
     eng_tc12 h47ae00; eng_tc6 h5b1f10;
-    /* the UI toolkit's: a grid cell's text 0x40fa00 (thiscall control, row, col, text) */
-    eng_tc3 h40fa00;
+    /* the UI toolkit's ruby (furigana) pass: the context test 0x4034f0 (text, cond, pos, word length) and the
+     * reading writer 0x4051d0 (glyph record, kana) — Japanese text only */
+    int (ENG_STDCALL *h4034f0)(const char *text, int32_t cond, int32_t pos, int32_t len);
+    int (ENG_STDCALL *h4051d0)(void *rec, const char *kana);
 } engine_calls;
 
 extern engine_calls g_eng;
