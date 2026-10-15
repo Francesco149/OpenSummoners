@@ -11,8 +11,9 @@
   USER decisions (audit §7): deterministic cadence = rhost 1 update/flip; EN-old first (SE = a later
   delta layer); Frida retail drive RETIRED (legacy, don't extend). Port boot "Now Loading" frames now
   DEFAULT (`--no-boot-loading` = legacy axis; old port-timed traces keep working).
-  Corpus: 7 scenarios incl. the USER's `rh-my-play` (15.7k flips: intro → house errands → town → shop;
-  10 room loads). `rhost.py verify` (shadow, per call; full-state where a function writes widely):
+  Corpus: 8 scenarios incl. the USER's `rh-my-play` (15.7k flips: intro → house errands → town → shop;
+  10 room loads) + `rh-errands-items` (16.4k flips: errands, item finds, the storage box — a `record combat`
+  cut short by the rhost GDI-handle cap, fixed 2026-10-15). `rhost.py verify` (shadow, per call; full-state where a function writes widely):
   | function | VA | calls | div |
   |---|---|---:|---:|
   | tile movers | `0x54e990` / `0x54ded0` | 2.50M / 288k | 0 |
@@ -90,7 +91,9 @@
   | the party POSE handler (turn-around, hit reactions + voice, stagger, knockdowns, blown-back falls, get-up, revive) + knockdown, status inflict, drift, switch touch, particle live, hitstop | `0x457ff0` (+ `0x459990` `0x4593e0` `0x4678f0` `0x467ae0` `0x459ed0` `0x5b1aa0` `0x459370` `0x54d060` `0x5b4510`) | 1.43M (72,685 full-state: every non-zero pose) / – / – / – / – / – / 414 / – / – / – | 0 |
   | the SCRIPT ENGINE (chapter scripts by area / flag, then the default event: room arrival + BGM + area title, doors, switched furniture / chest / save statue / talk records, time of day) + scene begin / end, room flag, leader, party cast, cast add, scene wait, actor by record | `0x40c380` (+ `0x49cb60` `0x49cd70` `0x41e2f0` `0x402f20` `0x402060` `0x401f50` `0x439680` `0x556eb0`) | 61 (11 full-state; 49 guarded: the BGM / frame loop) / 31 / 30 / 251 / 29 / 13 / 13 / – (REPLACE: 146) / 129; REPLACE: every event of the corpus | 0 |
   | the scene COMMAND builders (message box + voice row, face, weapon stance, talk turn, flag set, camera, fades / waits / pause, area title, door place / spawn / by record, next event, room BGM restart) | `0x49d6e0` `0x4a5ee0` `0x401e60` `0x4a5e20` `0x402d40` `0x406210` `0x41d190` `0x4a5f50` `0x401d40` `0x4a5f30` `0x4a5f90` `0x4cc060` `0x4cc080` `0x4cc0a0` `0x4cc0c0` `0x403100` `0x41ec20` `0x41f0e0` `0x4cbf80` `0x4cca70` | 101 / 34 / 7 / 1 / 13 / 13 / 8 / 18 / 6 / 1 / 5 / 1 / 2 / 2 / 1 / 3 (guarded: the title text) / 1 / 15 / 1 / 2 (guarded: the BGM) — from retail's chapter scripts | 0 |
-  Hybrid gate: with all of the above REPLACING retail (461 hooks) (the whole character tick, driver → tile
+  | the STORAGE BOX (Item Storage → Deposit / Withdraw: the stored flag, the 128 / 48 limits) + the item list (filters, sort, icons, "E:" wearer, count / sell price, cursor) + the message windows (centred box, paged box + style), the menu text set, party window close, item counts, key-token replace | `0x411610` `0x413130` `0x414cb0` / `0x414490` / `0x413b70` `0x4140c0` `0x414410` `0x412590` `0x4129a0` `0x407880` `0x407900` `0x4139d0` `0x412800` | REPLACE: 2 / 4 / 5; shadow: 13 / 9 / – / – / 23 / REPLACE 2 / 3 / 2 / 2 / 1,056 (rh-errands-items) — the sort toggle, refusals and paged box unreached | 0 |
+  | the FINDS (coins / items "You found…", the inventory add, put back) + the furniture search | `0x4081d0` / `0x407970` | REPLACE: 2 (copper coins + an item) / 6 — silver / gold / full / empty / the chest 70220 unreached | – |
+  Hybrid gate: with all of the above REPLACING retail (476 hooks) (the whole character tick, driver → tile
   movers, + the room loop's passes and per-tick calls, runs as port code), every corpus scenario ends byte-identical.
   Shadow guard (rhost): a port phase that reaches an external effect retail already performed (surface free,
   buffer release, DeleteObject, DirectInput, a mode-0/2 script) aborts its comparison (counted skipped); those

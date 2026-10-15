@@ -20,6 +20,8 @@
 #include "room_tick.h"
 #include "scene_cmd.h"
 #include "sound_fx.h"
+#include "party_member.h"   /* item_def 0x4078a0 */
+#include "ui_menu.h"        /* item_kind 0x407880 */
 
 #define IP(p) ((intptr_t)(p))
 #define W (*g_eng.world)
@@ -29,6 +31,7 @@ static uint16_t ld16(const void *p, uint32_t off) { uint16_t v; memcpy(&v, (cons
 static void st32(void *p, uint32_t off, int32_t v) { memcpy((uint8_t *)p + off, &v, 4); }
 static void st16(void *p, uint32_t off, uint16_t v) { memcpy((uint8_t *)p + off, &v, 2); }
 static void *ldp(const void *p, uint32_t off) { void *v; memcpy(&v, (const uint8_t *)p + off, sizeof v); return v; }
+static void stp(void *p, uint32_t off, const void *v) { memcpy((uint8_t *)p + off, &v, sizeof v); }
 static const char *S(uint32_t va) { return (const char *)g_eng.data(va); }
 
 static const uint8_t *cfg(void)
@@ -343,6 +346,116 @@ static int actor_opened(wl_entity *a, wl_body *b, int talk)
             particle_spawn(a, a, ld32(a, 0x2e4) == 1 ? 100135 : 100134, b, 0, 0, 99, 1, 0, 0, 2, 1, 0, 20);
     }
     return 1;
+}
+
+/* ---- the finds (chests, furniture, a story's gift) ---- */
+
+int item_find(wl_event *ev, wl_entity *a, int32_t what, int32_t n, int32_t *back, const char *where, int32_t sound)
+{
+    char buf[512], coins[512];
+    const char *name;
+    int r = 0;
+    if (back != NULL) *back = 0;
+    if (what == 1 || what == 2 || what == 3) {   /* copper / silver / gold coins: n, 10 n, 100 n CP */
+        int32_t amt = what == 1 ? n : what == 2 ? 10 * n : 100 * n;
+        strcpy(coins, S(what == 1 ? 0x8545f4u : what == 2 ? 0x854604u : 0x854614u));
+        if (a != NULL) {
+            item_sparkle(a, what, sound);
+            st32(ev, 0x57c, 20);
+            st32(ev, 0x20, 6);
+            if ((r = script_wait(ev)) == 6) return r;
+        }
+        if (where != NULL) g_eng.h5bf3ee(buf, S(0x854708u), where, n, coins);   /* "The %s had %d %s inside." */
+        else g_eng.h5bf3ee(buf, S(0x8546f4u), n, coins);                         /* "You found %d %s." */
+        scene_msg(ev, 3, NULL, buf, 0, 1, 0, NULL, 0, 0, 0);
+        if ((r = script_wait(ev)) == 6) return r;
+        uint8_t *room = (uint8_t *)ev->room;
+        if (amt > 0 && ld32(room, 0x4020) <= ld32(room, 0x4014)) {
+            /* "You cannot carry any more money, so you put the %s back." (in the event's speaker box) */
+            g_eng.h5bf3ee(buf, S(0x8546b8u), coins);
+            scene_msg(ev, (uint32_t)ld32(ev, 0x7c), ldp(ev, 0x2e0), buf, 0, 0, 0, (const char *)ev + 0x28a, 32, 0, 0);
+            goto put_back;
+        }
+        int32_t g = ld32(room, 0x4014) + amt;
+        st32(room, 0x4014, g);
+        if (amt > 0) {
+            if (ld32(room, 0x4020) < g) g = ld32(room, 0x4020);
+            st32(room, 0x4014, g);
+            uint32_t t = (uint32_t)amt + (uint32_t)ld32(room, 0x40bc);
+            st32(room, 0x40bc, t > 0x7fffffffu ? 0x7fffffff : (int32_t)t);
+        }
+        name = coins;
+        goto found;
+    }
+    const uint8_t *def = item_def(what);   /* (inline) */
+    if (def == NULL) {
+        if (where == NULL) return r;
+        g_eng.h5bf3ee(buf, S(0x8546a4u), where);   /* "The %s is empty." */
+        scene_msg(ev, 3, NULL, buf, 0, 1, 0, NULL, 0, 0, 0);
+        return script_wait(ev);
+    }
+    if (a != NULL) {
+        item_sparkle(a, what, sound);
+        st32(ev, 0x57c, 20);
+        st32(ev, 0x20, 6);
+        if ((r = script_wait(ev)) == 6) return r;
+    }
+    name = (const char *)def + 4;
+    if (where != NULL) g_eng.h5bf3ee(buf, S(0x854688u), name, where);   /* "You found %s inside the %s." */
+    else g_eng.h5bf3ee(buf, S(0x854678u), name);                         /* "You found %s." */
+    scene_msg(ev, 3, NULL, buf, 0, 1, 0, NULL, 0, 0, 0);
+    if ((r = script_wait(ev)) == 6) return r;
+    {
+        /* into the inventory (inline): up to 512 records; 48 unstored normal items at most (key items always) */
+        uint8_t *room = (uint8_t *)ev->room;
+        int32_t id = ld32(def, 0);
+        uint16_t cnt = ld16(room, 0x4010);
+        const uint8_t *d2 = cnt < 0x200 ? item_def(id) : NULL;
+        if (d2 != NULL) {
+            if (item_kind(d2) == 1 && cnt != 0) {
+                int32_t k = 0;
+                for (uint16_t i = 0; i < cnt; i++)
+                    if (room[0x201au + 16u * i] == 0 && ld32(ldp(room, 0x201cu + 16u * i), 0x2ac) < 900) k++;
+                if (k >= 48) goto full;
+            }
+            uint8_t *rec = room + 0x2010 + 16u * cnt;
+            st32(rec, 0, id);
+            stp(rec, 0xc, d2);
+            st16(rec, 8, n > 0 ? (uint16_t)n : ld16(d2, 0x64));
+            st32(rec, 4, 0);
+            rec[0xa] = 0;
+            st16(room, 0x4010, (uint16_t)(cnt + 1));
+            goto found;
+        }
+    }
+full:
+    g_eng.h5bf3ee(buf, S(0x854640u), name);   /* "However, your inventory is full. You put the %s back." */
+    scene_msg(ev, 3, NULL, buf, 0, 1, 0, NULL, 0, 0, 0);
+put_back:
+    r = script_wait(ev);
+    if (r == 6 || back == NULL) return r;
+    *back = 1;
+    return r;
+found:
+    g_eng.h5bf3ee(buf, S(0x854678u), name);   /* "You found %s." (again: retail shows it twice) */
+    scene_msg(ev, 3, NULL, buf, 0, 1, 0, NULL, 0, 0, 0);
+    return script_wait(ev);
+}
+
+int furniture_search(wl_event *ev, wl_entity *a, const char *where)
+{
+    if (ld32(a, 0x2cc) == 0) return 0;
+    script_begin(ev);
+    st32(ev, 0x57c, 10);
+    st32(ev, 0x20, 6);
+    int r = script_wait(ev);
+    if (r == 6) return r;
+    int32_t back;
+    r = item_find(ev, a, ld32(a, 0x2cc), ld32(a, 0x2d0), &back, where, 1);
+    script_end(ev);
+    /* put back (no room): the furniture shuts again */
+    if (back != 0 && ld32(a, 0xc) != 0 && actor_opened(a, a->body, 1)) actor_settle(a, a->body, 1);
+    return r;
 }
 
 /* mode 3, 70100: the save statue (the save menu 0x408730, then the room BGM restarted) */

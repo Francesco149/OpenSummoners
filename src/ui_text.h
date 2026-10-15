@@ -6,7 +6,7 @@
  *   FUN_0040fa00  grid_cell_text      FUN_004031c0  glyph_recs_set      FUN_0040f040  text_parse
  *   FUN_0040e5e0  text_wrap           FUN_00413ed0  text_layout_set     FUN_0040e360  ctrl_text_set
  *   FUN_0043cf30  ctrl_keys_alloc     FUN_00411230  ctrl_key_add        FUN_0043cf90  ctrl_keys_expand
- *   FUN_00410610  sys_msg_keys        FUN_00410560  sys_box_cursor
+ *   FUN_00410610  sys_msg_keys        FUN_00410560  sys_box_cursor      FUN_00412800  key_token_replace
  *
  * Objects (the text control's node at +0x170 = T, see ctrl_text_init 0x40df40):
  *   T {+0 W, u16 +4, u16 +6, u16 +8 the wrap width (bytes), u16 +0xa, +0xc.. metrics, +0x1c}
@@ -41,6 +41,9 @@ void *ctrl_keys_alloc(uint8_t *c, int32_t n);                                   
 int32_t ctrl_key_add(uint8_t *c, const char *tok, const char *rep, int32_t sprite, int16_t frame,
                      int32_t dx, int32_t dy);                                           /* 0x411230 */
 char *ctrl_keys_expand(uint8_t *c, const char *text, char *out);                        /* 0x43cf90 */
+/* one key-table entry `e`: every occurrence of its token in `s` → its replacement, in place (retail's return:
+ * the token byte last compared, unused) */
+char *key_token_replace(char *s, const uint8_t *e);                                     /* 0x412800 */
 /* the system's (0x8a6b60) message-text set-up of a text control: margins, line pad, the key table */
 int32_t sys_msg_keys(void *sys, int32_t unused, uint8_t *c);                            /* 0x410610 */
 /* the message box's 4-frame "more" cursor at the window's bottom-right corner (+dx, +dy) */

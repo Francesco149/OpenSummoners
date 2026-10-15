@@ -317,37 +317,44 @@ intptr_t text_layout_set(uint8_t *w, const char *text, uint16_t width)
     return (intptr_t)text_wrap(w, width);
 }
 
-/* every key token of the table in `s` → its replacement ("%m<id>%" first for an icon), in place */
+char *key_token_replace(char *s, const uint8_t *e)
+{
+    char rep[512], tmp[1024];   /* (retail: 512 each) */
+    int32_t tl = (int32_t)strlen((const char *)e);
+    char *r = NULL;   /* retail's eax (the token byte last compared): no caller reads it */
+    if (ld32(e, 0x50) != 0) g_eng.h5bf3ee(rep, "%%m%d%%%s", ld32(e, 0x50), (const char *)e + 0x28);
+    else strcpy(rep, (const char *)e + 0x28);
+    int32_t rl = (int32_t)strlen(rep), from = 0;
+    for (;;) {
+        int32_t n = (int32_t)strlen(s), at = from;
+        r = NULL;
+        if (at >= n) return r;
+        for (;;) {
+            int32_t k = 0;
+            if (tl > 0)
+                for (;;) {
+                    r = (char *)e + k;
+                    if (at + k >= n || s[at + k] != *r) break;
+                    if (++k >= tl) break;
+                }
+            if (k >= tl) break;
+            if (++at >= n) return r;
+        }
+        int32_t m = 0;
+        if (at > 0) { memcpy(tmp, s, (size_t)at); m = at; }
+        if (rl > 0) { memcpy(tmp + m, rep, (size_t)rl); m += rl; }
+        if (at + tl < n) { memcpy(tmp + m, s + at + tl, (size_t)(n - at - tl)); m += n - at - tl; }
+        tmp[m] = 0;
+        strcpy(s, tmp);
+        from = at + rl;
+    }
+}
+
+/* every key token of the table in `s` → its replacement (0x40e360 inlines 0x412800 per token) */
 static void keys_expand(const uint8_t *c, char *s)
 {
-    char rep[512], tmp[1024];
-    for (uint16_t i = 0; (uint32_t)i < (uint32_t)ld32(c, 0x16c); i++) {
-        const char *e = (const char *)ldp(c, 0x164) + 100u * i;
-        int32_t tl = (int32_t)strlen(e);
-        if (ld32(e, 0x50) != 0) g_eng.h5bf3ee(rep, "%%m%d%%%s", ld32(e, 0x50), e + 0x28);
-        else strcpy(rep, e + 0x28);
-        int32_t rl = (int32_t)strlen(rep), from = 0;
-        for (;;) {
-            int32_t n = (int32_t)strlen(s), at = from;
-            if (at >= n) break;
-            for (;;) {
-                int32_t k = 0;
-                if (tl > 0)
-                    while (at + k < n && s[at + k] == e[k])
-                        if (++k >= tl) break;
-                if (k >= tl) break;
-                if (++at >= n) break;
-            }
-            if (at >= n) break;
-            int32_t m = 0;
-            if (at > 0) { memcpy(tmp, s, (size_t)at); m = at; }
-            if (rl > 0) { memcpy(tmp + m, rep, (size_t)rl); m += rl; }
-            if (at + tl < n) { memcpy(tmp + m, s + at + tl, (size_t)(n - at - tl)); m += n - at - tl; }
-            tmp[m] = 0;
-            strcpy(s, tmp);
-            from = at + rl;
-        }
-    }
+    for (uint16_t i = 0; (uint32_t)i < (uint32_t)ld32(c, 0x16c); i++)
+        key_token_replace(s, (const uint8_t *)ldp(c, 0x164) + 100u * i);
 }
 
 intptr_t ctrl_text_set(uint8_t *c, const char *text)

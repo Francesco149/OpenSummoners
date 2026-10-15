@@ -200,6 +200,13 @@ typedef struct {
     X(H_HV_EASE, "hud_ease", 0x49bdf0u) X(H_HV_MPR, "stats_mp_ratio", 0x496970u) X(H_HV_ICON, "hud_status_icon", 0x49bc40u) \
     X(H_HV_DROP, "hud_status_drop", 0x49bd50u) X(H_HV_TICK, "hud_view_tick", 0x49af40u) X(H_VBOX, "view_box_visible", 0x4766a0u) \
     X(H_SSTEP, "screen_step", 0x499ab0u) \
+    X(H_IT_KIND, "item_kind", 0x407880u) X(H_IT_OFKIND, "room_items_of_kind", 0x407900u) \
+    X(H_IT_STORED, "room_items_stored", 0x4139d0u) X(H_UT_KTOK, "key_token_replace", 0x412800u) \
+    X(H_UM_MSET, "menu_msg_set", 0x412590u) X(H_UM_PCLOSE, "menu_party_close", 0x4129a0u) \
+    X(H_UM_MWIN, "msg_window_open", 0x413b70u) X(H_UM_MSTYLE, "sys_msg_style", 0x414410u) \
+    X(H_UM_PAGES, "msg_pages", 0x4140c0u) X(H_UM_ILIST, "item_list_fill", 0x414490u) \
+    X(H_ST_DEP, "storage_deposit", 0x413130u) X(H_ST_WD, "storage_withdraw", 0x414cb0u) X(H_ST_RUN, "storage_run", 0x411610u) \
+    X(H_IFIND, "item_find", 0x4081d0u) X(H_FURN, "furniture_search", 0x407970u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
 
@@ -2122,19 +2129,37 @@ static int rh_script_call(uint32_t va, wl_event *ev)
     return ((eng_tc0)(uintptr_t)va)(ev);
 }
 static int __attribute__((thiscall)) gd_439690(void *rl, intptr_t ev);   /* (below: it dispatches to scene_run) */
+/* the chest / the furniture / the storage talk are ported (UI flows: REPLACE only): their slots stay the guard
+ * points and run the port when the hook replaces */
 static int __attribute__((thiscall)) gd_4081d0(void *ev, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5,
                                                intptr_t a6)
-{ GUARD("the chest 0x4081d0") return ((eng_tc6)(uintptr_t)0x4081d0u)(ev, a1, a2, a3, a4, a5, a6); }
+{
+    GUARD("the chest 0x4081d0")
+    if (H[H_IFIND].mode == 2) {
+        H[H_IFIND].calls++; port_world();
+        return item_find(ev, (wl_entity *)a1, a2, a3, (int32_t *)a4, (const char *)a5, a6);
+    }
+    return ((eng_tc6)(uintptr_t)0x4081d0u)(ev, a1, a2, a3, a4, a5, a6);
+}
 static int __attribute__((thiscall)) gd_408730(void *ev, intptr_t a1)
 { GUARD("the save statue 0x408730") return ((eng_tc1)(uintptr_t)0x408730u)(ev, a1); }
 static int __attribute__((thiscall)) gd_407970(void *ev, intptr_t a1, intptr_t a2)
-{ GUARD("the furniture 0x407970") return ((eng_tc2)(uintptr_t)0x407970u)(ev, a1, a2); }
+{
+    GUARD("the furniture 0x407970")
+    if (H[H_FURN].mode == 2) { H[H_FURN].calls++; port_world(); return furniture_search(ev, (wl_entity *)a1, (const char *)a2); }
+    return ((eng_tc2)(uintptr_t)0x407970u)(ev, a1, a2);
+}
 static int __attribute__((thiscall)) gd_40a340(void *ev) { GUARD("the mode-5 script 0x40a340") return ((eng_tc0)(uintptr_t)0x40a340u)(ev); }
 static int __attribute__((thiscall)) gd_402d40(void *ev, intptr_t a1, intptr_t a2)
 { GUARD("the talk step 0x402d40") return ((eng_tc2)(uintptr_t)0x402d40u)(ev, a1, a2); }
 static int __attribute__((thiscall)) gd_406210(void *ev, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4)
 { GUARD("the talk step 0x406210") return ((eng_tc4)(uintptr_t)0x406210u)(ev, a1, a2, a3, a4); }
-static int __attribute__((thiscall)) gd_411610(void *ev) { GUARD("the talk step 0x411610") return ((eng_tc0)(uintptr_t)0x411610u)(ev); }
+static int __attribute__((thiscall)) gd_411610(void *ev)
+{
+    GUARD("the storage talk 0x411610")
+    if (H[H_ST_RUN].mode == 2) { H[H_ST_RUN].calls++; port_world(); return storage_run(ev); }
+    return ((eng_tc0)(uintptr_t)0x411610u)(ev);
+}
 static int __attribute__((thiscall)) gd_4031c0(void *t, intptr_t a1, intptr_t a2)
 { GUARD("the title text 0x4031c0") return ((eng_tc2)(uintptr_t)0x4031c0u)(t, a1, a2); }
 static int __attribute__((thiscall)) gd_5bbc60(void *z, intptr_t a1) { GUARD("the BGM player 0x5bbc60") return ((eng_tc1)(uintptr_t)0x5bbc60u)(z, a1); }
@@ -3824,6 +3849,45 @@ static void __attribute__((thiscall)) H_CINIT_w(wl_char *c, int32_t x0, int32_t 
         if (k < NCCODES) g_ccodes[k]++;
     }
 }
+/* the storage box + the finds (src/ui_menu.c, src/script_engine.c): the leaves shadowed; the frame loops
+ * (storage, its sides, the paged box, the finds) and the stack-context close REPLACE only */
+ST_HOOK(H_IT_KIND, "item_kind", 1, 1, return item_kind(CP(a1)))
+TC_HOOK(H_IT_OFKIND, "room_items_of_kind", 2, 1, return room_items_of_kind(self, a1, a2))
+TC_HOOK0(H_IT_STORED, "room_items_stored", 1, return room_items_stored(self))
+TC_HOOK(H_UM_MSET, "menu_msg_set", 1, 0, menu_msg_set(self, (const char *)a1); return 0)
+TC_HOOK0(H_UM_PCLOSE, "menu_party_close", 1, return menu_party_close(self))
+TC_HOOK(H_UM_MWIN, "msg_window_open", 9, 1,
+        return (intptr_t)msg_window_open(self, (const char *)a1, a2, a3, a4, U16(a5), U16(a6), a7, a8, a9))
+TC_HOOK(H_UM_MSTYLE, "sys_msg_style", 2, 1, return (intptr_t)sys_msg_style(self, (uint8_t *)a1, a2))
+TC_HOOK(H_UM_PAGES, "msg_pages", 10, 1,
+        return msg_pages(self, (const char *)a1, (const char *)a2, U16(a3), a4, a5, a6, U16(a7), U16(a8), a9, a10))
+TC_HOOK(H_UM_ILIST, "item_list_fill", 6, 0, item_list_fill(self, (wl_room *)a1, a2, a3, (uint8_t *)a4, a5, a6); return 0)
+TC_HOOK(H_ST_DEP, "storage_deposit", 1, 1, return storage_deposit(self, a1))
+TC_HOOK0(H_ST_WD, "storage_withdraw", 1, return storage_withdraw(self))
+TC_HOOK0(H_ST_RUN, "storage_run", 1, return storage_run(self))
+TC_HOOK(H_IFIND, "item_find", 6, 1,
+        return item_find(self, (wl_entity *)a1, a2, a3, (int32_t *)a4, (const char *)a5, a6))
+TC_HOOK(H_FURN, "furniture_search", 2, 1, return furniture_search(self, (wl_entity *)a1, (const char *)a2))
+/* 0x412800 rewrites its caller's (stack) string in place: retail and the port each run on a copy, compared */
+typedef intptr_t (__attribute__((stdcall)) *ktok_t)(char *, const void *);
+static intptr_t __attribute__((stdcall)) H_UT_KTOK_w(char *s, const void *e)
+{
+    hook_t *h = &H[H_UT_KTOK];
+    if (h->mode == 2) { h->calls++; port_world(); return (intptr_t)key_token_replace(s, e); }
+    if (!sample(h)) return ((ktok_t)(uintptr_t)h->va)(s, e);
+    static char in[1024], p[1024];
+    strncpy(in, s, sizeof in - 1);
+    strcpy(p, in);
+    intptr_t r = ((ktok_t)(uintptr_t)h->va)(s, e);
+    uint32_t sp = SP() - 256;
+    dead_save(sp);
+    port_world();
+    key_token_replace(p, e);
+    dead_restore(sp);
+    h->compared++;
+    if (strcmp(p, s)) diverged(h, "f%u key_token_replace \"%.60s\": retail \"%.60s\" port \"%.60s\"", g_frame, in, s, p);
+    return r;
+}
 #define CDEF_ROW(id, n, va) [id] = { n, va, (void *)id##_w, 0, 1, 0, 0, 0, 0, "" },
 
 static hook_t H[H_N] = {
@@ -4157,7 +4221,9 @@ void rh_hooks_install(void)
         h->mode = !strcmp(mode, "shadow") ? 1 : !strcmp(mode, "replace") ? 2 : 0;
         h->every = every;
         if (!h->mode) continue;
-        if ((h == &H[H_RLOOP] || h == &H[H_REPOLL] || h == &H[H_LROOM] || h == &H[H_SLOOP] || h == &H[H_MPACE] || h == &H[H_MRUN]) && h->mode == 1)
+        if ((h == &H[H_RLOOP] || h == &H[H_REPOLL] || h == &H[H_LROOM] || h == &H[H_SLOOP] || h == &H[H_MPACE] || h == &H[H_MRUN] ||
+             h == &H[H_UM_PAGES] || h == &H[H_ST_DEP] || h == &H[H_ST_WD] || h == &H[H_ST_RUN] || h == &H[H_IFIND] ||
+             h == &H[H_FURN] || h == &H[H_UM_PCLOSE]) && h->mode == 1)
             rh_fatal("%s: replace only (it runs a room / repolls DirectInput)", h->name);
         if (h == &H[H_MAP_DECODE]) {
             if (h->mode == 2) rh_fatal("map_decode: shadow only (the port decode needs the recorded resource)");

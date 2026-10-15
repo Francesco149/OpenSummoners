@@ -6,6 +6,22 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-15 — rhost GDI fix + the storage box and the finds (14 functions)
+
+- rhost: the USER's `record combat` died at flip 16,309 ("more than 16384 GDI handles"): retail does a
+  GetDC / ReleaseDC pair every flip and `rh_gdi.c` numbered fakes as a never-reused sequence.  Fakes are now
+  slots reused LIFO with a generation high byte (stale handle → invalid, as on GDI).  Corpus re-blessed (only
+  fake-handle dwords changed: proven by an end-dump diff).  The partial recording is kept as the new scenario
+  `rh-errands-items` (16,408 flips: errands, item finds, the storage box); volatile mask calibrated (+1,867).
+- `src/ui_menu.c`: the storage box `0x411610` + its sides `0x413130` / `0x414cb0`, the item list `0x414490`,
+  the message windows `0x413b70` / `0x4140c0` / `0x414410`, `0x412590`, `0x4129a0`, the item counts `0x407880`
+  / `0x407900` / `0x4139d0`; `src/ui_text.c`: the key token replace `0x412800` (now shared with `0x40e360`);
+  `src/script_engine.c`: the finds `0x4081d0` + the furniture `0x407970`.  Quirk #157.
+- rhost shadow: item_list_fill 13, key_token_replace 1,056, menu_msg_set 23, msg_window_open 9, item_kind 3,
+  room_items_of_kind 2, room_items_stored 2 — 0 divergences; replace: storage_run 2, deposit 4, withdraw 5,
+  furniture 6, finds 2 (copper coins + an item), each `corpus --check` PASS.  Unreached: the sort toggle, the
+  capacity refusals, the paged box `0x4140c0`, silver / gold, the chest 70220.  Hybrid gate 476 PASS.
+
 ## 2026-10-16 — the screen effects, chip 5b: the screen step + the HUD animation
 
 - `src/screen_fx.c`: the per-update screen step `0x499ab0` (letterbox easing + the view's +0x74, every window's

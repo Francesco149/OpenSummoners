@@ -4834,6 +4834,36 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   +0x40e0 ≥ 5 hits with +0x40e8 > 0.  The party bars (+0x340 + 8 k) ease for every active member except
   100000104.  A bounce (+0x380 / +0x384: 100 at the floor, −5 a frame) and a 3-step clock (+0x3cc).
 
+### #157 — the storage box, the item list, the finds (port 2026-10-15)
+- **The storage box IS the inventory.** `0x411610` (a talk record's step on the event runner: "Item Storage" →
+  Deposit Items 21 / Withdraw Items 22 / Close Box 25, under "You can store up to 128 items in your storage
+  box.") never moves records: a record's u8 +0xa (room +0x201a + 16 k) marks it stored.  Deposit `0x413130` sets
+  it AND clears the wearer +4 (deposited gear comes off), then the party stats refresh (`0x413810`); refused at
+  128 stored (`0x4139d0`) — "You cannot store anything else.".  Withdraw `0x414cb0` clears it; refused for a
+  normal item (kind 1) when 48 unstored normal items are carried (`0x407900(1, 1)`) — "You cannot carry any more
+  items."  Key items (+0x2ac >= 900: kind 2, `0x407880`) never count toward the 48.  An empty side shows "You
+  have nothing to store." / "You don't have anything stored." in a centred 40 x 3 box (`0x413b70`).
+- **The item list** `0x414490` (storage, the shop's sell list `0x4192f0`, the item menu `0x593f60`): mode = menu
+  context +0x2c (0 the unstored, 2 the stored, 1 sell); kind 0 hides key items, else only that kind; an item
+  bound to a member (+0x2b8) hides while that member is out of the party.  Order: as stored, or with the sort
+  on (context +0x10, toggled by @@Z = menu result 20, sound 9) worn items first by the wearer's party order
+  (slot +0xa0c), then category +0x78 (none = 0xffff, last), then id.  Columns: frame icon, item icon (+0x54),
+  name, "E:" + the wearer's name (slot +0xa10), and "x N" (the count) or, selling, the price = price +0x60 x
+  pct / 1000 (pct context +0x30, default 500) x count / unit +0x64 (unit 0: just the first part), at least 1,
+  in GP rounded up when the room's money kind +0x4064 is 10; +0x2ac >= 500 "Cannot sell" (row dead).  The
+  cursor lands on the first unworn row (retail reads slot +0xa0c through NULL for a worn item whose wearer is
+  not a shown member — never the case).
+- **Finds** `0x4081d0` (the chest 70220, furniture `0x407970`, story scripts): what 1 / 2 / 3 = n copper /
+  silver / gold coins (n, 10 n, 100 n CP); else an item id.  The container sparkles first (`0x557060`, a 20-tick
+  wait).  "The %s had %d %s inside." / "You found %d %s." / "You found %s inside the %s." / "You found %s.",
+  then the money / item goes in and **"You found %s." shows AGAIN** (asm 0x4086fb: the add's own message).  Money
+  over the cap +0x4020 is refused in the EVENT SPEAKER's box (+0x7c kind, +0x2e0 actor, +0x28a name, voice 32);
+  an item is refused at 512 records or 48 unstored normal items ("However, your inventory is full. You put the %s
+  back.") — then *back = 1 and the furniture shuts again (its first idle record: clip + sound).  An unknown id:
+  "The %s is empty." (nothing without a container name).
+- `0x412590` (the menu message text) = `0x40e360`'s steps with the key tokens through `0x412800` (one table entry
+  per call; `0x40e360` inlines the same loop) — the same result.
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

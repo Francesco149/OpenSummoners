@@ -204,7 +204,9 @@ typedef struct engine_calls {
     /* the script engine 0x40c380's: the chapter scripts by VA (thiscall runner -> int; the area
      * tables), the scene command run 0x439690 (`this` = the room loop: the nested frame loop), the chest 0x4081d0, the save statue 0x408730, the furniture 0x407970, mode
      * 5 0x40a340, the talk steps 0x402d40 / 0x406210 / 0x411610, the area title's text set 0x4031c0
-     * (`this` = the text node), the view refresh 0x49ce70; the BGM player (sys+0x2884): voice stop
+     * (`this` = the text node), the view refresh 0x49ce70.  0x439690 / 0x4081d0 / 0x407970 / 0x411610 are
+     * PORTED (scene_run / item_find / furniture_search / storage_run): their slots stay as rhost's shadow
+     * guard points (frame loops) and dispatch to the port when replaced.  The BGM player (sys+0x2884): voice stop
      * 0x5bcfb0, has / differs 0x5bbc60 / 0x5bbc90, fade 0x5bbcd0, playing 0x5bbc20, play 0x5bcb80 */
     int (*script_call)(uint32_t va, wl_event *ev);
     eng_tc1 h439690; eng_tc6 h4081d0; eng_tc1 h408730; eng_tc2 h407970; eng_tc0 h40a340;

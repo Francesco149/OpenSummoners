@@ -23,6 +23,7 @@ static void st16(void *p, uint32_t off, uint16_t v) { memcpy((uint8_t *)p + off,
 static void *ldp(const void *p, uint32_t off) { void *v; memcpy(&v, (const uint8_t *)p + off, sizeof v); return v; }
 static void stp(void *p, uint32_t off, const void *v) { memcpy((uint8_t *)p + off, &v, sizeof v); }
 static const void *D(uint32_t va) { return g_eng.data(va); }
+static const char *S(uint32_t va) { return (const char *)g_eng.data(va); }
 
 /* the window's control `i` (NULL past the taken ones) */
 static uint8_t *win_ctrl(const uint8_t *win, uint16_t i)
@@ -619,5 +620,499 @@ int32_t shop_run(wl_event *ev, const int32_t *list, int32_t a3, int32_t a4)
     }
 out:
     menu_sprites_free(m);
+    return res;
+}
+
+/* ---- the item helpers ---- */
+
+int32_t item_kind(const uint8_t *item)
+{
+    return (ld32(item, 0x2ac) >= 900) + 1;
+}
+
+int32_t room_items_of_kind(const wl_room *r, int32_t kind, int32_t unstored)
+{
+    int32_t n = 0;
+    for (uint16_t i = 0, cnt = ld16(r, 0x4010); i < cnt; i++) {
+        const uint8_t *rec = (const uint8_t *)r + 0x2010 + 16u * i;
+        if (unstored == 1 && rec[0xa] != 0) continue;
+        if (item_kind(ldp(rec, 0xc)) == kind) n++;
+    }
+    return n;
+}
+
+int32_t room_items_stored(const wl_room *r)
+{
+    int32_t n = 0;
+    for (uint16_t i = 0, cnt = ld16(r, 0x4010); i < cnt; i++)
+        if (((const uint8_t *)r)[0x201a + 16u * i] != 0) n++;
+    return n;
+}
+
+/* ---- the message windows ---- */
+
+void menu_msg_set(uint8_t *m, const char *text)
+{
+    /* 0x412590 inlines the steps of 0x40e360: the key tokens (0x412800 each), then parse / records / wrap
+     * when the text fits, then the rewind */
+    uint8_t *c = ldp(m, 0x24);
+    if (c != NULL) ctrl_text_set(c, text);
+}
+
+intptr_t menu_party_close(uint8_t *m)
+{
+    uint8_t *w = ldp(m, 0x28);
+    if (w != NULL) {
+        st32(w, 0x50, 0);
+        stp(m, 0x28, NULL);
+    }
+    return (intptr_t)w;
+}
+
+/* the 9-frame box style {+0 sprite, u16 +4.. frames, +0x18 / +0x1c 32, +0x20 0}: the alternate (sys+0xba8,
+ * frames 0, 0..8) or the plain one */
+static void box_style(uint8_t *st, int32_t alt)
+{
+    st32(st, 0x18, 32);
+    st32(st, 0x1c, 32);
+    if (alt) {
+        st32(st, 0, ld32(g_eng.sys, 0xba8));
+        st16(st, 4, 0);
+    } else {
+        st32(st, 0, ld32(g_eng.sys, 0xb88));
+        st16(st, 4, 16);
+    }
+    for (uint16_t k = 0; k < 9; k++) st16(st, 6u + 2u * k, k);
+    st32(st, 0x20, 0);
+}
+
+static int32_t cfg_line_h(void)
+{
+    return ld32((const void *)(intptr_t)ld32((const void *)(intptr_t)ld32(g_eng.sys, 0x320), 0), 0x248);
+}
+
+uint8_t *msg_window_open(uint8_t *m, const char *text, int32_t x, int32_t y, int32_t center, uint16_t cols,
+                         uint16_t rows, int32_t alt, int32_t metrics, int32_t a10)
+{
+    int32_t w = 7 * cols + 80, h = 28 * rows + 48;
+    if (center) {
+        x = 320 - w / 2;
+        y = 240 - h / 2;
+    }
+    uint8_t st[0x24];
+    box_style(st, alt);
+    uint8_t *win = win_mgr_open(ldp(m, 0), x, y, w, h, 1, st);
+    uint8_t *c = win_ctrl_take(win);
+    if (c != NULL) ctrl_text_init(c, 40, 24, cols, rows);
+    sys_msg_keys(g_eng.sys, (int32_t)(intptr_t)win, c);
+    static const uint16_t fr[4] = { 0, 1, 2, 3 };
+    ctrl_cursor_set(c, ld32(g_eng.sys, 0xb8c), 20, fr, 4, 10, ld32(win, 0x14) - ld32(c, 0xc) - 32,
+                    ld32(win, 0x18) - ld32(c, 0x10) - 32);
+    uint8_t *t = ldp(c, 0x170);
+    if (metrics) {
+        int32_t v = cfg_line_h();
+        st32(t, 0xc, 1);
+        st32(t, 0x10, v);
+        st32(t, 0x20, 2 * v);
+        st32(t, 0x24, 3 * v);
+        st32(t, 0x28, 5 * v);
+    } else {
+        st32(t, 0xc, 0);
+        st32(t, 0x10, 0);
+        st32(t, 0x20, 0);
+        st32(t, 0x24, 0);
+        st32(t, 0x28, 0);
+    }
+    st32(t, 0x14, a10);
+    st32(t, 0x18, 0);
+    st32(c, 0x1c, 0);
+    ctrl_text_set(c, text);   /* (inline: the key tokens 0x412800, 0x413ed0, the rewind) */
+    return win;
+}
+
+uint8_t *sys_msg_style(void *sys, uint8_t *st, int32_t alt)
+{
+    st32(st, 0x18, 32);
+    st32(st, 0x1c, 32);
+    st16(st, 4, 16);
+    st16(st, 6, alt ? 9 : 0);
+    st16(st, 8, alt ? 10 : 1);
+    st16(st, 0xa, alt ? 11 : 2);
+    for (uint16_t k = 3; k <= 8; k++) st16(st, 6u + 2u * k, k);
+    st32(st, 0x20, 0);
+    st32(st, 0, ld32(sys, 0xb88));
+    return st;
+}
+
+int32_t msg_pages(uint8_t *m, const char *text, const char *pages, uint16_t n, int32_t x, int32_t y, int32_t center,
+                  uint16_t cols, uint16_t rows, int32_t alt, int32_t metrics)
+{
+    char one[512];
+    if (pages != NULL) {
+        if (n == 0) return 0;
+    } else {
+        n = 1;
+        strcpy(one, text);
+        pages = one;
+    }
+    int32_t w = 7 * cols + 80, h = 28 * rows + 48;
+    if (center) {
+        x = 320 - w / 2;
+        y = 240 - h / 2;
+    }
+    uint8_t st[0x24];
+    if (alt) box_style(st, 1);
+    else sys_msg_style(g_eng.sys, st, 0);
+    uint8_t *win = win_mgr_open(ldp(m, 0), x, y, w, h, 1, st);
+    uint8_t *c = win_text_add(win, 40, 24, cols, rows);
+    sys_msg_keys(g_eng.sys, (int32_t)(intptr_t)win, c);
+    sys_box_cursor(g_eng.sys, win, c, 0, 0);
+    if (metrics) text_metrics_set(c, 1, cfg_line_h(), 1, 0);
+    else text_metrics_set(c, 0, 0, 1, 0);
+    ctrl_text_set(c, pages);
+    int32_t r, res = 0;
+    uint16_t k = 0;
+    do {
+        for (;;) {
+            r = menu_run(m, NULL, win, 1, 0, 0, 0, 0, 0, 0);
+            if (r != 12) break;
+            if (++k >= n) goto out;
+            /* the next page into the window's last control (inline: 0x412800 + 0x40f040 + 0x4031c0 + 0x40e5e0) */
+            ctrl_text_set(win_ctrl(win, (uint16_t)(ld16(win, 0x4e) - 1)), pages + 512u * k);
+        }
+    } while (r == 13);
+    res = r;
+out:
+    st32(win, 0x50, 0);
+    return res;
+}
+
+/* ---- the item list (the storage / sell / item screens) ---- */
+
+/* the grid info's page top follows the cursor */
+static void page_follow(uint8_t *c)
+{
+    uint8_t *info = ldp(c, 0x174);
+    int32_t page = ld32(info, 0xc), cur = ld32(info, 0x14), top = 0;
+    while (cur < top || cur >= top + page) top += page;
+    if (top != ld32(info, 0x18)) st32(info, 0x18, top);
+}
+/* the cursor onto the row {0, idx}; 0 = none */
+static int cursor_to_item(uint8_t *c, int32_t idx)
+{
+    uint8_t *info = ldp(c, 0x174);
+    int32_t n = ld32(info, 0x10);
+    if (n <= 0) return 0;
+    const uint8_t *rows = ldp(c, 0x17c);
+    for (uint16_t i = 0; (int32_t)i < n; i++) {
+        if (ld32(rows, 16u * i) != 0 || ld32(rows, 16u * i + 4) != idx) continue;
+        st32(info, 0x14, i);
+        page_follow(c);
+        return 1;
+    }
+    return 0;
+}
+static uint8_t *cell_icon_rec(uint8_t *c, int32_t row, int32_t col)
+{
+    uint8_t *cells = ldp((uint8_t *)ldp(c, 0x17c) + 16 * row, 0xc);
+    if (ldp(cells, 24u * (uint32_t)col + 4) == NULL) stp(cells, 24u * (uint32_t)col + 4, g_eng.op_new(0x54));
+    return ldp(cells, 24u * (uint32_t)col + 4);
+}
+/* a read retail makes through a NULL base (an access violation there too) */
+static uint16_t null_read16(uintptr_t va)
+{
+    __asm__("" : "+r"(va));
+    return *(volatile const uint16_t *)va;
+}
+/* the member slot whose +0x9f0 is `owner` (of the 8), or NULL */
+static wl_pslot *slot_of_owner(const wl_room *r, int32_t owner)
+{
+    for (uint16_t k = 0; k < 8; k++) {
+        wl_pslot *s = ldp(r, 0x4030u + 4u * k);
+        if (ld32(s, 0x9f0) == owner) return s;
+    }
+    return NULL;
+}
+
+void item_list_fill(uint8_t *m, wl_room *room, int32_t at_item, int32_t at_row, uint8_t *c, int32_t kind, int32_t sort)
+{
+    uint8_t *r = (uint8_t *)room;
+    char buf[512];
+    uint8_t done[512];
+    st32(ldp(c, 0x174), 0x10, 0);
+    int32_t first = -1;
+    /* which records stay out: the other side of the box (mode 2 = the stored ones), the other kind (0: no key
+     * items), a member's own item when that member is not in the party */
+    for (uint16_t i = 0; i < ld16(r, 0x4010); i++) {
+        const uint8_t *def = ldp(r, 0x201cu + 16u * i);
+        done[i] = 0;
+        if (r[0x201au + 16u * i] == 1 ? ld32(m, 0x2c) != 2 : ld32(m, 0x2c) == 2) done[i] = 1;
+        if (kind != 0 ? kind != item_kind(def) : ld32(def, 0x2ac) >= 900) done[i] = 1;
+        if (ld32(def, 0x2b8) != 0 && pslot_by_id(room, ld32(def, 0x2b8), 0) == NULL) done[i] = 1;
+    }
+    for (;;) {
+        /* the next row: the first left, or (sorted) the worn ones first by the wearer's order, then by
+         * category +0x78 (none last), then by id */
+        int32_t best = -1, b_owner = 0;
+        uint16_t b_eq = 0, b_ord = 0, b_cat = 0;
+        uint32_t b_id = 0;
+        uint16_t cnt = ld16(r, 0x4010);
+        if (cnt == 0) break;
+        for (uint16_t i = 0; i < cnt; i++) {
+            if (done[i]) continue;
+            int32_t owner = ld32(r, 0x2014u + 16u * i);
+            const uint8_t *def = ldp(r, 0x201cu + 16u * i);
+            uint16_t eq = 0, ord = 0;
+            if (owner != 0) {
+                eq = 1;
+                const uint8_t *s = (const uint8_t *)slot_of_owner(room, owner);
+                if (s != NULL && ld32(s, 0x9c4) != 1 && ld32(s, 0x9c4) != 2) s = NULL;
+                /* retail reads +0xa0c of NULL here (an access violation): a worn item's wearer is always a
+                 * shown party member */
+                ord = s != NULL ? ld16(s, 0xa0c) : null_read16(0xa0c);
+            }
+            uint16_t cat = ld32(def, 0x78) != 0 ? ld16(def, 0x78) : 0xffff;
+            uint32_t id = (uint32_t)ld32(def, 0);
+            if (best == -1 ||
+                (sort != 0 &&
+                 (eq > b_eq ||
+                  (eq == b_eq && (b_ord > ord || (b_ord == ord && (b_cat > cat || (b_cat == cat && b_id > id)))))))) {
+                best = i;
+                b_eq = eq;
+                b_ord = ord;
+                b_cat = cat;
+                b_id = id;
+                b_owner = owner;
+            }
+        }
+        if (best == -1) break;
+        if (first == -1 && b_owner == 0) first = best;
+        uint16_t bi = (uint16_t)best;
+        done[bi] = 1;
+        /* the row {0, record, live} */
+        uint8_t *info = ldp(c, 0x174);
+        int32_t row = ld32(info, 0x10);
+        if (row >= ld32(info, 4)) {
+            row = -1;
+        } else {
+            st32(info, 0x10, row + 1);
+            st32(ldp(c, 0x17c), 16u * (uint32_t)row, 0);
+            st32(ldp(c, 0x17c), 16u * (uint32_t)row + 4, bi);
+            st32(ldp(c, 0x17c), 16u * (uint32_t)row + 8, 1);
+            grid_row_reset(c, row);
+        }
+        const uint8_t *def = bi < ld16(r, 0x4010) ? ldp(r, 0x201cu + 16u * bi) : NULL;
+        /* column 0: the icon frame; column 1: the item's icon; 2 the name */
+        int32_t spr = ld32(g_eng.sys, 0xb74);
+        info = ldp(c, 0x174);
+        if (ld32(info, 8) > 0 && ld32(info, 0x10) > row) icon_set(cell_icon_rec(c, row, 0), spr, 0, NULL, 0, 0);
+        spr = ld32(g_eng.sys, 0xb74);
+        uint16_t fr = ld16(def, 0x54);
+        info = ldp(c, 0x174);
+        if (ld32(info, 8) > 1 && ld32(info, 0x10) > row) icon_set(cell_icon_rec(c, row, 1), spr, fr, NULL, 0, 0);
+        grid_cell_text(c, row, 2, (const char *)def + 4);
+        st32(ldp(c, 0x17c), 16u * (uint32_t)row + 8, 1);
+        /* column 5: the sell price (mode 1) or the count */
+        if (ld32(m, 0x2c) == 1) {
+            if (ld32(def, 0x2ac) >= 500) {
+                st32(ldp(c, 0x17c), 16u * (uint32_t)row + 8, 0);
+                grid_cell_text(c, row, 5, S(0x854adcu));   /* "Cannot sell" */
+            } else {
+                const uint8_t *rm = ldp(m, 0xc);
+                const uint8_t *d2 = bi < ld16(rm, 0x4010) ? ldp(rm, 0x201cu + 16u * bi) : NULL;
+                int32_t pct = ld32(m, 0x30) > 0 ? ld32(m, 0x30) : 500, v;
+                uint16_t unit = ld16(d2, 0x64);
+                int32_t each = (int32_t)((uint32_t)ld32(d2, 0x60) * (uint32_t)pct) / 1000;
+                if (unit > 0) {
+                    v = (int32_t)((uint32_t)ld16(rm, 0x2018u + 16u * bi) * (uint32_t)each) / unit;
+                    if (v < 1) v = 1;
+                } else {
+                    v = each < 1 ? 1 : each;
+                }
+                if (ld32(rm, 0x4064) == 10) g_eng.h5bf3ee(buf, S(0x854a34u), (v + 99) / 100);   /* "%dGP" */
+                else g_eng.h5bf3ee(buf, S(0x854a20u), v);                                        /* "%dCP" */
+                grid_cell_text(c, row, 5, buf);
+            }
+        } else if (ld16(r, 0x2018u + 16u * bi) != 0) {
+            g_eng.h5bf3ee(buf, S(0x854ae8u), ld16(r, 0x2018u + 16u * bi));   /* "x %d" */
+            grid_cell_text(c, row, 5, buf);
+        }
+        /* columns 3 / 4: "E:" + the wearer's name */
+        wl_pslot *s = slot_of_owner(room, ld32(r, 0x2014u + 16u * bi));
+        if (s == NULL || !pslot_ok(s, 1, 1)) continue;
+        grid_cell_text(c, row, 3, S(0x854ad8u));   /* "E:" */
+        s = slot_of_owner(room, ld32(r, 0x2014u + 16u * bi));
+        if (s != NULL && !pslot_ok(s, 1, 1)) s = NULL;
+        grid_cell_text(c, row, 4, (const char *)((uintptr_t)s + 0xa10));
+    }
+    /* the cursor: onto row `at_row`, else the record `at_item`, else the first unworn row */
+    if (at_row != -1) {
+        if (at_row < 0) return;
+        uint8_t *info = ldp(c, 0x174);
+        int32_t last = ld32(info, 0x10) - 1;
+        int32_t v = last < at_row ? last : at_row;
+        st32(info, 0x14, v < 0 ? 0 : v);
+        page_follow(c);
+    } else if (at_item != -1) {
+        int32_t last = (int32_t)ld16(r, 0x4010) - 1;
+        cursor_to_item(c, last < at_item ? last : at_item);
+    } else if (first != -1) {
+        cursor_to_item(c, first);
+    }
+}
+
+/* ---- the storage box (a talk record's 0x411610 on the event runner) ---- */
+
+/* the box side's frame: `deposit` 1 = "Deposit Items" (the unstored items of `kind`), 0 = "Withdraw Items" */
+static int32_t storage_side(uint8_t *m, int32_t deposit, int32_t kind)
+{
+    int32_t res = 0, shown = 0, r;
+    uint8_t *win = sys_win_open(g_eng.sys, ldp(m, 0), 8, 24, 408, 320, 2, S(deposit ? 0x8549ecu : 0x8549dcu), 1);
+    uint8_t *c = win_grid_new(win, 40, 48, 512, 6, 8, 2);
+    st32(c, 0x1ac, 32);
+    grid_col_place(c, 0, 0, -8, 0, 0);
+    grid_col_place(c, 1, 0, -8, 0, 0);
+    grid_col_place(c, 2, 40, 0, 160, 0);
+    grid_col_place(c, 3, 200, 0, 64, 0);
+    grid_col_place(c, 4, 216, 0, 64, 0);
+    st32(m, 0x2c, deposit ? 0 : 2);
+    grid_col_place(c, 5, 280, 0, 56, 0);
+    sys_cursor_style(g_eng.sys, c, 1);
+    sys_page_arrows(g_eng.sys, win, c);
+    item_list_fill(m, ldp(m, 0xc), -1, -1, c, kind, ld32(m, 0x10));
+    if (ldp(m, 0x24) != NULL)   /* "Please select an item to store / withdraw. Press @@Z to re-arrange your items." */
+        ctrl_text_set(ldp(m, 0x24), S(deposit ? 0x854a94u : 0x854b34u));
+    while (ld32(ldp(c, 0x174), 0x10) != 0) {
+        if (shown) {   /* the cursor's item description */
+            int32_t idx = ld32(ldp(c, 0x17c), 16u * (uint32_t)ld32(ldp(c, 0x174), 0x14) + 4);
+            const uint8_t *rm = ldp(m, 0xc);
+            if ((uint16_t)idx < ld16(rm, 0x4010)) {
+                const uint8_t *def = ldp(rm, 0x201cu + 16u * (uint16_t)idx);
+                if (def != NULL && ldp(m, 0x24) != NULL) ctrl_text_set(ldp(m, 0x24), (const char *)def + 0xac);
+            }
+        }
+        r = menu_run(m, c, NULL, 1, 0, 1, 1, 0, 1, 0);
+        int32_t cur = ld32(ldp(c, 0x174), 0x14);
+        int32_t idx = ld32(ldp(c, 0x17c), 16u * (uint32_t)cur + 4);
+        wl_room *room = ldp(m, 0xc);
+        uint8_t *rec = (uint8_t *)room + 0x2010 + 16u * (uint16_t)idx;
+        const uint8_t *def = (uint16_t)idx < ld16(room, 0x4010) ? ldp(rec, 0xc) : NULL;
+        switch (r) {
+        case 11:
+            goto out;
+        case 12:
+            if (def == NULL) continue;
+            if (deposit ? room_items_stored(room) >= 128
+                        : item_kind(ldp(rec, 0xc)) == 1 && room_items_of_kind(room, 1, 1) >= 48) {
+                /* "You cannot store anything else." / "You cannot carry any more items." */
+                r = msg_pages(m, S(deposit ? 0x854a74u : 0x854b10u), NULL, 0, 0, 0, 1, 40, 3, 0, 0);
+                if (r != 0) {
+                    res = r;
+                    goto out;
+                }
+                break;
+            }
+            if (deposit) {
+                rec[0xa] = 1;
+                st32(rec, 4, 0);   /* (deposited gear comes off) */
+            } else {
+                rec[0xa] = 0;
+            }
+            room_stats_refresh(room, 1);
+            menu_party_fill(m);
+            item_list_fill(m, ldp(m, 0xc), -1, (uint16_t)cur, c, kind, ld32(m, 0x10));
+            shown = 1;
+            break;
+        case 13:
+            shown = 1;
+            break;
+        case 20:   /* @@Z: sort on / off */
+            st32(m, 0x10, ld32(m, 0x10) == 0);
+            sfx_play(g_eng.sys, 9, 0, 0);
+            item_list_fill(m, ldp(m, 0xc), (uint16_t)idx, -1, c, kind, ld32(m, 0x10));
+            continue;
+        default:
+            res = r;
+            goto out;
+        }
+    }
+    {
+        /* "You have nothing to store." / "You don't have anything stored." (inline 0x4140c0, one page) */
+        char text[512];
+        strcpy(text, S(deposit ? 0x854a58u : 0x854af0u));
+        uint8_t *mw = msg_window_open(m, text, 0, 0, 1, 40, 3, 0, 0, 1);
+        for (;;) {
+            r = menu_run(m, NULL, mw, 1, 0, 0, 0, 0, 0, 0);
+            if (r == 12) {
+                r = 0;
+                break;
+            }
+            if (r != 13) break;
+        }
+        st32(mw, 0x50, 0);
+        if (r != 0) res = r;
+    }
+out:
+    st32(win, 0x50, 0);
+    return res;
+}
+
+int32_t storage_deposit(uint8_t *m, int32_t kind) { return storage_side(m, 1, kind); }
+int32_t storage_withdraw(uint8_t *m) { return storage_side(m, 0, 0); }
+
+int32_t storage_run(wl_event *ev)
+{
+    uint8_t m[0x34] = { 0 };   /* (retail clears +0..+0x10, +0x1c..+0x2c, +0x18, +0x30; the rest is unread) */
+    wl_roomloop *rl = ev->f00;
+    wl_room *room = ev->room;
+    int32_t res = 0;
+    g_eng.h40fe00(g_eng.sys);
+    for (uint16_t i = 0; i < rl->nrooms; i++) room_input_flush(&rl->rooms[i]);
+    room_views_mark(rl, 0);
+    for (int j = 0; j < 32; j++) {
+        wl_char *ch = (*g_eng.world)->chars[j];
+        if (ld32(ch, 0x1d0) != 0) cmd_clear(&ch->cmd);
+    }
+    menu_ctx_clear(m);
+    stp(m, 8, (*g_eng.world)->room->in);
+    stp(m, 0, rl->fe8);
+    stp(m, 4, rl);
+    stp(m, 0xc, room);
+    st32(m, 0x10, 1);
+    menu_msg_open(m);
+    menu_party_open(m);
+    uint8_t *win, *c;
+    sys_list_open(g_eng.sys, ldp(m, 0), 8, 8, 224, 0, 2, 3, 1, &win, &c, S(0x8549fcu), 1);   /* "Item Storage" */
+    grid_row_text_add(c, 0, 21, S(0x8549ecu));   /* "Deposit Items" */
+    grid_row_text_add(c, 0, 22, S(0x8549dcu));   /* "Withdraw Items" */
+    grid_row_text_add(c, 0, 25, S(0x8549d0u));   /* "Close Box" */
+    for (;;) {
+        char buf[512];
+        g_eng.h5bf3ee(buf, S(0x85499cu), 128);   /* "You can store up to %d items in your storage box." */
+        menu_msg_set(m, buf);
+        int32_t r = menu_run(m, c, NULL, 1, 0, 0, 1, 0, 0, 0);
+        if (r == 6) {
+            res = 6;
+            break;
+        }
+        if (r == 13) continue;
+        if (r != 12) break;
+        int32_t pick = ld32(ldp(c, 0x17c), 16u * (uint32_t)ld32(ldp(c, 0x174), 0x14) + 4);
+        int32_t v;
+        if (pick == 21) v = storage_deposit(m, 1);
+        else if (pick == 22) v = storage_withdraw(m);
+        else break;
+        if (v == 0) continue;
+        if (v == 6) res = 6;
+        break;
+    }
+    st32(win, 0x50, 0);
+    menu_party_close(m);
+    ui_link_drop(m);
+    uint16_t idx = ld16(m, 0x18);
+    if (idx != 0) {
+        slot_frames_free_all(ldp(g_eng.sys, 0xaacu + 4u * idx));
+        st32(ldp(g_eng.sys, 0x18e0u + 4u * idx), 0x10, 0);
+    }
     return res;
 }

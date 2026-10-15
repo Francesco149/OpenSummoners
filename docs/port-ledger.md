@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **712** (45.6% of engine-proper) — tested 249, ported 463
-- code bytes touched: **33.4%** (594,207 / 1,776,526 B of engine-proper)
-- unported: **1112**
+- touched: **727** (46.6% of engine-proper) — tested 249, ported 478
+- code bytes touched: **34.0%** (603,376 / 1,776,526 B of engine-proper)
+- unported: **1097**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (463) — reimplemented, no host test yet
+## ported (478) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -298,10 +298,14 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4071f0 | sub_4071F0 | 196 | party_member.h |
 | 0x4072c0 | sub_4072C0 | 85 | char_def.h |
 | 0x407320 | sub_407320 | 190 | char_integrate.h, party_member.h |
+| 0x407880 | sub_407880 | 23 | ui_menu.h |
 | 0x4078a0 | sub_4078A0 | 81 | party_member.h |
+| 0x407900 | sub_407900 | 99 | ui_menu.h |
+| 0x407970 | sub_407970 | 348 | script_engine.h |
 | 0x407b80 | sub_407B80 | 32 | char_integrate.h |
 | 0x407ba0 | sub_407BA0 | 907 | sound_fx.h |
 | 0x408100 | sub_408100 | 205 | gimmick.h |
+| 0x4081d0 | sub_4081D0 | 1366 | script_engine.h |
 | 0x408d40 | sub_408D40 | 124 | party_member.h |
 | 0x408dc0 | sub_408DC0 | 714 | party_member.h |
 | 0x409090 | sub_409090 | 67 | party_member.h |
@@ -336,6 +340,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x411390 | sub_411390 | 413 | sound_fx.h |
 | 0x411560 | sub_411560 | 117 | gimmick.h |
 | 0x4115e0 | sub_4115E0 | 33 | room_loop.h |
+| 0x411610 | sub_411610 | 657 | ui_menu.h |
 | 0x4118b0 | sub_4118B0 | 134 | sprite_slot.h |
 | 0x411c50 | sub_411C50 | 623 | ui_core.h |
 | 0x411ec0 | sub_411EC0 | 118 | ui_core.h |
@@ -344,18 +349,28 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4123a0 | sub_4123A0 | 290 | ui_menu.h |
 | 0x4124d0 | sub_4124D0 | 146 | ui_core.h |
 | 0x412570 | sub_412570 | 19 | ui_core.h |
+| 0x412590 | sub_412590 | 615 | ui_menu.h |
+| 0x412800 | sub_412800 | 416 | ui_text.h |
+| 0x4129a0 | sub_4129A0 | 16 | ui_menu.h |
 | 0x4129b0 | sub_4129B0 | 602 | ui_menu.h |
 | 0x412c40 | sub_412C40 | 227 | ui_core.h |
 | 0x412d30 | sub_412D30 | 117 | ui_core.h |
 | 0x412db0 | sub_412DB0 | 57 | room_loop.h |
 | 0x412df0 | sub_412DF0 | 821 | ui_menu.h |
+| 0x413130 | sub_413130 | 920 | ui_menu.h |
 | 0x4134f0 | sub_4134F0 | 613 | ui_core.h |
 | 0x413760 | sub_413760 | 173 | ui_core.h |
 | 0x413810 | sub_413810 | 444 | party_member.h |
+| 0x4139d0 | sub_4139D0 | 39 | ui_menu.h |
 | 0x413a00 | sub_413A00 | 286 | party_member.h |
 | 0x413b20 | sub_413B20 | 68 | party_member.h |
+| 0x413b70 | sub_413B70 | 854 | ui_menu.h |
 | 0x413ed0 | sub_413ED0 | 426 | ui_text.h |
+| 0x4140c0 | sub_4140C0 | 836 | ui_menu.h |
+| 0x414410 | sub_414410 | 119 | ui_menu.h |
+| 0x414490 | sub_414490 | 1955 | ui_menu.h |
 | 0x414c40 | sub_414C40 | 98 | ui_core.h |
+| 0x414cb0 | sub_414CB0 | 906 | ui_menu.h |
 | 0x415060 | sub_415060 | 751 | ui_menu.h |
 | 0x415350 | sub_415350 | 195 | ui_menu.h |
 | 0x415420 | sub_415420 | 58 | ui_core.h |
