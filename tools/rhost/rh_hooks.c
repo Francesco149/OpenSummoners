@@ -50,6 +50,7 @@
 #include "party_member.h"
 #include "scene_loop.h"
 #include "arche_pose.h"
+#include "script_engine.h"
 #include "engine_calls.h"
 
 typedef struct {
@@ -119,6 +120,10 @@ typedef struct {
     X(H_AP_DRIFT, "char_drift", 0x4678f0u) X(H_AP_DMOVE, "char_drift_move", 0x467ae0u) \
     X(H_AP_PLIVE, "particle_live", 0x459370u) X(H_AP_HSTOP, "room_hitstop_set", 0x54d060u) \
     X(H_AP_SWT, "switch_touch", 0x5b1aa0u) X(H_AP_LOGS, "char_room_logs", 0x5b4510u) \
+    X(H_SE_RUN, "script_engine", 0x40c380u) X(H_SE_BEGIN, "script_begin", 0x49cb60u) X(H_SE_END, "script_end", 0x49cd70u) \
+    X(H_SE_FLAG, "script_flag", 0x41e2f0u) X(H_SE_LEAD, "script_leader", 0x402f20u) \
+    X(H_SE_PCAST, "script_party_cast", 0x402060u) X(H_SE_CAST, "script_cast_add", 0x401f50u) \
+    X(H_SE_WAIT, "script_wait", 0x439680u) X(H_SE_ABYREC, "actor_by_record", 0x556eb0u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
 
@@ -2029,14 +2034,47 @@ static int __attribute__((thiscall)) gd_5ba650(void *d) { GUARD("DirectInput 0x5
 static int __attribute__((thiscall)) gd_40a5d0(void *s, intptr_t id, intptr_t a, intptr_t f, intptr_t fade, intptr_t b)
 { GUARD("the BGM change 0x40a5d0") return ((eng_tc5)(uintptr_t)0x40a5d0u)(s, id, a, f, fade, b); }
 static int __attribute__((thiscall)) gd_49bf90(void *d, intptr_t v) { GUARD("the joystick read 0x49bf90") return ((eng_tc1)(uintptr_t)0x49bf90u)(d, v); }
-/* the script engine: the room-start (mode 0) and touch (mode 2) scripts drive DirectShow /
- * DirectDraw (BGM, room changes) — running them a second time perturbs the run; the switch /
- * hit scripts (3 / 4) are state-only in the corpus (shadowed both sides, corpus hash unchanged) */
-static int __attribute__((thiscall)) gd_40c380(wl_event *ev)
+/* the script engine 0x40c380 (ported): the room-start (mode 0) and touch (mode 2) chapter scripts drive
+ * DirectShow / DirectDraw (BGM, room changes) — running them a second time perturbs the run; the switch /
+ * hit scripts (3 / 4) are state-only in the corpus (shadowed both sides, corpus hash unchanged).  The
+ * scene command run 0x439690 (the nested frame loop) and the message box follow the same rule; the BGM
+ * player, the title text and the UI flows (chest / save statue / furniture / talk / mode 5) always guard */
+#define EV_GUARD(ev, what) if ((ev)->mode != 3 && (ev)->mode != 4) { GUARD(what) }
+static int rh_script_call(uint32_t va, wl_event *ev)
 {
-    if (ev->mode != 3 && ev->mode != 4) { GUARD("the script engine 0x40c380 (mode != 3/4)") }
-    return ((eng_tc0)(uintptr_t)0x40c380u)(ev);
+    EV_GUARD(ev, "a chapter script (mode != 3/4)")
+    return ((eng_tc0)(uintptr_t)va)(ev);
 }
+static int __attribute__((thiscall)) gd_439690(void *rl, intptr_t ev)
+{ EV_GUARD((wl_event *)ev, "the scene command run 0x439690 (mode != 3/4)") return ((eng_tc1)(uintptr_t)0x439690u)(rl, ev); }
+static int __attribute__((thiscall)) gd_49d6e0(wl_event *ev, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4,
+                                               intptr_t a5, intptr_t a6, intptr_t a7, intptr_t a8, intptr_t a9, intptr_t a10)
+{
+    EV_GUARD(ev, "the message box 0x49d6e0 (mode != 3/4)")
+    return ((eng_tc10)(uintptr_t)0x49d6e0u)(ev, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10);
+}
+static int __attribute__((thiscall)) gd_4081d0(void *ev, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5,
+                                               intptr_t a6)
+{ GUARD("the chest 0x4081d0") return ((eng_tc6)(uintptr_t)0x4081d0u)(ev, a1, a2, a3, a4, a5, a6); }
+static int __attribute__((thiscall)) gd_408730(void *ev, intptr_t a1)
+{ GUARD("the save statue 0x408730") return ((eng_tc1)(uintptr_t)0x408730u)(ev, a1); }
+static int __attribute__((thiscall)) gd_407970(void *ev, intptr_t a1, intptr_t a2)
+{ GUARD("the furniture 0x407970") return ((eng_tc2)(uintptr_t)0x407970u)(ev, a1, a2); }
+static int __attribute__((thiscall)) gd_40a340(void *ev) { GUARD("the mode-5 script 0x40a340") return ((eng_tc0)(uintptr_t)0x40a340u)(ev); }
+static int __attribute__((thiscall)) gd_402d40(void *ev, intptr_t a1, intptr_t a2)
+{ GUARD("the talk step 0x402d40") return ((eng_tc2)(uintptr_t)0x402d40u)(ev, a1, a2); }
+static int __attribute__((thiscall)) gd_406210(void *ev, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4)
+{ GUARD("the talk step 0x406210") return ((eng_tc4)(uintptr_t)0x406210u)(ev, a1, a2, a3, a4); }
+static int __attribute__((thiscall)) gd_411610(void *ev) { GUARD("the talk step 0x411610") return ((eng_tc0)(uintptr_t)0x411610u)(ev); }
+static int __attribute__((thiscall)) gd_4031c0(void *t, intptr_t a1, intptr_t a2)
+{ GUARD("the title text 0x4031c0") return ((eng_tc2)(uintptr_t)0x4031c0u)(t, a1, a2); }
+static int __attribute__((thiscall)) gd_5bbc60(void *z, intptr_t a1) { GUARD("the BGM player 0x5bbc60") return ((eng_tc1)(uintptr_t)0x5bbc60u)(z, a1); }
+static int __attribute__((thiscall)) gd_5bbc90(void *z, intptr_t a1) { GUARD("the BGM player 0x5bbc90") return ((eng_tc1)(uintptr_t)0x5bbc90u)(z, a1); }
+static int __attribute__((thiscall)) gd_5bbcd0(void *z, intptr_t a1) { GUARD("the BGM player 0x5bbcd0") return ((eng_tc1)(uintptr_t)0x5bbcd0u)(z, a1); }
+static int __attribute__((thiscall)) gd_5bbc20(void *z) { GUARD("the BGM player 0x5bbc20") return ((eng_tc0)(uintptr_t)0x5bbc20u)(z); }
+static int __attribute__((thiscall)) gd_5bcb80(void *z, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5)
+{ GUARD("the BGM play 0x5bcb80") return ((eng_tc5)(uintptr_t)0x5bcb80u)(z, a1, a2, a3, a4, a5); }
+#undef EV_GUARD
 #undef GUARD
 
 typedef void (__attribute__((thiscall)) *unlall_t)(wl_actor *);
@@ -3265,6 +3303,16 @@ ST_HOOK(H_AP_PLIVE, "particle_live", 1, 1, return particle_live(a1))
 ST_HOOK(H_AP_HSTOP, "room_hitstop_set", 2, 0, room_hitstop_set(a1, U16(a2)); return 0)
 ST_HOOK(H_AP_SWT, "switch_touch", 3, 1, return switch_touch((const int32_t *)a1, U16(a2), a3))
 TC_HOOK0(H_AP_LOGS, "char_room_logs", 1, return char_room_logs(self))
+/* the script engine + its runner helpers (src/script_engine.c) */
+TC_HOOK0(H_SE_RUN, "script_engine", 1, return script_engine(self))
+TC_HOOK0(H_SE_BEGIN, "script_begin", 0, script_begin(self); return 0)
+TC_HOOK0(H_SE_END, "script_end", 0, script_end(self); return 0)
+TC_HOOK(H_SE_FLAG, "script_flag", 1, 1, return script_flag(self, a1))
+TC_HOOK0(H_SE_LEAD, "script_leader", 1, return (intptr_t)script_leader(self))
+TC_HOOK0(H_SE_PCAST, "script_party_cast", 0, script_party_cast(self); return 0)
+TC_HOOK(H_SE_CAST, "script_cast_add", 1, 0, script_cast_add(self, (void *)a1); return 0)
+TC_HOOK0(H_SE_WAIT, "script_wait", 1, return script_wait(self))
+ST_HOOK(H_SE_ABYREC, "actor_by_record", 1, 1, return (intptr_t)actor_by_record(a1))
 /* the scene loop itself — REPLACE only (a whole session per call) */
 typedef int32_t (__attribute__((thiscall)) *scloop_t)(uint8_t *, int32_t, uint32_t, int32_t, int32_t *, int32_t);
 static int32_t __attribute__((thiscall)) w_scloop(uint8_t *ss, int32_t save, uint32_t sub, int32_t demo, int32_t *out, int32_t start)
@@ -3551,6 +3599,7 @@ static void bind_engine_calls(void)
     B(56dc20); B(41a890); B(5bf3ee); B(426110); B(560900); B(5bf5db);
     B(428c00); B(429060); B(429db0); B(42a500); B(42a9a0); B(42b9a0); B(42c130); B(42c510); B(42c970);
     B(42cce0); B(42d3c0); B(42da50); B(42e290); B(42eb20); B(42f840); B(42fbf0); B(42ff00); B(430400);
+    B(49ce70); B(5bcfb0);
     B(561d20); B(409150); B(55fdb0); B(41d780); B(4e6520); B(4e61d0); B(41b670); B(4c5af0); B(52fd80); B(5a3870); B(5a00c0);
     B(5a3670); B(56c640); B(5b6060); B(5b60d0); B(5b61b0); B(5b6200); B(5b6bc0); B(5b6340); B(5b64b0);
     B(41cfd0);
@@ -3565,7 +3614,15 @@ static void bind_engine_calls(void)
 #undef B
     /* the external-effect calls go through the shadow guards */
     *(void **)&g_eng.h5b9390 = (void *)gd_5b9390;
-    *(void **)&g_eng.h40c380 = (void *)gd_40c380;
+    g_eng.script_call = rh_script_call;
+    *(void **)&g_eng.h439690 = (void *)gd_439690; *(void **)&g_eng.h49d6e0 = (void *)gd_49d6e0;
+    *(void **)&g_eng.h4081d0 = (void *)gd_4081d0; *(void **)&g_eng.h408730 = (void *)gd_408730;
+    *(void **)&g_eng.h407970 = (void *)gd_407970; *(void **)&g_eng.h40a340 = (void *)gd_40a340;
+    *(void **)&g_eng.h402d40 = (void *)gd_402d40; *(void **)&g_eng.h406210 = (void *)gd_406210;
+    *(void **)&g_eng.h411610 = (void *)gd_411610; *(void **)&g_eng.h4031c0 = (void *)gd_4031c0;
+    *(void **)&g_eng.h5bbc60 = (void *)gd_5bbc60; *(void **)&g_eng.h5bbc90 = (void *)gd_5bbc90;
+    *(void **)&g_eng.h5bbcd0 = (void *)gd_5bbcd0; *(void **)&g_eng.h5bbc20 = (void *)gd_5bbc20;
+    *(void **)&g_eng.h5bcb80 = (void *)gd_5bcb80;
     *(void **)&g_eng.h40a5d0 = (void *)gd_40a5d0;
     *(void **)&g_eng.h40fe00 = (void *)gd_40fe00;
     *(void **)&g_eng.h5ba4c0 = (void *)gd_5ba4c0;

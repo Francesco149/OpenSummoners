@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **586** (37.4% of engine-proper) — tested 249, ported 337
-- code bytes touched: **29.5%** (523,946 / 1,776,526 B of engine-proper)
-- unported: **1238**
+- touched: **595** (38.0% of engine-proper) — tested 249, ported 346
+- code bytes touched: **29.8%** (530,187 / 1,776,526 B of engine-proper)
+- unported: **1229**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (337) — reimplemented, no host test yet
+## ported (346) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -281,9 +281,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4017d0 | sub_4017D0 | 1175 | world_alloc.c, world_alloc.h |
 | 0x401c70 | sub_401C70 | 54 | world_alloc.h |
 | 0x401cb0 | sub_401CB0 | 140 | world_alloc.h |
+| 0x401f50 | sub_401F50 | 222 | script_engine.h |
+| 0x402060 | sub_402060 | 62 | script_engine.h |
 | 0x4022a0 | sub_4022A0 | 47 | npc_ai.h |
 | 0x4022d0 | sub_4022D0 | 88 | room_load.h |
 | 0x402a60 | sub_402A60 | 435 | char_state.h |
+| 0x402f20 | sub_402F20 | 21 | script_engine.h |
 | 0x4060d0 | sub_4060D0 | 241 | char_state.h |
 | 0x4066d0 | sub_4066D0 | 989 | party_member.h |
 | 0x406ec0 | sub_406EC0 | 813 | party_member.h |
@@ -311,6 +314,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x40be00 | sub_40BE00 | 36 | gimmick.h |
 | 0x40be30 | sub_40BE30 | 1032 | gimmick.c, gimmick.h |
 | 0x40c300 | sub_40C300 | 120 | gimmick.h |
+| 0x40c380 | sub_40C380 | 5077 | script_engine.c, script_engine.h |
 | 0x40d960 | sub_40D960 | 69 | char_state.h |
 | 0x40d9b0 | sub_40D9B0 | 437 | room_loop.h |
 | 0x411390 | sub_411390 | 413 | sound_fx.h |
@@ -332,6 +336,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x41e020 | sub_41E020 | 70 | room_load.h |
 | 0x41e180 | sub_41E180 | 244 | char_state.h |
 | 0x41e280 | sub_41E280 | 47 | char_def.h |
+| 0x41e2f0 | sub_41E2F0 | 66 | script_engine.h |
 | 0x41e440 | sub_41E440 | 125 | char_def.h |
 | 0x41e600 | sub_41E600 | 907 | actor_ops.h |
 | 0x41ea70 | sub_41EA70 | 187 | entity_life.h |
@@ -400,6 +405,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4386f0 | sub_4386F0 | 64 | device_init.h |
 | 0x438740 | sub_438740 | 555 | device_init.h |
 | 0x438a60 | sub_438A60 | 2639 | particle_init.h |
+| 0x439680 | sub_439680 | 9 | script_engine.h |
 | 0x43c9b0 | sub_43C9B0 | 130 | room_load.h |
 | 0x43e140 | sub_43E140 | 266 | room_loop.h |
 | 0x43e3a0 | sub_43E3A0 | 516 | event.c, event.h |
@@ -491,6 +497,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x491740 | sub_491740 | 38 | sprite_slot.h |
 | 0x49a050 | sub_49A050 | 13 | sprite_slot.h |
 | 0x49be60 | sub_49BE60 | 290 | room_loop.h |
+| 0x49cb60 | sub_49CB60 | 527 | script_engine.h |
+| 0x49cd70 | sub_49CD70 | 254 | script_engine.h |
+| 0x4afda0 | sub_4AFDA0 | 3 | script_engine.h |
 | 0x4c57f0 | sub_4C57F0 | 50 | scene_loop.h |
 | 0x4c5830 | sub_4C5830 | 694 | scene_loop.h |
 | 0x4c5e00 | sub_4C5E00 | 778 | party_member.h |
@@ -531,7 +540,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5567a0 | sub_5567A0 | 309 | gimmick.h |
 | 0x5568e0 | sub_5568E0 | 161 | gimmick.h |
 | 0x556de0 | sub_556DE0 | 98 | gimmick.h |
-| 0x556eb0 | sub_556EB0 | 62 | actor_update.c, actor_update.h |
+| 0x556eb0 | sub_556EB0 | 62 | actor_update.c, actor_update.h, script_engine.h |
 | 0x556ef0 | sub_556EF0 | 349 | device_init.h |
 | 0x557370 | particle_spawn_557370 | 452 | particle_spawn.c, particle_spawn.h |
 | 0x557550 | sub_557550 | 21735 | particle_init.c, particle_init.h |

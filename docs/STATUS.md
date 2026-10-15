@@ -7,15 +7,15 @@
 ## Port coverage (engine-proper functions of `sotes.exe`)
 
 ```
-███████░░░░░░░░░░░░░  37.4% touched   (15.7% host-tested, 29.5% of code bytes)
+████████░░░░░░░░░░░░  38.0% touched   (15.7% host-tested, 29.8% of code bytes)
 ```
 
 | status      | count | what it means                                          |
 |-------------|------:|--------------------------------------------------------|
 | tested      |   249 | ported + module covered by the host unit suite       |
-| ported      |   337 | reimplemented in src/, no host test for that module  |
-| **touched** | **586** | tested + ported (FUN_ provenance ref in src/)    |
-| unported    |  1238 | exists in engine, never referenced from src/         |
+| ported      |   346 | reimplemented in src/, no host test for that module  |
+| **touched** | **595** | tested + ported (FUN_ provenance ref in src/)    |
+| unported    |  1229 | exists in engine, never referenced from src/         |
 
 **Denominator note (read this before judging the %):** the headline % is over
 **engine-proper** functions — the **1532** below
@@ -26,7 +26,7 @@ those like retail rather than porting them (PLAN.md §2-3), so counting them
 would bury real progress. Full table is **1824** non-thunk
 functions (of 1824 incl. thunks).
 
-Code-byte coverage (29.5% of engine-proper bytes) is the truer progress
+Code-byte coverage (29.8% of engine-proper bytes) is the truer progress
 signal: the engine has a long tail of tiny leaf helpers, so function count
 understates how much actual instruction volume is ported.
 
@@ -98,7 +98,8 @@ understates how much actual instruction volume is ported.
   | the member stats recompute (base + items, with an equip-preview item) | `0x4066d0` | 1 | 0 |
   | the scene start (next area / retry point, actor states, room snapshot) + a part's facing | `0x59cfc0` / `0x4842c0` | 8 / 8 | 0 |
   | the party POSE handler (turn-around, hit reactions + voice, stagger, knockdowns, blown-back falls, get-up, revive) + knockdown, status inflict, drift, switch touch, particle live, hitstop | `0x457ff0` (+ `0x459990` `0x4593e0` `0x4678f0` `0x467ae0` `0x459ed0` `0x5b1aa0` `0x459370` `0x54d060` `0x5b4510`) | 1.43M (72,685 full-state: every non-zero pose) / – / – / – / – / – / 414 / – / – / – | 0 |
-  Hybrid gate: with all of the above REPLACING retail (305 hooks) (the whole character tick, driver → tile
+  | the SCRIPT ENGINE (chapter scripts by area / flag, then the default event: room arrival + BGM + area title, doors, switched furniture / chest / save statue / talk records, time of day) + scene begin / end, room flag, leader, party cast, cast add, scene wait, actor by record | `0x40c380` (+ `0x49cb60` `0x49cd70` `0x41e2f0` `0x402f20` `0x402060` `0x401f50` `0x439680` `0x556eb0`) | 61 (11 full-state; 49 guarded: the BGM / frame loop) / 31 / 30 / 251 / 29 / 13 / 13 / – (REPLACE: 146) / 129; REPLACE: every event of the corpus | 0 |
+  Hybrid gate: with all of the above REPLACING retail (314 hooks) (the whole character tick, driver → tile
   movers, + the room loop's passes and per-tick calls, runs as port code), every corpus scenario ends byte-identical.
   Shadow guard (rhost): a port phase that reaches an external effect retail already performed (surface free,
   buffer release, DeleteObject, DirectInput, a mode-0/2 script) aborts its comparison (counted skipped); those
@@ -124,8 +125,7 @@ understates how much actual instruction volume is ported.
      0x426db0 / 0x556380 + a few leaves 0x429d00 0x429d50 0x42b550.. 0x42da20 0x42ea50) — **the corpus reaches NONE
      of them** (no dungeon / monster room: 17 townsfolk / party codes only), so porting them needs a monster-room
      scenario first (USER `rhost.py record`); the palette read `0x4178e0` + frames `0x418470` / `0x417c40`
-     (DirectDraw), `0x56dc20` (Now Loading + Flip), `0x41a890`, the room-start script `0x40c380`, the
-     joysticks `0x5ba120` / `0x5ba290` (platform). The SCENE LOOP `0x59f2c0` above it runs as port code too
+     (DirectDraw), `0x56dc20` (Now Loading + Flip), `0x41a890`, the joysticks `0x5ba120` / `0x5ba290` (platform). The SCENE LOOP `0x59f2c0` above it runs as port code too
      (`src/scene_loop.c`, quirk #141; its save-load half is unexercised: a save scenario is needed). Its slots: the
      save writer `0x41a890`,
      the save apply `0x561d20`, the demo scene `0x41b670` (+ `0x4c5af0` / `0x52fd80` / `0x5a3870`), the menu
@@ -140,7 +140,7 @@ understates how much actual instruction volume is ported.
      `0x590f20` / `0x590ca0`), the shots `0x590230` / band 96 `0x46da00`, the render `0x48c150` + Flip
      (platform). Next: `load_room 0x586010` (the room setup around the loop) and the scene loop
      `0x59f2c0`, so the port binary can run free roam on the retail-layout world (item 2).
-     Slots left in the passes: the script engine `0x40c380` (5 KB), the key use `0x54ed80`, the input
+     Slots left in the passes: the key use `0x54ed80`, the input
      re-poll `0x40fe00`, the shot emitters `0x40ac90` / `0x55cfc0`.
   0. the Arche handlers: the POSE handler `0x457ff0` is ported (`src/arche_pose.c`, quirk #143; the knockdowns /
      status inflict unreached: no combat in the corpus); left: `0x45a300` (14 KB, the skill casts; also 0x446900 /

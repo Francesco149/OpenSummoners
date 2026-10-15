@@ -12,6 +12,7 @@
 #include "actor_ops.h"
 #include "char_physics.h"
 #include "engine_calls.h"
+#include "script_engine.h"
 #include "entity_life.h"
 #include "event.h"
 #include "gimmick.h"
@@ -1120,7 +1121,7 @@ int load_room(wl_roomloop *rl, wl_room *rooms, uint16_t nrooms, uint8_t *areas, 
     ev->actor = NULL;
     ev->mode = 7;
     ev->unload = 0;
-    if (g_eng.h40c380(ev) == 0 && ev->unload != 0) {
+    if (script_engine(ev) == 0 && ev->unload != 0) {
         void *ts = ldp(g_eng.sys, 0xaa8);
         if (ts != NULL) timed_sounds_fade(ts, 400);
         g_eng.dbg_out(S(0x854798u));   /* "Unload Resource From 'StartEvent'" */

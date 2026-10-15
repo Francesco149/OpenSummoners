@@ -4478,6 +4478,36 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   (+0x40a4).  Status 1 clears every other timer.  Sounds: 3 → pool sys+0x534, 7 → +0x530, 13 → +0x52c (13's
   plays before its message), freq 0.
 
+### #144 — the SCRIPT ENGINE 0x40c380: chapter scripts first, then the default event by mode (port 2026-10-15)
+- **The runner** (world+0x1054, 0xb2c B; IDA's cls_401D40 names every field from +0x2e0 up 4 bytes LOW —
+  its `field_2E0` is +0x2e4, `field_57C` +0x580: read offsets off the asm): +0x0 the room loop, +0x4 the
+  actor, +0x8 the room, +0xc STOP, +0x10 the door id, +0x14 the mode; the scene command block +0x1c..; the
+  32-entry cast table +0x2fc (20 B {used, 1, actor, actor, 0}).
+- **Order**: by the area world+0x105c — 3 → `0x4e1d10`; 1020 → `0x4e23d0`; 1010 → 8 scripts while flag
+  100100101 is 0..500 (`0x4d7d80` the town intro .. `0x4e19e0`), 28 while 1000..2900 (`0x4fec40` ..
+  `0x546670`); then for EVERY area the empty `0x4afda0` + 28 (`0x49d930` .. `0x4c45a0`; `0x4bdbe0` is listed
+  TWICE).  Each returns != 0 when it handled the event (that result is returned); a script that only began a
+  scene stops the chain through +0xc: **`0x49cb60` (scene begin) sets +0xc = 1**.
+- **Default by mode** (no script took it): 0 the ROOM ARRIVAL — the teleport notice by the room loop +0x2c
+  (1 "You have teleported to a safe place." / 2 "The teleport trap has deposited you ...", the message log),
+  every active member's fade-in (char +0x158a8 = 2, +0x158ac / +0x158b0 = 40, +0x158b8 = 40 + 30·k), the
+  room BGM (`0x40d9b0`; restarted only when the player lacks it or it differs; config +0x174 = music on), a
+  500-tick wait command (+0x20 = 2), and on a map change (room loop +0x24) the area TITLE: the 64-byte
+  {id, name} table **(world+0x103c) by the room record's +4 into the title node room loop +0x11c (+0x10 =
+  200).  1 a DOOR: the first live actor with +0x278 and +0x274 == the door id (or any, id 0); state +0xc == 1
+  → "The door is locked." (`0x49d6e0`), result 11; else a type-2 command (+0x34 = 3, 1000 ms) and +0x1c = 1.
+  3 an actor SWITCHED: six talk records (+0x1d8 310140502 / 210140513 / 270190501 / 300250501 / 340165501 /
+  360160501: the party joins the cast, the leader faces it, `0x402d40` / `0x406210` / `0x411610`), the save
+  statue 70100 (`0x408730`, then the room BGM restarted with fade 20), the chest 70220 (`0x4081d0` "treasure
+  chest"), drawers 70363 / 70365, shelves 70357 / 70364 / 70366, closets 70353 / 70358, 70302..70304
+  (`0x407970`); an opened actor then takes its first free idle record (+0x208, 12 B {state, clip, u16 sound},
+  u16 +0x268) — 70230 keeps its state when +0x28c == 1, 70251 / 70252 / 70371 glow (talk) or spark 100134 /
+  100135 (chest), 70820 turns solid.  5 → `0x40a340`.  7 the time of day (room loop +0xd4) = flag 100100102
+  when 10 / 30 / 40 / 50 / 60, else 20.
+- **Scene end `0x49cd70`**: the voice track stops (BGM player `0x5bcfb0(0, 50, 0)`), the room loop's two
+  scene records +0x54 / +0x90 and the hitstop clear, world+0x2760 (no idle anims) / +0x27a8 = 0, both views'
+  +0xc refreshed (`0x49ce70`), every live character's command + AI reset, +0x268 / +0x15b5c = 0, runner +0x2e4 = 1.
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

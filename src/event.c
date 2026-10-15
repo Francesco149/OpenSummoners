@@ -10,6 +10,7 @@
 
 #include "asset_register.h"
 #include "engine_calls.h"
+#include "script_engine.h"
 
 /* sys+0xaa8: the timed-sound list 0x43e140 runs (24-byte records: buffer, volume, duration,
  * start, +0x10 state 1 start / 2 play / 3 fade out by +0x14 per tick) */
@@ -50,7 +51,7 @@ int event_run(wl_event *ev, void *f00, wl_room *room, wl_actor *actor, int32_t a
     ev->room = room;
     ev->f10 = f10;
     ev->unload = 0;
-    int r = g_eng.h40c380(ev);
+    int r = script_engine(ev);
     if (r != 0) return r;
     if (ev->unload == 0) return 0;
     ev_list *l = sysp(0xaa8);

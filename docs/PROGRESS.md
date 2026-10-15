@@ -6,6 +6,20 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-15 (afternoon) — the SCRIPT ENGINE 0x40c380 runs as port code
+
+- `src/script_engine.c`: the event runner's body — the chapter scripts by area / flag (called by VA:
+  `g_eng.script_call`, the ~65 story scripts stay retail), then the default event by mode: the room arrival
+  (teleport notices, the party fade-in, the room BGM, the area title on a map change), doors ("The door is
+  locked."), switched furniture / chest / save statue / talk records, mode 5, the time of day; + scene begin
+  `0x49cb60` / end `0x49cd70`, the room flag `0x41e2f0`, leader `0x402f20`, party cast `0x402060` / cast add
+  `0x401f50`, the scene wait thunk `0x439680`, actor by record `0x556eb0`.  Quirk #144 (IDA's runner type is
+  4 bytes off from +0x2e0).  The `h40c380` slot retired (event_run / load_room call it directly); rhost's
+  `gd_40c380` guard moved onto the external slots (chapter scripts / 0x439690 / the message box when mode !=
+  3/4, the BGM player, the title text, the UI flows always).
+- rhost: script_engine 61 calls (11 full-state, 49 guarded), begin 31, end 30, flag 251, leader 29, party
+  cast 13, cast add 13, actor by record 129 — 0 divergences.  Hybrid gate: 314 hooks, PASS.
+
 ## 2026-10-15 (noon) — the party characters' POSE handler 0x457ff0 runs as port code
 
 - `src/arche_pose.c`: Arche / Sana / 50012's pose handler (turn-around, the hit reactions with their voice
