@@ -173,7 +173,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x585000 | gw_cross_reference_585000 | 413 | game_world.c, game_world.h, world_tables_data.c (+1) |
 | 0x586010 | load_room_586010 | 6133 | asset_register.c, asset_register.h, game_world.h (+4) |
 | 0x587970 | sub_587970 | 866 | main.c, map_data.c, map_data.h (+5) |
-| 0x587e00 | sub_587E00 | 18059 | asset_register.h, collision.h, game_world.h (+6) |
+| 0x587e00 | sub_587E00 | 18059 | asset_register.h, collision.h, game_world.h (+7) |
 | 0x58c910 | game_bank_dims_58C910 | 347 | main.c, map_decode.c, map_grid.c (+1) |
 | 0x58ca80 | sub_58CA80 | 167 | map_decode.c, map_grid.c, map_grid.h |
 | 0x58cb30 | layer_hdr_u32_58CB30 | 1065 | map_decode.c, map_decode.h |

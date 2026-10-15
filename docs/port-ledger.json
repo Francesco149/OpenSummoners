@@ -10122,6 +10122,7 @@
     "src/map_data.h",
     "src/map_decode.c",
     "src/map_decode.h",
+    "src/room_load.h",
     "src/town_render.c",
     "src/town_render.h"
    ]

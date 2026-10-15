@@ -59,6 +59,7 @@
  *   FUN_00562d50  pool_head_delete
  *   FUN_0041dc90  room_formation       FUN_0041e020  char_follow_set
  *   FUN_004182d0  palette_tint         FUN_00587970  map_res_load
+ *   FUN_00587e00  map_decode_room      (the grid: map_decode.c)
  */
 #ifndef OSS_ROOM_LOAD_H
 #define OSS_ROOM_LOAD_H
@@ -140,5 +141,11 @@ void palette_tint(uint8_t *dst, const uint8_t *src, int32_t r, int32_t g, int32_
 /* 0x587970 (thiscall map resource): read DATA resource `id` of `hmod` into it (the 0x34-byte head,
  * the cells, the 60-byte object records and their four arrays); 0 when the resource is missing */
 int map_res_load(uint8_t *m, void *hmod, int32_t id);
+
+/* 0x587e00 (thiscall grid): decode the map resource object into the grid (map_decode.c) + the
+ * prologue's engine-side effects: the tileset's palette-remap tables (5..8 / 9..13; 5 / 6 / 8 also
+ * world+0x27a4 = 136 / 137 / 138), the time of day 0x8a93fc (0x56df10 on a change), the tileset
+ * banks sys+0x302 / +0x304 / +0x306 (the old one's frames flushed) */
+void map_decode_room(uint8_t *grid, uint8_t *mres, int32_t type, int32_t scene, int32_t tileset);
 
 #endif /* OSS_ROOM_LOAD_H */

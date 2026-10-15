@@ -3030,7 +3030,8 @@ static void bind_engine_calls(void)
     B(499ab0); B(4842c0); B(41a7f0); B(59cfc0);
     *(void **)&g_eng.flip_5b8fc0  = g_rh_flip_stub;    /* the virtual clock steps there */
     *(void **)&g_eng.easer_43d1d0 = g_rh_easer_stub;   /* the tick count (+ a camera hook chained behind) */
-    B(5ba120); B(5ba290); B(587e00); B(58d460);
+    B(5ba120); B(5ba290); B(58d460); B(417870); B(4118b0); B(56df10);
+    g_eng.tod = (int32_t *)(uintptr_t)0x8a93fcu;
     B(4178e0); B(417bc0); B(491770); B(418470); B(417c40); B(58e170);
     *(void **)&g_eng.find_res = iat_lookup("FindResourceA");
     *(void **)&g_eng.load_res = iat_lookup("LoadResource");

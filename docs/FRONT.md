@@ -57,6 +57,7 @@
   | the WORLD's construction / destruction + the entity frees | `0x4017d0` / `0x54bfb0` (REPLACE, in load_room) `0x401cb0` `0x54c2e0` `0x54c3c0` `0x401c70` | 16 / 16 / 1,016 (@16) / 1,664 / 416 / 512 | 0 |
   | room-setup leaves: leader, camera snap, zone reset, quest state, view record, state save, map-resource frees, pool-head free | `0x54bf90` `0x58e6a0` `0x58d0b0` `0x58d3b0` `0x58d210` `0x58e330` `0x5878a0` `0x59db70` `0x562d50` | 8,758 / 8,758 / 10 / 448 / 16 / 13 / 16 / 16 / 6 | 0 |
   | formation + follow set-up, actor state restore, palette tint, map resource load | `0x41dc90` `0x41e020` `0x41e600` `0x4182d0` `0x587970` | 16 / 71 / 452 / 34,304 / 16 | 0 |
+  | the map DECODE as port code: the existing grid decoder fed the retail map object + the prologue's engine-side effects | `0x587e00` | REPLACE (in load_room): all 16 room loads | – |
   Hybrid gate: with all of the above REPLACING retail (170 hooks) (the whole character tick, driver → tile
   movers, + the room loop's passes and per-tick calls, runs as port code), every corpus scenario ends byte-identical.
   Shadow guard (rhost): a port phase that reaches an external effect retail already performed (surface free,
@@ -74,8 +75,7 @@
   `g_eng.op_new`). Hybrid gate with all 12 movement functions replacing retail: PASS.
 - **Next (port side):**
   000. `load_room 0x586010` RUNS AS PORT CODE (`src/room_load.c`, REPLACE-verified; quirk #138), the world it makes /
-     frees too (`src/world_alloc.c`). Slots left under it: the map decode `0x587e00` (the port decode exists but
-     takes `map_data`: make it read the 0x40-byte map resource object; prove it full-state), the room population
+     frees too (`src/world_alloc.c`), and the map decode (`map_decode_room`). Slots left under it: the room population
      `0x58d460` (3.3 KB → the 27 KB character init `0x41f200`), the party member create `0x58e170` (→ `0x41f200`,
      `0x5b4530`), the palette chain (`0x4178e0` / `0x417bc0` / `0x491770` / `0x418470` / `0x417c40`), `0x56dc20`
      (Now Loading text + Flip: platform), `0x41a890`, `0x40e0c0`, the room-start script `0x40c380`, the joystick

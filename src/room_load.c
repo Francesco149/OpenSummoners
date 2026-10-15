@@ -5,6 +5,7 @@
 #include "room_load.h"
 
 #include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "camera_follow.h"
@@ -15,6 +16,8 @@
 #include "event.h"
 #include "gimmick.h"
 #include "grid_refresh.h"
+#include "map_data.h"
+#include "map_decode.h"
 #include "npc_ai.h"
 #include "rng.h"
 #include "room_loop.h"
@@ -619,6 +622,105 @@ int map_res_load(uint8_t *m, void *hmod, int32_t id)
     return 1;
 }
 
+/* the retail map resource object as the port decoder's map_data (borrowed buffers; only the layer
+ * array is the port's) */
+static map_layer *res_layers(map_data *md, const uint8_t *m)
+{
+    memset(md, 0, sizeof *md);
+    memcpy(md->maphdr, m, 0x34);
+    md->dim0 = (uint32_t)ld32(m, 0x20);
+    md->dim1 = (uint32_t)ld32(m, 0x24);
+    md->dim2 = (uint32_t)ld32(m, 0x28);
+    md->count = (uint32_t)ld32(m, 0x2c);
+    md->cells = ldp(m, 0x34);
+    md->cells_len = (size_t)md->dim0 * md->dim1 * md->dim2 * MD_CELL_SIZE;
+    map_layer *ly = md->count != 0 ? calloc(md->count, sizeof *ly) : NULL;
+    for (uint32_t i = 0; i < md->count && ly != NULL; i++) {
+        const uint8_t *rec = (const uint8_t *)ldp(m, 0x38) + 60u * i;
+        const uint8_t *arr = (const uint8_t *)ldp(m, 0x3c) + 16u * i;
+        memcpy(ly[i].hdr, rec, MD_LAYER_HDR);
+        ly[i].n_a = (uint32_t)ld32(rec, 0x1c);
+        ly[i].n_b = (uint32_t)ld32(rec, 0x20);
+        ly[i].n_c = (uint32_t)ld32(rec, 0x24);
+        ly[i].n_d = (uint32_t)ld32(rec, 0x28);
+        ly[i].a = ldp(arr, 0x0);
+        ly[i].b = ldp(arr, 0x4);
+        ly[i].c = ldp(arr, 0x8);
+        ly[i].d = ldp(arr, 0xc);
+    }
+    md->layers = ly;
+    return ly;
+}
+static void bank_dims(void *ctx, uint16_t bank, int32_t *w, int32_t *h)
+{
+    (void)ctx;
+    const void *p = ldp(g_eng.sys, 0xaac + 4u * bank);   /* the sprite slot (0x58c910 reads +0x20 / +0x24) */
+    *w = p != NULL ? ld32(p, 0x20) : 0;
+    *h = p != NULL ? ld32(p, 0x24) : 0;
+}
+static void slot_flush(void *slot)
+{
+    for (uint16_t i = 0; i < ld16(slot, 4); i++) g_eng.h417870(slot, i);
+}
+
+void map_decode_room(uint8_t *grid, uint8_t *mres, int32_t type, int32_t scene, int32_t tileset)
+{
+    map_decode_cfg cfg;
+    map_decode_cfg_init(&cfg, type, scene, tileset);
+    map_data md;
+    map_layer *ly = res_layers(&md, mres);
+    map_decode(&md, grid, &cfg, bank_dims, NULL);
+    free(ly);
+    /* the prologue's engine-side effects (they only follow the grid header, and nothing the decode
+     * reads depends on them): the tileset's palette-remap tables onto the 20 remap records (each
+     * changed one flushes its sprite slot's frames), the time of day, the three tileset banks */
+    const void *rm = NULL, *rm2 = NULL;
+    switch (tileset) {
+    case 5: rm = g_eng.data(0x675708u); g_world->f27a4 = 136; break;
+    case 6: rm = g_eng.data(0x675910u); g_world->f27a4 = 137; break;
+    case 7: rm = g_eng.data(0x675b18u); break;
+    case 8: rm = g_eng.data(0x675d20u); g_world->f27a4 = 138; break;
+    case 9: rm2 = g_eng.data(0x675f28u); break;
+    case 10: rm2 = g_eng.data(0x676130u); break;
+    case 11: rm2 = g_eng.data(0x676338u); break;
+    case 12: rm2 = g_eng.data(0x676540u); break;
+    case 13: rm2 = g_eng.data(0x676748u); break;
+    default: break;
+    }
+    /* the remap records (sys offsets, retail's order); each one's sprite slot is 3636 bytes below it */
+    static const uint16_t R1[6] = { 0x1ac4, 0x1ac8, 0x1acc, 0x1ad0, 0x1ad4, 0x1ad8 };
+    static const uint16_t R2[14] = { 0x1a70, 0x1a74, 0x1a78, 0x1a7c, 0x1a84, 0x1a80, 0x1a88,
+                                     0x1aa8, 0x1aac, 0x1ab0, 0x1ab4, 0x1ab8, 0x1abc, 0x1ac0 };
+    for (int k = 0; k < 6 + 14; k++) {
+        uint32_t off = k < 6 ? R1[k] : R2[k - 6];
+        const void *want = k < 6 ? rm : rm2;
+        uint8_t *rec = ldp(g_eng.sys, off);
+        if (ldp(rec, 8) == want) continue;
+        stp(rec, 8, want);
+        slot_flush(ldp(g_eng.sys, off - 3636));
+    }
+    if (*g_eng.tod != cfg.scene_norm) {
+        *g_eng.tod = cfg.scene_norm;
+        g_eng.h56df10(g_eng.sys);
+    }
+    uint16_t b0 = ld16(grid, 0x0), b4 = ld16(grid, 0x4), b10 = ld16(grid, 0x10);
+    uint16_t cur = ld16(g_eng.sys, 0x302);
+    if (cur != b0) {
+        if (cur != 0) slot_flush(ldp(g_eng.sys, 0xaac + 4u * cur));
+        st16(g_eng.sys, 0x302, b0);
+    }
+    cur = ld16(g_eng.sys, 0x304);
+    if (cur != b4) {
+        if (cur != 0) g_eng.h4118b0(ldp(g_eng.sys, 0xaac + 4u * cur));
+        st16(g_eng.sys, 0x304, b4);
+    }
+    cur = ld16(g_eng.sys, 0x306);
+    if (cur != b10) {
+        if (cur != 0) g_eng.h4118b0(ldp(g_eng.sys, 0xaac + 4u * cur));
+        st16(g_eng.sys, 0x306, b10);
+    }
+}
+
 /* the view's 27 draw pools: (record offset, capacity, buffer bytes = capacity x 60), in retail's
  * allocation order (record 0 stays empty) */
 static const struct { uint8_t off; uint16_t cap; uint32_t size; } POOLS[26] = {
@@ -893,7 +995,7 @@ int load_room(wl_roomloop *rl, wl_room *rooms, uint16_t nrooms, uint8_t *areas, 
         g_eng.h426110(g_eng.log, IP(S(0x8a2d8cu)), 1, IP(S(TRAILER)));   /* "The map data is not found. " */
         g_eng.h5bf5db(0);
     }
-    g_eng.h587e00(W->grid, IP(mr), ld32(rinfo, 0x110), loc, ld32(rinfo, 0x10c));
+    map_decode_room(W->grid, mr, ld32(rinfo, 0x110), loc, ld32(rinfo, 0x10c));
     g_eng.h58d460(rl, ld32(rinfo, 0), IP(mr));
     grid_refresh(W->grid, 1);
     map_res_free(mr);
