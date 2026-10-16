@@ -131,7 +131,8 @@ understates how much actual instruction volume is ported.
   | the SHOTS (per-part tick, init, the 96-band pickups, the room loop's band-64 tick + 30 helpers; decomp2c) | `0x4710c0` `0x55d140` `0x46da00` `0x590230` (+ `0x445ce0`..`0x55f150`) | 562@64 / 13 / 11,481 / 562; helpers 226,320 (`0x476550`) 13,958 12,503 5,292 | 0 |
   | the BEHAVIOUR layer: every slot of the AI tick `0x47b990` + callees (skill pick by range, attack windows, approach / retreat / leash, target checks, the path follower; decomp2c) | `0x47ecd0` `0x47adb0` `0x47ae00` `0x441f50` … (60) | 10,375 / 8,987 / 8,023 / 5,628 / 5,529 / 5,388 / 3,679 … (34 hooks with calls) | 0 |
   | the INTEGRATOR's reached handlers (monsters' skill bodies) + the ITEM / SKILL EFFECT + its value (decomp2c) | `0x455d80` `0x44d2e0` `0x4512d0` `0x4466b0` `0x467260` `0x456c60` / `0x5b3b00` `0x5b28a0` | 112,293@8 / 31,853@8 / 24,751@8 / 4 / 3 / – / 1 / 1 | 0 |
-  Hybrid gate (`corpus --check --hybrid`): with all of the above REPLACING retail (641 hooks) (the whole character tick, driver → tile
+  | the CHAPTER SCRIPTS the corpus reaches (34 of 35; decomp2c, unported callees as retail's own via `g_eng.retail`; `0x49f7c0` converted but OFF: rh-errands-items diverges from f7835) | `0x4d7d80` `0x4dc510` … `0x4c45a0` (~240 KB) | REPLACE (nested frame loops) | – |
+  Hybrid gate (`corpus --check --hybrid`): with all of the above REPLACING retail (675 hooks) (the whole character tick, driver → tile
   movers, + the room loop's passes and per-tick calls, runs as port code), every corpus scenario ends byte-identical
   — and on wine matches pure retail at EVERY 600-frame sample (the sem series, 2026-10-16: catches transient
   divergences a later room reload erases; it took pinning rhost's own footprint — asset DLL slots, host heap,
@@ -153,10 +154,11 @@ understates how much actual instruction volume is ported.
   `g_eng.op_new`). Hybrid gate with all 12 movement functions replacing retail: PASS.
 - **Next (port side):**
   0000. (2026-10-16 evening) the shots, the behaviour layer, the integrator's reached handlers + the item / skill
-     effect run as port code; the hybrid gate holds at every 600-frame sample (wine).  Next: the integrator's
+     effect + 34 chapter scripts run as port code; the hybrid gate holds at every 600-frame sample (wine).  Open:
+     chapter script `0x49f7c0` (errands f7835: 12-byte records at 0x20b60398.. differ).  Next: the integrator's
      UNREACHED handlers (`0x4539b0` 8.7 KB, `0x456d30`, `0x452730`, … — a recording that reaches them first); the
-     scene loop's `0x561560` / `0x561d20` (32 fns, 10 KB); the chapter scripts (`0x4b4d40` … 20+ KB each, the runner
-     `cls_401D40` is one of the 13 moved-field classes decomp2c now lays out right) after their ~40 small callees;
+     chapter scripts' ~60 small callees (now retail's own through `RC_`); the scene loop's `0x561560` /
+     `0x561d20` (file I/O underneath: keep the overlay in mind);
      the room loop's menu / game-over flow `0x591120` (131 fns, file I/O + BGM: later).  Loop: decomp2c module →
      wire → hooks → `verify` (shadow; sample hot helpers `@N`: full-state shadows of per-tick helpers crawl) →
      `corpus --check --hybrid` (wine: series; win: end) → `hookbisect` for a breaking hook.
