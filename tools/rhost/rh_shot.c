@@ -83,3 +83,26 @@ void rh_shot(const char *tag)
     free(rgb);
     rh_log("shot %s %dx%d %dbpp -> %s\n", tag, w, h, bpp, path);
 }
+
+/* --fb-hash: the composed back buffer at Flip entry, hashed (pixels only: rows of the visible width, the pitch
+ * padding left out) — pure vs hybrid runs then prove the RENDER, not just the state behind it. */
+int rh_fb_hash(uint64_t *out)
+{
+    uint32_t zdd = G32(g_ed->zdd);
+    uint32_t bb = zdd ? G32(zdd + 0x16c) : 0;
+    IDirectDrawSurface7 *s = bb ? (IDirectDrawSurface7 *)(uintptr_t)G32(bb + 0x2c) : NULL;
+    if (!s) return 0;
+    DDSURFACEDESC2 d; memset(&d, 0, sizeof d); d.dwSize = sizeof d;
+    if (IDirectDrawSurface7_Lock(s, NULL, &d, DDLOCK_WAIT | DDLOCK_READONLY, NULL) != DD_OK) return 0;
+    size_t rowb = (size_t)d.dwWidth * (d.ddpfPixelFormat.dwRGBBitCount / 8);
+    uint64_t h = 0xcbf29ce484222325ull ^ ((uint64_t)d.dwWidth << 32 | d.dwHeight);
+    for (DWORD y = 0; y < d.dwHeight; y++) {
+        const uint8_t *row = (const uint8_t *)d.lpSurface + (size_t)y * d.lPitch;
+        size_t x = 0;
+        for (; x + 8 <= rowb; x += 8) { uint64_t v; memcpy(&v, row + x, 8); h = (h ^ v) * 0x100000001b3ull; h ^= h >> 29; }
+        for (; x < rowb; x++) h = (h ^ row[x]) * 0x100000001b3ull;
+    }
+    IDirectDrawSurface7_Unlock(s, NULL);
+    *out = h;
+    return 1;
+}

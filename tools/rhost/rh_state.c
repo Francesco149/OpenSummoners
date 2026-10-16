@@ -54,6 +54,18 @@ static void build_ext_map(void)
         if (!hi || hi <= a) break;
         a = hi;
     }
+    /* the envelope: a gap of up to 4 MB between external mappings counts as external too (never a page rhost lays
+     * out itself).  Wine places a big system block (2 MB, a thread's heap segment) in whichever gap is free when the
+     * thread asks — two layouts across runs — and a plain integer (a byte tuple like 0x09090908) then fell inside
+     * the external map in one run only: semv differed from rh-combat f13200 to f51000 (the wine flake) */
+    uint32_t last = 0;
+    for (uint32_t pg = 0x10; pg < 0x100000u; pg++) {
+        if (!(g_ext[pg >> 3] >> (pg & 7) & 1)) continue;
+        if (last && pg > last && pg - last <= 0x400)
+            for (uint32_t q = last; q < pg; q++)
+                if (!rh_is_det_addr(q << 12)) g_ext[q >> 3] |= (uint8_t)(1u << (q & 7));
+        last = pg + 1;
+    }
 }
 /* --log-ext: where do masked values point? (largest external committed regions) */
 void rh_state_ext_report(void)

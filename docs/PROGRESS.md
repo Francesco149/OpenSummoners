@@ -6,6 +6,18 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-16 (night, 3) — the render gate; the wine flake named
+
+- rhost `--fb-hash`: every Flip's back buffer hashed and chained (RESULT `fb`, series lines `fb=`);
+  `corpus --bless/--check` always on (expected `fb`, wine `fb_series`).  Deterministic on both platforms
+  (Windows det r0 ≡ r1; two wine runs identical at every sample).  The 725-hook hybrid renders pixel-identical
+  to pure retail on every presented frame of all 9 scenarios (Windows end chain; wine every 600 frames).
+- The rare wine flake (rh-combat series f13200..f51000, end state equal — pure runs too): wine puts a 2 MB system
+  block in either of two free gaps by thread timing; semv's value mask (any value inside a non-deterministic
+  mapping) then hid 525 byte-tuple integers (0x09090908 …) in one layout only.  Fix: the external map is an
+  envelope (gaps ≤ 4 MB between external mappings count, never rhost's own pages).  Simulated on both
+  layouts' dumps: 0x8c5f…/0x072b… → one hash.  Wine series re-blessed.
+
 ## 2026-10-16 (night, 2) — the chapter scripts' callees
 
 - `src/script_helpers.c`: the 50 chapter-script callees whose closure has no file / sound / DirectX call (scene /

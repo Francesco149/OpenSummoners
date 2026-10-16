@@ -822,6 +822,7 @@ static void watch_str(char *wb, size_t n)
     size_t wo = 0; wb[0] = 0;
     for (int i = 0; i < O.n_watch; i++) wo += snprintf(wb + wo, n - wo, " %x=%d", O.watch[i], (int)G32(O.watch[i]));
 }
+static uint64_t g_fb_chain = 0xcbf29ce484222325ull; static uint32_t g_fb_n;   /* --fb-hash */
 /* runs at the ENTRY of every Flip (the frame's back buffer is complete): frame g_frame ends */
 static void __cdecl pre_flip(void)
 {
@@ -839,10 +840,16 @@ static void __cdecl pre_flip(void)
         rh_log("frame %u tick=%u vclock=%u rng=%08x cw=%04x creep=%u %s%s\n", g_frame, g_ticks, g_vclock,
                G32(g_ed->rng_seed), cw, g_creep_total, gb, wb);
     }
+    if (O.fb_hash) {
+        uint64_t fh;
+        if (rh_fb_hash(&fh)) { g_fb_chain = (g_fb_chain ^ fh) * 0x100000001b3ull; g_fb_n++; }
+    }
     if (O.hash_every && g_frame % O.hash_every == 0) {
         rh_hash_t h; rh_state_hash(&h);
-        rh_log("hash f%u full=%016llx sem=%016llx masked=%u semv=%016llx\n", g_frame, (unsigned long long)h.full,
-               (unsigned long long)h.semantic, h.masked, (unsigned long long)h.semv);
+        char fb[48] = "";
+        if (O.fb_hash) snprintf(fb, sizeof fb, " fb=%016llx", (unsigned long long)g_fb_chain);
+        rh_log("hash f%u full=%016llx sem=%016llx masked=%u semv=%016llx%s\n", g_frame, (unsigned long long)h.full,
+               (unsigned long long)h.semantic, h.masked, (unsigned long long)h.semv, fb);
     }
     if (g_frame >= O.frames) finish("frames");
     g_frame++;
@@ -875,9 +882,11 @@ static void finish(const char *why)
     rh_hash_t h; rh_state_hash(&h);
     LARGE_INTEGER q; QueryPerformanceCounter(&q);
     double ms = (q.QuadPart - g_t0.QuadPart) * 1000.0 / g_qf.QuadPart;
-    rh_log("RESULT status=%s reason=%s frame=%u tick=%u rng=%08x state_full=%016llx state_sem=%016llx state_semv=%016llx masked=%u state_bytes=%u wall_ms=%.0f fps=%.0f creep=%u %s\n",
+    char fb[64] = "";
+    if (O.fb_hash) snprintf(fb, sizeof fb, " fb=%016llx fb_frames=%u", (unsigned long long)g_fb_chain, g_fb_n);
+    rh_log("RESULT status=%s reason=%s frame=%u tick=%u rng=%08x state_full=%016llx state_sem=%016llx state_semv=%016llx masked=%u state_bytes=%u wall_ms=%.0f fps=%.0f creep=%u %s%s\n",
            !strcmp(why, "fatal") ? "fatal" : !strcmp(why, "game-exit") ? "exit" : "ok", why, g_frame, g_ticks, G32(g_ed->rng_seed), (unsigned long long)h.full,
-           (unsigned long long)h.semantic, (unsigned long long)h.semv, h.masked, h.bytes, ms, ms > 0 ? g_frame * 1000.0 / ms : 0.0, g_creep_total, rh_trace_status());
+           (unsigned long long)h.semantic, (unsigned long long)h.semv, h.masked, h.bytes, ms, ms > 0 ? g_frame * 1000.0 / ms : 0.0, g_creep_total, rh_trace_status(), fb);
     if (O.stall_ms) Sleep(O.stall_ms);
     if (g_logf) fclose(g_logf);
     ExitProcess(0);
@@ -922,6 +931,7 @@ static void parse(int argc, char **argv)
         else if (!strcmp(a, "--bgm-fail")) O.bgm_fail = (int)strtoul(ARG(), 0, 0);
         else if (!strcmp(a, "--shot-at")) parse_list(ARG(), O.shot_at, &O.n_shot, 64);
         else if (!strcmp(a, "--shot-every")) O.shot_every = strtoul(ARG(), 0, 0);
+        else if (!strcmp(a, "--fb-hash")) O.fb_hash = 1;
         else if (!strcmp(a, "--hash-every")) O.hash_every = strtoul(ARG(), 0, 0);
         else if (!strcmp(a, "--log-every")) O.log_every = strtoul(ARG(), 0, 0);
         else if (!strcmp(a, "--tail")) O.tail = strtoul(ARG(), 0, 0);

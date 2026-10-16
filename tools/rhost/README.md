@@ -78,6 +78,16 @@ flip), so the recorded trace replays to the identical semantic hash (verified 20
 0x8a9ef8). Verified: a deliberate host layout shift leaves every state hash unchanged. (Per-boot
 ASLR of ddraw/dinput/dsound/ole32/quartz does not move the hash either: `--perturb-dlls`.)
 
+**The render gate (`--fb-hash`, 2026-10-16):** at each Flip entry the composed back buffer (visible width,
+pitch padding left out) is hashed and chained: RESULT `fb=` / `fb_frames=`, `fb=` on the `--hash-every`
+lines. `corpus --bless/--check` always pass it (expected `fb`; wine also `fb_series`): pure ≡ hybrid in pixels
+on every presented frame. Deterministic per platform (wine ≠ Windows pixels, each stable run to run).
+
+**semv's external map is an envelope:** a gap of up to 4 MB between non-deterministic mappings counts as
+external too. Wine places a 2 MB system block in whichever gap is free when its thread asks (two layouts
+across runs), and a plain integer (a byte tuple like 0x09090908) then fell inside the map in one run only:
+rh-combat's wine series flaked f13200..f51000 (pure runs too). Re-blessed the wine series with the envelope.
+
 ## Hooks — port functions vs retail on identical state (`--hook shadow:NAME[@N],replace:NAME`)
 
 `rh_hooks.c` registry; port code is linked in, compiled with the port's own `-std`. RET hooks

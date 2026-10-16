@@ -37,6 +37,9 @@ state hash; ~830–1000 fps; no Frida, no pins. Editions: `enold` (port target) 
   **The hybrid gate** `corpus --check --hybrid` = every ported function REPLACING retail; on wine it also
   compares the state hash every 600 frames (`expected.wine.json` `sem_series`, `semv`) — transient
   divergences a room reload erases show there; `hookbisect SCEN --frames N` names the breaking hook.
+  **The render gate** (on by default in `corpus --bless/--check`): `--fb-hash` chains a hash of every Flip's
+  back buffer (`fb`, + `fb_series` on wine) — pure ≡ hybrid in PIXELS on every presented frame, the
+  verification for render ports (REPLACE; a shadow can't re-blit).
   Big functions: `tools/ida/decomp2c.py VA:name ...` first pass (keeps IDA's control flow / types / real class
   layouts, stack locals at their ebp offsets, ecx/edx call-site fixes) → review → wire → verify.
 - **Probes:** `--watch-write VA@FRAME` (who writes an address), `--trap VA` (registers),

@@ -3,9 +3,15 @@
  "tick": "0",
  "rng": "40d00581",
  "state_sem": "c4e2bca5c920f8c7",
+ "fb": "fffa65b01aa5d8ea",
  "sem_series": {
-  "0": "1ea81e058f933ba9",
-  "600": "60c9a556bc21726c",
-  "1200": "91a1b8316b0cf626"
+  "0": "0c0a2c4954e003b0",
+  "600": "db8b8e57569ff753",
+  "1200": "4d689d42f60e00f6"
+ },
+ "fb_series": {
+  "0": "0d67c7ca9c4fbc08",
+  "600": "3fe65ba07f3d360e",
+  "1200": "74bfaa3fe581aa6f"
  }
 }

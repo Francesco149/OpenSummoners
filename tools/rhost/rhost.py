@@ -167,6 +167,8 @@ def rhost_args(a, run_win, trace_win, edition):
         v = getattr(a, k, None)
         if v is not None and v != "":
             args += [flag, str(v)]
+    if getattr(a, "fb_hash", False):
+        args += ["--fb-hash"]
     if getattr(a, "coverage_file", None):
         args += ["--coverage", f"{run_win}\\coverage_in.txt"]
     if getattr(a, "show", False):
@@ -445,8 +447,19 @@ def sem_series(log, target="wine"):
     return out
 
 
+def fb_series(log):
+    """frame -> the back-buffer hash chain at that frame (`hash fN ... fb=` lines; --fb-hash with --hash-every)"""
+    out = {}
+    if os.path.exists(log):
+        for m in re.finditer(r"^hash f(\d+) .* fb=(\w+)", open(log, errors="replace").read(), re.M):
+            out[m.group(1)] = m.group(2)
+    return out
+
+
 def cmd_corpus(a):
     names = all_scenarios(a.only)
+    if a.bless or a.check:
+        a.fb_hash = True   # the render gate: every presented frame's pixels, chained (expected "fb" / "fb_series")
     if getattr(a, "hybrid", False):     # the hybrid gate: every ported function REPLACES retail
         hs = hybrid_hooks()
         a.hook = ",".join(["replace:" + h for h in hs] + ([a.hook] if a.hook else []))
@@ -461,19 +474,26 @@ def cmd_corpus(a):
     print_results(res, names)
     done = sum(1 for n in names if res.get(n, {}).get("complete") == "1")
     print(f"CORPUS: {done}/{len(names)} complete; results in {bdir}")
-    keys = ("frame", "tick", "rng", "state_sem")
+    keys = ("frame", "tick", "rng", "state_sem", "fb")
     bad = 0
     for n in names:
         ep = os.path.join(SCEN, n, "expected.json" if getattr(a, "target", "win") == "win" else f"expected.{a.target}.json")
         got = {k: res.get(n, {}).get(k) for k in keys}
         series = sem_series(os.path.join(bdir, n, "rhost.log"), getattr(a, "target", "win"))
+        fbs = fb_series(os.path.join(bdir, n, "rhost.log"))
         if a.bless and res.get(n, {}).get("status") == "ok":
             if series and a.hash_every == SERIES_EVERY:
                 got["sem_series"] = series
-            json.dump(got, open(ep, "w"), indent=1); continue
+            if fbs and a.hash_every == SERIES_EVERY:
+                got["fb_series"] = fbs
+            json.dump({k: v for k, v in got.items() if v is not None}, open(ep, "w"), indent=1); continue
         if a.check and os.path.exists(ep):
             exp = json.load(open(ep))
-            diff = {k: (exp.get(k), got[k]) for k in keys if exp.get(k) != got[k]}
+            diff = {k: (exp.get(k), got[k]) for k in keys if (k in exp or k != "fb") and exp.get(k) != got[k]}
+            ef = exp.get("fb_series") or {}
+            ff = next((f for f in sorted(ef, key=int) if f in fbs and fbs[f] != ef[f]), None)
+            if ff is not None:   # the earliest sampled frame by which a presented frame's pixels differ
+                diff[f"fb@f{ff}"] = (ef[ff], fbs[ff])
             es = exp.get("sem_series") or {}
             first = next((f for f in sorted(es, key=int) if f in series and series[f] != es[f]), None)
             if first is not None:   # the earliest frame whose state differs (+ how many sampled frames differ)
@@ -753,7 +773,8 @@ def cmd_hookbisect(a):
     tr, save, ed = scenario_inputs(a.scenario)
     # wine: semv (blind to system-heap values); Windows: state_sem only at a scenario's end (mid-run it is not
     # stable there: system pointers the end-state calibration never saw)
-    keys = ("frame", "tick", "rng") + (("state_semv",) if a.target == "wine" else () if a.frames else ("state_sem",))
+    keys = ("frame", "tick", "rng") + (("state_semv",) if a.target == "wine" else () if a.frames else ("state_sem",)) \
+        + (("fb",) if getattr(a, "fb_hash", False) else ())
     rnd = 0
     while True:
         rnd += 1
@@ -827,6 +848,7 @@ def main():
         p.add_argument("--hash-every", type=int)
         p.add_argument("--log-every", type=int)
         p.add_argument("--stall-ms", type=int)
+        p.add_argument("--fb-hash", action="store_true", help="chain a hash of every Flip's back buffer (RESULT fb=; the render gate)")
         p.add_argument("--edition", choices=sorted(EXES))
         p.add_argument("--show", action="store_true")
         p.add_argument("-j", "--jobs", type=int, default=8)
