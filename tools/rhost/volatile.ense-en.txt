@@ -1,6 +1,9 @@
 # rhost volatile addresses: slots that hold system-DLL/COM pointers (masked in state_sem).
 # Learned by `rhost.py det SCEN --calibrate` (only diffs that are external pointers in BOTH runs).
+# + 2026-10-16: the sotesd data-file HMODULE (.data 0x92b21c + the 14 resource records' copies): wine maps it
+#   just above rhost's image, so it moves with rhost's size (run-stable, so calibration on wine misses it)
 0092b218
+0092b21c
 0092b224
 0092b234
 200194ec
@@ -22,6 +25,20 @@
 20037d2c
 20037dbc
 20037e4c
+20037edc
+20037f6c
+20037ffc
+2003808c
+2003811c
+200381ac
+2003823c
+200382cc
+2003835c
+200383ec
+2003847c
+2003850c
+2003859c
+2003862c
 200397d0
 2003aac0
 2003aaf0
