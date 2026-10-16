@@ -471,7 +471,8 @@ def convert(text, names, widths, this):
         RETAIL.add(va)   # unported: a typed call of retail's own function (g_eng.retail: rhost = identity)
         return f"RC_{va:06x}("
     s = re.sub(r"\b(?:sub|[A-Za-z_]+?)_([0-9A-F]{6})\(", lambda m: call(m) if re.match(r"(sub|\w+)_[0-9A-F]{6}\(", m.group(0)) else m.group(0), s)
-    s = re.sub(r"\(cls_\w+ \*+\)", "", s)
+    s = re.sub(r"\(cls_\w+ \*\*+\)", "(intptr_t *)", s)   # a pointer to class pointers: its deref is a dword load
+    s = re.sub(r"\(cls_\w+ \*\)", "", s)
     # a pointer cast under arithmetic scales it (`(_BYTE *)v + 2` = 2 bytes): kept, as the C type
     CT = {"_DWORD": "int32_t", "_WORD": "uint16_t", "_BYTE": "uint8_t", "int": "int32_t", "char": "uint8_t",
           "unsigned __int16": "uint16_t", "__int16": "int16_t", "unsigned int": "uint32_t", "void": "uint8_t"}
