@@ -62,6 +62,7 @@
 #include "shots.h"
 #include "behave_helpers.h"
 #include "char_handlers.h"
+#include "script_helpers.h"
 #include "chapter_scripts.h"
 #include "room_tick.h"
 #include "ui_core.h"
@@ -290,6 +291,23 @@ typedef struct {
     X(H_CS4BE220, "chs_4be220", 0x4be220u) X(H_CS4C1A30, "chs_4c1a30", 0x4c1a30u) X(H_CS4C1C20, "chs_4c1c20", 0x4c1c20u) \
     X(H_CS4C2310, "chs_4c2310", 0x4c2310u) X(H_CS4C29C0, "chs_4c29c0", 0x4c29c0u) X(H_CS4C2DC0, "chs_4c2dc0", 0x4c2dc0u) \
     X(H_CS4C3EE0, "chs_4c3ee0", 0x4c3ee0u) X(H_CS4C45A0, "chs_4c45a0", 0x4c45a0u) \
+    X(H_SC401D80, "sc_401d80", 0x401d80u) X(H_SC402030, "sc_402030", 0x402030u) X(H_SC4020A0, "sc_4020a0", 0x4020a0u) \
+    X(H_SC4024E0, "sc_4024e0", 0x4024e0u) X(H_SC402610, "sc_402610", 0x402610u) X(H_SC402F40, "sc_402f40", 0x402f40u) \
+    X(H_SC406500, "sc_406500", 0x406500u) X(H_SC406AB0, "sc_406ab0", 0x406ab0u) X(H_SC406C70, "sc_406c70", 0x406c70u) \
+    X(H_SC41A3A0, "sc_41a3a0", 0x41a3a0u) X(H_SC41E2B0, "sc_41e2b0", 0x41e2b0u) X(H_SC41E340, "sc_41e340", 0x41e340u) \
+    X(H_SC41EB30, "sc_41eb30", 0x41eb30u) X(H_SC41ECE0, "sc_41ece0", 0x41ece0u) X(H_SC41EFE0, "sc_41efe0", 0x41efe0u) \
+    X(H_SC41F050, "sc_41f050", 0x41f050u) X(H_SC439510, "sc_439510", 0x439510u) X(H_SC439560, "sc_439560", 0x439560u) \
+    X(H_SC49CF60, "sc_49cf60", 0x49cf60u) X(H_SC49CF80, "sc_49cf80", 0x49cf80u) X(H_SC49E250, "sc_49e250", 0x49e250u) \
+    X(H_SC49E6C0, "sc_49e6c0", 0x49e6c0u) X(H_SC4A5E40, "sc_4a5e40", 0x4a5e40u) X(H_SC4A5E70, "sc_4a5e70", 0x4a5e70u) \
+    X(H_SC4A5EA0, "sc_4a5ea0", 0x4a5ea0u) X(H_SC4A5EC0, "sc_4a5ec0", 0x4a5ec0u) X(H_SC4A5F80, "sc_4a5f80", 0x4a5f80u) \
+    X(H_SC4A63D0, "sc_4a63d0", 0x4a63d0u) X(H_SC4AC610, "sc_4ac610", 0x4ac610u) X(H_SC4AC660, "sc_4ac660", 0x4ac660u) \
+    X(H_SC4B3B10, "sc_4b3b10", 0x4b3b10u) X(H_SC4B3F30, "sc_4b3f30", 0x4b3f30u) X(H_SC402F60, "sc_402f60", 0x402f60u) \
+    X(H_SC4B4570, "sc_4b4570", 0x4b4570u) X(H_SC4BBE00, "sc_4bbe00", 0x4bbe00u) X(H_SC4BBE40, "sc_4bbe40", 0x4bbe40u) \
+    X(H_SC4BBE80, "sc_4bbe80", 0x4bbe80u) X(H_SC4C5300, "sc_4c5300", 0x4c5300u) X(H_SC4CBFB0, "sc_4cbfb0", 0x4cbfb0u) \
+    X(H_SC4CBFD0, "sc_4cbfd0", 0x4cbfd0u) X(H_SC41F000, "sc_41f000", 0x41f000u) X(H_SC4CBFF0, "sc_4cbff0", 0x4cbff0u) \
+    X(H_SC4CC010, "sc_4cc010", 0x4cc010u) X(H_SC4CC030, "sc_4cc030", 0x4cc030u) X(H_SC4CC250, "sc_4cc250", 0x4cc250u) \
+    X(H_SC4CC470, "sc_4cc470", 0x4cc470u) X(H_SC4CCA20, "sc_4cca20", 0x4cca20u) X(H_SC4CCA50, "sc_4cca50", 0x4cca50u) \
+    X(H_SC4D6490, "sc_4d6490", 0x4d6490u) X(H_SC5B4330, "sc_5b4330", 0x5b4330u) \
     X(H_BOOK, "book_read", 0x40dbc0u) X(H_SSETFREE, "sprite_set_free", 0x410300u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
@@ -3420,6 +3438,7 @@ static int __attribute__((noinline)) full_shadow_gx(hook_t *h, const char *name,
     static void ID##_p(void *c) { gx_ctx *x = c; port_world(); x->rp = ID##_port(GX##N); }           \
     static intptr_t __attribute__((stdcall)) ID##_w(GP##N)                                           \
     { hook_t *h = &H[ID]; gx_ctx x = { 0, { GA##N }, 0, 0 }; GX_TAIL(ID, NAME, CMP) }
+#define ST_HOOK0(ID, NAME, CMP, PORT)                                                                    typedef intptr_t (__attribute__((stdcall)) *ID##_t)(void);                                           static intptr_t ID##_port(void) { PORT; }                                                            static void ID##_r(void *c) { gx_ctx *x = c; x->rr = ((ID##_t)(uintptr_t)H[ID].va)(); }                static void ID##_p(void *c) { gx_ctx *x = c; port_world(); x->rp = ID##_port(); }                    static intptr_t __attribute__((stdcall)) ID##_w(void)                                                { hook_t *h = &H[ID]; gx_ctx x = { 0, { 0 }, 0, 0 }; GX_TAIL(ID, NAME, CMP) }
 #define CP(v) ((const void *)(v))
 #define U16(v) ((uint16_t)(v))
 TC_HOOK(H_CD_SKFIND, "char_skill_find", 1, 1, return (intptr_t)char_skill_find(self, U16(a1)))
@@ -4241,6 +4260,58 @@ TC_HOOK0(H_CS4C29C0, "chs_4c29c0", 1, return (intptr_t)chs_4c29c0((wl_char *)sel
 TC_HOOK0(H_CS4C2DC0, "chs_4c2dc0", 1, return (intptr_t)chs_4c2dc0((wl_char *)self))
 TC_HOOK0(H_CS4C3EE0, "chs_4c3ee0", 1, return (intptr_t)chs_4c3ee0((wl_char *)self))
 TC_HOOK0(H_CS4C45A0, "chs_4c45a0", 1, return (intptr_t)chs_4c45a0((wl_char *)self))
+/* the chapter scripts' file / sound / DirectX-free callees (src/script_helpers.c; 0x4a5e40 0x4cbfb0 0x4cbfd0 0x4d6490
+ * read their caller's ecx: thiscall wrappers) */
+ST_HOOK(H_SC401D80, "sc_401d80", 3, 1, return (intptr_t)sc_401d80(a1, a2, a3))
+TC_HOOK0(H_SC402030, "sc_402030", 1, return (intptr_t)sc_402030((wl_char *)self))
+TC_HOOK(H_SC4020A0, "sc_4020a0", 8, 0, sc_4020a0((wl_char *)self, a1, a2, a3, a4, a5, a6, a7, a8); return 0)
+TC_HOOK(H_SC4024E0, "sc_4024e0", 6, 0, sc_4024e0((wl_char *)self, a1, a2, a3, a4, a5, a6); return 0)
+TC_HOOK(H_SC402610, "sc_402610", 5, 0, sc_402610((wl_char *)self, a1, a2, a3, a4, a5); return 0)
+TC_HOOK0(H_SC402F40, "sc_402f40", 1, return (intptr_t)sc_402f40((wl_char *)self))
+TC_HOOK(H_SC406500, "sc_406500", 2, 1, return (intptr_t)sc_406500((wl_char *)self, a1, a2))
+TC_HOOK(H_SC406AB0, "sc_406ab0", 4, 1, return (intptr_t)sc_406ab0((wl_char *)self, a1, a2, a3, a4))
+ST_HOOK(H_SC406C70, "sc_406c70", 5, 1, return (intptr_t)sc_406c70(a1, a2, a3, U16(a4), a5))
+TC_HOOK(H_SC41A3A0, "sc_41a3a0", 1, 1, return (intptr_t)sc_41a3a0((wl_char *)self, a1))
+TC_HOOK(H_SC41E2B0, "sc_41e2b0", 1, 1, return (intptr_t)sc_41e2b0((wl_char *)self, a1))
+ST_HOOK(H_SC41E340, "sc_41e340", 2, 1, return (intptr_t)sc_41e340(a1, a2))
+ST_HOOK(H_SC41EB30, "sc_41eb30", 1, 0, sc_41eb30(a1); return 0)
+TC_HOOK(H_SC41ECE0, "sc_41ece0", 6, 1, return (intptr_t)sc_41ece0((wl_char *)self, a1, a2, a3, a4, a5, a6))
+ST_HOOK(H_SC41EFE0, "sc_41efe0", 2, 1, return (intptr_t)sc_41efe0(a1, a2))
+ST_HOOK(H_SC41F050, "sc_41f050", 2, 1, return (intptr_t)sc_41f050(a1, a2))
+TC_HOOK(H_SC439510, "sc_439510", 1, 1, return (intptr_t)sc_439510((wl_char *)self, a1))
+TC_HOOK(H_SC439560, "sc_439560", 1, 1, return (intptr_t)sc_439560((wl_char *)self, a1))
+ST_HOOK(H_SC49CF60, "sc_49cf60", 1, 1, return (intptr_t)sc_49cf60(a1))
+ST_HOOK(H_SC49CF80, "sc_49cf80", 2, 0, sc_49cf80(0, 0, a1, a2); return 0)   /* (fastcall: ecx / edx unread, stack = a3 a4) */
+TC_HOOK0(H_SC49E250, "sc_49e250", 1, return (intptr_t)sc_49e250((wl_char *)self))
+TC_HOOK0(H_SC49E6C0, "sc_49e6c0", 1, return (intptr_t)sc_49e6c0((wl_char *)self))
+TC_HOOK(H_SC4A5E40, "sc_4a5e40", 3, 1, return (intptr_t)sc_4a5e40((intptr_t)self, a1, a2, a3))
+TC_HOOK(H_SC4A5E70, "sc_4a5e70", 4, 1, return (intptr_t)sc_4a5e70((wl_char *)self, a1, a2, a3, a4))
+TC_HOOK0(H_SC4A5EA0, "sc_4a5ea0", 1, return (intptr_t)sc_4a5ea0((wl_char *)self))
+TC_HOOK0(H_SC4A5EC0, "sc_4a5ec0", 1, return (intptr_t)sc_4a5ec0((wl_char *)self))
+TC_HOOK(H_SC4A5F80, "sc_4a5f80", 1, 1, return (intptr_t)sc_4a5f80((wl_char *)self, a1))
+TC_HOOK(H_SC4A63D0, "sc_4a63d0", 1, 1, return (intptr_t)sc_4a63d0((wl_char *)self, a1))
+TC_HOOK(H_SC4AC610, "sc_4ac610", 6, 1, return (intptr_t)sc_4ac610((wl_char *)self, a1, a2, a3, a4, a5, a6))
+TC_HOOK(H_SC4AC660, "sc_4ac660", 2, 1, return (intptr_t)sc_4ac660((wl_char *)self, a1, (char *)a2))
+ST_HOOK0(H_SC4B3B10, "sc_4b3b10", 1, return (intptr_t)sc_4b3b10())
+TC_HOOK0(H_SC4B3F30, "sc_4b3f30", 1, return (intptr_t)sc_4b3f30((wl_char *)self))
+TC_HOOK(H_SC402F60, "sc_402f60", 2, 1, return (intptr_t)sc_402f60((wl_char *)self, (char *)a1, (char *)a2))
+TC_HOOK0(H_SC4B4570, "sc_4b4570", 1, return (intptr_t)sc_4b4570((wl_char *)self))
+TC_HOOK(H_SC4BBE00, "sc_4bbe00", 5, 0, sc_4bbe00((wl_char *)self, a1, a2, a3, a4, a5); return 0)
+TC_HOOK(H_SC4BBE40, "sc_4bbe40", 8, 0, sc_4bbe40((wl_char *)self, a1, a2, a3, a4, a5, a6, a7, a8); return 0)
+ST_HOOK(H_SC4BBE80, "sc_4bbe80", 2, 1, return (intptr_t)sc_4bbe80((int32_t *)a1, (int32_t *)a2))
+ST_HOOK(H_SC4C5300, "sc_4c5300", 1, 0, sc_4c5300(a1); return 0)
+TC_HOOK(H_SC4CBFB0, "sc_4cbfb0", 2, 1, return (intptr_t)sc_4cbfb0((intptr_t)self, a1, a2))
+TC_HOOK(H_SC4CBFD0, "sc_4cbfd0", 2, 1, return (intptr_t)sc_4cbfd0((intptr_t)self, a1, a2))
+ST_HOOK(H_SC41F000, "sc_41f000", 2, 1, return (intptr_t)sc_41f000(a1, a2))
+TC_HOOK(H_SC4CBFF0, "sc_4cbff0", 2, 1, return (intptr_t)sc_4cbff0((wl_char *)self, a1, a2))
+TC_HOOK(H_SC4CC010, "sc_4cc010", 2, 1, return (intptr_t)sc_4cc010((wl_char *)self, a1, a2))
+TC_HOOK(H_SC4CC030, "sc_4cc030", 3, 1, return (intptr_t)sc_4cc030((wl_char *)self, a1, a2, a3))
+TC_HOOK(H_SC4CC250, "sc_4cc250", 2, 1, return (intptr_t)sc_4cc250((wl_char *)self, a1, a2))
+TC_HOOK(H_SC4CC470, "sc_4cc470", 3, 1, return (intptr_t)sc_4cc470((wl_char *)self, a1, a2, a3))
+TC_HOOK(H_SC4CCA20, "sc_4cca20", 2, 1, return (intptr_t)sc_4cca20((wl_char *)self, a1, a2))
+TC_HOOK(H_SC4CCA50, "sc_4cca50", 2, 1, return (intptr_t)sc_4cca50((wl_char *)self, a1, (int16_t)a2))
+TC_HOOK(H_SC4D6490, "sc_4d6490", 2, 1, return (intptr_t)sc_4d6490((intptr_t)self, a1, a2))
+ST_HOOK(H_SC5B4330, "sc_5b4330", 4, 1, return (intptr_t)sc_5b4330(a1, a2, a3, a4))
 /* the book reader (a frame loop) + the sprite set free (surface frees) — REPLACE only */
 TC_HOOK(H_BOOK, "book_read", 1, 1, return book_read(self, CP(a1)))
 TC_HOOK(H_SSETFREE, "sprite_set_free", 1, 0, sprite_set_free(self, U16(a1)); return 0)

@@ -270,11 +270,12 @@ CLSPTR = []
 
 TYPEMAP = [("unsigned __int16", "uint16_t"), ("__int16", "int16_t"), ("unsigned int", "uint32_t"),
            ("unsigned __int8", "uint8_t"), ("_DWORD", "int32_t"), ("_WORD", "uint16_t"), ("_BYTE", "uint8_t"),
-           ("__int64", "int64_t"), ("unsigned __int64", "uint64_t"), ("char", "char"), ("bool", "int"), ("int", "int32_t")]
+           ("__int64", "int64_t"), ("unsigned __int64", "uint64_t"), ("char", "char"), ("unsigned char", "uint8_t"), ("bool", "int"), ("int", "int32_t")]
 
 
 def map_type(t):
-    t = t.strip()
+    t = re.sub(r"\b(const|volatile)\s+", "", t.strip()).strip()   # qualifiers: the pointer stays a pointer
+    t = re.sub(r"\bCHAR\b", "char", t)
     if t.startswith("cls_") or t.startswith("struct ") or t.startswith("_UNKNOWN"):
         n = t.count("*")
         if n >= 2:   # a pointer to class pointers: a table of 4-byte slots
@@ -497,6 +498,8 @@ def convert(text, names, widths, this):
     for part, (acc, add) in (("LOWORD", ("F16", 0)), ("HIWORD", ("F16", 2)), ("LOBYTE", ("F8", 0)), ("BYTE1", ("F8", 1)),
                              ("BYTE2", ("F8", 2)), ("HIBYTE", ("F8", 3))):   # a part of a field: the narrower field
         s = re.sub(r"\b%s\(%s\)" % (part, fa), lambda m, acc=acc, add=add: f"{acc}({m.group(2)}, {m.group(3)}{f' + {add}' if add else ''})", s)
+    s = re.sub(r"(\+\+|--)HIDWORD\((\w+)\)", lambda m: f"(({m.group(2)}) {'+' if m.group(1) == '++' else '-'}= 0x100000000ll)", s)
+    s = re.sub(r"(\+\+|--)LOWORD\((\w+)\)", lambda m: f"SETLO({m.group(2)}, (uint16_t)({m.group(2)}) {'+' if m.group(1) == '++' else '-'} 1)", s)
     SETS = {"LOWORD": "SETLO", "HIWORD": "SETHI", "LOBYTE": "SETLB", "LODWORD": "SETLODW", "HIDWORD": "SETHIDW"}
     out, pos = [], 0
     for m in re.finditer(r"\b(LOWORD|HIWORD|LOBYTE|LODWORD|HIDWORD)\((\w+)\) = ", s):
@@ -532,12 +535,13 @@ def convert(text, names, widths, this):
     for _, t, n, cnt in ARRAYS:   # a stack array lives in frame_ through a pointer: its sizeof is the array's
         s = re.sub(r"\bsizeof\(%s\)" % re.escape(n), f"({cnt} * sizeof({t}))", s)
     # retail's log 0x406440 inlined (OutputDebugStringA x 3 + the dated line appended to the log file)
-    s = re.sub(r"OutputDebugStringA\(([^;]+)\);\s*OutputDebugStringA\(([^;]+)\);\s*OutputDebugStringA\(OutputString\);\s*"
+    s = re.sub(r"OutputDebugStringA\(([^;]+)\);\s*OutputDebugStringA\(([^;]+)\);\s*OutputDebugStringA\((?:::)?OutputString\);\s*"
                r"(\w+) = fopen\(stru_8A9530\.path, Mode\);\s*if \( \3 != 0 \)\s*\{\s*GetLocalTime\(&SystemTime\);\s*"
                r"fprintf\(.*?\);\s*fclose\(\3\);\s*\}",
                r"g_eng.log_fail_406440(g_eng.log, (const char *)(\1), (const char *)(\2));", s, flags=re.S)
-    s = re.sub(r"(\w+) = GetLastError\(\);.*?g_eng\.log_fail_406440\(\(const char \*\)(?:D\(0x8a9530\)|\(\(intptr_t\)g_eng\.log\)), (D\(0x[0-9a-f]+\)), D\(0x8a9b6c\)\);",
-               r"g_eng.h426110(g_eng.log, (intptr_t)\2, 1, (intptr_t)D(0x8a9b6c));   /* the error box 0x426110, inlined */", s, flags=re.S)
+    s = re.sub(r"(\w+) = GetLastError\(\);.*?g_eng\.log_fail_406440\((?:\(const char \*\)(?:D\(0x8a9530\)|\(\(intptr_t\)g_eng\.log\)), (D\(0x[0-9a-f]+\)), D\(0x8a9b6c\)"
+               r"|g_eng\.log, \(const char \*\)\((D\(0x[0-9a-f]+\))\), \(const char \*\)\(D\(0x8a9b6c\)\))\);",
+               lambda m: f"g_eng.h426110(g_eng.log, (intptr_t){m.group(2) or m.group(3)}, 1, (intptr_t)D(0x8a9b6c));   /* the error box 0x426110, inlined */", s, flags=re.S)
     for _, t, n in FRAMEVARS:   # (last: the patterns above see IDA's names)
         s = re.sub(r"(?<![\w.>])%s\b" % re.escape(n), f"(*{n}__f)", s)
     return head, s
@@ -577,6 +581,8 @@ typedef uint16_t _WORD;
 typedef uint8_t _BYTE;
 typedef uint64_t _QWORD;
 #define GAP(p, o, i) F8(p, (o) + (i))   /* IDA's gapN[i]: the byte at +N + i */
+#define qmemcpy memcpy   /* IDA's inline memcpy */
+typedef char CHAR;
 #define SETLO(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff0000u) | (uint16_t)(v)))
 #define SETHI(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffu) | ((uint32_t)(uint16_t)(v) << 16)))
 #define SETLB(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffff00u) | (uint8_t)(v)))
@@ -720,8 +726,12 @@ def main():
                 if vcc == "stdcall" and len(args) == n - 1 and ecx_in(a.edition, wv, sizes.get(wv, 0)):
                     vcc = "thiscall"   # the port takes the ecx this IDA-__stdcall callee reads as its first parameter
             if vcc == "fastcall" and len(args) == n + 1 and len(args) >= 2:
-                out.append(f[pos:args[0][1]] + ", /*edx*/")   # skip IDA's edx argument
-                pos = args[1][1] + 1
+                if len(args) == 2:   # the edx one is the last: keep the closing paren
+                    out.append(f[pos:args[0][1]] + " /*edx*/")
+                    pos = args[1][1]
+                else:
+                    out.append(f[pos:args[0][1]] + ", /*edx*/")   # skip IDA's edx argument
+                    pos = args[1][1] + 1
             elif vcc == "thiscall" and len(args) == n - 1:
                 out.append(f[pos:m.end()] + tex + (", " if args else ""))
                 pos = m.end()

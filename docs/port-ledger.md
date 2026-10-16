@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **935** (60.2% of engine-proper) — tested 249, ported 686
-- code bytes touched: **58.0%** (1,029,899 / 1,776,526 B of engine-proper)
-- unported: **889**
+- touched: **985** (63.4% of engine-proper) — tested 249, ported 736
+- code bytes touched: **58.8%** (1,044,748 / 1,776,526 B of engine-proper)
+- unported: **839**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (686) — reimplemented, no host test yet
+## ported (736) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -282,22 +282,32 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x401c70 | sub_401C70 | 54 | world_alloc.h |
 | 0x401cb0 | sub_401CB0 | 140 | world_alloc.h |
 | 0x401d40 | sub_401D40 | 49 | scene_cmd.h |
+| 0x401d80 | sub_401D80 | 100 | script_helpers.h |
 | 0x401e60 | sub_401E60 | 232 | scene_cmd.h |
 | 0x401f50 | sub_401F50 | 222 | script_engine.h |
+| 0x402030 | sub_402030 | 44 | script_helpers.h |
 | 0x402060 | sub_402060 | 62 | script_engine.h |
+| 0x4020a0 | sub_4020A0 | 503 | script_helpers.h |
 | 0x4022a0 | sub_4022A0 | 47 | npc_ai.h |
 | 0x4022d0 | sub_4022D0 | 88 | room_load.h |
 | 0x402330 | sub_402330 | 431 | scene_cmd.h |
+| 0x4024e0 | sub_4024E0 | 290 | script_helpers.h |
+| 0x402610 | sub_402610 | 277 | script_helpers.h |
 | 0x402730 | sub_402730 | 344 | scene_cmd.h |
 | 0x402a60 | sub_402A60 | 435 | char_state.h |
 | 0x402d40 | sub_402D40 | 470 | scene_cmd.h |
 | 0x402f20 | sub_402F20 | 21 | script_engine.h |
+| 0x402f40 | sub_402F40 | 21 | script_helpers.h |
+| 0x402f60 | sub_402F60 | 412 | script_helpers.h |
 | 0x403100 | sub_403100 | 181 | scene_cmd.h |
 | 0x405e80 | sub_405E80 | 577 | scene_cmd.h |
 | 0x4060d0 | sub_4060D0 | 241 | char_state.h |
 | 0x4061d0 | sub_4061D0 | 55 | scene_cmd.h |
 | 0x406210 | sub_406210 | 555 | scene_cmd.h |
+| 0x406500 | sub_406500 | 454 | script_helpers.h |
 | 0x4066d0 | sub_4066D0 | 989 | party_member.h |
+| 0x406ab0 | sub_406AB0 | 442 | script_helpers.h |
+| 0x406c70 | sub_406C70 | 587 | script_helpers.h |
 | 0x406ec0 | sub_406EC0 | 813 | party_member.h |
 | 0x4071f0 | sub_4071F0 | 196 | party_member.h |
 | 0x4072c0 | sub_4072C0 | 85 | char_def.h |
@@ -405,6 +415,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x419c00 | sub_419C00 | 110 | scene_loop.h |
 | 0x41a140 | sub_41A140 | 28 | room_loop.h |
 | 0x41a2a0 | sub_41A2A0 | 254 | scene_cmd.h |
+| 0x41a3a0 | sub_41A3A0 | 136 | script_helpers.h |
 | 0x41a7f0 | sub_41A7F0 | 152 | scene_loop.h |
 | 0x41c280 | sub_41C280 | 112 | ui_core.h |
 | 0x41d190 | sub_41D190 | 779 | scene_cmd.h |
@@ -413,14 +424,21 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x41e020 | sub_41E020 | 70 | room_load.h |
 | 0x41e180 | sub_41E180 | 244 | char_state.h |
 | 0x41e280 | sub_41E280 | 47 | char_def.h |
+| 0x41e2b0 | sub_41E2B0 | 63 | script_helpers.h |
 | 0x41e2f0 | sub_41E2F0 | 66 | script_engine.h |
+| 0x41e340 | sub_41E340 | 21 | script_helpers.h |
 | 0x41e360 | sub_41E360 | 219 | entity_life.h |
 | 0x41e440 | sub_41E440 | 125 | char_def.h |
 | 0x41e600 | sub_41E600 | 907 | actor_ops.h |
 | 0x41ea70 | sub_41EA70 | 187 | entity_life.h |
+| 0x41eb30 | sub_41EB30 | 232 | script_helpers.h |
 | 0x41ec20 | sub_41EC20 | 181 | scene_cmd.h |
+| 0x41ece0 | sub_41ECE0 | 369 | script_helpers.h |
 | 0x41ee60 | sub_41EE60 | 252 | char_state.h |
 | 0x41ef80 | sub_41EF80 | 83 | char_state.h |
+| 0x41efe0 | sub_41EFE0 | 27 | script_helpers.h |
+| 0x41f000 | sub_41F000 | 72 | script_helpers.h |
+| 0x41f050 | sub_41F050 | 100 | script_helpers.h |
 | 0x41f0e0 | sub_41F0E0 | 280 | scene_cmd.h |
 | 0x41f200 | sub_41F200 | 27403 | char_init.c, char_init.h |
 | 0x426380 | sub_426380 | 157 | char_def.h |
@@ -492,6 +510,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4386f0 | sub_4386F0 | 64 | device_init.h |
 | 0x438740 | sub_438740 | 555 | device_init.h |
 | 0x438a60 | sub_438A60 | 2639 | particle_init.h |
+| 0x439510 | sub_439510 | 67 | script_helpers.h |
+| 0x439560 | sub_439560 | 283 | script_helpers.h |
 | 0x439680 | sub_439680 | 9 | script_engine.h |
 | 0x439690 | sub_439690 | 8866 | scene_run.h |
 | 0x43c170 | sub_43C170 | 53 | ui_run.h |
@@ -753,26 +773,44 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x49cb60 | sub_49CB60 | 527 | script_engine.h |
 | 0x49cd70 | sub_49CD70 | 254 | script_engine.h |
 | 0x49ce70 | sub_49CE70 | 231 | room_tick.h |
+| 0x49cf60 | sub_49CF60 | 17 | script_helpers.h |
+| 0x49cf80 | sub_49CF80 | 722 | script_helpers.h |
 | 0x49d6e0 | sub_49D6E0 | 590 | scene_cmd.h |
 | 0x49d930 | sub_49D930 | 2296 | chapter_scripts.h |
+| 0x49e250 | sub_49E250 | 1123 | script_helpers.h |
+| 0x49e6c0 | sub_49E6C0 | 2001 | script_helpers.h |
 | 0x49f7c0 | sub_49F7C0 | 5270 | chapter_scripts.h |
 | 0x4a0c90 | sub_4A0C90 | 20785 | chapter_scripts.h |
 | 0x4a5e20 | sub_4A5E20 | 32 | scene_cmd.h |
+| 0x4a5e40 | sub_4A5E40 | 37 | script_helpers.h |
+| 0x4a5e70 | sub_4A5E70 | 42 | script_helpers.h |
+| 0x4a5ea0 | sub_4A5EA0 | 29 | script_helpers.h |
+| 0x4a5ec0 | sub_4A5EC0 | 21 | script_helpers.h |
 | 0x4a5ee0 | sub_4A5EE0 | 72 | scene_cmd.h |
 | 0x4a5f30 | sub_4A5F30 | 20 | scene_cmd.h |
 | 0x4a5f50 | sub_4A5F50 | 45 | scene_cmd.h |
+| 0x4a5f80 | sub_4A5F80 | 10 | script_helpers.h |
 | 0x4a5f90 | sub_4A5F90 | 11 | scene_cmd.h |
 | 0x4a5fa0 | sub_4A5FA0 | 1057 | chapter_scripts.h |
+| 0x4a63d0 | sub_4A63D0 | 706 | script_helpers.h |
 | 0x4a66a0 | sub_4A66A0 | 1244 | chapter_scripts.h |
 | 0x4a6b80 | sub_4A6B80 | 23051 | chapter_scripts.h |
+| 0x4ac610 | sub_4AC610 | 79 | script_helpers.h |
+| 0x4ac660 | sub_4AC660 | 98 | script_helpers.h |
 | 0x4ac6d0 | sub_4AC6D0 | 6756 | chapter_scripts.h |
 | 0x4ae150 | sub_4AE150 | 712 | chapter_scripts.h |
 | 0x4ae420 | sub_4AE420 | 6478 | chapter_scripts.h |
 | 0x4afda0 | sub_4AFDA0 | 3 | script_engine.h |
 | 0x4afdb0 | sub_4AFDB0 | 15577 | chapter_scripts.h |
+| 0x4b3b10 | sub_4B3B10 | 6 | script_helpers.h |
 | 0x4b3b20 | sub_4B3B20 | 330 | chapter_scripts.h |
 | 0x4b3c70 | sub_4B3C70 | 697 | chapter_scripts.h |
+| 0x4b3f30 | sub_4B3F30 | 1599 | script_helpers.h |
+| 0x4b4570 | sub_4B4570 | 1996 | script_helpers.h |
 | 0x4b4d40 | sub_4B4D40 | 28488 | chapter_scripts.h |
+| 0x4bbe00 | sub_4BBE00 | 55 | script_helpers.h |
+| 0x4bbe40 | sub_4BBE40 | 62 | script_helpers.h |
+| 0x4bbe80 | sub_4BBE80 | 105 | script_helpers.h |
 | 0x4bbef0 | sub_4BBEF0 | 5004 | chapter_scripts.h |
 | 0x4bd2e0 | sub_4BD2E0 | 968 | chapter_scripts.h |
 | 0x4bd6b0 | sub_4BD6B0 | 359 | chapter_scripts.h |
@@ -787,6 +825,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4c2dc0 | sub_4C2DC0 | 4360 | chapter_scripts.h |
 | 0x4c3ee0 | sub_4C3EE0 | 1727 | chapter_scripts.h |
 | 0x4c45a0 | sub_4C45A0 | 3423 | chapter_scripts.h |
+| 0x4c5300 | sub_4C5300 | 71 | script_helpers.h |
 | 0x4c57f0 | sub_4C57F0 | 50 | scene_loop.h |
 | 0x4c5830 | sub_4C5830 | 694 | scene_loop.h |
 | 0x4c5e00 | sub_4C5E00 | 778 | party_member.h |
@@ -799,15 +838,25 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4c6990 | sub_4C6990 | 419 | party_member.h |
 | 0x4c6b40 | sub_4C6B40 | 21496 | chapter_scripts.h |
 | 0x4cbf80 | sub_4CBF80 | 47 | scene_cmd.h |
+| 0x4cbfb0 | sub_4CBFB0 | 32 | script_helpers.h |
+| 0x4cbfd0 | sub_4CBFD0 | 32 | script_helpers.h |
+| 0x4cbff0 | sub_4CBFF0 | 24 | script_helpers.h |
+| 0x4cc010 | sub_4CC010 | 31 | script_helpers.h |
+| 0x4cc030 | sub_4CC030 | 45 | script_helpers.h |
 | 0x4cc060 | sub_4CC060 | 31 | scene_cmd.h |
 | 0x4cc080 | sub_4CC080 | 28 | scene_cmd.h |
 | 0x4cc0a0 | sub_4CC0A0 | 28 | scene_cmd.h |
 | 0x4cc0c0 | sub_4CC0C0 | 28 | scene_cmd.h |
+| 0x4cc250 | sub_4CC250 | 536 | script_helpers.h |
+| 0x4cc470 | sub_4CC470 | 304 | script_helpers.h |
 | 0x4cc5a0 | sub_4CC5A0 | 628 | scene_loop.h |
+| 0x4cca20 | sub_4CCA20 | 40 | script_helpers.h |
+| 0x4cca50 | sub_4CCA50 | 25 | script_helpers.h |
 | 0x4cca70 | sub_4CCA70 | 453 | scene_cmd.h |
 | 0x4ccc90 | sub_4CCC90 | 2610 | chapter_scripts.h |
 | 0x4cd6d0 | sub_4CD6D0 | 14951 | chapter_scripts.h |
 | 0x4d13a0 | sub_4D13A0 | 20018 | chapter_scripts.h |
+| 0x4d6490 | sub_4D6490 | 32 | script_helpers.h |
 | 0x4d64b0 | sub_4D64B0 | 62 | scene_cmd.h |
 | 0x4d64f0 | sub_4D64F0 | 6202 | chapter_scripts.h |
 | 0x4d7d80 | sub_4D7D80 | 18166 | chapter_scripts.h |
@@ -946,6 +995,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b4130 | sub_5B4130 | 60 | char_hit.h |
 | 0x5b4170 | sub_5B4170 | 133 | char_hit.h |
 | 0x5b4200 | sub_5B4200 | 295 | behave_helpers.h |
+| 0x5b4330 | sub_5B4330 | 469 | script_helpers.h |
 | 0x5b4510 | sub_5B4510 | 26 | arche_pose.h |
 | 0x5b4530 | sub_5B4530 | 1209 | party_member.h |
 | 0x5b4a10 | sub_5B4A10 | 741 | party_member.h |

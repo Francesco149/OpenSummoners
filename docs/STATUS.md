@@ -7,15 +7,15 @@
 ## Port coverage (engine-proper functions of `sotes.exe`)
 
 ```
-████████████░░░░░░░░  60.2% touched   (15.7% host-tested, 58.0% of code bytes)
+█████████████░░░░░░░  63.4% touched   (15.7% host-tested, 58.8% of code bytes)
 ```
 
 | status      | count | what it means                                          |
 |-------------|------:|--------------------------------------------------------|
 | tested      |   249 | ported + module covered by the host unit suite       |
-| ported      |   686 | reimplemented in src/, no host test for that module  |
-| **touched** | **935** | tested + ported (FUN_ provenance ref in src/)    |
-| unported    |   889 | exists in engine, never referenced from src/         |
+| ported      |   736 | reimplemented in src/, no host test for that module  |
+| **touched** | **985** | tested + ported (FUN_ provenance ref in src/)    |
+| unported    |   839 | exists in engine, never referenced from src/         |
 
 **Denominator note (read this before judging the %):** the headline % is over
 **engine-proper** functions — the **1532** below
@@ -26,7 +26,7 @@ those like retail rather than porting them (PLAN.md §2-3), so counting them
 would bury real progress. Full table is **1824** non-thunk
 functions (of 1824 incl. thunks).
 
-Code-byte coverage (58.0% of engine-proper bytes) is the truer progress
+Code-byte coverage (58.8% of engine-proper bytes) is the truer progress
 signal: the engine has a long tail of tiny leaf helpers, so function count
 understates how much actual instruction volume is ported.
 
@@ -132,7 +132,8 @@ understates how much actual instruction volume is ported.
   | the BEHAVIOUR layer: every slot of the AI tick `0x47b990` + callees (skill pick by range, attack windows, approach / retreat / leash, target checks, the path follower; decomp2c) | `0x47ecd0` `0x47adb0` `0x47ae00` `0x441f50` … (60) | 10,375 / 8,987 / 8,023 / 5,628 / 5,529 / 5,388 / 3,679 … (34 hooks with calls) | 0 |
   | the INTEGRATOR's reached handlers (monsters' skill bodies) + the ITEM / SKILL EFFECT + its value (decomp2c) | `0x455d80` `0x44d2e0` `0x4512d0` `0x4466b0` `0x467260` `0x456c60` / `0x5b3b00` `0x5b28a0` | 112,293@8 / 31,853@8 / 24,751@8 / 4 / 3 / – / 1 / 1 | 0 |
   | the CHAPTER SCRIPTS the corpus reaches (34 of 35; decomp2c, unported callees as retail's own via `g_eng.retail`; `0x49f7c0` converted but OFF: rh-errands-items diverges from f7835) | `0x4d7d80` `0x4dc510` … `0x4c45a0` (~240 KB) | REPLACE (nested frame loops) | – |
-  Hybrid gate (`corpus --check --hybrid`): with all of the above REPLACING retail (675 hooks) (the whole character tick, driver → tile
+  | the chapter scripts' file / sound / DirectX-free callees (scene / script commands, flag table, runner getters; decomp2c; the scripts now call them directly) | `0x401d80` `0x402030` `0x4020a0` … `0x5b4330` (50) | 91 shadow calls over 11 functions (`0x41efe0` 17, `0x4a63d0` 64, …); 39 unreached = UNVERIFIED (header lists them) | 0 |
+  Hybrid gate (`corpus --check --hybrid`): with all of the above REPLACING retail (725 hooks) (the whole character tick, driver → tile
   movers, + the room loop's passes and per-tick calls, runs as port code), every corpus scenario ends byte-identical
   — and on wine matches pure retail at EVERY 600-frame sample (the sem series, 2026-10-16: catches transient
   divergences a later room reload erases; it took pinning rhost's own footprint — asset DLL slots, host heap,
@@ -157,7 +158,7 @@ understates how much actual instruction volume is ported.
      effect + 34 chapter scripts run as port code; the hybrid gate holds at every 600-frame sample (wine).  Open:
      chapter script `0x49f7c0` (errands f7835: 12-byte records at 0x20b60398.. differ).  Next: the integrator's
      UNREACHED handlers (`0x4539b0` 8.7 KB, `0x456d30`, `0x452730`, … — a recording that reaches them first); the
-     chapter scripts' ~60 small callees (now retail's own through `RC_`); the scene loop's `0x561560` /
+     chapter scripts' I/O-touching callees (`0x41a430` `0x41c390` `0x408730` `0x40a5d0` `0x41d4a0` …, still `RC_`); the scene loop's `0x561560` /
      `0x561d20` (file I/O underneath: keep the overlay in mind);
      the room loop's menu / game-over flow `0x591120` (131 fns, file I/O + BGM: later).  Loop: decomp2c module →
      wire → hooks → `verify` (shadow; sample hot helpers `@N`: full-state shadows of per-tick helpers crawl) →

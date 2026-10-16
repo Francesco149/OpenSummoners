@@ -6,6 +6,16 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-16 (night, 2) — the chapter scripts' callees
+
+- `src/script_helpers.c`: the 50 chapter-script callees whose closure has no file / sound / DirectX call (scene /
+  script commands, the flag table, the runner's getters), a decomp2c pass; the chapter scripts regenerated to call
+  them directly (RC_ calls 522 → 145; 14 I/O-touching callees left).  Shadow: 91 calls over the 11 the corpus
+  reaches, 0 divergences; the other 39 are converted but unverified (listed in the header).
+- decomp2c: `const` / `volatile` stripped from parameter types (a `const char *` had become an int), `CHAR`,
+  `qmemcpy`, `++HIDWORD(x)` / `++LOWORD(x)` lvalues; rhost: `ST_HOOK0`.
+- Hybrid gate 725 hooks PASS 9/9 on wine (every 600-frame sample) and Windows.
+
 ## 2026-10-16 (late evening) — the chapter scripts; decomp2c calls retail for unported callees
 
 - decomp2c: an unported callee becomes a typed call of retail's own function (`RC_xxxxxx` through

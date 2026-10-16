@@ -7,8 +7,8 @@ own engine callees ported, so it can land today with zero new dependencies. Sort
 
 For the *forward* port path (the title-menu scene runner and what it calls) and the semantic milestone order, see `ROADMAP.md` — some of that path isn't yet reachable from ported code so won't appear here.
 
-- frontier functions: **321**
-- of those, zero-dependency **leaves: 163** (recommended order below)
+- frontier functions: **276**
+- of those, zero-dependency **leaves: 130** (recommended order below)
 
 ## Leaf shortlist — portable today (top 40 by ported-caller count)
 
@@ -18,17 +18,10 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x5bb8c0 | 31 | 55 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x5bb890 | 40 | 53 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x5bb880 | 16 | 42 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
-| 0x402f40 | 21 | 18 | object-pool ctor + game-loop FSM + font/glyph + msg fmt |
 | 0x5bb8e0 | 9 | 16 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
-| 0x401d80 | 100 | 12 | object-pool ctor + game-loop FSM + font/glyph + msg fmt |
-| 0x4020a0 | 503 | 10 | object-pool ctor + game-loop FSM + font/glyph + msg fmt |
 | 0x5bbc60 | 45 | 9 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x5bbc90 | 55 | 9 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x5bbc20 | 57 | 9 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
-| 0x49cf60 | 17 | 8 | tile/sprite grid render + spell fx + battle UI + palette |
-| 0x41ece0 | 369 | 5 | menu/dialog controller + char init + shop/NPC + save path |
-| 0x4a63d0 | 706 | 5 | scene-event dispatch (narrative scripting) + party/inventory |
-| 0x41efe0 | 27 | 4 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x5bb3a0 | 39 | 4 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x556e50 | 88 | 4 | cutscene dispatcher + sprite copy + tilemap collision + camera |
 | 0x41bbe0 | 312 | 4 | menu/dialog controller + char init + shop/NPC + save path |
@@ -36,70 +29,62 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x5ba650 | 78 | 3 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x5ba4c0 | 84 | 3 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x5ba2d0 | 95 | 3 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
-| 0x41eb30 | 232 | 3 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x407f30 | 453 | 3 | object-pool ctor + game-loop FSM + font/glyph + msg fmt |
-| 0x5b4330 | 469 | 3 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x4c5af0 | 770 | 3 | scene-event dispatch (narrative scripting) + party/inventory |
-| 0x4a5f80 | 10 | 2 | scene-event dispatch (narrative scripting) + party/inventory |
 | 0x5a4760 | 16 | 2 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x5ba3a0 | 16 | 2 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
-| 0x41e340 | 21 | 2 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x5b6ec0 | 21 | 2 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x5ba3d0 | 22 | 2 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
-| 0x4cbff0 | 24 | 2 | scene-event dispatch (narrative scripting) + party/inventory |
-| 0x4cca50 | 25 | 2 | scene-event dispatch (narrative scripting) + party/inventory |
 | 0x5aff00 | 26 | 2 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
-| 0x4a5ea0 | 29 | 2 | scene-event dispatch (narrative scripting) + party/inventory |
-| 0x4cc010 | 31 | 2 | scene-event dispatch (narrative scripting) + party/inventory |
-| 0x4a5e70 | 42 | 2 | scene-event dispatch (narrative scripting) + party/inventory |
-| 0x402030 | 44 | 2 | object-pool ctor + game-loop FSM + font/glyph + msg fmt |
 | 0x5bcfb0 | 49 | 2 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
+| 0x494e10 | 66 | 2 | tile/sprite grid render + spell fx + battle UI + palette |
+| 0x41bb80 | 95 | 2 | menu/dialog controller + char init + shop/NPC + save path |
+| 0x579860 | 131 | 2 | master sprite-group register + audio/music init + anim pump |
+| 0x579680 | 191 | 2 | master sprite-group register + audio/music init + anim pump |
+| 0x495e40 | 411 | 2 | tile/sprite grid render + spell fx + battle UI + palette |
+| 0x409150 | 881 | 2 | object-pool ctor + game-loop FSM + font/glyph + msg fmt |
+| 0x4051d0 | 3244 | 2 | object-pool ctor + game-loop FSM + font/glyph + msg fmt |
+| 0x4034f0 | 7330 | 2 | object-pool ctor + game-loop FSM + font/glyph + msg fmt |
+| 0x5ba3f0 | 17 | 1 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
+| 0x5ba520 | 21 | 1 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
+| 0x5b6580 | 28 | 1 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
+| 0x5b0260 | 30 | 1 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
+| 0x5b5a90 | 33 | 1 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
+| 0x5b64f0 | 38 | 1 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
+| 0x4428f0 | 41 | 1 | entity per-frame FSM + action handlers + dialog + skills |
+| 0x496170 | 42 | 1 | tile/sprite grid render + spell fx + battle UI + palette |
+| 0x5b5a60 | 42 | 1 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 
 ## Full frontier by address band
 
-### object-pool ctor + game-loop FSM + font/glyph + msg fmt (19)
+### object-pool ctor + game-loop FSM + font/glyph + msg fmt (11)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
-| 0x402f40 | 21 | 18 | 0 | ✓ |
 | 0x40a5d0 | 568 | 18 | 5 |  |
-| 0x401d80 | 100 | 12 | 0 | ✓ |
-| 0x4020a0 | 503 | 10 | 0 | ✓ |
 | 0x40fe00 | 596 | 10 | 5 |  |
 | 0x40ac90 | 834 | 4 | 4 |  |
 | 0x40bb70 | 30 | 3 | 0 | ✓ |
-| 0x406ab0 | 442 | 3 | 1 |  |
 | 0x407f30 | 453 | 3 | 0 | ✓ |
 | 0x408730 | 1114 | 3 | 8 |  |
-| 0x402030 | 44 | 2 | 0 | ✓ |
-| 0x409150 | 881 | 2 | 1 |  |
+| 0x409150 | 881 | 2 | 0 | ✓ |
 | 0x4051d0 | 3244 | 2 | 0 | ✓ |
 | 0x4034f0 | 7330 | 2 | 0 | ✓ |
-| 0x402610 | 277 | 1 | 0 | ✓ |
-| 0x4024e0 | 290 | 1 | 0 | ✓ |
-| 0x406500 | 454 | 1 | 0 | ✓ |
 | 0x40a340 | 498 | 1 | 6 |  |
 | 0x409520 | 1093 | 1 | 0 | ✓ |
 
-### menu/dialog controller + char init + shop/NPC + save path (20)
+### menu/dialog controller + char init + shop/NPC + save path (13)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
 | 0x41c390 | 1919 | 10 | 5 |  |
 | 0x41a430 | 947 | 9 | 11 |  |
 | 0x41d4a0 | 623 | 6 | 1 |  |
-| 0x41ece0 | 369 | 5 | 0 | ✓ |
-| 0x41efe0 | 27 | 4 | 0 | ✓ |
 | 0x41bbe0 | 312 | 4 | 0 | ✓ |
-| 0x41eb30 | 232 | 3 | 0 | ✓ |
-| 0x41e340 | 21 | 2 | 0 | ✓ |
 | 0x41bb80 | 95 | 2 | 0 | ✓ |
 | 0x415ae0 | 786 | 2 | 1 |  |
-| 0x41d780 | 942 | 2 | 4 |  |
+| 0x41d780 | 942 | 2 | 3 |  |
 | 0x41a890 | 3030 | 2 | 6 |  |
-| 0x41e2b0 | 63 | 1 | 0 | ✓ |
-| 0x41f050 | 100 | 1 | 0 | ✓ |
-| 0x41a3a0 | 136 | 1 | 0 | ✓ |
 | 0x41a160 | 311 | 1 | 5 |  |
 | 0x41cfd0 | 438 | 1 | 0 | ✓ |
 | 0x418ec0 | 522 | 1 | 0 | ✓ |
@@ -124,13 +109,11 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x42a9a0 | 2978 | 1 | 5 |  |
 | 0x429060 | 3218 | 1 | 1 |  |
 
-### battle scenario init + turn engine + input poll + save mgr (8)
+### battle scenario init + turn engine + input poll + save mgr (6)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
-| 0x439510 | 67 | 1 | 0 | ✓ |
 | 0x43d4b0 | 144 | 1 | 0 | ✓ |
-| 0x439560 | 283 | 1 | 0 | ✓ |
 | 0x43c1b0 | 302 | 1 | 2 |  |
 | 0x43dd30 | 728 | 1 | 0 | ✓ |
 | 0x43d540 | 748 | 1 | 1 |  |
@@ -194,16 +177,15 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x48da70 | 1672 | 1 | 0 | ✓ |
 | 0x48ef40 | 4389 | 1 | 6 |  |
 
-### tile/sprite grid render + spell fx + battle UI + palette (26)
+### tile/sprite grid render + spell fx + battle UI + palette (22)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
 | 0x49d330 | 754 | 9 | 5 |  |
-| 0x49cf60 | 17 | 8 | 0 | ✓ |
 | 0x49bf90 | 424 | 3 | 2 |  |
 | 0x494e10 | 66 | 2 | 0 | ✓ |
 | 0x495e40 | 411 | 2 | 0 | ✓ |
-| 0x49eea0 | 2332 | 2 | 7 |  |
+| 0x49eea0 | 2332 | 2 | 5 |  |
 | 0x496170 | 42 | 1 | 0 | ✓ |
 | 0x4961a0 | 63 | 1 | 0 | ✓ |
 | 0x49a6e0 | 82 | 1 | 0 | ✓ |
@@ -215,81 +197,55 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x495fe0 | 394 | 1 | 0 | ✓ |
 | 0x4963a0 | 446 | 1 | 1 |  |
 | 0x491820 | 696 | 1 | 0 | ✓ |
-| 0x49cf80 | 722 | 1 | 0 | ✓ |
 | 0x497c20 | 788 | 1 | 1 |  |
 | 0x496560 | 1028 | 1 | 1 |  |
 | 0x4975e0 | 1054 | 1 | 1 |  |
-| 0x49e250 | 1123 | 1 | 0 | ✓ |
 | 0x498960 | 1449 | 1 | 0 | ✓ |
 | 0x497f40 | 1750 | 1 | 2 |  |
 | 0x496ec0 | 1756 | 1 | 2 |  |
-| 0x49e6c0 | 2001 | 1 | 1 |  |
 
-### scene-event dispatch (narrative scripting) + party/inventory (24)
+### scene-event dispatch (narrative scripting) + party/inventory (2)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
-| 0x4a5e40 | 37 | 7 | 1 |  |
-| 0x4a63d0 | 706 | 5 | 0 | ✓ |
-| 0x4bbe00 | 55 | 3 | 1 |  |
-| 0x4cc250 | 536 | 3 | 1 |  |
 | 0x4c5af0 | 770 | 3 | 0 | ✓ |
-| 0x4a5f80 | 10 | 2 | 0 | ✓ |
-| 0x4cbff0 | 24 | 2 | 0 | ✓ |
-| 0x4cca50 | 25 | 2 | 0 | ✓ |
-| 0x4a5ea0 | 29 | 2 | 0 | ✓ |
-| 0x4cc010 | 31 | 2 | 0 | ✓ |
-| 0x4a5e70 | 42 | 2 | 0 | ✓ |
 | 0x4cc0e0 | 360 | 2 | 5 |  |
-| 0x4a5ec0 | 21 | 1 | 0 | ✓ |
-| 0x4cbfb0 | 32 | 1 | 1 |  |
-| 0x4cbfd0 | 32 | 1 | 1 |  |
-| 0x4cca20 | 40 | 1 | 0 | ✓ |
-| 0x4cc030 | 45 | 1 | 0 | ✓ |
-| 0x4bbe40 | 62 | 1 | 1 |  |
-| 0x4c5300 | 71 | 1 | 0 | ✓ |
-| 0x4ac610 | 79 | 1 | 0 | ✓ |
-| 0x4ac660 | 98 | 1 | 0 | ✓ |
-| 0x4bbe80 | 105 | 1 | 0 | ✓ |
-| 0x4b3f30 | 1599 | 1 | 2 |  |
-| 0x4b4570 | 1996 | 1 | 2 |  |
 
-### narrative scene FSM + dungeon/encounter driver (sparse) (32)
+### narrative scene FSM + dungeon/encounter driver (sparse) (31)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
-| 0x4d6490 | 32 | 1 | 1 |  |
-| 0x4e68d0 | 393 | 1 | 2 |  |
-| 0x523010 | 743 | 1 | 2 |  |
+| 0x4e68d0 | 393 | 1 | 1 |  |
+| 0x523010 | 743 | 1 | 1 |  |
 | 0x52fd80 | 767 | 1 | 0 | ✓ |
 | 0x4e61d0 | 817 | 1 | 1 |  |
 | 0x4e6520 | 817 | 1 | 1 |  |
 | 0x525ae0 | 899 | 1 | 1 |  |
 | 0x4e1d10 | 1685 | 1 | 9 |  |
-| 0x522310 | 3316 | 1 | 8 |  |
-| 0x4ee690 | 3574 | 1 | 10 |  |
-| 0x535520 | 3936 | 1 | 9 |  |
-| 0x536480 | 4023 | 1 | 13 |  |
-| 0x53ec40 | 5788 | 1 | 9 |  |
-| 0x533580 | 8094 | 1 | 9 |  |
-| 0x4ef4e0 | 9352 | 1 | 10 |  |
-| 0x523300 | 9965 | 1 | 11 |  |
-| 0x537440 | 10805 | 1 | 11 |  |
-| 0x530080 | 13474 | 1 | 12 |  |
-| 0x4e23d0 | 13606 | 1 | 13 |  |
-| 0x4f6a10 | 14027 | 1 | 18 |  |
-| 0x4e6a60 | 15415 | 1 | 15 |  |
-| 0x4ea7b0 | 15468 | 1 | 20 |  |
-| 0x4fec40 | 17841 | 1 | 11 |  |
-| 0x515a00 | 18142 | 1 | 12 |  |
-| 0x4fa2a0 | 18188 | 1 | 23 |  |
-| 0x5034b0 | 18747 | 1 | 17 |  |
-| 0x539e80 | 19641 | 1 | 18 |  |
-| 0x4f19e0 | 20437 | 1 | 21 |  |
-| 0x510100 | 22636 | 1 | 8 |  |
-| 0x51a1d0 | 32877 | 1 | 18 |  |
-| 0x507e70 | 32899 | 1 | 15 |  |
-| 0x525e70 | 40515 | 1 | 13 |  |
+| 0x522310 | 3316 | 1 | 7 |  |
+| 0x4ee690 | 3574 | 1 | 6 |  |
+| 0x535520 | 3936 | 1 | 7 |  |
+| 0x536480 | 4023 | 1 | 11 |  |
+| 0x53ec40 | 5788 | 1 | 7 |  |
+| 0x533580 | 8094 | 1 | 7 |  |
+| 0x4ef4e0 | 9352 | 1 | 7 |  |
+| 0x523300 | 9965 | 1 | 6 |  |
+| 0x537440 | 10805 | 1 | 7 |  |
+| 0x530080 | 13474 | 1 | 8 |  |
+| 0x4e23d0 | 13606 | 1 | 10 |  |
+| 0x4f6a10 | 14027 | 1 | 8 |  |
+| 0x4e6a60 | 15415 | 1 | 7 |  |
+| 0x4ea7b0 | 15468 | 1 | 11 |  |
+| 0x4fec40 | 17841 | 1 | 2 |  |
+| 0x515a00 | 18142 | 1 | 2 |  |
+| 0x4fa2a0 | 18188 | 1 | 13 |  |
+| 0x5034b0 | 18747 | 1 | 9 |  |
+| 0x539e80 | 19641 | 1 | 8 |  |
+| 0x4f19e0 | 20437 | 1 | 12 |  |
+| 0x510100 | 22636 | 1 | 4 |  |
+| 0x51a1d0 | 32877 | 1 | 9 |  |
+| 0x507e70 | 32899 | 1 | 6 |  |
+| 0x525e70 | 40515 | 1 | 4 |  |
 
 ### cutscene dispatcher + sprite copy + tilemap collision + camera (15)
 
@@ -308,8 +264,8 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x54f140 | 2094 | 1 | 2 |  |
 | 0x554c40 | 2187 | 1 | 5 |  |
 | 0x553520 | 2458 | 1 | 4 |  |
-| 0x546670 | 22187 | 1 | 28 |  |
-| 0x5402e0 | 25033 | 1 | 14 |  |
+| 0x546670 | 22187 | 1 | 13 |  |
+| 0x5402e0 | 25033 | 1 | 4 |  |
 
 ### title + gameplay scene runners + engine init + options + input init (33)
 
@@ -360,7 +316,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x583ee0 | 248 | 1 | 0 | ✓ |
 | 0x5798f0 | 259 | 1 | 0 | ✓ |
 | 0x583c90 | 580 | 1 | 0 | ✓ |
-| 0x583fe0 | 979 | 1 | 12 |  |
+| 0x583fe0 | 979 | 1 | 11 |  |
 
 ### inventory/menu + audio cue mgr + render dispatch + scene load (10)
 
@@ -377,7 +333,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x59e5d0 | 1033 | 1 | 8 |  |
 | 0x591120 | 1096 | 1 | 8 |  |
 
-### launcher config parse + spell fx + bitmap/ZDD render + RNG (76)
+### launcher config parse + spell fx + bitmap/ZDD render + RNG (75)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
@@ -400,7 +356,6 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x5ba4c0 | 84 | 3 | 0 | ✓ |
 | 0x5ba2d0 | 95 | 3 | 0 | ✓ |
 | 0x5bc0c0 | 143 | 3 | 1 |  |
-| 0x5b4330 | 469 | 3 | 0 | ✓ |
 | 0x5a4760 | 16 | 2 | 0 | ✓ |
 | 0x5ba3a0 | 16 | 2 | 0 | ✓ |
 | 0x5b6ec0 | 21 | 2 | 0 | ✓ |
