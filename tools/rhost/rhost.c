@@ -919,6 +919,7 @@ static void parse(int argc, char **argv)
         else if (!strcmp(a, "--realtime")) O.realtime = 1;
         else if (!strcmp(a, "--dump-at")) parse_list(ARG(), O.dump_at, &O.n_dump, 128);
         else if (!strcmp(a, "--vmmap-at")) parse_list(ARG(), O.vmmap_at, &O.n_vmmap, 16);
+        else if (!strcmp(a, "--bgm-fail")) O.bgm_fail = (int)strtoul(ARG(), 0, 0);
         else if (!strcmp(a, "--shot-at")) parse_list(ARG(), O.shot_at, &O.n_shot, 64);
         else if (!strcmp(a, "--shot-every")) O.shot_every = strtoul(ARG(), 0, 0);
         else if (!strcmp(a, "--hash-every")) O.hash_every = strtoul(ARG(), 0, 0);

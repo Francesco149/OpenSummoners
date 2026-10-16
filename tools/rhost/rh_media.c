@@ -294,7 +294,8 @@ static HRESULT WINAPI p_RenderFile(void *gb, LPCWSTR file, LPCWSTR list)
     WideCharToMultiByte(CP_ACP, 0, file, -1, a, sizeof a, NULL, NULL);
     const char *q = rh_files_resolve(a, 0, buf, sizeof buf);
     MultiByteToWideChar(CP_ACP, 0, q, -1, w, MAX_PATH);
-    HRESULT r = r_RenderFile(gb, w, list);
+    static int nrender;
+    HRESULT r = ++nrender == O.bgm_fail ? (HRESULT)0x80040218L : r_RenderFile(gb, w, list);   /* --bgm-fail N: a test */
     /* wine's DirectShow (gstreamer) now and then fails a WMA it renders fine on the next try (80040218
      * VFW_E_CANNOT_RENDER under parallel load): retail then logs the error and keeps a different state.  A
      * replay retries — the game sees the outcome every healthy run sees */
@@ -306,6 +307,12 @@ static HRESULT WINAPI p_RenderFile(void *gb, LPCWSTR file, LPCWSTR list)
         r = r_RenderFile(gb, w, list);
     }
     vplay_t *v = vp_of(gb); memset(v, 0, sizeof *v); v->id = identity(gb); v->stop = -1;
+    if (O.bgm_fail) {   /* (the test also logs each track's duration: the retry path must not change it) */
+        void *ms = NULL; LONGLONG d = -1;
+        (*(qi_t *)(*(void ***)gb))(gb, &kIID_IMediaSeeking, &ms);
+        if (ms) { r_GetDuration(ms, &d); (*(rel_t *)((*(void ***)ms) + 2))(ms); }
+        rh_log("bgm #%d %s = %08lx duration %lld\n", nrender, q, (unsigned long)r, (long long)d);
+    }
     if (O.log_media) rh_log("bgm %p RenderFile %s -> %s = %08lx (f%u)\n", v->id, a, q, (unsigned long)r, g_frame);
     return r;
 }

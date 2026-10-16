@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Build rhost.exe into build/rhost/. Host links at 0x200000 without ASLR so retail's
-# 0x400000.. range is ours (a .bss hole reserves it). Port code for hooks is compiled with
+# 0x400000.. range is ours (a .bss hole reserves it; rhost.x puts .bss FIRST, so the code size never pushes it). Port code for hooks is compiled with
 # the port's own -std (src/Makefile CFLAGS).
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/../.." && pwd); S=$ROOT/src; H=$ROOT/tools/rhost; B=$ROOT/build/rhost
 CC=${RHOST_CC:-i686-w64-mingw32-gcc}
-LDF=(-Wl,--image-base,0x200000 -Wl,--large-address-aware -Wl,--disable-dynamicbase -static-libgcc)
+LDF=(-Wl,--image-base,0x200000 -Wl,--large-address-aware -Wl,--disable-dynamicbase -Wl,-T,"$ROOT/tools/rhost/rhost.x" -static-libgcc)
 PORT_STD=${PORT_STD:-$(sed -n 's/^CFLAGS *?= *\(-std=[a-z0-9]*\).*/\1/p' "$S/Makefile")}
 mkdir -p "$B"
 PORT_OBJS=()

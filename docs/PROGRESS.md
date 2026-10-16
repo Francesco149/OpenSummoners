@@ -6,6 +6,22 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-16 (late evening) — the chapter scripts; decomp2c calls retail for unported callees
+
+- decomp2c: an unported callee becomes a typed call of retail's own function (`RC_xxxxxx` through
+  `g_eng.retail`, the identity in rhost), so a module converts whole before its callees are ported; the inlined
+  error box 0x426110 / CRT exit / sys members / `LOWORD(field)` lvalues; a `(cls_X **)` cast keeps its dword load
+  (it had turned a world char-table pointer read into a byte: rh-combat's fatal exit at f18720).
+- The chapter scripts the corpus reaches: 34 of 35 run as port code (`src/chapter_scripts.c`, 39k lines,
+  ~240 KB of retail): REPLACE hooks routed through rhost's script_call, so hookbisect narrows a broken one.
+  0x49f7c0 stays off (errands f7835, open).  arche_sword / skill_cast regenerated with the current converter.
+- rhost: per-process staging temp, a free Xvfb display and a fresh wineserver per wine batch (BadWindow from a
+  stale desktop); hookbisect on Windows compares state_sem only at a scenario's end; `.bss` first in rhost.exe
+  (`tools/rhost/rhost.x`): retail's hole no longer limits the code size.
+- Hybrid gate 675 hooks PASS 9/9 on wine (every 600-frame sample) and Windows.  Ledger: 60.2% of engine-proper
+  functions touched, 58.0% of code bytes.  One rare wine flake seen once (rh-combat series f13200..f51000, end
+  state equal; a rerun and a forced WMA-retry run (`--bgm-fail N`, a new test option) both pass) — open.
+
 ## 2026-10-16 (evening) — the sem series: pure ≡ hybrid at every sampled frame; the shots, the behaviour layer
 
 - rhost: the end-state check missed transient divergences a later room reload erases. New gate: `corpus
