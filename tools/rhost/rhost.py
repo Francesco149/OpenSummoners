@@ -183,7 +183,7 @@ def make_batch(a, runs, tag):
     os.makedirs(bdir)
     lines = ["$ErrorActionPreference = 'Continue'", f"$J = {max(1, a.jobs)}", "$procs = @()"]
     names = []
-    for name, trace, save, ed in runs:
+    for name, trace, save, ed, *over in runs:      # over: [hook spec] — a per-run --hook (hookbisect)
         ed = getattr(a, "edition", None) or ed or "enold"
         rdir = os.path.join(bdir, name)
         os.makedirs(rdir)
@@ -198,7 +198,12 @@ def make_batch(a, runs, tag):
             trace_win = f"{run_win}\\trace.jsonl"
         if getattr(a, "coverage_file", None):
             shutil.copy(a.coverage_file, os.path.join(rdir, "coverage_in.txt"))
-        args = rhost_args(a, run_win, trace_win, ed)
+        if over:
+            saved_hook, a.hook = getattr(a, "hook", None), over[0]
+            args = rhost_args(a, run_win, trace_win, ed)
+            a.hook = saved_hook
+        else:
+            args = rhost_args(a, run_win, trace_win, ed)
         open(os.path.join(rdir, "argv.json"), "w").write(json.dumps(args))
         ps_args = ",".join("'" + x.replace("'", "''") + "'" for x in args)
         lines.append(f"while (@($procs | Where-Object {{ !$_.HasExited }}).Count -ge $J) {{ Start-Sleep -Milliseconds 50 }}")
@@ -231,7 +236,10 @@ def wine_stage():
         os.makedirs(os.path.join(WINE_ROOT, d), exist_ok=True)
     src, dst = os.path.join(BUILD, "rhost.exe"), os.path.join(WINE_ROOT, "bin", "rhost.exe")
     if not os.path.exists(dst) or os.path.getmtime(dst) < os.path.getmtime(src):
-        shutil.copy2(src, dst)
+        # a new inode, never an in-place overwrite: a batch still running maps the old image (an in-place
+        # write would swap its code pages under it)
+        shutil.copy2(src, dst + ".new")
+        os.replace(dst + ".new", dst)
     for ed, path in WINE_GAMES.items():
         link = os.path.join(WINE_ROOT, "game", ed)
         if os.path.isdir(path) and not os.path.islink(link):
@@ -395,6 +403,10 @@ def cmd_det(a):
 
 def cmd_corpus(a):
     names = all_scenarios(a.only)
+    if getattr(a, "hybrid", False):     # the hybrid gate: every ported function REPLACES retail
+        hs = hybrid_hooks()
+        a.hook = ",".join(["replace:" + h for h in hs] + ([a.hook] if a.hook else []))
+        print(f"hybrid gate: {len(hs)} hooks replacing retail")
     runs = resolve_runs(names)
     batch, bdir, res, out = run_batch(a, runs, "corpus", fetch=("rhost.log",))
     print_results(res, names)
@@ -478,14 +490,29 @@ REPLACE_ONLY_HOOKS = ["room_loop", "input_repoll_flush", "load_room", "scene_loo
                       "world_new", "world_free",
                       "menu_party_close", "msg_pages", "storage_deposit", "storage_withdraw", "storage_run",
                       "item_find", "furniture_search", "scene_yes_no", "item_give", "book_read", "sprite_set_free"]   # (their shadows skip: the grid's 2.9 MB block moves the arena commit)
+SHADOW_ONLY_HOOKS = ["map_decode"]     # its REPLACE form is the load_room port (the decode needs the recorded resource)
 # name@N = shadow every Nth call (the full-state shadows cost ~10-20 ms per compared call)
 
 
 def cmd_verify(a):
     names = all_scenarios(a.only)
-    a.hook = ",".join("shadow:" + h for h in VERIFY_HOOKS)
+    hooks = [h for h in VERIFY_HOOKS if not a.hooks or h.split("@")[0] in a.hooks.split(",")]
+    a.hook = ",".join("shadow:" + h for h in hooks)
     runs = resolve_runs(names)
+    k = max(1, a.split)
+    if k > 1:      # the shadows are independent (retail stays authoritative): each scenario × k hook subsets in parallel
+        runs = [(f"{r[0]}~{i}", *r[1:4], ",".join("shadow:" + h for h in hooks[i::k])) for r in runs for i in range(k)]
     batch, bdir, res, out = run_batch(a, runs, "verify")
+    if k > 1:
+        merged = {}
+        for key, v in res.items():
+            base, _, rest = key.partition("#")
+            n = base.split("~")[0] + ("#" + rest if rest else "")
+            if rest:
+                merged.setdefault(n, []).extend(v)
+            elif n not in merged or v.get("complete") != "1":
+                merged[n] = v
+        res = merged
     tot = {}
     for n in names:
         for note in res.get(n + "#notes", []):
@@ -500,11 +527,11 @@ def cmd_verify(a):
     done = sum(1 for n in names if res.get(n, {}).get("complete") == "1")
     print(f"\nVERIFY ({done}/{len(names)} scenarios complete)")
     print(f"{'function':22s} {'compared':>9s} {'diverge':>8s} {'skipped':>8s} scenarios")
-    for hs in VERIFY_HOOKS:
+    for hs in hooks:
         h = hs.split("@")[0]
-        c, d, k, sc, first = tot.get(h, [0, 0, 0, set(), ""])
-        print(f"{hs:22s} {c:9d} {d:8d} {k:8d} {len(sc)}" + (f"  FIRST: {first}" if d else ""))
-    return 0 if all(tot.get(h.split("@")[0], [0, 0])[1] == 0 for h in VERIFY_HOOKS) else 1
+        c, d, sk, sc, first = tot.get(h, [0, 0, 0, set(), ""])
+        print(f"{hs:22s} {c:9d} {d:8d} {sk:8d} {len(sc)}" + (f"  FIRST: {first}" if d else ""))
+    return 0 if all(tot.get(h.split("@")[0], [0, 0])[1] == 0 for h in hooks) else 1
 
 
 def cmd_coverage(a):
@@ -639,6 +666,44 @@ def cmd_portshots(a):
     print(f"→ {bdir}/cmp_f*.png  (retail | port | diff×8)")
 
 
+def hybrid_hooks():
+    return [h for h in dict.fromkeys([h.split("@")[0] for h in VERIFY_HOOKS] + REPLACE_ONLY_HOOKS) if h not in SHADOW_ONLY_HOOKS]
+
+
+def cmd_hookbisect(a):
+    """which REPLACE hook makes SCEN diverge from pure retail by --frames?  One batch per round: a pure
+    reference + N groups of the candidates (each group replaced alone); the diverging groups split again
+    until single hooks remain.  Compares frame / tick / rng (+ state_sem on the Windows target)."""
+    cand = a.hooks.split(",") if a.hooks else hybrid_hooks()
+    tr, save, ed = scenario_inputs(a.scenario)
+    keys = ("frame", "tick", "rng") + (("state_sem",) if a.target == "win" else ())
+    rnd = 0
+    while True:
+        rnd += 1
+        n = min(a.groups, len(cand))
+        groups = [cand[i::n] for i in range(n)]
+        runs = [("ref", tr, save, ed, "")] + [(f"g{i}", tr, save, ed, ",".join("replace:" + h for h in g)) for i, g in enumerate(groups)]
+        batch, bdir, res, out = run_batch(a, runs, f"bisect{rnd}-" + a.scenario)
+        ref = {k: res.get("ref", {}).get(k) for k in keys}
+        if not ref["rng"]:
+            raise SystemExit(f"round {rnd}: no reference result")
+        bad = []
+        for i, g in enumerate(groups):
+            got = {k: res.get(f"g{i}", {}).get(k) for k in keys}
+            div = got != ref
+            print(f"  round {rnd} g{i} ({len(g)} hooks{': ' + g[0] if len(g) == 1 else ''}): {'DIVERGE ' + str(got) if div else 'ok'}")
+            if div:
+                bad.append(g)
+        if not bad:
+            print(f"no single group diverges alone (an interaction of hooks across groups?): candidates {len(cand)}")
+            return 1
+        singles = [g[0] for g in bad if len(g) == 1]
+        if singles:
+            print("DIVERGING HOOK(S): " + ", ".join(singles))
+            return 0
+        cand = bad[0]
+
+
 def cmd_diff(a):
     import rhs
     rows = rhs.diff(a.a, a.b, show=a.show)
@@ -699,8 +764,14 @@ def main():
     p = sub.add_parser("det"); p.add_argument("scenario"); p.add_argument("-n", type=int, default=3)
     p.add_argument("--calibrate", action="store_true"); common(p); p.set_defaults(fn=cmd_det)
     p = sub.add_parser("corpus"); p.add_argument("--only"); p.add_argument("--bless", action="store_true")
-    p.add_argument("--check", action="store_true"); common(p); p.set_defaults(fn=cmd_corpus)
-    p = sub.add_parser("verify"); p.add_argument("--only"); common(p); p.set_defaults(fn=cmd_verify)
+    p.add_argument("--check", action="store_true")
+    p.add_argument("--hybrid", action="store_true", help="replace: every VERIFY_HOOKS + REPLACE_ONLY_HOOKS function (the hybrid gate)")
+    common(p); p.set_defaults(fn=cmd_corpus)
+    p = sub.add_parser("verify"); p.add_argument("--only"); p.add_argument("--hooks", help="only these VERIFY_HOOKS names")
+    p.add_argument("--split", type=int, default=1, help="run each scenario N times in parallel, 1/N of the hooks each")
+    common(p); p.set_defaults(fn=cmd_verify)
+    p = sub.add_parser("hookbisect"); p.add_argument("scenario"); p.add_argument("--hooks", help="candidate hook names (default: the hybrid set)")
+    p.add_argument("--groups", type=int, default=8); common(p); p.set_defaults(fn=cmd_hookbisect)
     p = sub.add_parser("coverage"); p.add_argument("--only"); p.add_argument("scenarios", nargs="*"); common(p); p.set_defaults(fn=cmd_coverage)
     p = sub.add_parser("portshots"); p.add_argument("scenario"); p.add_argument("--at", required=True)
     p.add_argument("--port-realtime", action="store_true", help="run the port on its wall clock instead of --det-clock")

@@ -546,10 +546,17 @@ static void __attribute__((thiscall)) w_pal_copy(void *self, uint8_t *src)
 /* per edition: A = `call palcopy` sites (palette at the pushed src), B = inline `lea esi,[esp+0x418]`
  * before a 1 KB rep movsd (+ resume VA), C = move-command copy `lea edi,[esi+OFF]` (+ the
  * stack offset of the WORD-written last field's high half, + resume VA) */
-typedef struct { const char *tag; uint32_t palcopy, a[4]; uint32_t b, b_resume; uint32_t c, c_off, c_pad, c_resume; uint32_t sbh_alloc; } uninit_t;
+typedef struct { uint32_t va, size; } frame_zero_t;
+typedef struct { const char *tag; uint32_t palcopy, a[4]; uint32_t b, b_resume; uint32_t c, c_off, c_pad, c_resume; uint32_t sbh_alloc;
+                 frame_zero_t e[4]; } uninit_t;
+/* site E (quirk #161): a function's `sub esp,N` (81 EC imm32) → the same + zero the N-byte frame.  The save writer
+ * 0x41a890 writes 520 never-filled header bytes from its frame into every snapshot / save file (a real HDC left
+ * there by an earlier GetDC caller ⇒ different every run: rh-combat's game-over retry). */
 static const uninit_t UNINIT[] = {
-    { "enold",   0x491770u, { 0x586f79u }, 0x4181dfu, 0x4181e6u, 0x440dd1u, 0x14854u, 0x42u, 0x440dd7u, 0x5c73fdu },
-    { "ense-en", 0x48c300u, { 0x5ad66bu, 0x5ad95bu }, 0x41233fu, 0x412346u, 0x43bcccu, 0x14874u, 0x46u, 0x43bcd2u, 0x5f7afau },
+    { "enold",   0x491770u, { 0x586f79u }, 0x4181dfu, 0x4181e6u, 0x440dd1u, 0x14854u, 0x42u, 0x440dd7u, 0x5c73fdu,
+      { { 0x41a8a5u, 0xb90u } } },
+    { "ense-en", 0x48c300u, { 0x5ad66bu, 0x5ad95bu }, 0x41233fu, 0x412346u, 0x43bcccu, 0x14874u, 0x46u, 0x43bcd2u, 0x5f7afau,
+      { { 0x4155e5u, 0xba0u } } },
 };
 /* site D (quirk #130): retail reads UNINITIALIZED HEAP — a reused CRT small block keeps the previous
  * owner's bytes, e.g. the 0x54-byte node `new`ed at 0x4158a4 only fills its word array up to its
@@ -608,6 +615,22 @@ static int uninit_fix_install(void)
         *o++ = 0xE9; *(int32_t *)o = (int32_t)(u->c_resume - ((uint32_t)(uintptr_t)o + 4)); o += 4;
         g_stub_top = (uint8_t *)(((uintptr_t)o + 15) & ~(uintptr_t)15);
         r[0] = 0xE9; *(int32_t *)(r + 1) = (int32_t)((uint32_t)(uintptr_t)c - (u->c + 5)); r[5] = 0x90;
+        n++;
+    }
+    for (int k = 0; k < 4 && u->e[k].va; k++) {             /* site E: zero a whole stack frame at entry */
+        uint8_t *q = (uint8_t *)(uintptr_t)u->e[k].va;
+        if (q[0] != 0x81 || q[1] != 0xEC || *(uint32_t *)(q + 2) != u->e[k].size) { rh_log("uninit-fix: site E %08x mismatch\n", u->e[k].va); continue; }
+        uint8_t *c = g_stub_top, *o = c;
+        memcpy(o, q, 6); o += 6;                                     /* sub esp,N */
+        *o++ = 0x60; *o++ = 0x9C;                                    /* pushad; pushfd */
+        *o++ = 0x8D; *o++ = 0x7C; *o++ = 0x24; *o++ = 36;            /* lea edi,[esp+36] */
+        *o++ = 0xB9; *(uint32_t *)o = u->e[k].size / 4; o += 4;      /* mov ecx,N/4 */
+        *o++ = 0x31; *o++ = 0xC0;                                    /* xor eax,eax */
+        *o++ = 0xFC; *o++ = 0xF3; *o++ = 0xAB;                       /* cld; rep stosd */
+        *o++ = 0x9D; *o++ = 0x61;                                    /* popfd; popad */
+        *o++ = 0xE9; *(int32_t *)o = (int32_t)(u->e[k].va + 6 - ((uint32_t)(uintptr_t)o + 4)); o += 4;
+        g_stub_top = (uint8_t *)(((uintptr_t)o + 15) & ~(uintptr_t)15);
+        q[0] = 0xE9; *(int32_t *)(q + 1) = (int32_t)((uint32_t)(uintptr_t)c - (u->e[k].va + 5)); q[5] = 0x90;
         n++;
     }
     return n;
@@ -681,7 +704,7 @@ static void finish(const char *why)
     if (is_dump_frame(0xffffffffu)) dump_now("end");
     for (int i = 0; i < O.n_shot; i++) if (O.shot_at[i] == 0xffffffffu) rh_shot("end");
     char hs[256]; rh_heap_stats(hs, sizeof hs);
-    rh_log("%s\n", hs);
+    rh_log("%s sound_pool=%uKB\n", hs, rh_media_pool_used() >> 10);
     if (O.log_ext) rh_state_ext_report();
     rh_hash_t h; rh_state_hash(&h);
     LARGE_INTEGER q; QueryPerformanceCounter(&q);
@@ -849,6 +872,7 @@ int main(int argc, char **argv)
     g_logf = fopen(lp, "w");
     g_log = stdout;
     if (!O.no_arena && rh_heap_init()) rh_fatal("heap arena reservation failed");
+    if (rh_media_reserve()) rh_fatal("rh_media: cannot reserve the sound pool");
     stacks_init();
     GetFullPathNameA(O.gamedir, sizeof g_gamedir_abs, g_gamedir_abs, NULL);
     for (size_t l = strlen(g_gamedir_abs); l && g_gamedir_abs[l - 1] == '\\'; ) g_gamedir_abs[--l] = 0;

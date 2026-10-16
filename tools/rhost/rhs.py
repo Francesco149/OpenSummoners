@@ -58,9 +58,9 @@ def classify(da, db, va, a, b):
 
 def is_det(v):
     # host image (incl. the retail image inside its hole), heap arena + fixed stack, call stubs,
-    # the fixed sound pool (rh_media.c) — addresses that are a pure function of the run
+    # the fixed sound pool (rh_media.c; 0x60000000.. until 2026-10-16) — addresses that are a pure function of the run
     return (0x200000 <= v < 0x5000000) or (0x20000000 <= v < 0x59000000) or \
-        (0x5f000000 <= v < 0x5f010000) or (0x60000000 <= v < 0x70000000)
+        (0x5f000000 <= v < 0x5f010000) or (0x10000000 <= v < 0x1e000000)
 
 
 def diff(pa, pb, show=40, out=sys.stdout):

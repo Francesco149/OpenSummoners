@@ -22,16 +22,25 @@ const char *rh_files_resolve(const char *path, int want_write, char *out, size_t
 #define E_NOTIMPL_ ((HRESULT)0x80004001L)
 
 /* ---------------------------------------------------------------- fixed pool */
-#define POOL_LO 0x60000000u
-#define POOL_SZ 0x10000000u
+/* Below the 32-bit system-DLL zone (0x60000000.. — 2026-10-16: dinput / dxgi / ddraw / d3d9 got new ASLR
+ * bases inside the old 0x60000000 pool once their sections were dropped, no reboot needed) and reserved at
+ * startup with the heap arena (rh_media_reserve), so a DLL that loads later relocates around it. */
+#define POOL_LO 0x10000000u
+#define POOL_SZ 0x0e000000u
 static uint32_t g_pool_top, g_pool_free[32];
+int rh_media_reserve(void)
+{
+    if (g_pool_top) return 0;
+    if (VirtualAlloc((void *)(uintptr_t)POOL_LO, POOL_SZ, MEM_RESERVE, PAGE_READWRITE) != (void *)(uintptr_t)POOL_LO) return -1;
+    g_pool_top = POOL_LO;
+    return 0;
+}
+uint32_t rh_media_pool_used(void) { return g_pool_top ? g_pool_top - POOL_LO : 0; }
+int rh_media_in_pool(uint32_t v) { return g_pool_top && v >= POOL_LO && v < POOL_LO + POOL_SZ; }
 static void *pool_alloc(uint32_t n)
 {
-    if (!g_pool_top) {
-        if (VirtualAlloc((void *)(uintptr_t)POOL_LO, POOL_SZ, MEM_RESERVE, PAGE_READWRITE) != (void *)(uintptr_t)POOL_LO)
-            rh_fatal("rh_media: cannot reserve the sound pool at %08x", POOL_LO);
-        g_pool_top = POOL_LO;
-    }
+    if (!g_pool_top && rh_media_reserve())
+        rh_fatal("rh_media: cannot reserve the sound pool at %08x", POOL_LO);
     int c = 12; while ((1u << c) < n + 16) c++;
     uint32_t p = g_pool_free[c];
     if (p) g_pool_free[c] = *(uint32_t *)(uintptr_t)(p + 4);

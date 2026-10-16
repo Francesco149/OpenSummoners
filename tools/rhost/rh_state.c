@@ -17,13 +17,14 @@
 #include "rhost.h"
 
 #define MAXR 4096
-static uint32_t g_vol[8192]; static int g_nvol, g_vol_sorted;
+#define MAXVOL 65536
+static uint32_t g_vol[MAXVOL]; static int g_nvol, g_vol_sorted;
 static uint8_t g_volpg[1u << 17];        /* pages holding any volatile address */
 static uint8_t g_ext[1u << 17];          /* 1 bit per 4 KB page of the 4 GB space */
 
 void rh_state_volatile_add(uint32_t va)
 {
-    if (g_nvol >= 8192) return;
+    if (g_nvol >= MAXVOL) rh_fatal("volatile.txt: more than %d addresses", MAXVOL);   /* (was a silent 8192 cap: unmasked tail) */
     g_vol[g_nvol++] = va & ~3u; g_vol_sorted = 0;
     g_volpg[va >> 15] |= (uint8_t)(1u << ((va >> 12) & 7));
 }
