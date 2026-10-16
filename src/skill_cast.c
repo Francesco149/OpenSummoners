@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "char_handlers.h"   /* item_effect 0x5b3b00 */
 #include "engine_calls.h"
 #include "rng.h"
 
@@ -1240,7 +1241,7 @@ LABEL_595:
               else if ( v82 == 6 )
               {
                 W_voice_cue(c, (int)v81, 0x42u, 1, 0, 0);
-                g_eng.h5b3b00(c, a2, (int)v81, F32(a2, 80), F32(a2, 76), 0, 0);
+                item_effect((wl_char *)(intptr_t)(c), (int32_t)(a2), (int32_t)((int)v81), (uint16_t *)(intptr_t)(F32(a2, 80)), (int32_t)(F32(a2, 76)), (int32_t)(0), (int16_t)(0));
                 if ( F32(c, 0x200) == 0 && v81 == 0 )
                   F32(W + 0x2774, 8) = 1;
               }
@@ -1348,7 +1349,7 @@ LABEL_407:
               v149 = F16(a2, 88);
               if ( (uint16_t)v149 != 3 && v149 == 6 )
               {
-                g_eng.h5b3b00(c, a2, (int)v140, F32(a2, 80), F32(a2, 76), v113, v264);
+                item_effect((wl_char *)(intptr_t)(c), (int32_t)(a2), (int32_t)((int)v140), (uint16_t *)(intptr_t)(F32(a2, 80)), (int32_t)(F32(a2, 76)), (int32_t)(v113), (int16_t)(v264));
                 if ( v140 == 0
                   && F32(c, 0x15b54) != 0
                   && F32(c, 0x15b5c) == 0
@@ -2341,7 +2342,7 @@ LABEL_499:
           g_eng.dsb_play_5bb8c0(v169);
         }
       }
-      g_eng.h5b3b00(c, a2, 0, F32(a2, 80), F32(a2, 76), 0, 0);
+      item_effect((wl_char *)(intptr_t)(c), (int32_t)(a2), (int32_t)(0), (uint16_t *)(intptr_t)(F32(a2, 80)), (int32_t)(F32(a2, 76)), (int32_t)(0), (int16_t)(0));
       if ( F32(c, 0x15b54) == 0
         || F32(c, 0x15b5c) != 0
         || F32(c, 0x15a8c) == 1 && F32(CFG(), 400) == 0 )

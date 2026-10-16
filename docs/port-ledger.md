@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **892** (57.4% of engine-proper) — tested 249, ported 643
-- code bytes touched: **43.0%** (763,448 / 1,776,526 B of engine-proper)
-- unported: **932**
+- touched: **900** (57.9% of engine-proper) — tested 249, ported 651
+- code bytes touched: **43.6%** (773,853 / 1,776,526 B of engine-proper)
+- unported: **924**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (643) — reimplemented, no host test yet
+## ported (651) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -528,7 +528,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x442920 | sub_442920 | 149 | char_integrate.h |
 | 0x4429c0 | sub_4429C0 | 86 | npc_ai.h |
 | 0x442a20 | sub_442A20 | 76 | npc_ai.h |
-| 0x442a70 | sub_442A70 | 12026 | char_integrate.c, char_integrate.h |
+| 0x442a70 | sub_442A70 | 12026 | char_handlers.c, char_integrate.c, char_integrate.h |
 | 0x445ce0 | sub_445CE0 | 67 | shots.h |
 | 0x445d30 | sub_445D30 | 124 | char_integrate.h |
 | 0x445db0 | sub_445DB0 | 150 | actor_update.c, actor_update.h |
@@ -540,6 +540,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4464f0 | sub_4464F0 | 138 | sound_fx.h |
 | 0x446580 | sub_446580 | 185 | sound_fx.h |
 | 0x446640 | sub_446640 | 112 | char_integrate.h |
+| 0x4466b0 | sub_4466B0 | 276 | char_handlers.h |
 | 0x4467d0 | sub_4467D0 | 289 | entity_life.h |
 | 0x4478e0 | sub_4478E0 | 18 | char_attack.h |
 | 0x447900 | sub_447900 | 772 | char_attack.h |
@@ -556,6 +557,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x44bbc0 | sub_44BBC0 | 66 | entity_fx.c, entity_fx.h |
 | 0x44ce20 | sub_44CE20 | 505 | char_attack.h |
 | 0x44d020 | sub_44D020 | 308 | char_status.h |
+| 0x44d2e0 | sub_44D2E0 | 1528 | char_handlers.h |
 | 0x44e6c0 | sub_44E6C0 | 108 | char_status.h |
 | 0x4504c0 | sub_4504C0 | 197 | shots.h |
 | 0x450590 | sub_450590 | 46 | char_attack.h |
@@ -564,11 +566,14 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x450ef0 | sub_450EF0 | 776 | sound_fx.h |
 | 0x451200 | sub_451200 | 79 | entity_fx.c, entity_fx.h |
 | 0x451250 | sub_451250 | 119 | char_integrate.h |
+| 0x4512d0 | sub_4512D0 | 1012 | char_handlers.h |
 | 0x4537d0 | sub_4537D0 | 283 | entity_fx.c, entity_fx.h |
 | 0x4538f0 | sub_4538F0 | 112 | shots.h |
 | 0x453960 | velocity_scatter_453960 | 70 | char_state.h |
+| 0x455d80 | sub_455D80 | 3175 | char_handlers.h |
 | 0x456a50 | sub_456A50 | 272 | skill_cast.h |
 | 0x456b60 | sub_456B60 | 248 | skill_cast.h |
+| 0x456c60 | sub_456C60 | 184 | char_handlers.h |
 | 0x457ff0 | sub_457FF0 | 4675 | arche_pose.c, arche_pose.h |
 | 0x459370 | sub_459370 | 71 | arche_pose.h |
 | 0x4593c0 | sub_4593C0 | 32 | char_state.h |
@@ -595,6 +600,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x466750 | sub_466750 | 190 | arche_sword.h |
 | 0x466e80 | sub_466E80 | 803 | char_attack.h |
 | 0x4671c0 | sub_4671C0 | 158 | char_integrate.h |
+| 0x467260 | sub_467260 | 208 | char_handlers.h |
 | 0x467380 | ambient_event_timer_467380 | 376 | sound_fx.h |
 | 0x467500 | sub_467500 | 185 | char_attack.h |
 | 0x4678f0 | sub_4678F0 | 482 | arche_pose.h |
@@ -897,8 +903,10 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b15e0 | sub_5B15E0 | 1124 | char_attack.h |
 | 0x5b1aa0 | sub_5B1AA0 | 405 | arche_pose.h |
 | 0x5b1c50 | sub_5B1C50 | 699 | char_attack.h |
+| 0x5b28a0 | sub_5B28A0 | 3020 | char_handlers.h |
 | 0x5b34d0 | sub_5B34D0 | 277 | char_hit.h |
 | 0x5b3890 | sub_5B3890 | 615 | char_attack.h |
+| 0x5b3b00 | sub_5B3B00 | 1002 | char_handlers.h |
 | 0x5b3f00 | sub_5B3F00 | 545 | char_hit.h |
 | 0x5b4130 | sub_5B4130 | 60 | char_hit.h |
 | 0x5b4170 | sub_5B4170 | 133 | char_hit.h |

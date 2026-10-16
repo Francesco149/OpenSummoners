@@ -11,6 +11,7 @@
 #include "arche_pose.h"
 #include "char_physics.h"
 #include "char_state.h"
+#include "char_handlers.h"
 #include "engine_calls.h"
 #include "particle_spawn.h"
 #include "entity_life.h"
@@ -327,7 +328,7 @@ actions:
         ctl = 3;
         if (c == 0) {
             voice_cue(self, probe, 9, 0, 0, 0);
-            g_eng.h467260(self, IP(out), probe, self->f158fc);
+            ih_467260((wl_char *)(intptr_t)(self), (int32_t)(IP(out)), (int32_t)(probe), (int32_t)(self->f158fc));
         }
         body_set_clip(out, out->pose == 106 ? self->clip_hit2 : self->clip_hit);
         c = out->act_ctr;
@@ -345,7 +346,7 @@ actions:
             voice_cue(self, probe, 9, 0, 0, 0);
             body_set_clip(out, self->clip_hit);
             out->f58++;
-            g_eng.h467260(self, IP(out), probe, self->f158fc);
+            ih_467260((wl_char *)(intptr_t)(self), (int32_t)(IP(out)), (int32_t)(probe), (int32_t)(self->f158fc));
         }
         if (out->clip_done != 0) body_action_reset(out);
 hit_tail:
@@ -452,7 +453,7 @@ t904:
             switch (code) {
             case 0xc76b: case 0xc76c:
 t806:
-                if (g_eng.h4512d0(self, IP(out), probe, IP(&ctl), part, out->grounded, IP(cmd)) == 0) goto t913;
+                if (ih_4512d0((wl_char *)(intptr_t)(self), (int32_t)(IP(out)), (int32_t)(probe), (int32_t *)(intptr_t)(IP(&ctl)), (int32_t)(part), (int32_t)(out->grounded), (int32_t)(IP(cmd))) == 0) goto t913;
                 goto t914;
             case 0xc775: case 0xc776: goto t814;
             case 0xc77f: case 0xc780:
@@ -493,7 +494,7 @@ t812:
         }
         if (code == 51022) {
 t814:
-            if (g_eng.h44d2e0(self, IP(out), probe, IP(&ctl), part, out->grounded) == 0) goto t909;
+            if (ih_44d2e0((wl_char *)(intptr_t)(self), (int32_t)(IP(out)), (int32_t)(probe), (int32_t)(IP(&ctl)), (int32_t)(part), (int32_t *)(intptr_t)(out->grounded)) == 0) goto t909;
             goto t910;
         }
         if (code <= 0xc35d) {
@@ -536,7 +537,7 @@ t795:
         goto tail;
 t890:
         if (out->grounded == 0) out->nocollide = 1;
-        if (g_eng.h455d80(self, IP(out), probe, IP(&ctl), part, out->grounded, IP(&dt), IP(cmd)) == 0) PHYS();
+        if (ih_455d80((wl_char *)(intptr_t)(self), (int32_t)(IP(out)), (int32_t)(probe), (int32_t *)(intptr_t)(IP(&ctl)), (int32_t)(part), (int32_t)(out->grounded), (int32_t *)(intptr_t)(IP(&dt)), (int32_t)(IP(cmd))) == 0) PHYS();
         if (out->pose == 0) {
             ANIM();
             if (out->state == 2) out->nocollide = 1;

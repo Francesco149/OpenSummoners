@@ -61,6 +61,7 @@
 #include "skill_cast.h"
 #include "shots.h"
 #include "behave_helpers.h"
+#include "char_handlers.h"
 #include "room_tick.h"
 #include "ui_core.h"
 #include "ui_text.h"
@@ -273,6 +274,9 @@ typedef struct {
     X(H_BH485CB0, "beh_485cb0", 0x485cb0u) X(H_BH47B870, "beh_47b870", 0x47b870u) X(H_BH48B920, "beh_48b920", 0x48b920u) \
     X(H_BH5B4200, "beh_5b4200", 0x5b4200u) X(H_BH480260, "beh_480260", 0x480260u) X(H_BH480580, "beh_480580", 0x480580u) \
     X(H_BH4832E0, "beh_4832e0", 0x4832e0u) X(H_BH484BC0, "beh_484bc0", 0x484bc0u) \
+    X(H_CH455D80, "ih_455d80", 0x455d80u) X(H_CH44D2E0, "ih_44d2e0", 0x44d2e0u) X(H_CH4512D0, "ih_4512d0", 0x4512d0u) \
+    X(H_CH4466B0, "ih_4466b0", 0x4466b0u) X(H_CH467260, "ih_467260", 0x467260u) X(H_CH5B3B00, "item_effect", 0x5b3b00u) \
+    X(H_CH5B28A0, "ih_5b28a0", 0x5b28a0u) \
     X(H_BOOK, "book_read", 0x40dbc0u) X(H_SSETFREE, "sprite_set_free", 0x410300u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
@@ -4174,6 +4178,14 @@ TC_HOOK(H_BH480260, "beh_480260", 4, 1, return (intptr_t)beh_480260(self, (int32
 TC_HOOK(H_BH480580, "beh_480580", 7, 1, return (intptr_t)beh_480580(self, a1, (int32_t *)a2, a3, a4, U16(a5), a6, a7))
 TC_HOOK(H_BH4832E0, "beh_4832e0", 5, 1, return (intptr_t)beh_4832e0(self, a1, a2, a3, a4, a5))
 TC_HOOK(H_BH484BC0, "beh_484bc0", 4, 1, return (intptr_t)beh_484bc0(self, a1, a2, (int32_t *)a3, (int32_t *)a4))
+/* the integrator's handlers + the item / skill effect (src/char_handlers.c; 0x456c60 takes its caller's ecx) */
+TC_HOOK(H_CH455D80, "ih_455d80", 7, 1, return (intptr_t)ih_455d80(self, a1, a2, (int32_t *)a3, a4, a5, (int32_t *)a6, a7))
+TC_HOOK(H_CH44D2E0, "ih_44d2e0", 5, 1, return (intptr_t)ih_44d2e0(self, a1, a2, a3, a4, (int32_t *)a5))
+TC_HOOK(H_CH4512D0, "ih_4512d0", 6, 1, return (intptr_t)ih_4512d0(self, a1, a2, (int32_t *)a3, a4, a5, a6))
+TC_HOOK(H_CH4466B0, "ih_4466b0", 3, 0, ih_4466b0(self, a1, a2, a3); return 0)
+TC_HOOK(H_CH467260, "ih_467260", 3, 1, return (intptr_t)ih_467260(self, a1, a2, a3))
+TC_HOOK(H_CH5B3B00, "item_effect", 6, 1, return (intptr_t)item_effect(self, a1, a2, (uint16_t *)a3, a4, a5, (int16_t)a6))
+TC_HOOK(H_CH5B28A0, "ih_5b28a0", 9, 1, return (intptr_t)ih_5b28a0(self, a1, a2, a3, a4, a5, a6, a7, a8, (char *)a9))
 /* the book reader (a frame loop) + the sprite set free (surface frees) — REPLACE only */
 TC_HOOK(H_BOOK, "book_read", 1, 1, return book_read(self, CP(a1)))
 TC_HOOK(H_SSETFREE, "sprite_set_free", 1, 0, sprite_set_free(self, U16(a1)); return 0)
@@ -4415,10 +4427,10 @@ static void bind_engine_calls(void)
     *(void **)&g_eng.op_new    = (void *)(uintptr_t)0x5bf00du;   /* operator new (cdecl) */
     *(void **)&g_eng.op_delete = (void *)(uintptr_t)0x5bef0eu;   /* operator delete (cdecl) */
 #define B(n) *(void **)&g_eng.h##n = (void *)(uintptr_t)0x##n##u
-    B(467260); B(44a740); B(44bc10); B(44c250); B(44bf60); B(446900);
+    B(44a740); B(44bc10); B(44c250); B(44bf60); B(446900);
     B(452020); B(449810); B(4539b0); B(44d8f0); B(448dc0); B(452730);
-    B(455d80); B(44b160); B(4516e0); B(4484b0); B(4512d0); B(44a200); B(44e8d0); B(44f690); B(450810);
-    B(44d2e0); B(456d30); B(445e50);
+    B(44b160); B(4516e0); B(4484b0); B(44a200); B(44e8d0); B(44f690); B(450810);
+    B(456d30); B(445e50);
 #undef B
 #define B(n) *(void **)&g_eng.h##n = (void *)(uintptr_t)0x##n##u
    
@@ -4438,7 +4450,7 @@ static void bind_engine_calls(void)
     B(56dc20); B(41a890); B(5bf3ee); B(426110); B(560900); B(5bf5db);
     B(428c00); B(429060); B(429db0); B(42a500); B(42a9a0); B(42b9a0); B(42c130); B(42c510);
     B(42cce0); B(42d3c0); B(42da50); B(42f840); B(42ff00); B(430400);
-    B(5bcfb0); B(5b3b00); B(5b1f10); B(4034f0); B(4051d0); B(415ae0); B(4192f0); B(418ec0); B(441de0);
+    B(5bcfb0); B(5b1f10); B(4034f0); B(4051d0); B(415ae0); B(4192f0); B(418ec0); B(441de0);
     B(5bcfa0); B(43c1b0); B(5b94e0); B(5b9500); B(5b5ef0); B(43e250); B(43d540); B(43d4b0); B(43dd30); B(43d830);
     B(442920); B(4428f0); B(468970);
     B(561d20); B(409150); B(55fdb0); B(41d780); B(4e6520); B(4e61d0); B(41b670); B(4c5af0); B(52fd80); B(5a3870); B(5a00c0);
