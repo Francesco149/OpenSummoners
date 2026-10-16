@@ -63,7 +63,7 @@ static const uint32_t AREA_ANY[] = {          /* after the empty 0x4afda0 */
 static int scripts(wl_event *ev, const uint32_t *va, size_t n, int *r)
 {
     for (size_t i = 0; i < n; i++) {
-        *r = g_eng.script_call(va[i], ev);
+        *r = g_eng.script_call(va[i], ev);   /* rhost: the port's chs_find(va) when its hook replaces, else retail's */
         if (*r != 0) return 1;
         if (ev->unload != 0) return 1;
     }

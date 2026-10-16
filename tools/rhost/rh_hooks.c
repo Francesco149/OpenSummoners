@@ -62,6 +62,7 @@
 #include "shots.h"
 #include "behave_helpers.h"
 #include "char_handlers.h"
+#include "chapter_scripts.h"
 #include "room_tick.h"
 #include "ui_core.h"
 #include "ui_text.h"
@@ -277,6 +278,18 @@ typedef struct {
     X(H_CH455D80, "ih_455d80", 0x455d80u) X(H_CH44D2E0, "ih_44d2e0", 0x44d2e0u) X(H_CH4512D0, "ih_4512d0", 0x4512d0u) \
     X(H_CH4466B0, "ih_4466b0", 0x4466b0u) X(H_CH467260, "ih_467260", 0x467260u) X(H_CH5B3B00, "item_effect", 0x5b3b00u) \
     X(H_CH5B28A0, "ih_5b28a0", 0x5b28a0u) \
+    X(H_CS4D7D80, "chs_4d7d80", 0x4d7d80u) X(H_CS4DC510, "chs_4dc510", 0x4dc510u) X(H_CS4D64F0, "chs_4d64f0", 0x4d64f0u) \
+    X(H_CS4CD6D0, "chs_4cd6d0", 0x4cd6d0u) X(H_CS4D13A0, "chs_4d13a0", 0x4d13a0u) X(H_CS4CCC90, "chs_4ccc90", 0x4ccc90u) \
+    X(H_CS4C6B40, "chs_4c6b40", 0x4c6b40u) X(H_CS4E19E0, "chs_4e19e0", 0x4e19e0u) X(H_CS49D930, "chs_49d930", 0x49d930u) \
+    X(H_CS4A0C90, "chs_4a0c90", 0x4a0c90u) X(H_CS49F7C0, "chs_49f7c0", 0x49f7c0u) X(H_CS4A6B80, "chs_4a6b80", 0x4a6b80u) \
+    X(H_CS4AC6D0, "chs_4ac6d0", 0x4ac6d0u) X(H_CS4A66A0, "chs_4a66a0", 0x4a66a0u) X(H_CS4A5FA0, "chs_4a5fa0", 0x4a5fa0u) \
+    X(H_CS4AE150, "chs_4ae150", 0x4ae150u) X(H_CS4AE420, "chs_4ae420", 0x4ae420u) X(H_CS4AFDB0, "chs_4afdb0", 0x4afdb0u) \
+    X(H_CS4B3B20, "chs_4b3b20", 0x4b3b20u) X(H_CS4B3C70, "chs_4b3c70", 0x4b3c70u) X(H_CS4B4D40, "chs_4b4d40", 0x4b4d40u) \
+    X(H_CS4BBEF0, "chs_4bbef0", 0x4bbef0u) X(H_CS4BD2E0, "chs_4bd2e0", 0x4bd2e0u) X(H_CS4BD6B0, "chs_4bd6b0", 0x4bd6b0u) \
+    X(H_CS4BD820, "chs_4bd820", 0x4bd820u) X(H_CS4BDF90, "chs_4bdf90", 0x4bdf90u) X(H_CS4BDBE0, "chs_4bdbe0", 0x4bdbe0u) \
+    X(H_CS4BE220, "chs_4be220", 0x4be220u) X(H_CS4C1A30, "chs_4c1a30", 0x4c1a30u) X(H_CS4C1C20, "chs_4c1c20", 0x4c1c20u) \
+    X(H_CS4C2310, "chs_4c2310", 0x4c2310u) X(H_CS4C29C0, "chs_4c29c0", 0x4c29c0u) X(H_CS4C2DC0, "chs_4c2dc0", 0x4c2dc0u) \
+    X(H_CS4C3EE0, "chs_4c3ee0", 0x4c3ee0u) X(H_CS4C45A0, "chs_4c45a0", 0x4c45a0u) \
     X(H_BOOK, "book_read", 0x40dbc0u) X(H_SSETFREE, "sprite_set_free", 0x410300u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
@@ -2194,9 +2207,14 @@ static int __attribute__((thiscall)) gd_49bf90(void *d, intptr_t v) { GUARD("the
  * scene command run 0x439690 (the nested frame loop) follows the same rule; the BGM
  * player, the title text and the UI flows (chest / save statue / furniture / talk / mode 5) always guard */
 #define EV_GUARD(ev, what) if ((ev)->mode != 3 && (ev)->mode != 4) { GUARD(what) }
+#define H_CS_FIRST H_CS4D7D80
+#define H_CS_LAST H_CS4C45A0
+static void *rh_retail(uint32_t va) { return (void *)(uintptr_t)va; }   /* decomp2c's RC_ calls: retail is mapped in place */
 static int rh_script_call(uint32_t va, wl_event *ev)
 {
     EV_GUARD(ev, "a chapter script (mode != 3/4)")
+    for (int i = H_CS_FIRST; i <= H_CS_LAST; i++)   /* a ported chapter script whose hook replaces: the port's */
+        if (H[i].va == va && H[i].mode == 2) { H[i].calls++; return chs_find(va)((wl_char *)ev); }
     return ((eng_tc0)(uintptr_t)va)(ev);
 }
 static int __attribute__((thiscall)) gd_439690(void *rl, intptr_t ev);   /* (below: it dispatches to scene_run) */
@@ -4186,6 +4204,43 @@ TC_HOOK(H_CH4466B0, "ih_4466b0", 3, 0, ih_4466b0(self, a1, a2, a3); return 0)
 TC_HOOK(H_CH467260, "ih_467260", 3, 1, return (intptr_t)ih_467260(self, a1, a2, a3))
 TC_HOOK(H_CH5B3B00, "item_effect", 6, 1, return (intptr_t)item_effect(self, a1, a2, (uint16_t *)a3, a4, a5, (int16_t)a6))
 TC_HOOK(H_CH5B28A0, "ih_5b28a0", 9, 1, return (intptr_t)ih_5b28a0(self, a1, a2, a3, a4, a5, a6, a7, a8, (char *)a9))
+/* the chapter scripts (src/chapter_scripts.c): nested frame loops — REPLACE only; the script engine's by-VA
+ * calls reach them through rh_script_call */
+TC_HOOK0(H_CS4D7D80, "chs_4d7d80", 1, return (intptr_t)chs_4d7d80((wl_char *)self))
+TC_HOOK0(H_CS4DC510, "chs_4dc510", 1, return (intptr_t)chs_4dc510((wl_char *)self))
+TC_HOOK0(H_CS4D64F0, "chs_4d64f0", 1, return (intptr_t)chs_4d64f0((wl_char *)self))
+TC_HOOK0(H_CS4CD6D0, "chs_4cd6d0", 1, return (intptr_t)chs_4cd6d0((wl_char *)self))
+TC_HOOK0(H_CS4D13A0, "chs_4d13a0", 1, return (intptr_t)chs_4d13a0((wl_char *)self))
+TC_HOOK0(H_CS4CCC90, "chs_4ccc90", 1, return (intptr_t)chs_4ccc90((wl_char *)self))
+TC_HOOK0(H_CS4C6B40, "chs_4c6b40", 1, return (intptr_t)chs_4c6b40((wl_char *)self))
+TC_HOOK0(H_CS4E19E0, "chs_4e19e0", 1, return (intptr_t)chs_4e19e0((wl_char *)self))
+TC_HOOK0(H_CS49D930, "chs_49d930", 1, return (intptr_t)chs_49d930((wl_char *)self))
+TC_HOOK0(H_CS4A0C90, "chs_4a0c90", 1, return (intptr_t)chs_4a0c90((wl_char *)self))
+TC_HOOK0(H_CS49F7C0, "chs_49f7c0", 1, return (intptr_t)chs_49f7c0((wl_char *)self))
+TC_HOOK0(H_CS4A6B80, "chs_4a6b80", 1, return (intptr_t)chs_4a6b80((wl_char *)self))
+TC_HOOK0(H_CS4AC6D0, "chs_4ac6d0", 1, return (intptr_t)chs_4ac6d0((wl_char *)self))
+TC_HOOK0(H_CS4A66A0, "chs_4a66a0", 1, return (intptr_t)chs_4a66a0((wl_char *)self))
+TC_HOOK0(H_CS4A5FA0, "chs_4a5fa0", 1, return (intptr_t)chs_4a5fa0((wl_char *)self))
+TC_HOOK0(H_CS4AE150, "chs_4ae150", 1, return (intptr_t)chs_4ae150((wl_char *)self))
+TC_HOOK0(H_CS4AE420, "chs_4ae420", 1, return (intptr_t)chs_4ae420((wl_char *)self))
+TC_HOOK0(H_CS4AFDB0, "chs_4afdb0", 1, return (intptr_t)chs_4afdb0((wl_char *)self))
+TC_HOOK0(H_CS4B3B20, "chs_4b3b20", 1, return (intptr_t)chs_4b3b20((wl_char *)self))
+TC_HOOK0(H_CS4B3C70, "chs_4b3c70", 1, return (intptr_t)chs_4b3c70((wl_char *)self))
+TC_HOOK0(H_CS4B4D40, "chs_4b4d40", 1, return (intptr_t)chs_4b4d40((wl_char *)self))
+TC_HOOK0(H_CS4BBEF0, "chs_4bbef0", 1, return (intptr_t)chs_4bbef0((wl_char *)self))
+TC_HOOK0(H_CS4BD2E0, "chs_4bd2e0", 1, return (intptr_t)chs_4bd2e0((wl_char *)self))
+TC_HOOK0(H_CS4BD6B0, "chs_4bd6b0", 1, return (intptr_t)chs_4bd6b0((wl_char *)self))
+TC_HOOK0(H_CS4BD820, "chs_4bd820", 1, return (intptr_t)chs_4bd820((wl_char *)self))
+TC_HOOK0(H_CS4BDF90, "chs_4bdf90", 1, return (intptr_t)chs_4bdf90((wl_char *)self))
+TC_HOOK0(H_CS4BDBE0, "chs_4bdbe0", 1, return (intptr_t)chs_4bdbe0((wl_char *)self))
+TC_HOOK0(H_CS4BE220, "chs_4be220", 1, return (intptr_t)chs_4be220((wl_char *)self))
+TC_HOOK0(H_CS4C1A30, "chs_4c1a30", 1, return (intptr_t)chs_4c1a30((wl_char *)self))
+TC_HOOK0(H_CS4C1C20, "chs_4c1c20", 1, return (intptr_t)chs_4c1c20((wl_char *)self))
+TC_HOOK0(H_CS4C2310, "chs_4c2310", 1, return (intptr_t)chs_4c2310((wl_char *)self))
+TC_HOOK0(H_CS4C29C0, "chs_4c29c0", 1, return (intptr_t)chs_4c29c0((wl_char *)self))
+TC_HOOK0(H_CS4C2DC0, "chs_4c2dc0", 1, return (intptr_t)chs_4c2dc0((wl_char *)self))
+TC_HOOK0(H_CS4C3EE0, "chs_4c3ee0", 1, return (intptr_t)chs_4c3ee0((wl_char *)self))
+TC_HOOK0(H_CS4C45A0, "chs_4c45a0", 1, return (intptr_t)chs_4c45a0((wl_char *)self))
 /* the book reader (a frame loop) + the sprite set free (surface frees) — REPLACE only */
 TC_HOOK(H_BOOK, "book_read", 1, 1, return book_read(self, CP(a1)))
 TC_HOOK(H_SSETFREE, "sprite_set_free", 1, 0, sprite_set_free(self, U16(a1)); return 0)
@@ -4468,6 +4523,7 @@ static void bind_engine_calls(void)
     /* the external-effect calls go through the shadow guards */
     *(void **)&g_eng.h5b9390 = (void *)gd_5b9390;
     g_eng.script_call = rh_script_call;
+    g_eng.retail = rh_retail;
     *(void **)&g_eng.h439690 = (void *)gd_439690;
     *(void **)&g_eng.h4081d0 = (void *)gd_4081d0; *(void **)&g_eng.h408730 = (void *)gd_408730;
     *(void **)&g_eng.h407970 = (void *)gd_407970; *(void **)&g_eng.h40a340 = (void *)gd_40a340;
@@ -4549,7 +4605,8 @@ void rh_hooks_install(void)
         if (!h->mode) continue;
         if ((h == &H[H_RLOOP] || h == &H[H_REPOLL] || h == &H[H_LROOM] || h == &H[H_SLOOP] || h == &H[H_MPACE] || h == &H[H_MRUN] ||
              h == &H[H_UM_PAGES] || h == &H[H_ST_DEP] || h == &H[H_ST_WD] || h == &H[H_ST_RUN] || h == &H[H_IFIND] ||
-             h == &H[H_FURN] || h == &H[H_UM_PCLOSE] || h == &H[H_SC_YN] || h == &H[H_IGIVE] || h == &H[H_BOOK] || h == &H[H_SSETFREE]) && h->mode == 1)
+             h == &H[H_FURN] || h == &H[H_UM_PCLOSE] || h == &H[H_SC_YN] || h == &H[H_IGIVE] || h == &H[H_BOOK] || h == &H[H_SSETFREE] ||
+             (h >= &H[H_CS_FIRST] && h <= &H[H_CS_LAST])) && h->mode == 1)
             rh_fatal("%s: replace only (it runs a room / repolls DirectInput)", h->name);
         if (h == &H[H_MAP_DECODE]) {
             if (h->mode == 2) rh_fatal("map_decode: shadow only (the port decode needs the recorded resource)");

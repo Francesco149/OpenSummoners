@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **900** (57.9% of engine-proper) — tested 249, ported 651
-- code bytes touched: **43.6%** (773,853 / 1,776,526 B of engine-proper)
-- unported: **924**
+- touched: **935** (60.2% of engine-proper) — tested 249, ported 686
+- code bytes touched: **58.0%** (1,029,899 / 1,776,526 B of engine-proper)
+- unported: **889**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (651) — reimplemented, no host test yet
+## ported (686) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -754,12 +754,39 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x49cd70 | sub_49CD70 | 254 | script_engine.h |
 | 0x49ce70 | sub_49CE70 | 231 | room_tick.h |
 | 0x49d6e0 | sub_49D6E0 | 590 | scene_cmd.h |
+| 0x49d930 | sub_49D930 | 2296 | chapter_scripts.h |
+| 0x49f7c0 | sub_49F7C0 | 5270 | chapter_scripts.h |
+| 0x4a0c90 | sub_4A0C90 | 20785 | chapter_scripts.h |
 | 0x4a5e20 | sub_4A5E20 | 32 | scene_cmd.h |
 | 0x4a5ee0 | sub_4A5EE0 | 72 | scene_cmd.h |
 | 0x4a5f30 | sub_4A5F30 | 20 | scene_cmd.h |
 | 0x4a5f50 | sub_4A5F50 | 45 | scene_cmd.h |
 | 0x4a5f90 | sub_4A5F90 | 11 | scene_cmd.h |
+| 0x4a5fa0 | sub_4A5FA0 | 1057 | chapter_scripts.h |
+| 0x4a66a0 | sub_4A66A0 | 1244 | chapter_scripts.h |
+| 0x4a6b80 | sub_4A6B80 | 23051 | chapter_scripts.h |
+| 0x4ac6d0 | sub_4AC6D0 | 6756 | chapter_scripts.h |
+| 0x4ae150 | sub_4AE150 | 712 | chapter_scripts.h |
+| 0x4ae420 | sub_4AE420 | 6478 | chapter_scripts.h |
 | 0x4afda0 | sub_4AFDA0 | 3 | script_engine.h |
+| 0x4afdb0 | sub_4AFDB0 | 15577 | chapter_scripts.h |
+| 0x4b3b20 | sub_4B3B20 | 330 | chapter_scripts.h |
+| 0x4b3c70 | sub_4B3C70 | 697 | chapter_scripts.h |
+| 0x4b4d40 | sub_4B4D40 | 28488 | chapter_scripts.h |
+| 0x4bbef0 | sub_4BBEF0 | 5004 | chapter_scripts.h |
+| 0x4bd2e0 | sub_4BD2E0 | 968 | chapter_scripts.h |
+| 0x4bd6b0 | sub_4BD6B0 | 359 | chapter_scripts.h |
+| 0x4bd820 | sub_4BD820 | 960 | chapter_scripts.h |
+| 0x4bdbe0 | sub_4BDBE0 | 937 | chapter_scripts.h |
+| 0x4bdf90 | sub_4BDF90 | 580 | chapter_scripts.h |
+| 0x4be220 | sub_4BE220 | 14286 | chapter_scripts.h |
+| 0x4c1a30 | sub_4C1A30 | 491 | chapter_scripts.h |
+| 0x4c1c20 | sub_4C1C20 | 1774 | chapter_scripts.h |
+| 0x4c2310 | sub_4C2310 | 1701 | chapter_scripts.h |
+| 0x4c29c0 | sub_4C29C0 | 1020 | chapter_scripts.h |
+| 0x4c2dc0 | sub_4C2DC0 | 4360 | chapter_scripts.h |
+| 0x4c3ee0 | sub_4C3EE0 | 1727 | chapter_scripts.h |
+| 0x4c45a0 | sub_4C45A0 | 3423 | chapter_scripts.h |
 | 0x4c57f0 | sub_4C57F0 | 50 | scene_loop.h |
 | 0x4c5830 | sub_4C5830 | 694 | scene_loop.h |
 | 0x4c5e00 | sub_4C5E00 | 778 | party_member.h |
@@ -770,6 +797,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4c6550 | sub_4C6550 | 618 | party_member.h |
 | 0x4c6830 | sub_4C6830 | 337 | party_member.h |
 | 0x4c6990 | sub_4C6990 | 419 | party_member.h |
+| 0x4c6b40 | sub_4C6B40 | 21496 | chapter_scripts.h |
 | 0x4cbf80 | sub_4CBF80 | 47 | scene_cmd.h |
 | 0x4cc060 | sub_4CC060 | 31 | scene_cmd.h |
 | 0x4cc080 | sub_4CC080 | 28 | scene_cmd.h |
@@ -777,8 +805,15 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4cc0c0 | sub_4CC0C0 | 28 | scene_cmd.h |
 | 0x4cc5a0 | sub_4CC5A0 | 628 | scene_loop.h |
 | 0x4cca70 | sub_4CCA70 | 453 | scene_cmd.h |
+| 0x4ccc90 | sub_4CCC90 | 2610 | chapter_scripts.h |
+| 0x4cd6d0 | sub_4CD6D0 | 14951 | chapter_scripts.h |
+| 0x4d13a0 | sub_4D13A0 | 20018 | chapter_scripts.h |
 | 0x4d64b0 | sub_4D64B0 | 62 | scene_cmd.h |
+| 0x4d64f0 | sub_4D64F0 | 6202 | chapter_scripts.h |
+| 0x4d7d80 | sub_4D7D80 | 18166 | chapter_scripts.h |
+| 0x4dc510 | sub_4DC510 | 21461 | chapter_scripts.h |
 | 0x4e1950 | sub_4E1950 | 135 | scene_loop.h |
+| 0x4e19e0 | sub_4E19E0 | 811 | chapter_scripts.h |
 | 0x4e6030 | sub_4E6030 | 54 | party_member.h |
 | 0x4e6070 | sub_4E6070 | 299 | party_member.h |
 | 0x4e61a0 | sub_4E61A0 | 33 | scene_loop.h |

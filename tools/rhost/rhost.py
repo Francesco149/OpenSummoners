@@ -248,8 +248,9 @@ def wine_stage():
     if not os.path.exists(dst) or os.path.getmtime(dst) < os.path.getmtime(src):
         # a new inode, never an in-place overwrite: a batch still running maps the old image (an in-place
         # write would swap its code pages under it)
-        shutil.copy2(src, dst + ".new")
-        os.replace(dst + ".new", dst)
+        tmp = f"{dst}.{os.getpid()}.new"   # per process: two batches starting together staged through one name
+        shutil.copy2(src, tmp)
+        os.replace(tmp, dst)
     for ed, path in WINE_GAMES.items():
         link = os.path.join(WINE_ROOT, "game", ed)
         if os.path.isdir(path) and not os.path.islink(link):
@@ -275,10 +276,16 @@ def run_batch_wine(a, runs, tag, fetch):
     # ONE Xvfb per batch shared by every worker: the runs share the prefix (one wineserver), and
     # wine processes of one wineserver on different X displays die with BadWindow
     disp = 400 + os.getpid() % 500
+    while os.path.exists(f"/tmp/.X{disp}-lock") or os.path.exists(f"/tmp/.X11-unix/X{disp}"):
+        disp += 1   # another batch's Xvfb: two wineservers on one display die with BadWindow
     xvfb = subprocess.Popen(["Xvfb", f":{disp}", "-screen", "0", "1280x1024x16", "-nolisten", "tcp"],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     time.sleep(1.0)
     env = dict(os.environ, WINEPREFIX=WINE_PREFIX, WINEDEBUG="-all", DISPLAY=f":{disp}")
+    # a wineserver still up from an earlier batch keeps its desktop on THAT batch's (gone) display: new
+    # processes on this display die with BadWindow — one batch per prefix, so it is shut down first
+    subprocess.run(["wineserver", "-k"], env=env, capture_output=True)
+    subprocess.run(["wineserver", "-w"], env=env, capture_output=True, timeout=60)
 
     def one(ir):
         i, r = ir
@@ -549,7 +556,9 @@ VERIFY_HOOKS = ["rand", "input_poll", "mover_v", "sweep_h", "ent_move_h", "ent_m
                 "beh_441f50", "beh_47d790", "beh_47da60", "beh_47de50", "beh_47e010", "beh_47e7c0", "beh_47eae0", "beh_47ecd0", "beh_47f670", "beh_47f9d0", "beh_481310", "beh_481ac0", "beh_482240", "beh_482380", "beh_482460", "beh_482880", "beh_482ac0", "beh_482e10", "beh_4834f0", "beh_483b50", "beh_483de0", "beh_483fb0", "beh_484530", "beh_484ea0", "beh_485350", "beh_4854e0", "beh_485990", "beh_442490", "beh_47ae00", "beh_47f610", "beh_47fd40", "beh_480b30", "beh_48bdd0", "beh_48be60", "beh_479e40", "beh_481790", "beh_481a20", "beh_479e10", "beh_47a970", "beh_4826b0", "beh_482700", "beh_482760", "beh_483040", "beh_484830", "beh_484d60", "beh_485330", "beh_483920", "beh_4848a0", "beh_442640", "beh_4843c0", "beh_442710", "beh_485cb0", "beh_47b870", "beh_48b920", "beh_5b4200", "beh_480260", "beh_480580", "beh_4832e0", "beh_484bc0",
                 "ih_455d80", "ih_44d2e0", "ih_4512d0", "ih_4466b0", "ih_467260", "item_effect", "ih_5b28a0"]
 # REPLACE-only hooks (a whole room per call / DirectInput): proven by `corpus --check --hook replace:…`
-REPLACE_ONLY_HOOKS = ["room_loop", "input_repoll_flush", "load_room", "scene_loop", "menu_pace", "menu_run",
+# (chs_49f7c0: ported but OFF — diverges on rh-errands-items from f7835: 12-byte records at 0x20b60398..; open)
+REPLACE_ONLY_HOOKS = ["chs_4d7d80", "chs_4dc510", "chs_4d64f0", "chs_4cd6d0", "chs_4d13a0", "chs_4ccc90", "chs_4c6b40", "chs_4e19e0", "chs_49d930", "chs_4a0c90", "chs_4a6b80", "chs_4ac6d0", "chs_4a66a0", "chs_4a5fa0", "chs_4ae150", "chs_4ae420", "chs_4afdb0", "chs_4b3b20", "chs_4b3c70", "chs_4b4d40", "chs_4bbef0", "chs_4bd2e0", "chs_4bd6b0", "chs_4bd820", "chs_4bdf90", "chs_4bdbe0", "chs_4be220", "chs_4c1a30", "chs_4c1c20", "chs_4c2310", "chs_4c29c0", "chs_4c2dc0", "chs_4c3ee0", "chs_4c45a0",
+                      "room_loop", "input_repoll_flush", "load_room", "scene_loop", "menu_pace", "menu_run",
                       "shop_run", "shop_buy", "shop_who", "menu_ctx_clear", "scene_run",
                       "world_new", "world_free",
                       "menu_party_close", "msg_pages", "storage_deposit", "storage_withdraw", "storage_run",
@@ -741,7 +750,9 @@ def cmd_hookbisect(a):
     until single hooks remain.  Compares frame / tick / rng (+ state_sem on the Windows target)."""
     cand = a.hooks.split(",") if a.hooks else hybrid_hooks()
     tr, save, ed = scenario_inputs(a.scenario)
-    keys = ("frame", "tick", "rng") + (("state_sem",) if a.target == "win" else ("state_semv",))   # (wine: blind to system-heap values)
+    # wine: semv (blind to system-heap values); Windows: state_sem only at a scenario's end (mid-run it is not
+    # stable there: system pointers the end-state calibration never saw)
+    keys = ("frame", "tick", "rng") + (("state_semv",) if a.target == "wine" else () if a.frames else ("state_sem",))
     rnd = 0
     while True:
         rnd += 1

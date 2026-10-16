@@ -70,6 +70,9 @@ typedef struct engine_calls {
     /* the CRT heap (operator new 0x5bf00d / delete 0x5bef0e): scratch buffers retail
      * allocates and frees must come from the same allocator to keep its heap identical */
     void *(*op_new)(uint32_t n);
+    /* retail's own function at `va` (decomp2c's RC_xxxxxx calls of callees not ported yet: rhost = identity;
+     * PORT-DEBT(engine-call-slots), like the hXXXXXX slots) */
+    void *(*retail)(uint32_t va);
     void  (*op_delete)(void *p);
     /* roots */
     uint32_t (ENG_STDCALL *tick)(void);   /* GetTickCount — the engine's only clock          */

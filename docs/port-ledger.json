@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 651,
-  "unported": 924,
+  "ported": 686,
+  "unported": 889,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 900,
-  "pct_touched": 57.9,
+  "touched": 935,
+  "pct_touched": 60.2,
   "pct_tested": 15.7,
-  "engine_proper_touched": 887,
+  "engine_proper_touched": 922,
   "bytes_total": 1776526,
-  "bytes_touched": 773853,
-  "pct_bytes_touched": 43.6
+  "bytes_touched": 1029899,
+  "pct_bytes_touched": 58.0
  },
  "orphan_refs": [],
  "functions": [
@@ -7693,8 +7693,10 @@
    "name": "sub_49D930",
    "size": 2296,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x49e250",
@@ -7725,16 +7727,20 @@
    "name": "sub_49F7C0",
    "size": 5270,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4a0c90",
    "name": "sub_4A0C90",
    "size": 20785,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4a5e20",
@@ -7831,8 +7837,10 @@
    "name": "sub_4A5FA0",
    "size": 1057,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4a63d0",
@@ -7847,16 +7855,20 @@
    "name": "sub_4A66A0",
    "size": 1244,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4a6b80",
    "name": "sub_4A6B80",
    "size": 23051,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4ac610",
@@ -7879,24 +7891,30 @@
    "name": "sub_4AC6D0",
    "size": 6756,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4ae150",
    "name": "sub_4AE150",
    "size": 712,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4ae420",
    "name": "sub_4AE420",
    "size": 6478,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4afda0",
@@ -7913,8 +7931,10 @@
    "name": "sub_4AFDB0",
    "size": 15577,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4b3b10",
@@ -7929,16 +7949,20 @@
    "name": "sub_4B3B20",
    "size": 330,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4b3c70",
    "name": "sub_4B3C70",
    "size": 697,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4b3f30",
@@ -7961,8 +7985,10 @@
    "name": "sub_4B4D40",
    "size": 28488,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4bbe00",
@@ -7993,112 +8019,140 @@
    "name": "sub_4BBEF0",
    "size": 5004,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4bd2e0",
    "name": "sub_4BD2E0",
    "size": 968,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4bd6b0",
    "name": "sub_4BD6B0",
    "size": 359,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4bd820",
    "name": "sub_4BD820",
    "size": 960,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4bdbe0",
    "name": "sub_4BDBE0",
    "size": 937,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4bdf90",
    "name": "sub_4BDF90",
    "size": 580,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4be220",
    "name": "sub_4BE220",
    "size": 14286,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4c1a30",
    "name": "sub_4C1A30",
    "size": 491,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4c1c20",
    "name": "sub_4C1C20",
    "size": 1774,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4c2310",
    "name": "sub_4C2310",
    "size": 1701,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4c29c0",
    "name": "sub_4C29C0",
    "size": 1020,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4c2dc0",
    "name": "sub_4C2DC0",
    "size": 4360,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4c3ee0",
    "name": "sub_4C3EE0",
    "size": 1727,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4c45a0",
    "name": "sub_4C45A0",
    "size": 3423,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4c5300",
@@ -8233,8 +8287,10 @@
    "name": "sub_4C6B40",
    "size": 21496,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4cbf80",
@@ -8403,24 +8459,30 @@
    "name": "sub_4CCC90",
    "size": 2610,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4cd6d0",
    "name": "sub_4CD6D0",
    "size": 14951,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4d13a0",
    "name": "sub_4D13A0",
    "size": 20018,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4d6490",
@@ -8445,24 +8507,30 @@
    "name": "sub_4D64F0",
    "size": 6202,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4d7d80",
    "name": "sub_4D7D80",
    "size": 18166,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4dc510",
    "name": "sub_4DC510",
    "size": 21461,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4e1950",
@@ -8479,8 +8547,10 @@
    "name": "sub_4E19E0",
    "size": 811,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chapter_scripts.h"
+   ]
   },
   {
    "va": "0x4e1d10",
