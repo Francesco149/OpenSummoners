@@ -128,8 +128,14 @@ understates how much actual instruction volume is ported.
   | ARCHE's sword skills (50010; a `tools/ida/decomp2c.py` first pass) + the combo skill lookup | `0x461790` / `0x466750` | REPLACE (hybrid 9/9) | – |
   | the SKILL CASTS (the charge, the stage, the MP payment; summons: recall, the room test, space ahead, init, spawn; a decomp2c first pass) | `0x45a300` (+ `0x459f20` `0x45db20` `0x45a2c0` `0x456a50` `0x456b60` `0x45e050` `0x45e4c0` `0x55ce70`) | REPLACE (hybrid 9/9) | – |
   | the MONSTER inits: slimes, skill-51 / skill-29 types + the AI hold, skill list | `0x42e290` `0x42c970` `0x42fbf0` (+ `0x42ea50` `0x42da20`) | 19 / 4 / 19 | 0 |
-  Hybrid gate (`corpus --check --hybrid`): with all of the above REPLACING retail (545 hooks) (the whole character tick, driver → tile
-  movers, + the room loop's passes and per-tick calls, runs as port code), every corpus scenario ends byte-identical.
+  | the SHOTS (per-part tick, init, the 96-band pickups, the room loop's band-64 tick + 30 helpers; decomp2c) | `0x4710c0` `0x55d140` `0x46da00` `0x590230` (+ `0x445ce0`..`0x55f150`) | 562@64 / 13 / 11,481 / 562; helpers 226,320 (`0x476550`) 13,958 12,503 5,292 | 0 |
+  | the BEHAVIOUR layer: every slot of the AI tick `0x47b990` + callees (skill pick by range, attack windows, approach / retreat / leash, target checks, the path follower; decomp2c) | `0x47ecd0` `0x47adb0` `0x47ae00` `0x441f50` … (60) | 10,375 / 8,987 / 8,023 / 5,628 / 5,529 / 5,388 / 3,679 … (34 hooks with calls) | 0 |
+  | the INTEGRATOR's reached handlers (monsters' skill bodies) + the ITEM / SKILL EFFECT + its value (decomp2c) | `0x455d80` `0x44d2e0` `0x4512d0` `0x4466b0` `0x467260` `0x456c60` / `0x5b3b00` `0x5b28a0` | 112,293@8 / 31,853@8 / 24,751@8 / 4 / 3 / – / 1 / 1 | 0 |
+  Hybrid gate (`corpus --check --hybrid`): with all of the above REPLACING retail (641 hooks) (the whole character tick, driver → tile
+  movers, + the room loop's passes and per-tick calls, runs as port code), every corpus scenario ends byte-identical
+  — and on wine matches pure retail at EVERY 600-frame sample (the sem series, 2026-10-16: catches transient
+  divergences a later room reload erases; it took pinning rhost's own footprint — asset DLL slots, host heap,
+  hook-spec file, image size; `docs/PROGRESS.md`).
   Stack objects (rhost, 2026-10-16): GX shadows save / restore / compare a window behind every pointer into a
   caller's stack frame (the integrator's body copies, menu contexts) — before, those writes went unchecked.
   Shadow guard (rhost): a port phase that reaches an external effect retail already performed (surface free,
@@ -146,15 +152,14 @@ understates how much actual instruction volume is ported.
   ahead, `0x4418e0`, `0x440e40`, `0x441700`, `0x43ee30`, …; scratch bodies from retail's heap via
   `g_eng.op_new`). Hybrid gate with all 12 movement functions replacing retail: PASS.
 - **Next (port side):**
-  0000. (2026-10-16 night) `rh-combat` is in and the struck side, Sana, Arche and the skill casts run as port code.  Next in the
-     combat paths it reaches (`rhost.py coverage --target wine`, then diff vs the other scenarios): the shots band
-     `0x4710c0` (20 KB) + the shot init `0x55d140` (8 KB) + the
-     96-band `0x46da00`, `0x48ef40` (4.4 KB), `0x455d80`, `0x5b28a0`, `0x597aa0`, `0x47ae00`, the behaviour helpers
-     `0x47ecd0` `0x480b30` `0x481ac0` `0x481310` …; big ones through `tools/ida/decomp2c.py` (keeps IDA's types, so
-     pointer arithmetic scales as the asm: the `char_physics` +6000/+24000 trap, quirk #162).  Loop tools:
-     `hookbisect SCEN --frames N` (which REPLACE hook breaks a scenario), `verify --hooks a,b --split N`, `run
-     --watch-write VA@0` pure vs hybrid for a lone differing dword (found `frame_cache_clear`'s count, quirk #167).
-     The save writer `0x41a890` can be ported now (site E zeroes its frame, quirk #161).
+  0000. (2026-10-16 evening) the shots, the behaviour layer, the integrator's reached handlers + the item / skill
+     effect run as port code; the hybrid gate holds at every 600-frame sample (wine).  Next: the integrator's
+     UNREACHED handlers (`0x4539b0` 8.7 KB, `0x456d30`, `0x452730`, … — a recording that reaches them first); the
+     scene loop's `0x561560` / `0x561d20` (32 fns, 10 KB); the chapter scripts (`0x4b4d40` … 20+ KB each, the runner
+     `cls_401D40` is one of the 13 moved-field classes decomp2c now lays out right) after their ~40 small callees;
+     the room loop's menu / game-over flow `0x591120` (131 fns, file I/O + BGM: later).  Loop: decomp2c module →
+     wire → hooks → `verify` (shadow; sample hot helpers `@N`: full-state shadows of per-tick helpers crawl) →
+     `corpus --check --hybrid` (wine: series; win: end) → `hookbisect` for a breaking hook.
   000. `load_room 0x586010` RUNS AS PORT CODE (`src/room_load.c`, REPLACE-verified; quirk #138), the world it makes /
      frees too (`src/world_alloc.c`), the map decode (`map_decode_room`), the population + device / structure
      inits, and now the CHARACTER INIT `0x41f200` (`src/char_init.c` + 42 helpers `src/char_def.c`; quirk #139).

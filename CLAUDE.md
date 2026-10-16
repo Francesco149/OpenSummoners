@@ -34,6 +34,11 @@ state hash; ~830–1000 fps; no Frida, no pins. Editions: `enold` (port target) 
 - **Gates:** `rhost.py det SCEN -n 3` (only `volatile.<edition>.txt` pointer slots may differ);
   `rhost.py corpus --check` (expected.json per `tests/scenarios/rh-*`; re-`--bless` only for an
   intended rhost change). Scenarios: DIK-level traces; humans record with `rhost.py record NAME`.
+  **The hybrid gate** `corpus --check --hybrid` = every ported function REPLACING retail; on wine it also
+  compares the state hash every 600 frames (`expected.wine.json` `sem_series`, `semv`) — transient
+  divergences a room reload erases show there; `hookbisect SCEN --frames N` names the breaking hook.
+  Big functions: `tools/ida/decomp2c.py VA:name ...` first pass (keeps IDA's control flow / types / real class
+  layouts, stack locals at their ebp offsets, ecx/edx call-site fixes) → review → wire → verify.
 - **Probes:** `--watch-write VA@FRAME` (who writes an address), `--trap VA` (registers),
   `coverage` (first-hit over all IDA functions), `--dump-at` + `rhs.py` (state diffs).
 - **Windows:** `ssh win` + task `oss-rhost-runner` + `C:\oss-rhost\` — separate from openrecet's

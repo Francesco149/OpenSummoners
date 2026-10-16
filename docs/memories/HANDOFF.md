@@ -1,12 +1,31 @@
-# Session handoff — rolling current state (last updated ckpt 155, 2026-06-22)
+# Session handoff — rolling current state (last updated 2026-10-16 evening)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
-> append-only `PROGRESS.md` (every ckpt back to 26 is there); the 60-second front is
-> `FRONT.md`; durable RE writeups are `findings/`. Keep this to: the current checkpoint,
-> the next move, the module layout, and open RE threads.
+> append-only `PROGRESS.md`; the 60-second front is `FRONT.md`; durable RE writeups are
+> `findings/`. Keep this to: the current checkpoint, the next move, the module layout, and
+> open RE threads.
 
-## Where we are — ckpt 155 (the freeroam SWORD/ATTACK arc — RE + cels DONE; PORT next session)
+## Where we are — 2026-10-16 (rhost era: port function by function, verified inside retail)
+
+The loop (CLAUDE.md "Methodology"): `tools/ida/decomp2c.py` first pass (or a hand port) → wire in place of the
+`g_eng.hXXXXXX` slot → TC/ST hook row in `tools/rhost/rh_hooks.c` + `VERIFY_HOOKS` → `rhost.py verify` (shadow,
+per call) + `corpus --check --hybrid` (wine: every 600-frame sample; Windows: the end state) → commit.
+
+- **decomp2c** (`tools/ida/decomp2c.py`): module = `VA:name ...`; keeps IDA's control flow + types; replays IDA's
+  class layouts; every stack local in `frame_` at its ebp offset; detects ecx pass-through (IDA __stdcall reading
+  ecx → leading `ecx_`) and unread-edx fastcalls; per-module assemble scripts finish the hand patches (the int64
+  argument split of `0x4710c0`, ...). Review its output for: `/*ECX…*/` markers, `/*edx*/` drops, Wmaybe-uninit.
+- **Modules from it:** `arche_sword.c`, `skill_cast.c`, `shots.c`, `behave_helpers.c`, `char_handlers.c`.
+- **Gates:** `corpus --check --hybrid` (wine + win) PASS 9/9; `hookbisect SCEN --frames N` names a breaking hook;
+  `verify --hooks a@N,b` shadows; `--vmmap-at`, `--dump-at` + `rhs.py` for state diffs.
+- **Open threads / next:** the integrator's unexercised handlers (0x4539b0, 0x456d30, 0x452730, ... — need a
+  recording that reaches them); the chapter scripts (`0x4b4d40` ... 20+ KB each, `cls_401D40` = a moved-field
+  class: decomp2c handles it); combat leftovers `0x48ef40`, `0x597aa0`/`0x5985f0`/`0x596d60` (the room loop
+  `0x591120`), `0x561560`/`0x561d20`; the room's item use `0x5b1f10`.
+
+## Legacy (Frida era, kept for reference) — ckpt 155
+ (the freeroam SWORD/ATTACK arc — RE + cels DONE; PORT next session)
 
 **The sword IS exercisable in the errands (USER, the game owner, was right).** This session: 6 injected
 captures + deep RE pinned WHY my injection never drew it, then the USER's REAL-PLAY recording proved it

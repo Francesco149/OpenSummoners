@@ -5013,6 +5013,25 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
 - `0x562a70` (the room loop after a menu, the scene loop) frees every cached frame AND writes u16 +6 = 0 (the
   used count the render `0x48c150` raises); the first port missed it (unseen until rh-combat's menu after a battle).
 
+### #168 — the AI's skill pick writes a never-set local through its out pointer (2026-10-16)
+- `0x47ecd0` (the behaviour tick `0x47b990`'s skill pick: target, range, the AI records +0xca28) stores its local
+  `[ebp-4]` into `*a9` at the end — a value set only where a record is chosen. With none
+  chosen (the result NULL) it writes whatever was on the stack (a stale stack address); the caller then drops
+  it (`*a9` is stored into +0x1481c only for a non-NULL record). No state effect; rhost zeroes the frame (site E).
+- IDA split stack arrays into neighbour scalars in this layer: `0x4834f0` hands `&v34` to the rect writer
+  `0x4812c0` (4 ints) and reads v35..v37; `0x4710c0` indexes `*(&v393 + 2 i)` (a pair table built in place).
+
+### #169 — the asset DLLs all prefer 0x10000000 (no ASLR) (2026-10-16)
+- `sotesd.dll` / `sotesw.dll` / `sotesp.dll` (and SE's extras) are loaded with plain `LoadLibraryA` (`0x5752e0`
+  for the music DLL: sys +0x318 = its HMODULE, the `MUSICWMA` resources; SE .data `0x92b21c` holds sotesd's) and
+  all carry ImageBase 0x10000000 without DYNAMIC_BASE: only the first lands there, the others relocate to wherever
+  the process's memory leaves room. Retail keeps the HMODULEs in .data and in its resource records (+0 next to the
+  resource id 0x40430..). Resource-only for retail: no GetProcAddress on them.
+
+### #170 — particle 100137 offsets its box by -4 / -4 (port fix 2026-10-16)
+- The particle setup `0x557550` inlines the entity setup per code; 100137 alone stores -4 into the box offsets
+  +0x30 / +0x34 (every other code 0). Spawned by entity code 70363 (rh-errands-items f8084).
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

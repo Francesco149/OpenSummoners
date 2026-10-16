@@ -6,6 +6,26 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-16 (evening) — the sem series: pure ≡ hybrid at every sampled frame; the shots, the behaviour layer
+
+- rhost: the end-state check missed transient divergences a later room reload erases. New gate: `corpus
+  --bless/--check` (wine) store / compare the state hash every 600 frames (`sem_series`). Getting pure and hybrid
+  runs to hash alike mid-run took pinning rhost's own footprint: the asset DLLs (all prefer 0x10000000, quirk #169)
+  loaded as rebased copies at fixed slots, rhost's heap on a fixed region, the hook spec through a file (also for
+  pure runs), a pinned SizeOfImage, a cleared-graph retry for wine's flaky WMA render, `semv` (values inside
+  system-DLL regions masked; wine only — Windows keeps the end state), mid-run calibration (`det --learn-every`).
+  Probes: `--vmmap-at`, RESULT state_semv, the caller-stack divergence names arg / offset / dwords.
+- Real bugs the series + shadows then named: particle 100137's box offset (quirk #170, an old port); the shots'
+  entity_release `listed` (IDA's fastcall edx argument); the behaviour layer's split-array locals (`&v34` → a
+  4-int rect, quirk #168) — decomp2c now lays every stack local out at its ebp offset, replays IDA's class layouts
+  (natural alignment moves fields in 13 classes), detects ecx pass-through / unread edx call sites, keeps casts.
+- Ported (102 functions, all through decomp2c): the shots 0x4710c0 + init 0x55d140 + the 96-band 0x46da00 + the
+  room loop's band-64 tick 0x590230 + 30 helpers (`src/shots.c`); the behaviour layer: every slot of the AI tick
+  0x47b990 + their callees, 60 (`src/behave_helpers.c`); the integrator's reached handlers + the item / skill effect
+  0x5b3b00 (`src/char_handlers.c`, 8).
+- Gates: hybrid (634 hooks before the handlers) PASS 9/9 on Windows (end state) and wine (every 600-frame
+  sample).
+
 ## 2026-10-16 (night) — the combat recording: the struck side, Sana's and Arche's skills, the skill casts, monster inits
 
 - The USER recorded `rh-combat` (57.6k flips: combat, story, a game over + retry).  It exposed three rhost
