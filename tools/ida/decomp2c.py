@@ -168,6 +168,7 @@ PTRVARS = set()   # typed-pointer locals / params: an offset off them scales by 
 CLSIDX = {}       # class-pointer locals (kept as integers): name -> (class, size)
 CLSTYPE = {}      # class-pointer locals / params: name -> class (their fields' real offsets and widths)
 DECLNAMES = set() # the function's declared locals
+FRAMEVARS = []    # stack scalars: (ebp offset, type, name), laid out in frame_ like the arrays
 _CLS_SIZE = {}
 
 
@@ -311,6 +312,10 @@ def convert(text, names, widths, this):
                 CLSTYPE[m.group(2)] = cm.group(1)
             if cm and class_size(cm.group(1)):
                 CLSIDX[m.group(2)] = (cm.group(1), class_size(cm.group(1)))
+            if fo:   # a stack local lives in frame_ at its ebp offset too: IDA splits arrays / structs into neighbour
+                     # locals (`&v34` handed to a rect writer, then v35..v37 read), and slots it reuses alias as in retail
+                FRAMEVARS.append((int(fo.group(1), 16), mt, m.group(2)))
+                continue
             decls.append(f"    {mt} {m.group(2)}{m.group(3) or ''};")
             continue
         out.append(ln)
@@ -346,7 +351,7 @@ def convert(text, names, widths, this):
     for t, f in (("_DWORD", "F32"), ("int", "F32"), ("_WORD", "F16"), ("__int16", "S16"), ("_BYTE", "F8")):
         s = re.sub(r"\*\(%s \*\)&W->gap([0-9A-F]+)\[([^\]]+)\]" % t, lambda m: f"{f}(W, 0x{int(m.group(1), 16):x} + ({m.group(2)}))", s)
         s = re.sub(r"\*\(%s \*\)&p_cls_40BE00->gap([0-9A-F]+)\[([^\]]+)\]" % t, lambda m: f"{f}(W, 0x{int(m.group(1), 16):x} + ({m.group(2)}))", s)
-        s = re.sub(r"\*\(%s \*\)&(\w+)\[([^\]]+)\]" % t, r"%s(&\1[\2], 0)" % f, s)
+        s = re.sub(r"\*\(%s \*\)&(\w+)\[([^\]]+)\](?!\s*\.)" % t, r"%s(&\1[\2], 0)" % f, s)
     s = re.sub(r"\*\((?:cls_\w+|_DWORD|int|_UNKNOWN|void) \*\*\)&p_cls_40BE00->gap([0-9A-F]+)\[([^\]]+)\]", lambda m: f"F32(W, 0x{int(m.group(1), 16):x} + ({m.group(2)}))", s)
     s = re.sub(r"&p_cls_40BE00->gap([0-9A-F]+)\[([^\]]+)\]", lambda m: f"(W + 0x{int(m.group(1), 16):x} + ({m.group(2)}))", s)
     for t, f in (("_BYTE", "F8"), ("_WORD", "F16"), ("_DWORD", "F32"), ("char", "F8"), ("__int16", "S16")):
@@ -366,6 +371,12 @@ def convert(text, names, widths, this):
             s = re.sub(r"\*\(%s \*\)\(%s\)" % (t, inner), r"%s((\1), 0)" % f, s)
         s = re.sub(r"\*\((?:_UNKNOWN|void|cls_\w+|_DWORD|int|_WORD|_BYTE|char|__int16|unsigned __int16) \*\*\)\(%s\)" % inner, r"F32((\1), 0)", s)
     for v, (cls, n) in CLSIDX.items():   # a class pointer kept as an integer, indexed: by the class size
+        _, fs0, gs0 = class_layout(cls)
+        el = lambda i: f"({v} + ({i}) * 0x{n:x})"
+        s = re.sub(r"(&?)\b%s\[([^\]]+)\]\.gap([0-9A-F]+)\[([^\]]+)\]" % v,   # an element's gap byte
+                   lambda m: f"{m.group(1)}GAP({el(m.group(2))}, 0x{gs0.get(int(m.group(3), 16), int(m.group(3), 16)):x}, {m.group(4)})", s)
+        s = re.sub(r"\b%s\[([^\]]+)\]\.gap([0-9A-F]+)\b(?!\s*\[)" % v,
+                   lambda m: f"((uint8_t *){el(m.group(1))} + 0x{gs0.get(int(m.group(2), 16), int(m.group(2), 16)):x})", s)
         s = re.sub(r"(?:\(char \*\))?&%s\[([^\]]+)\]" % v, lambda m: f"({v} + ({m.group(1)}) * 0x{n:x})", s)
         _, fs, gs = class_layout(cls)
         s = re.sub(r"\b%s\[([^\]]+)\]\.field_([0-9A-F]+)" % v,
@@ -477,6 +488,8 @@ def convert(text, names, widths, this):
                r"(\w+) = fopen\(stru_8A9530\.path, Mode\);\s*if \( \3 != 0 \)\s*\{\s*GetLocalTime\(&SystemTime\);\s*"
                r"fprintf\(.*?\);\s*fclose\(\3\);\s*\}",
                r"g_eng.log_fail_406440(g_eng.log, (const char *)(\1), (const char *)(\2));", s, flags=re.S)
+    for _, t, n in FRAMEVARS:   # (last: the patterns above see IDA's names)
+        s = re.sub(r"(?<![\w.>])%s\b" % re.escape(n), f"(*{n}__f)", s)
     return head, s
 
 
@@ -577,6 +590,7 @@ def main():
         fnames.append(pname)
         CUR[0] = pname
         DECLS.clear(); ARRAYS.clear(); CLSPTR.clear(); INTVARS.clear(); PTRVARS.clear(); CLSIDX.clear(); CLSTYPE.clear()
+        FRAMEVARS.clear()
         text = extract(a.edition, va)
         if pname in ECXPASS and "__stdcall" not in text.split("{")[0]:
             ECXPASS.discard(pname)   # the decompile's header is the authority (thiscall: its ecx is `this`)
@@ -593,12 +607,14 @@ def main():
             out.append(f"/* {head} */")
             out.append("{")
         out.append("\n".join(DECLS))
-        if ARRAYS:
-            top = max(o for o, *_ in ARRAYS)
-            out.append(f"    _Alignas(4) uint8_t frame_[0x{top:x} + 0x1000];   /* the stack arrays at their ebp offsets */")
+        if ARRAYS or FRAMEVARS:
+            top = max([o for o, *_ in ARRAYS] + [o for o, *_ in FRAMEVARS])
+            out.append(f"    _Alignas(8) uint8_t frame_[0x{top:x} + 0x10];   /* the stack locals at their ebp offsets */")
             out.append("    memset(frame_, 0, sizeof frame_);")
             for o, t, n, cnt in sorted(ARRAYS, reverse=True):
                 out.append(f"    {t} *{n} = ({t} *)(frame_ + 0x{top - o:x});   /* [{cnt}] at ebp-0x{o:x} */")
+            for o, t, n in sorted(FRAMEVARS, reverse=True):
+                out.append(f"    {t} *const {n}__f = ({t} *)(frame_ + 0x{top - o:x});   /* ebp-0x{o:x} */")
         out.append(s)
         out.append("}")
         funcs.append("\n".join(out))
