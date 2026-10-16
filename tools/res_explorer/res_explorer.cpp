@@ -1414,7 +1414,9 @@ static void mi_build()
         g_mi.cfg_param4 == 6 ? 0x89 :
         g_mi.cfg_param4 == 8 ? 0x8a : 0);
     map_decode_cfg cfg;
-    map_decode_cfg_init(&cfg, MAP_DECODE_SCENE_PARAM3, g_mi.cfg_param4);
+    /* room[0x44] (the front-header key) is not in the explorer's map info: 4, map_decode's own fallback
+     * (with scene param 0x14 it only fills cfg.room_type) */
+    map_decode_cfg_init(&cfg, 4, MAP_DECODE_SCENE_PARAM3, g_mi.cfg_param4);
     map_decode(&g_mi.md, g_mi.grid, &cfg, mi_bank_dims_cb, nullptr);
 
     // collect draw nodes in retail walk order (rows outer, cols inner, slots
