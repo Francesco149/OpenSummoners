@@ -219,7 +219,7 @@ typedef struct wl_entity {
     int32_t  f1c8;           /* +0x1c8 */
     int32_t  f1cc;           /* +0x1cc */
     int32_t  alive;          /* +0x1d0  != 0 => targetable (the AI's target cycling)    */
-    int32_t  code;           /* +0x1d4  behaviour code (0xc35b/0xc35c: Arche forms)     */
+    int32_t  code;           /* +0x1d4  behaviour code (50010 Arche, 50011 Sana, 50012)  */
     int32_t  handle;         /* +0x1d8  the id 0x556eb0 resolves (world list +0x2790)   */
     int32_t  faction;        /* +0x1dc  0x4416c0 operand                               */
     int32_t  f1e0;           /* +0x1e0 */
@@ -744,7 +744,7 @@ typedef struct wl_char {
     uint8_t    _p14806[0x14808 - 0x14806];
     int32_t    f14808;         /* +0x14808 */
     int32_t    f1480c;         /* +0x1480c */
-    int32_t    boost_speed;    /* +0x14810  != 0 => walk max + 6000                     */
+    int32_t    boost_speed;    /* +0x14810  != 0 => walk max + 24000 (0x5dc0)           */
     int32_t    boost_accel;    /* +0x14814  != 0 => accel + 2000, brake - 800            */
     int32_t    f14818;         /* +0x14818 */
     int32_t    f1481c;         /* +0x1481c */

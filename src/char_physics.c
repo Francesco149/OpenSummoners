@@ -264,7 +264,7 @@ horizontal:;
                     vmax = self->max_speed;
                 }
             }
-            if (self->boost_speed != 0) vmax += 6000;
+            if (self->boost_speed != 0) vmax += 24000;   /* `add [esp+arg_4],5DC0h` (IDA types v86 as _DWORD *: "+= 6000") */
             if (self->boost_accel != 0) { accel += 2000; brake = acc - 800; }
             switch (lr) {
             case 1: case 5:

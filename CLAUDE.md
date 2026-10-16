@@ -189,7 +189,9 @@ state hash; ~830–1000 fps; no Frida, no pins. Editions: `enold` (port target) 
 - **Disassembly:** PRIMARY = the IDA 9.4 export `/mnt/ephemeral/opensummoners/decompiled-ida/
   <edition>/all_ida.c` (knowledge pack + C++ class recovery applied; `plain/` = untouched IDA),
   regenerate with `python3 tools/ida/ida.py export --kb`. Cite by address (IDA names keep the VA
-  suffix). Edition VA mapping: `tools/ida/crosswalk.py`. Legacy Ghidra:
+  suffix). **IDA pointer-typing trap:** an int IDA typed as `_DWORD *` makes `v86 += 6000` mean +24000
+  in the asm (`char_physics` boost bug, 2026-10-16) — check `+=`/`-=` on pointer-typed locals (esp.
+  `vN = (_DWORD *)this->field_X`) against the asm. Edition VA mapping: `tools/ida/crosswalk.py`. Legacy Ghidra:
   `docs/decompiled/by-address/<addr>.c` via `tools/ghidra-headless.sh`. Never commit decompiled C.
 - **TAS / parity harness (THE divergence loop):** for every divergence — **pinpoint →
   attribute to a pillar → fix the logic (RE it, don't curve-fit) → re-verify to
