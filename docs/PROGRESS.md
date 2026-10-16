@@ -6,6 +6,23 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-16 (night) — the combat recording: the struck side, Sana's and Arche's skills, the skill casts, monster inits
+
+- The USER recorded `rh-combat` (57.6k flips: combat, story, a game over + retry).  It exposed three rhost
+  determinism gaps, all fixed: the save writer's uninitialized frame (a real HDC at the retry; uninit-fix site
+  E), the sound pool's fixed address inside the 32-bit DLL zone (dinput / ddraw / dxgi / d3d9 got new ASLR
+  bases there), the volatile list's silent 8192 cap.  New loop tools: `corpus --hybrid`, `hookbisect`,
+  `verify --split / --hooks`.
+- Two port bugs the new paths surfaced: `char_physics`' speed boost (+24000, not +6000: IDA types the local
+  `_DWORD *`; quirk #162), `frame_cache_clear`'s used count (quirk #167).  Plus a stale `res_explorer` call
+  that fresh builds caught.
+- Ported (29 + 2 + 9 functions): taking a hit `0x4895c0` + combo / record / glyphs, the death `0x5b4d00` + drops /
+  pickups / EXP split / "Exp +%d", a hit breaking shots, the foe gauge, Sana's skills `0x45e830` + 7 helpers,
+  the monster inits `0x42e290` `0x42c970` `0x42fbf0` (`src/char_hit.c`, `src/sana_skills.c`,
+  `src/char_monster.c`); Arche's sword skills `0x461790` + `0x466750` through the new first-pass converter
+  `tools/ida/decomp2c.py` (`src/arche_sword.c`), then the skill casts `0x45a300` + 8 helpers (charge, stage, MP
+  payment, the summons; `src/skill_cast.c`).  Quirks #162..#167.  Hybrid gate 545 hooks PASS 9/9.
+
 ## 2026-10-16 — combat chip 2: the skills' helpers (9) + the book reader + the rhost stack-object fix
 
 - rhost: a shadowed function writing through a pointer into its CALLER's stack frame leaked the retail

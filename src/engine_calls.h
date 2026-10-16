@@ -127,15 +127,17 @@ typedef struct engine_calls {
     eng_tc2 h59d540; eng_tc0 h591120;
     eng_tc0 h590230; eng_tc1 h59ad60;
     /* the integrator 0x442a70's callees: per-type behaviour handlers + helpers (by VA) */
-    eng_tc3 h467260; eng_tc6 h44a740; eng_tc8 h45a300;
+    eng_tc3 h467260; eng_tc6 h44a740;
     eng_tc4 h44bc10; eng_tc4 h44c250; eng_tc4 h44bf60; eng_tc7 h446900; eng_tc7 h452020;
     eng_tc7 h449810; eng_tc6 h4539b0; eng_tc7 h44d8f0; eng_tc7 h448dc0; eng_tc5 h452730;
     eng_tc7 h455d80; eng_tc6 h44b160;
     eng_tc7 h4516e0; eng_tc7 h4484b0; eng_tc6 h4512d0; eng_tc6 h44a200; eng_tc6 h44e8d0;
-    eng_tc8 h44f690; eng_tc6 h450810; eng_tc5 h44d2e0; eng_tc5 h456d30; eng_tc6 h461790;
+    eng_tc8 h44f690; eng_tc6 h450810; eng_tc5 h44d2e0; eng_tc5 h456d30;
     eng_tc4 h445e50;
     /* the character apply pass 0x485fc0's callees (HP/MP, damage, respawn, voices, effects) */
 
+    /* the skill casts' (src/skill_cast.c): the item / skill effect 0x5b3b00 (thiscall char, 6 args) */
+    eng_tc6 h5b3b00;
     /* the tick driver 0x46cd70's band updaters */
     eng_tc4 h4710c0; eng_tc0 h46da00;
     /* the actor update 0x54f980's callees: the per-code behaviours, the looping-sound start,

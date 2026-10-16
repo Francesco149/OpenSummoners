@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **785** (50.4% of engine-proper) — tested 249, ported 536
-- code bytes touched: **36.3%** (645,322 / 1,776,526 B of engine-proper)
-- unported: **1039**
+- touched: **796** (51.1% of engine-proper) — tested 249, ported 547
+- code bytes touched: **38.5%** (683,326 / 1,776,526 B of engine-proper)
+- unported: **1028**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (536) — reimplemented, no host test yet
+## ported (547) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -558,12 +558,20 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x451250 | sub_451250 | 119 | char_integrate.h |
 | 0x4537d0 | sub_4537D0 | 283 | entity_fx.c, entity_fx.h |
 | 0x453960 | velocity_scatter_453960 | 70 | char_state.h |
+| 0x456a50 | sub_456A50 | 272 | skill_cast.h |
+| 0x456b60 | sub_456B60 | 248 | skill_cast.h |
 | 0x457ff0 | sub_457FF0 | 4675 | arche_pose.c, arche_pose.h |
 | 0x459370 | sub_459370 | 71 | arche_pose.h |
 | 0x4593c0 | sub_4593C0 | 32 | char_state.h |
 | 0x4593e0 | sub_4593E0 | 1399 | arche_pose.h |
 | 0x459990 | sub_459990 | 1313 | arche_pose.h |
 | 0x459ed0 | sub_459ED0 | 72 | arche_pose.h |
+| 0x459f20 | sub_459F20 | 888 | skill_cast.h |
+| 0x45a2c0 | sub_45A2C0 | 58 | skill_cast.h |
+| 0x45a300 | sub_45A300 | 14079 | skill_cast.c, skill_cast.h |
+| 0x45db20 | sub_45DB20 | 1293 | skill_cast.h |
+| 0x45e050 | sub_45E050 | 517 | skill_cast.h |
+| 0x45e4c0 | sub_45E4C0 | 725 | skill_cast.h |
 | 0x45e830 | sub_45E830 | 9388 | sana_skills.c, sana_skills.h |
 | 0x460de0 | sub_460DE0 | 87 | char_attack.h |
 | 0x460e40 | sub_460E40 | 143 | particle_init.h |
@@ -572,8 +580,10 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4611c0 | sub_4611C0 | 122 | char_attack.h |
 | 0x461240 | sub_461240 | 434 | char_attack.h |
 | 0x461410 | sub_461410 | 558 | char_attack.h |
+| 0x461790 | sub_461790 | 19423 | arche_sword.c, arche_sword.h |
 | 0x4665d0 | sub_4665D0 | 293 | char_attack.h |
 | 0x466700 | sub_466700 | 73 | char_attack.h |
+| 0x466750 | sub_466750 | 190 | arche_sword.h |
 | 0x466e80 | sub_466E80 | 803 | char_attack.h |
 | 0x4671c0 | sub_4671C0 | 158 | char_integrate.h |
 | 0x467380 | ambient_event_timer_467380 | 376 | sound_fx.h |
@@ -713,6 +723,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x55cd50 | sub_55CD50 | 85 | particle_init.h |
 | 0x55cdb0 | sub_55CDB0 | 145 | particle_init.h |
 | 0x55ce50 | sub_55CE50 | 18 | particle_init.h |
+| 0x55ce70 | sub_55CE70 | 311 | skill_cast.h |
 | 0x55cfc0 | sub_55CFC0 | 358 | char_status.h |
 | 0x55f190 | sub_55F190 | 936 | ui_run.h |
 | 0x55f550 | sub_55F550 | 199 | ui_run.h |

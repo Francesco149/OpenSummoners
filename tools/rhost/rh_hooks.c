@@ -57,6 +57,8 @@
 #include "sana_skills.h"
 #include "char_hit.h"
 #include "char_monster.h"
+#include "arche_sword.h"
+#include "skill_cast.h"
 #include "room_tick.h"
 #include "ui_core.h"
 #include "ui_text.h"
@@ -234,6 +236,10 @@ typedef struct {
     X(H_EXPSHARE, "exp_share", 0x5b5140u) X(H_FLTEXT, "float_text", 0x5b34d0u) X(H_PARTREL, "char_part_release", 0x525ab0u) \
     X(H_MSLIME, "mon_slime", 0x42e290u) X(H_MSK51, "mon_skill51", 0x42c970u) X(H_MSK29, "mon_skill29", 0x42fbf0u) \
     X(H_AIHOLD, "ai_rec_hold_set", 0x42ea50u) X(H_SKLIST, "char_skill_list_add", 0x42da20u) \
+    X(H_ASWORD, "arche_sword", 0x461790u) X(H_ACOMBO, "arche_combo_skill", 0x466750u) \
+    X(H_SCAST, "skill_cast", 0x45a300u) X(H_SCHARGE, "skill_charge", 0x459f20u) X(H_SSTAGE, "skill_stage", 0x45db20u) \
+    X(H_SMP, "skill_mp_pay", 0x45a2c0u) X(H_SUMREC, "summon_recall", 0x456a50u) X(H_SUMROOM, "summon_room_ok", 0x456b60u) \
+    X(H_SAHEAD, "skill_space_ahead", 0x45e050u) X(H_SUMINIT, "summon_init", 0x45e4c0u) X(H_SUMSPAWN, "summon_spawn", 0x55ce70u) \
     X(H_BOOK, "book_read", 0x40dbc0u) X(H_SSETFREE, "sprite_set_free", 0x410300u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
@@ -4026,6 +4032,17 @@ TC_HOOK(H_MSK51, "mon_skill51", 1, 0, mon_skill51(self, (int16_t)a1); return 0)
 TC_HOOK(H_MSK29, "mon_skill29", 3, 0, mon_skill29(self, a1, a2, a3); return 0)
 TC_HOOK(H_AIHOLD, "ai_rec_hold_set", 2, 0, ai_rec_hold_set(self, CP(a1), U16(a2)); return 0)
 TC_HOOK(H_SKLIST, "char_skill_list_add", 1, 0, char_skill_list_add(self, a1); return 0)
+TC_HOOK(H_ASWORD, "arche_sword", 6, 1, return arche_sword(self, (wl_body *)a1, a2, (int32_t *)a3, a4, a5, CP(a6)))
+TC_HOOK0(H_ACOMBO, "arche_combo_skill", 1, return (intptr_t)arche_combo_skill(self))
+TC_HOOK(H_SCAST, "skill_cast", 8, 1, return skill_cast(self, a1, a2, a3, a4, a5, (int32_t *)a6, (uint16_t *)a7, a8))
+TC_HOOK(H_SCHARGE, "skill_charge", 8, 1, return skill_charge(self, a1, a2, a3, (int32_t *)a4, a5, (uint16_t *)a6, U16(a7), a8))
+TC_HOOK(H_SSTAGE, "skill_stage", 9, 1, return skill_stage(self, a1, a2, a3, (int32_t *)a4, a5, (uint16_t *)a6, U16(a7), (int16_t)a8, a9))
+TC_HOOK(H_SMP, "skill_mp_pay", 3, 1, return skill_mp_pay(self, a1, a2, a3))
+ST_HOOK(H_SUMREC, "summon_recall", 2, 1, return summon_recall(a1, a2))
+TC_HOOK(H_SUMROOM, "summon_room_ok", 4, 1, return summon_room_ok(self, a1, a2, a3, a4))
+ST_HOOK(H_SAHEAD, "skill_space_ahead", 6, 1, return skill_space_ahead((int32_t *)a1, a2, a3, a4, a5, (int32_t *)a6))
+TC_HOOK(H_SUMINIT, "summon_init", 1, 1, return summon_init(self, (int32_t *)a1))
+ST_HOOK(H_SUMSPAWN, "summon_spawn", 9, 1, return summon_spawn(a1, (int32_t *)a2, a3, a4, a5, a6, a7, a8, a9))
 /* the book reader (a frame loop) + the sprite set free (surface frees) — REPLACE only */
 TC_HOOK(H_BOOK, "book_read", 1, 1, return book_read(self, CP(a1)))
 TC_HOOK(H_SSETFREE, "sprite_set_free", 1, 0, sprite_set_free(self, U16(a1)); return 0)
@@ -4268,10 +4285,10 @@ static void bind_engine_calls(void)
     *(void **)&g_eng.op_new    = (void *)(uintptr_t)0x5bf00du;   /* operator new (cdecl) */
     *(void **)&g_eng.op_delete = (void *)(uintptr_t)0x5bef0eu;   /* operator delete (cdecl) */
 #define B(n) *(void **)&g_eng.h##n = (void *)(uintptr_t)0x##n##u
-    B(467260); B(44a740); B(45a300); B(44bc10); B(44c250); B(44bf60); B(446900);
+    B(467260); B(44a740); B(44bc10); B(44c250); B(44bf60); B(446900);
     B(452020); B(449810); B(4539b0); B(44d8f0); B(448dc0); B(452730);
     B(455d80); B(44b160); B(4516e0); B(4484b0); B(4512d0); B(44a200); B(44e8d0); B(44f690); B(450810);
-    B(44d2e0); B(456d30); B(461790); B(445e50);
+    B(44d2e0); B(456d30); B(445e50);
 #undef B
 #define B(n) *(void **)&g_eng.h##n = (void *)(uintptr_t)0x##n##u
    
@@ -4292,7 +4309,7 @@ static void bind_engine_calls(void)
     B(56dc20); B(41a890); B(5bf3ee); B(426110); B(560900); B(5bf5db);
     B(428c00); B(429060); B(429db0); B(42a500); B(42a9a0); B(42b9a0); B(42c130); B(42c510);
     B(42cce0); B(42d3c0); B(42da50); B(42f840); B(42ff00); B(430400);
-    B(5bcfb0); B(55d140); B(47ae00); B(5b1f10); B(4034f0); B(4051d0); B(415ae0); B(4192f0); B(418ec0); B(441de0); B(442710); B(442640);
+    B(5bcfb0); B(55d140); B(47ae00); B(5b3b00); B(5b1f10); B(4034f0); B(4051d0); B(415ae0); B(4192f0); B(418ec0); B(441de0); B(442710); B(442640);
     B(5bcfa0); B(43c1b0); B(5b94e0); B(5b9500); B(5b5ef0); B(43e250); B(43d540); B(43d4b0); B(43dd30); B(43d830);
     B(442920); B(4428f0); B(468970);
     B(561d20); B(409150); B(55fdb0); B(41d780); B(4e6520); B(4e61d0); B(41b670); B(4c5af0); B(52fd80); B(5a3870); B(5a00c0);

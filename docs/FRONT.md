@@ -12,8 +12,8 @@
   delta layer); Frida retail drive RETIRED (legacy, don't extend). Port boot "Now Loading" frames now
   DEFAULT (`--no-boot-loading` = legacy axis; old port-timed traces keep working).
   Corpus: 8 scenarios incl. the USER's `rh-my-play` (15.7k flips: intro → house errands → town → shop;
-  10 room loads) + `rh-errands-items` (16.4k flips: errands, item finds, the storage box — a `record combat`
-  cut short by the rhost GDI-handle cap, fixed 2026-10-15). `rhost.py verify` (shadow, per call; full-state where a function writes widely):
+  10 room loads) + `rh-errands-items` (16.4k flips: errands, item finds, the storage box) + `rh-combat` (57.6k
+  flips, the USER 2026-10-16: combat, story advancement, a game over + retry). `rhost.py verify` (shadow, per call; full-state where a function writes widely):
   | function | VA | calls | div |
   |---|---|---:|---:|
   | tile movers | `0x54e990` / `0x54ded0` | 2.50M / 288k | 0 |
@@ -97,7 +97,13 @@
   | the ATTACK pipeline: power rolls (physical / skill) + magic sum, the lunge, a skill's hit boxes (+ twin side hits), the hit box spawn, the target search | `0x4481f0` `0x447f30` `0x4483a0` / `0x447ed0` / `0x447900` / `0x5b15e0` / `0x5b1c50` `0x4478e0` | 3,318 / 801 / 801 / 621 / 8,827 / 4,119 / 554 / 33 — no foe struck yet (`0x5b3890` / `0x5b5600` slots) | 0 |
   | the skills' HELPERS: the slash stages, orbits (x87 polar), the angle wrap, particles + twins, the slide step, the pose set, the afterimage, the crate push | `0x461240` / `0x466700` `0x460ed0` / `0x460de0` / `0x4610e0` / `0x4665d0` / `0x467500` / `0x44ce20` / `0x466e80` | 17,821 / 60 / 12,670 (791) / 36 / 36 / 680 / 4 / 224 / 2.19M (8,539) | 0 |
   | the BOOK reader + the sprite set free | `0x40dbc0` / `0x410300` | REPLACE: 1 / – | – |
-  Hybrid gate: with all of the above REPLACING retail (505 hooks) (the whole character tick, driver → tile
+  | TAKING A HIT (hit sound, part box, status roll, the damage chain, the number, stagger / flinch / knock-back, worn + inflicted statuses, guard / block / sparks) + the hit COMBO, slot scale, record damage, glyphs, crate knock; the DEATH + drops / pickups / the EXP split (level-ups) / "Exp +%d", part release | `0x4895c0` `0x5b3f00` `0x5b4130` `0x5b4170` `0x48b850` `0x48b8e0` / `0x5b4d00` `0x5b5020` `0x556990` `0x5b5140` `0x5b34d0` `0x525ab0` | 115 (all full-state: the combo, 18 deaths, 55 pickups, the EXP nested) | 0 |
+  | a hit BREAKING SHOTS + the shot's end; the FOE GAUGE + its range test | `0x5b3890` `0x478a50` / `0x5b5600` `0x5b58c0` | – (no shot broken yet) / 1,252 | 0 |
+  | SANA's skills (50011 / 50012: staff swing, magic shot, spell bursts, spin swing, back-flip, rest, idle) + the skill helpers (magic roll, clip sequence, pose swap, shot fire, particle tint, sprite descriptors, voice priority) | `0x45e830` (+ `0x4483c0` `0x4611c0` `0x461410` `0x447c10` `0x450590` `0x4505c0` `0x409970`) | REPLACE (hybrid) + shadow (wine 0 div to f27.6k) / 95 / 187 | 0 |
+  | ARCHE's sword skills (50010; a `tools/ida/decomp2c.py` first pass) + the combo skill lookup | `0x461790` / `0x466750` | REPLACE (hybrid 9/9) | – |
+  | the SKILL CASTS (the charge, the stage, the MP payment; summons: recall, the room test, space ahead, init, spawn; a decomp2c first pass) | `0x45a300` (+ `0x459f20` `0x45db20` `0x45a2c0` `0x456a50` `0x456b60` `0x45e050` `0x45e4c0` `0x55ce70`) | REPLACE (hybrid 9/9) | – |
+  | the MONSTER inits: slimes, skill-51 / skill-29 types + the AI hold, skill list | `0x42e290` `0x42c970` `0x42fbf0` (+ `0x42ea50` `0x42da20`) | 19 / 4 / 19 | 0 |
+  Hybrid gate (`corpus --check --hybrid`): with all of the above REPLACING retail (545 hooks) (the whole character tick, driver → tile
   movers, + the room loop's passes and per-tick calls, runs as port code), every corpus scenario ends byte-identical.
   Stack objects (rhost, 2026-10-16): GX shadows save / restore / compare a window behind every pointer into a
   caller's stack frame (the integrator's body copies, menu contexts) — before, those writes went unchecked.
@@ -115,14 +121,15 @@
   ahead, `0x4418e0`, `0x440e40`, `0x441700`, `0x43ee30`, …; scratch bodies from retail's heap via
   `g_eng.op_new`). Hybrid gate with all 12 movement functions replacing retail: PASS.
 - **Next (port side):**
-  0000. (2026-10-16) the USER records `combat` next (`rhost.py record combat`; the GDI cap that killed the last
-     attempt is fixed).  With it: (a) re-run `rhost.py verify` — the attack pipeline's struck-char path
-     (`0x5b15e0` → `0x5b3890` / `0x5b5600`, slots) gets its first calls; (b) port Arche's sword skills `0x461790`
-     (19 KB, 117 cases: the prologue's combo chaining → 10115, codes 10108..10122, 10107, 10102..10106, 10101,
-     the common poses 3 / 4 / 11 / 12 / 100 / 101 / 114) — every helper is ported now (`src/char_attack.c`)
-     except `0x4505c0` / `0x450590` / `0x447c10` / `0x4483c0` / `0x466750`; the case entry VAs (for trap-count
-     coverage) are in the asm's jump tables `0x461a1c` / `0x462150` / `0x463138`; then the skill casts `0x45a300`.
-     The save writer `0x41a890` needs an rhost uninit-fix first (quirk #161).
+  0000. (2026-10-16 night) `rh-combat` is in and the struck side, Sana, Arche and the skill casts run as port code.  Next in the
+     combat paths it reaches (`rhost.py coverage --target wine`, then diff vs the other scenarios): the shots band
+     `0x4710c0` (20 KB) + the shot init `0x55d140` (8 KB) + the
+     96-band `0x46da00`, `0x48ef40` (4.4 KB), `0x455d80`, `0x5b28a0`, `0x597aa0`, `0x47ae00`, the behaviour helpers
+     `0x47ecd0` `0x480b30` `0x481ac0` `0x481310` …; big ones through `tools/ida/decomp2c.py` (keeps IDA's types, so
+     pointer arithmetic scales as the asm: the `char_physics` +6000/+24000 trap, quirk #162).  Loop tools:
+     `hookbisect SCEN --frames N` (which REPLACE hook breaks a scenario), `verify --hooks a,b --split N`, `run
+     --watch-write VA@0` pure vs hybrid for a lone differing dword (found `frame_cache_clear`'s count, quirk #167).
+     The save writer `0x41a890` can be ported now (site E zeroes its frame, quirk #161).
   000. `load_room 0x586010` RUNS AS PORT CODE (`src/room_load.c`, REPLACE-verified; quirk #138), the world it makes /
      frees too (`src/world_alloc.c`), the map decode (`map_decode_room`), the population + device / structure
      inits, and now the CHARACTER INIT `0x41f200` (`src/char_init.c` + 42 helpers `src/char_def.c`; quirk #139).

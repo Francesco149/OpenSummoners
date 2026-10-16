@@ -489,7 +489,10 @@ VERIFY_HOOKS = ["rand", "input_poll", "mover_v", "sweep_h", "ent_move_h", "ent_m
                 "entity_sprite_descs@4", "voice_group_prio", "sana_skills@4",
                 "char_take_hit", "hit_combo", "dmg_party_scale", "dmg_record", "dmg_glyphs", "crate_knock",
                 "char_die", "foe_drops", "pickup_spawn", "exp_share", "float_text", "char_part_release",
-                "mon_slime", "mon_skill51", "mon_skill29", "ai_rec_hold_set", "char_skill_list_add"]
+                "mon_slime", "mon_skill51", "mon_skill29", "ai_rec_hold_set", "char_skill_list_add",
+                "arche_sword@4", "arche_combo_skill",
+                "skill_cast@4", "skill_charge", "skill_stage", "skill_mp_pay", "summon_recall", "summon_room_ok",
+                "skill_space_ahead", "summon_init", "summon_spawn"]
 # REPLACE-only hooks (a whole room per call / DirectInput): proven by `corpus --check --hook replace:…`
 REPLACE_ONLY_HOOKS = ["room_loop", "input_repoll_flush", "load_room", "scene_loop", "menu_pace", "menu_run",
                       "shop_run", "shop_buy", "shop_who", "menu_ctx_clear", "scene_run",
@@ -502,7 +505,8 @@ SHADOW_ONLY_HOOKS = ["map_decode"]     # its REPLACE form is the load_room port 
 
 def cmd_verify(a):
     names = all_scenarios(a.only)
-    hooks = [h for h in VERIFY_HOOKS if not a.hooks or h.split("@")[0] in a.hooks.split(",")]
+    want = {h.split("@")[0]: h for h in (a.hooks or "").split(",") if h}   # `name@N` overrides the sampling
+    hooks = [want.get(h.split("@")[0], h) for h in VERIFY_HOOKS if not want or h.split("@")[0] in want]
     a.hook = ",".join("shadow:" + h for h in hooks)
     runs = resolve_runs(names)
     k = max(1, a.split)

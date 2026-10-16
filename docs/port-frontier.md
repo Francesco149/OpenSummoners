@@ -7,17 +7,17 @@ own engine callees ported, so it can land today with zero new dependencies. Sort
 
 For the *forward* port path (the title-menu scene runner and what it calls) and the semantic milestone order, see `ROADMAP.md` — some of that path isn't yet reachable from ported code so won't appear here.
 
-- frontier functions: **350**
-- of those, zero-dependency **leaves: 148** (recommended order below)
+- frontier functions: **349**
+- of those, zero-dependency **leaves: 149** (recommended order below)
 
 ## Leaf shortlist — portable today (top 40 by ported-caller count)
 
 | VA | size | ported callers | band |
 |----|-----:|---------------:|------|
-| 0x5bb870 | 16 | 36 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
-| 0x5bb8c0 | 31 | 32 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
-| 0x5bb890 | 40 | 30 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
-| 0x5bb880 | 16 | 26 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
+| 0x5bb870 | 16 | 39 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
+| 0x5bb8c0 | 31 | 35 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
+| 0x5bb890 | 40 | 32 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
+| 0x5bb880 | 16 | 28 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x5bb8e0 | 9 | 14 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x5bb3a0 | 39 | 4 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x5bbc60 | 45 | 4 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
@@ -132,18 +132,18 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x44bc10 | 819 | 1 | 4 |  |
 | 0x44a200 | 1338 | 1 | 4 |  |
 | 0x44d2e0 | 1528 | 1 | 4 |  |
-| 0x4484b0 | 1894 | 1 | 1 |  |
+| 0x4484b0 | 1894 | 1 | 0 | ✓ |
 | 0x44d8f0 | 2164 | 1 | 3 |  |
 | 0x448dc0 | 2221 | 1 | 9 |  |
-| 0x449810 | 2221 | 1 | 2 |  |
+| 0x449810 | 2221 | 1 | 1 |  |
 | 0x44b160 | 2523 | 1 | 4 |  |
 | 0x44a740 | 2552 | 1 | 4 |  |
 | 0x44c250 | 2972 | 1 | 5 |  |
 | 0x44e8d0 | 3428 | 1 | 4 |  |
-| 0x44f690 | 3586 | 1 | 13 |  |
-| 0x446900 | 3869 | 1 | 5 |  |
+| 0x44f690 | 3586 | 1 | 12 |  |
+| 0x446900 | 3869 | 1 | 4 |  |
 
-### master dialogue runner + action/frame dispatch + sprite batch (16)
+### master dialogue runner + action/frame dispatch + sprite batch (14)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
@@ -155,14 +155,12 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x467750 | 406 | 1 | 0 | ✓ |
 | 0x4512d0 | 1012 | 1 | 4 |  |
 | 0x450810 | 1485 | 1 | 0 | ✓ |
-| 0x452020 | 1649 | 1 | 6 |  |
+| 0x452020 | 1649 | 1 | 5 |  |
 | 0x4516e0 | 2336 | 1 | 4 |  |
-| 0x455d80 | 3175 | 1 | 10 |  |
+| 0x455d80 | 3175 | 1 | 5 |  |
 | 0x452730 | 4119 | 1 | 6 |  |
 | 0x456d30 | 4581 | 1 | 4 |  |
 | 0x4539b0 | 8699 | 1 | 11 |  |
-| 0x45a300 | 14079 | 1 | 12 |  |
-| 0x461790 | 19423 | 1 | 5 |  |
 
 ### battle phase controller + NPC AI + particle fx + damage UI (18)
 
@@ -407,14 +405,14 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x59e5d0 | 1033 | 1 | 8 |  |
 | 0x591120 | 1096 | 1 | 8 |  |
 
-### launcher config parse + spell fx + bitmap/ZDD render + RNG (75)
+### launcher config parse + spell fx + bitmap/ZDD render + RNG (76)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
-| 0x5bb870 | 16 | 36 | 0 | ✓ |
-| 0x5bb8c0 | 31 | 32 | 0 | ✓ |
-| 0x5bb890 | 40 | 30 | 0 | ✓ |
-| 0x5bb880 | 16 | 26 | 0 | ✓ |
+| 0x5bb870 | 16 | 39 | 0 | ✓ |
+| 0x5bb8c0 | 31 | 35 | 0 | ✓ |
+| 0x5bb890 | 40 | 32 | 0 | ✓ |
+| 0x5bb880 | 16 | 28 | 0 | ✓ |
 | 0x5bb8e0 | 9 | 14 | 0 | ✓ |
 | 0x5bb2f0 | 140 | 5 | 2 |  |
 | 0x5bb250 | 150 | 5 | 2 |  |
@@ -484,6 +482,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x5a3870 | 828 | 1 | 0 | ✓ |
 | 0x5bc7c0 | 880 | 1 | 3 |  |
 | 0x5b0890 | 961 | 1 | 0 | ✓ |
+| 0x5b3b00 | 1002 | 1 | 3 |  |
 | 0x5b0450 | 1075 | 1 | 0 | ✓ |
 | 0x5b1f10 | 2345 | 1 | 4 |  |
 

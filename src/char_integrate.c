@@ -17,7 +17,9 @@
 #include "entity_move.h"
 #include "map_grid.h"
 #include "rng.h"
+#include "arche_sword.h"
 #include "sana_skills.h"
+#include "skill_cast.h"
 #include "sound_fx.h"
 
 long g_integrate_unported;
@@ -381,7 +383,7 @@ dispatch:
                     goto t914;
                 case 0x18759:
                     if (self->party->member == 1)
-                        g_eng.h45a300(self, IP(out), probe, IP(&ctl), IP(cmd), gr, IP(&dt), IP(g_eng.data(0x648650)), 210);
+                        skill_cast(self, IP(out), probe, IP(&ctl), IP(cmd), gr, &dt, (uint16_t *)g_eng.data(0x648650), 210);
                     if (g_eng.h44d8f0(self, IP(out), probe, IP(&ctl), part, out->grounded, IP(cmd), IP(&held)) == 0) goto t913;
                     goto t914;
                 case 0x1875a: goto t890;
@@ -429,7 +431,7 @@ t860:
                 if (code <= 0x18744) goto t834;
 t867:
                 if (self->party->member == 1)
-                    g_eng.h45a300(self, IP(out), probe, IP(&ctl), IP(cmd), out->grounded, IP(&dt), IP(g_eng.data(0x65a028)), 210);
+                    skill_cast(self, IP(out), probe, IP(&ctl), IP(cmd), out->grounded, &dt, (uint16_t *)g_eng.data(0x65a028), 210);
                 g_eng.h44b160(self, IP(out), probe, IP(&ctl), out->grounded, IP(cmd), part);
                 PHYS();
                 if (out->pose != 0) goto tail;
@@ -437,7 +439,7 @@ t867:
                 goto t837;
             }
 t871:
-            g_eng.h45a300(self, IP(out), probe, IP(&ctl), IP(cmd), out->grounded, IP(&dt), IP(g_eng.data(0x64c418)), 210);
+            skill_cast(self, IP(out), probe, IP(&ctl), IP(cmd), out->grounded, &dt, (uint16_t *)g_eng.data(0x64c418), 210);
             if (g_eng.h4516e0(self, IP(out), probe, IP(&ctl), part, out->grounded, IP(&dt), IP(cmd)) == 0) goto t900;
             goto t901;
         }
@@ -458,7 +460,7 @@ t806:
                 goto t900;
             case 0xc789: case 0xc78a: case 0xc78b:
                 if (self->party->member == 1)
-                    g_eng.h45a300(self, IP(out), probe, IP(&ctl), IP(cmd), out->grounded, IP(&dt), IP(g_eng.data(0x64ac48)), 210);
+                    skill_cast(self, IP(out), probe, IP(&ctl), IP(cmd), out->grounded, &dt, (uint16_t *)g_eng.data(0x64ac48), 210);
                 if (g_eng.h44e8d0(self, IP(out), probe, IP(&ctl), part, out->grounded, IP(cmd)) == 0) goto t900;
                 goto t901;
             case 0xc792: case 0xc793: case 0xc794:
@@ -501,11 +503,11 @@ t814:
             }
             if (code == 50010) {
                 r = arche_pose(self, out, probe, part, &ctl);
-                g_eng.h45a300(self, IP(out), probe, IP(&ctl), IP(cmd), out->grounded, IP(&dt), IP(g_eng.data(0x62f868)), 210);
-                if (r == 0 && g_eng.h461790(self, IP(out), probe, IP(&ctl), out->grounded, part, IP(cmd)) == 0) PHYS();
+                skill_cast(self, IP(out), probe, IP(&ctl), IP(cmd), out->grounded, &dt, (uint16_t *)g_eng.data(0x62f868), 210);
+                if (r == 0 && arche_sword(self, out, probe, &ctl, out->grounded, part, cmd) == 0) PHYS();
             } else if (code == 50011) {
                 r = arche_pose(self, out, probe, part, &ctl);
-                g_eng.h45a300(self, IP(out), probe, IP(&ctl), IP(cmd), out->grounded, IP(&dt), IP(g_eng.data(0x636a58)), 210);
+                skill_cast(self, IP(out), probe, IP(&ctl), IP(cmd), out->grounded, &dt, (uint16_t *)g_eng.data(0x636a58), 210);
                 sana_skills(self, out, probe, &ctl, cmd, out->grounded);
                 if (r == 0) PHYS();
             } else if (code == 50012) {
@@ -525,7 +527,7 @@ t814:
 
 t861:
         r = arche_pose(self, out, probe, part, &ctl);
-        g_eng.h45a300(self, IP(out), probe, IP(&ctl), IP(cmd), out->grounded, IP(&dt), IP(g_eng.data(0x63cde8)), 210);
+        skill_cast(self, IP(out), probe, IP(&ctl), IP(cmd), out->grounded, &dt, (uint16_t *)g_eng.data(0x63cde8), 210);
         sana_skills(self, out, probe, &ctl, cmd, out->grounded);
         if (r == 0) PHYS();
         if (out->pose != 0) goto tail;
@@ -547,7 +549,7 @@ t874:
         {
             int32_t g = out->grounded;
             if (g == 0) out->nocollide = 1;
-            if (g_eng.h45a300(self, IP(out), probe, IP(&ctl), IP(cmd), g, IP(&dt), IP(g_eng.data(0x66d398)), 220) != 0 &&
+            if (skill_cast(self, IP(out), probe, IP(&ctl), IP(cmd), g, &dt, (uint16_t *)g_eng.data(0x66d398), 220) != 0 &&
                 probe == 0 && out->f58 == 1)
                 voice_cue(self, 0, 10, 1, 0, 0);
             g_eng.h44bc10(self, IP(out), probe, IP(&ctl), out->grounded);

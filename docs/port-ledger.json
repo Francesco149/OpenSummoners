@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 536,
-  "unported": 1039,
+  "ported": 547,
+  "unported": 1028,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 785,
-  "pct_touched": 50.4,
+  "touched": 796,
+  "pct_touched": 51.1,
   "pct_tested": 15.7,
-  "engine_proper_touched": 772,
+  "engine_proper_touched": 783,
   "bytes_total": 1776526,
-  "bytes_touched": 645322,
-  "pct_bytes_touched": 36.3
+  "bytes_touched": 683326,
+  "pct_bytes_touched": 38.5
  },
  "orphan_refs": [],
  "functions": [
@@ -4722,16 +4722,20 @@
    "name": "sub_456A50",
    "size": 272,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/skill_cast.h"
+   ]
   },
   {
    "va": "0x456b60",
    "name": "sub_456B60",
    "size": 248,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/skill_cast.h"
+   ]
   },
   {
    "va": "0x456c60",
@@ -4815,40 +4819,51 @@
    "name": "sub_459F20",
    "size": 888,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/skill_cast.h"
+   ]
   },
   {
    "va": "0x45a2c0",
    "name": "sub_45A2C0",
    "size": 58,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/skill_cast.h"
+   ]
   },
   {
    "va": "0x45a300",
    "name": "sub_45A300",
    "size": 14079,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/skill_cast.c",
+    "src/skill_cast.h"
+   ]
   },
   {
    "va": "0x45db20",
    "name": "sub_45DB20",
    "size": 1293,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/skill_cast.h"
+   ]
   },
   {
    "va": "0x45e050",
    "name": "sub_45E050",
    "size": 517,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/skill_cast.h"
+   ]
   },
   {
    "va": "0x45e260",
@@ -4871,8 +4886,10 @@
    "name": "sub_45E4C0",
    "size": 725,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/skill_cast.h"
+   ]
   },
   {
    "va": "0x45e830",
@@ -4968,8 +4985,11 @@
    "name": "sub_461790",
    "size": 19423,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/arche_sword.c",
+    "src/arche_sword.h"
+   ]
   },
   {
    "va": "0x4665d0",
@@ -4996,8 +5016,10 @@
    "name": "sub_466750",
    "size": 190,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/arche_sword.h"
+   ]
   },
   {
    "va": "0x466930",
@@ -9288,8 +9310,10 @@
    "name": "sub_55CE70",
    "size": 311,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/skill_cast.h"
+   ]
   },
   {
    "va": "0x55cfc0",
