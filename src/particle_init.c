@@ -1002,8 +1002,8 @@ int32_t particle_init(wl_particle *p, int32_t code, int32_t x, int32_t y, int32_
         orbit = 1;
         b->vel_x = mul(rnd(), 16000) / 0x8000 + 96000;
         break;
-    case 100137:
-        SETUP(2400, 2400, 17, 0);
+    case 100137:   /* the one code whose setup offsets the box by -4 / -4 (+0x30 / +0x34) */
+        entity_setup(e, 4, code, fac, x, y, 2400, 2400, 1, on, -4, -4, anchor, 17, 0);
         b->vvel = -64000;
         entity_tint(e, sysv(0x27a8));
         break;
