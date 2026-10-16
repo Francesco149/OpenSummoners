@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 583,
-  "unported": 992,
+  "ported": 643,
+  "unported": 932,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 832,
-  "pct_touched": 53.5,
+  "touched": 892,
+  "pct_touched": 57.4,
   "pct_tested": 15.7,
-  "engine_proper_touched": 819,
+  "engine_proper_touched": 879,
   "bytes_total": 1776526,
-  "bytes_touched": 725840,
-  "pct_bytes_touched": 40.9
+  "bytes_touched": 763448,
+  "pct_bytes_touched": 43.0
  },
  "orphan_refs": [],
  "functions": [
@@ -3963,8 +3963,10 @@
    "name": "sub_441F50",
    "size": 1284,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x442460",
@@ -3982,8 +3984,10 @@
    "name": "sub_442490",
    "size": 329,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x442600",
@@ -4000,16 +4004,20 @@
    "name": "sub_442640",
    "size": 200,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x442710",
    "name": "sub_442710",
    "size": 374,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x442890",
@@ -5660,16 +5668,20 @@
    "name": "sub_479E10",
    "size": 38,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x479e40",
    "name": "sub_479E40",
    "size": 41,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x479e70",
@@ -5722,24 +5734,30 @@
    "name": "sub_47A970",
    "size": 1059,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x47adb0",
    "name": "sub_47ADB0",
    "size": 79,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x47ae00",
    "name": "sub_47AE00",
    "size": 2364,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x47b770",
@@ -5766,8 +5784,10 @@
    "name": "sub_47B870",
    "size": 250,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x47b990",
@@ -5776,6 +5796,7 @@
    "is_thunk": false,
    "status": "ported",
    "src": [
+    "src/behave_helpers.c",
     "src/behave_ops.h",
     "src/char_behave.c",
     "src/char_behave.h"
@@ -5807,16 +5828,20 @@
    "name": "sub_47D790",
    "size": 710,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x47da60",
    "name": "sub_47DA60",
    "size": 329,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x47dbb0",
@@ -5833,16 +5858,20 @@
    "name": "sub_47DE50",
    "size": 446,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x47e010",
    "name": "sub_47E010",
    "size": 504,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x47e330",
@@ -5869,64 +5898,80 @@
    "name": "sub_47E7C0",
    "size": 799,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x47eae0",
    "name": "sub_47EAE0",
    "size": 469,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x47ecd0",
    "name": "sub_47ECD0",
    "size": 2303,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x47f610",
    "name": "sub_47F610",
    "size": 90,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x47f670",
    "name": "sub_47F670",
    "size": 861,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x47f9d0",
    "name": "sub_47F9D0",
    "size": 874,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x47fd40",
    "name": "sub_47FD40",
    "size": 1242,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x480260",
    "name": "sub_480260",
    "size": 577,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x4804b0",
@@ -5943,16 +5988,20 @@
    "name": "sub_480580",
    "size": 1430,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x480b30",
    "name": "sub_480B30",
    "size": 1932,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x4812c0",
@@ -5969,160 +6018,200 @@
    "name": "sub_481310",
    "size": 1144,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x481790",
    "name": "sub_481790",
    "size": 645,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x481a20",
    "name": "sub_481A20",
    "size": 148,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x481ac0",
    "name": "sub_481AC0",
    "size": 1874,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x482240",
    "name": "sub_482240",
    "size": 310,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x482380",
    "name": "sub_482380",
    "size": 217,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x482460",
    "name": "sub_482460",
    "size": 536,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x4826b0",
    "name": "sub_4826B0",
    "size": 50,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x482700",
    "name": "sub_482700",
    "size": 96,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x482760",
    "name": "sub_482760",
    "size": 281,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x482880",
    "name": "sub_482880",
    "size": 532,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x482ac0",
    "name": "sub_482AC0",
    "size": 844,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x482e10",
    "name": "sub_482E10",
    "size": 501,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x483040",
    "name": "sub_483040",
    "size": 668,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x4832e0",
    "name": "sub_4832E0",
    "size": 519,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x4834f0",
    "name": "sub_4834F0",
    "size": 1062,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x483920",
    "name": "sub_483920",
    "size": 555,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x483b50",
    "name": "sub_483B50",
    "size": 600,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x483de0",
    "name": "sub_483DE0",
    "size": 446,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x483fb0",
    "name": "sub_483FB0",
    "size": 784,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x4842c0",
@@ -6139,40 +6228,50 @@
    "name": "sub_4843C0",
    "size": 360,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x484530",
    "name": "sub_484530",
    "size": 740,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x484830",
    "name": "sub_484830",
    "size": 90,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x4848a0",
    "name": "sub_4848A0",
    "size": 788,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x484bc0",
    "name": "sub_484BC0",
    "size": 48,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x484bf0",
@@ -6199,16 +6298,20 @@
    "name": "sub_484D60",
    "size": 319,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x484ea0",
    "name": "sub_484EA0",
    "size": 1029,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x4852c0",
@@ -6235,24 +6338,30 @@
    "name": "sub_485330",
    "size": 22,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x485350",
    "name": "sub_485350",
    "size": 391,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x4854e0",
    "name": "sub_4854E0",
    "size": 388,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x485670",
@@ -6299,16 +6408,20 @@
    "name": "sub_485990",
    "size": 793,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x485cb0",
    "name": "sub_485CB0",
    "size": 576,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x485f30",
@@ -6479,8 +6592,10 @@
    "name": "sub_48B920",
    "size": 526,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x48bb30",
@@ -6497,16 +6612,20 @@
    "name": "sub_48BDD0",
    "size": 132,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x48be60",
    "name": "sub_48BE60",
    "size": 715,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x48c150",
@@ -12284,8 +12403,10 @@
    "name": "sub_5B4200",
    "size": 295,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/behave_helpers.h"
+   ]
   },
   {
    "va": "0x5b4330",

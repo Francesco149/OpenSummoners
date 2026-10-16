@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "char_ai.h"
+#include "behave_helpers.h"
 #include "engine_calls.h"
 #include "map_grid.h"
 #include "npc_ai.h"
@@ -192,7 +193,7 @@ wl_char *behave_pick_char(wl_char *self, int32_t fac, int32_t rel, uint32_t part
 int behave_walk_to(wl_char *self, wl_body *b, int32_t gr)
 {
     if (self->ai_state == 1) {
-        g_eng.h441f50(self, IP(b), gr);
+        beh_441f50((wl_char *)(self), (int32_t *)(IP(b)), gr);
         return 1;
     }
     if (self->ai_state != 7) return 0;

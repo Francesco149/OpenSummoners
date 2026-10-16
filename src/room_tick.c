@@ -10,6 +10,7 @@
 #include "actor_update.h"
 #include "char_state.h"
 #include "char_status.h"
+#include "behave_helpers.h"
 #include "engine_calls.h"
 #include "gimmick.h"
 #include "particle_spawn.h"
@@ -252,7 +253,7 @@ int room_item_pick(wl_room *room, wl_pslot **out, int32_t kind, int32_t a4, int3
         wl_pslot *s = room->slot[k];
         if (s->active != 1 || s->id == 100000104) continue;
         int32_t v;
-        if (g_eng.h47ae00(s->ch, 0, kind, (uint16_t)a4, 0, 0, 0, (intptr_t)&v, 0, 0, 1, 0, 0) == 0) continue;
+        if (beh_47ae00((wl_char *)(s->ch), 0, kind, (int32_t)((uint16_t)a4), 0, 0, 0, (int32_t *)((intptr_t)&v), (int32_t *)(0), 0, 1, 0, (int32_t *)(0)) == 0) continue;
         if (v <= 0 || (best != NULL && top >= v)) continue;
         top = v;
         best = s;
@@ -273,8 +274,7 @@ int room_item_pick(wl_room *room, wl_pslot **out, int32_t kind, int32_t a4, int3
         if (cls != 0 && !(cls == 100 && ld16(room, 0x4060) == 0)) continue;
         if (ld32(def, 0x2b0) == 1 && busy) continue;
         if (ld32(def, 0x58) != kind) continue;
-        g_eng.h47ae00(best->ch, 0, kind, ld32(def, 0x68), ld32(def, 0x6c), ld32(def, 0x70), ld32(def, 0x74), 0,
-                      (intptr_t)&v, 0, 0, 0, 0);
+        beh_47ae00((wl_char *)(best->ch), 0, kind, (int32_t)(ld32(def, 0x68)), (int32_t)(ld32(def, 0x6c)), (int32_t)(ld32(def, 0x70)), (int32_t)(ld32(def, 0x74)), (int32_t *)(0), (int32_t *)((intptr_t)&v), 0, 0, 0, (int32_t *)(0));
         uint16_t n = ld16(rec, 8);
         if (v > bestv || (v == bestv && bestn > n) || pick < 0) {
             bestv = v;

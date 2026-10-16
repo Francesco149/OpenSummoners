@@ -16,6 +16,7 @@
 #include "char_ai.h"
 #include "char_integrate.h"
 #include "char_state.h"
+#include "behave_helpers.h"
 #include "engine_calls.h"
 #include "entity_move.h"
 #include "gimmick.h"
@@ -42,7 +43,7 @@ static int random_walk(wl_char *self, wl_body *b, int32_t gr)
     int32_t look = 0, sim3 = 0, rise = 0, fall = 0, crouch = 0, jumpable = 0;
     int32_t ahead = 0, behind = 0;  /* v115 / v117 */
     int run_blocked = 0;
-    int32_t slide = self->can_jump != 0 ? g_eng.h47da60(self, IP(b)) : 0;   /* v114 */
+    int32_t slide = self->can_jump != 0 ? beh_47da60((wl_char *)(self), (int32_t *)(IP(b))) : 0;   /* v114 */
     int32_t moved = iabs(b->x - x0);
     if ((can != 0 || b->state == 5) && self->up_assist != 0) look = 1;
     int32_t open_l = behave_step_ok(self, b, 1600, 3, 0, 1, 0);   /* v124 */
@@ -66,7 +67,7 @@ static int random_walk(wl_char *self, wl_body *b, int32_t gr)
             if (h < top + 3200 || (h < top + 800 && b->vvel > -10000)) rise = 1;
             if (h > top - 3200 || (h > top - 800 && b->vvel < 10000)) fall = 1;
             if (self->float_h > 0 && self->float_h <= h) slide = 0;
-            if (behave_c_check(self) != 0 && g_eng.h47de50(self, IP(b), self->nav_drop) == 0) {
+            if (behave_c_check(self) != 0 && beh_47de50((int32_t *)(IP(b)), self->nav_drop) == 0) {
                 crouch = 0;
                 fall = 0;
                 rise = 1;
@@ -152,7 +153,7 @@ static int random_walk(wl_char *self, wl_body *b, int32_t gr)
             case 1:
                 cmd_clear(&cmd);
                 cmd.lr = d;
-                r = g_eng.h47d790(self, IP(&cmd), 32, flag);
+                r = beh_47d790((wl_char *)(self), (int32_t)(IP(&cmd)), 32, flag);
                 if (r != 0) goto accept;
                 break;
             case 2:
@@ -160,7 +161,7 @@ static int random_walk(wl_char *self, wl_body *b, int32_t gr)
                 cmd_clear(&cmd);
                 cmd.ud = 10;
                 cmd.lr = d;
-                r = g_eng.h47d790(self, IP(&cmd), 32, 0);
+                r = beh_47d790((wl_char *)(self), (int32_t)(IP(&cmd)), 32, 0);
                 if (r != 0) goto accept;
                 break;
             case 3:
@@ -184,7 +185,7 @@ static int random_walk(wl_char *self, wl_body *b, int32_t gr)
                 }
                 cmd.lr = d;
                 cmd.jump = j;
-                r = g_eng.h47d790(self, IP(&cmd), 32, 0);
+                r = beh_47d790((wl_char *)(self), (int32_t)(IP(&cmd)), 32, 0);
                 if (r != 0) goto accept;
                 if (flag != 0) {
                     cmd_clear(&cmd);
@@ -196,19 +197,19 @@ static int random_walk(wl_char *self, wl_body *b, int32_t gr)
             }
             case 5:
                 if (behind == 0) break;
-                if (g_eng.h47e010(self, (uint16_t)self->nav_skill, self->nav_skill_arg, IP(b), gr) == 0) break;
+                if (beh_47e010((wl_char *)(self), (uint16_t)((uint16_t)self->nav_skill), self->nav_skill_arg, (int32_t)(IP(b)), gr) == 0) break;
                 cmd_clear(&cmd);
                 cmd_set_skill_kind(&cmd, (int16_t)self->nav_skill, 210, (int16_t)self->nav_skill_arg, 0);
-                r = g_eng.h47d790(self, IP(&cmd), 40, 1);
+                r = beh_47d790((wl_char *)(self), (int32_t)(IP(&cmd)), 40, 1);
                 if (r != 0) goto accept;
                 break;
             case 6:
                 if (ahead == 0 || fast == 0 ||
-                    g_eng.h47e010(self, (uint16_t)self->nav_skill2, self->nav_skill2_arg, IP(b), gr) == 0)
+                    beh_47e010((wl_char *)(self), (uint16_t)((uint16_t)self->nav_skill2), self->nav_skill2_arg, (int32_t)(IP(b)), gr) == 0)
                     break;
                 cmd_clear(&cmd);
                 cmd_set_skill_kind(&cmd, (int16_t)self->nav_skill2, 210, (int16_t)self->nav_skill2_arg, 0);
-                r = g_eng.h47d790(self, IP(&cmd), 40, 1);
+                r = beh_47d790((wl_char *)(self), (int32_t)(IP(&cmd)), 40, 1);
                 if (r != 0) goto accept;
                 break;
             default:
@@ -358,15 +359,15 @@ int char_behave(wl_char *self, int32_t cut, wl_body *b, int32_t gr)
         if (skip_pick || self->f14288 == 2) {
             int32_t need = 0, have = 0;
             if (self->base.coll_off != 0 || self->target == NULL || char_targetable(self->target, 1, 1) == 0 ||
-                g_eng.h47eae0(self, IP(self->f14298), IP(&need), 0, 1) == 0 ||
-                g_eng.target_ok_47adb0(self->target, self, *(int32_t *)self->f14298, IP(&have), 0, 0, 1, 0) == 0 ||
+                beh_47eae0((wl_char *)(self), (int32_t *)(IP(self->f14298)), (int32_t *)(IP(&need)), (int16_t *)(0), 1) == 0 ||
+                beh_47adb0((intptr_t)(self->target), (int32_t)(intptr_t)self, (int32_t *)(*(int32_t *)self->f14298), (int32_t)(IP(&have)), 0, 0, 1, 0) == 0 ||
                 need > have) {
                 self->target = NULL;
                 self->f14288 = 0;
                 behave_set_state(self, 0);
             }
         } else if (self->engage_t == 0 && self->base.coll_off == 0 && fac != 0) {
-            g_eng.h484ea0(self, IP(b), gr);
+            beh_484ea0((wl_char *)(self), (int32_t)(IP(b)), gr);
         }
         if (self->f14288 != 2) {
             if (self->fc794 != 0 && (world_scene_running() || world32(0x2774) != 0)) {
@@ -403,13 +404,13 @@ int char_behave(wl_char *self, int32_t cut, wl_body *b, int32_t gr)
     if (!(bb->pose == 0 || bb->act_len <= 200u || (self->ai_state >= 5u && self->ai_state <= 6u))) {
         int32_t hold = 0, v119 = 0, v116 = 0;
         if (self->engage_t == 0) {
-            if (g_eng.h47f9d0(self, 0x40, 0) == 0) {
+            if (beh_47f9d0((wl_char *)(self), (uint16_t)(0x40), 0) == 0) {
                 self->engage_t = self->retarget;
             } else {
                 hold = 1;
                 if (self->pal != NULL && char_status_stuck(self->pal) != 0) {
                     int32_t ex = 0, ey = 0;
-                    g_eng.h47e7c0(self, IP(self->pal), 0, IP(b), 0, 0, 0, IP(&ex), IP(&ey));
+                    beh_47e7c0((int32_t)(IP(self->pal)), (uint16_t)(0), (int32_t *)(IP(b)), 0, (int32_t *)(0), (int32_t *)(0), (int32_t *)(IP(&ex)), (int32_t *)(IP(&ey)));
                     if (iabs(ex) < 9600 && iabs(ey) < 9600) {
                         hold = 0;
                         self->engage_t = self->retarget;
@@ -419,11 +420,11 @@ int char_behave(wl_char *self, int32_t cut, wl_body *b, int32_t gr)
         }
         int32_t *rec = NULL;
         if (self->f14288 == 1) {
-            rec = (int32_t *)(intptr_t)g_eng.h47ecd0(self, IP(self->target), 1, IP(b), g65, hold, 1, 0, IP(&v119), IP(&v116));
+            rec = (int32_t *)(intptr_t)beh_47ecd0((wl_char *)(self), (int32_t)(IP(self->target)), 1, (int32_t)(IP(b)), g65, hold, 1, (uint16_t)(0), (int32_t *)(IP(&v119)), (int32_t *)(IP(&v116)));
         } else if (self->f14288 == 2) {
             uint16_t sk;
             memcpy(&sk, *(void **)self->f14298, 2);
-            rec = (int32_t *)(intptr_t)g_eng.h47ecd0(self, IP(self->target), 1, IP(b), g65, hold, 0, sk, IP(&v119), IP(&v116));
+            rec = (int32_t *)(intptr_t)beh_47ecd0((wl_char *)(self), (int32_t)(IP(self->target)), 1, (int32_t)(IP(b)), g65, hold, 0, (uint16_t)(sk), (int32_t *)(IP(&v119)), (int32_t *)(IP(&v116)));
             if (rec == NULL) self->f14288 = 0;
         }
         if (rec == NULL) {
@@ -509,14 +510,14 @@ int char_behave(wl_char *self, int32_t cut, wl_body *b, int32_t gr)
                     }
                 } else if (self->f14288 == 1) {
                     self->calm_t = 0;
-                    if (g_eng.h47f670(self, 0x1e, 0) != 0) {
+                    if (beh_47f670((wl_char *)(self), (uint16_t)(0x1e), 0) != 0) {
                         cmd_set_skill_kind(&self->cmd, 3, 210, 0, 0);
                         goto done;
                     }
                 }
             }
         }
-        if (leash_chk && g_eng.h485350(self, 3, 4, 20000, 200000, was) != 0) goto done;
+        if (leash_chk && beh_485350((wl_char *)(self), (int16_t)(3), (int16_t)(4), 20000, 200000, was) != 0) goto done;
     }
 
     /* ── the leash ── */
@@ -541,39 +542,37 @@ int char_behave(wl_char *self, int32_t cut, wl_body *b, int32_t gr)
         }
         switch (self->ai_state) {
         case 2:
-            if (g_eng.h482ac0(self, IP(b)) != 0) break;
+            if (beh_482ac0((wl_char *)(self), (int32_t *)(IP(b))) != 0) break;
             if (self->f1423c > 0) {
                 self->f1423c--;
-                g_eng.h482880(self, IP(b), g65, IP(self->target));
+                beh_482880((wl_char *)(self), (int32_t)(IP(b)), g65, (int32_t)(IP(self->target)));
                 break;
             }
-            if (g_eng.h4834f0(self, g65, IP(b)) == 0 && g_eng.h481310(self, IP(b), g65, 0) == 0)
-                g_eng.h482880(self, IP(b), g65, IP(self->target));
+            if (beh_4834f0((wl_char *)(self), g65, (int32_t)(IP(b))) == 0 && beh_481310((wl_char *)(self), (int32_t *)(IP(b)), g65, 0) == 0)
+                beh_482880((wl_char *)(self), (int32_t)(IP(b)), g65, (int32_t)(IP(self->target)));
             break;
         case 3:
             cmd_clear(&self->cmd);
             if (self->target == NULL) { behave_set_state(self, 0); break; }
-            if (g_eng.h482380(self, IP(self->target), 0, IP(self->base.body), IP(&self->cmd), self->f14818,
-                              IP(&self->ai_sub), self->f1481c) != 0) {
-                g_eng.h482240(self, self->f14818);
-                if (g_eng.h482460(self, 1) == 0) behave_set_state(self, 0);
+            if (beh_482380((int32_t)(IP(self->target)), 0, (int32_t)(IP(self->base.body)), (int32_t)(IP(&self->cmd)), (int32_t *)(self->f14818), (uint16_t *)(IP(&self->ai_sub)), self->f1481c) != 0) {
+                beh_482240((wl_char *)(self), self->f14818);
+                if (beh_482460((wl_char *)(self), 1) == 0) behave_set_state(self, 0);
             }
             break;
         case 4:
             self->f14234 = 0;
-            g_eng.h482e10(self, IP(b), g65);
+            beh_482e10((wl_char *)(self), (int32_t)(IP(b)), g65);
             break;
         case 5:
             cmd_clear(&self->cmd);
             if (self->target == NULL) { behave_set_state(self, 0); break; }
-            if (g_eng.h483b50(self, IP(self->target), 0, IP(self->base.body), IP(&self->cmd), IP(&self->ai_sub),
-                              self->f14808) != 0 &&
-                g_eng.h482460(self, 1) == 0)
+            if (beh_483b50((wl_char *)(self), (int32_t)(IP(self->target)), 0, (int32_t *)(IP(self->base.body)), (int32_t *)(IP(&self->cmd)), (uint16_t *)(IP(&self->ai_sub)), self->f14808) != 0 &&
+                beh_482460((wl_char *)(self), 1) == 0)
                 behave_set_state(self, 0);
-            if (self->f1480c == 0 && self->ai_sub >= 3u && g_eng.h481310(self, IP(b), gr, 1) != 0) self->f1480c = 1;
+            if (self->f1480c == 0 && self->ai_sub >= 3u && beh_481310((wl_char *)(self), (int32_t *)(IP(b)), gr, 1) != 0) self->f1480c = 1;
             break;
         case 6:
-            g_eng.h481ac0(self, IP(b), g65);
+            beh_481ac0((wl_char *)(self), (int32_t *)(IP(b)), g65);
             break;
         default: {
             int32_t m = self->base.coll_off != 0 ? 9 : self->ai_mode;
@@ -590,39 +589,39 @@ int char_behave(wl_char *self, int32_t cut, wl_body *b, int32_t gr)
                     self->f14258 = 1;
                 }
                 if (self->f14258 != 0 &&
-                    g_eng.h484530(self, IP(b), g65, self->f1425c, self->f14260, 99, 1, 0) != 0)
-                    g_eng.h481310(self, IP(b), g65, 0);
+                    beh_484530((wl_char *)(self), (int32_t)(IP(b)), g65, self->f1425c, self->f14260, 99, 1, 0) != 0)
+                    beh_481310((wl_char *)(self), (int32_t *)(IP(b)), g65, 0);
                 break;
             }
             case 2:
-                if (g_eng.h485990(self, IP(b), g65) == 0) {
+                if (beh_485990((wl_char *)(self), (int32_t *)(IP(b)), g65) == 0) {
                     npc_navigate(self, b->x, 800, b, g65, 0, 0, 0, 0, 0);
                     int32_t w = world32(0x27ac);
                     if (w != 0) {
                         int32_t wx, wy;
                         memcpy(&wx, (const uint8_t *)(intptr_t)w + 108, 4);
                         memcpy(&wy, (const uint8_t *)(intptr_t)w + 112, 4);
-                        g_eng.h483de0(self, IP(b), g65, wx, wy, 1);
+                        beh_483de0((wl_char *)(self), (int32_t)(IP(b)), g65, wx, wy, 1);
                     }
                 }
                 break;
             case 3: case 4: case 11:
-                g_eng.h483fb0(self, IP(b), g65, flag, cut);
+                beh_483fb0((wl_char *)(self), (int32_t *)(IP(b)), g65, flag, cut);
                 break;
             case 5: case 6:
                 if (self->base.faction == 0) { cmd_clear(&self->cmd); break; }
-                if (g_eng.h485990(self, IP(b), g65) == 0 && behave_hold(self, b, g65, 20) == 0)
+                if (beh_485990((wl_char *)(self), (int32_t *)(IP(b)), g65) == 0 && behave_hold(self, b, g65, 20) == 0)
                     behave_pace(self, b, g65, 20, 0);
                 break;
             case 8:
-                if (g_eng.h485990(self, IP(b), g65) == 0 && behave_hold(self, b, g65, 10) == 0)
+                if (beh_485990((wl_char *)(self), (int32_t *)(IP(b)), g65) == 0 && behave_hold(self, b, g65, 10) == 0)
                     behave_go_home(self, b, g65);
                 break;
             case 9:
-                if (g_eng.h485990(self, IP(b), g65) == 0) npc_navigate(self, b->x, 800, b, g65, 0, 0, 0, 0, 0);
+                if (beh_485990((wl_char *)(self), (int32_t *)(IP(b)), g65) == 0) npc_navigate(self, b->x, 800, b, g65, 0, 0, 0, 0, 0);
                 break;
             case 10:
-                if ((self->party->member != 1 || g_eng.h485990(self, IP(b), g65) == 0) &&
+                if ((self->party->member != 1 || beh_485990((wl_char *)(self), (int32_t *)(IP(b)), g65) == 0) &&
                     behave_hold(self, b, g65, 10) == 0)
                     behave_go_home(self, b, g65);
                 break;
@@ -666,7 +665,7 @@ done:
         wl_char *lead = self->leader;
         self->boost_speed = 0;
         if (lead == NULL) return 0;
-        if (g_eng.h4854e0(self, IP(b), gr) != 0) self->boost_speed = 1;
+        if (beh_4854e0((wl_char *)(self), (int32_t)(IP(b)), gr) != 0) self->boost_speed = 1;
         if (self->boost_speed != 0) {
             self->boost_accel = 10;
             return 1;

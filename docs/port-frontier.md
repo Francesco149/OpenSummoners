@@ -7,8 +7,8 @@ own engine callees ported, so it can land today with zero new dependencies. Sort
 
 For the *forward* port path (the title-menu scene runner and what it calls) and the semantic milestone order, see `ROADMAP.md` — some of that path isn't yet reachable from ported code so won't appear here.
 
-- frontier functions: **344**
-- of those, zero-dependency **leaves: 148** (recommended order below)
+- frontier functions: **311**
+- of those, zero-dependency **leaves: 133** (recommended order below)
 
 ## Leaf shortlist — portable today (top 40 by ported-caller count)
 
@@ -36,7 +36,6 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x5b6ec0 | 21 | 2 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x5ba3d0 | 22 | 2 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x5aff00 | 26 | 2 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
-| 0x479e40 | 41 | 2 | battle phase controller + NPC AI + particle fx + damage UI |
 | 0x5bcfb0 | 49 | 2 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x494e10 | 66 | 2 | tile/sprite grid render + spell fx + battle UI + palette |
 | 0x41bb80 | 95 | 2 | menu/dialog controller + char init + shop/NPC + save path |
@@ -50,10 +49,11 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x5b6580 | 28 | 1 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x5b0260 | 30 | 1 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x5b5a90 | 33 | 1 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
-| 0x479e10 | 38 | 1 | battle phase controller + NPC AI + particle fx + damage UI |
 | 0x5b64f0 | 38 | 1 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x4428f0 | 41 | 1 | entity per-frame FSM + action handlers + dialog + skills |
 | 0x496170 | 42 | 1 | tile/sprite grid render + spell fx + battle UI + palette |
+| 0x5b5a60 | 42 | 1 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
+| 0x565810 | 45 | 1 | title + gameplay scene runners + engine init + options + input init |
 
 ## Full frontier by address band
 
@@ -116,17 +116,14 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x43d830 | 1254 | 1 | 0 | ✓ |
 | 0x430400 | 5039 | 1 | 0 | ✓ |
 
-### entity per-frame FSM + action handlers + dialog + skills (21)
+### entity per-frame FSM + action handlers + dialog + skills (18)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
-| 0x441f50 | 1284 | 2 | 1 |  |
 | 0x4428f0 | 41 | 1 | 0 | ✓ |
-| 0x442640 | 200 | 1 | 0 | ✓ |
 | 0x445e50 | 246 | 1 | 0 | ✓ |
 | 0x441de0 | 274 | 1 | 0 | ✓ |
 | 0x4466b0 | 276 | 1 | 0 | ✓ |
-| 0x442710 | 374 | 1 | 0 | ✓ |
 | 0x44bf60 | 751 | 1 | 4 |  |
 | 0x44bc10 | 819 | 1 | 4 |  |
 | 0x44a200 | 1338 | 1 | 4 |  |
@@ -160,55 +157,25 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x456d30 | 4581 | 1 | 4 |  |
 | 0x4539b0 | 8699 | 1 | 9 |  |
 
-### battle phase controller + NPC AI + particle fx + damage UI (17)
+### battle phase controller + NPC AI + particle fx + damage UI (4)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
-| 0x479e40 | 41 | 2 | 0 | ✓ |
-| 0x47adb0 | 79 | 2 | 1 |  |
-| 0x479e10 | 38 | 1 | 0 | ✓ |
 | 0x47a300 | 278 | 1 | 0 | ✓ |
-| 0x47da60 | 329 | 1 | 0 | ✓ |
 | 0x47a7f0 | 376 | 1 | 0 | ✓ |
-| 0x47de50 | 446 | 1 | 0 | ✓ |
-| 0x47eae0 | 469 | 1 | 0 | ✓ |
-| 0x47e010 | 504 | 1 | 0 | ✓ |
 | 0x47a420 | 685 | 1 | 0 | ✓ |
-| 0x47d790 | 710 | 1 | 0 | ✓ |
-| 0x47e7c0 | 799 | 1 | 0 | ✓ |
-| 0x47f670 | 861 | 1 | 0 | ✓ |
-| 0x47f9d0 | 874 | 1 | 0 | ✓ |
-| 0x479f90 | 875 | 1 | 1 |  |
-| 0x47ecd0 | 2303 | 1 | 6 |  |
-| 0x47ae00 | 2364 | 1 | 3 |  |
+| 0x479f90 | 875 | 1 | 0 | ✓ |
 
-### char anim + hit-test/knockback + GDI glyph + sfx trigger (24)
+### char anim + hit-test/knockback + GDI glyph + sfx trigger (7)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
 | 0x48c150 | 1374 | 3 | 14 |  |
-| 0x482380 | 217 | 1 | 0 | ✓ |
 | 0x48e100 | 246 | 1 | 0 | ✓ |
-| 0x482240 | 310 | 1 | 0 | ✓ |
 | 0x48c6b0 | 359 | 1 | 0 | ✓ |
-| 0x4854e0 | 388 | 1 | 0 | ✓ |
-| 0x485350 | 391 | 1 | 0 | ✓ |
-| 0x483de0 | 446 | 1 | 1 |  |
-| 0x482e10 | 501 | 1 | 7 |  |
-| 0x482880 | 532 | 1 | 5 |  |
-| 0x482460 | 536 | 1 | 5 |  |
 | 0x48d710 | 550 | 1 | 0 | ✓ |
-| 0x483b50 | 600 | 1 | 1 |  |
-| 0x484530 | 740 | 1 | 1 |  |
-| 0x483fb0 | 784 | 1 | 7 |  |
-| 0x485990 | 793 | 1 | 6 |  |
-| 0x482ac0 | 844 | 1 | 3 |  |
 | 0x48cb90 | 1005 | 1 | 0 | ✓ |
-| 0x484ea0 | 1029 | 1 | 1 |  |
-| 0x4834f0 | 1062 | 1 | 2 |  |
-| 0x481310 | 1144 | 1 | 4 |  |
 | 0x48da70 | 1672 | 1 | 0 | ✓ |
-| 0x481ac0 | 1874 | 1 | 7 |  |
 | 0x48ef40 | 4389 | 1 | 6 |  |
 
 ### tile/sprite grid render + spell fx + battle UI + palette (22)
@@ -477,7 +444,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x5a3870 | 828 | 1 | 0 | ✓ |
 | 0x5bc7c0 | 880 | 1 | 3 |  |
 | 0x5b0890 | 961 | 1 | 0 | ✓ |
-| 0x5b3b00 | 1002 | 1 | 3 |  |
+| 0x5b3b00 | 1002 | 1 | 1 |  |
 | 0x5b0450 | 1075 | 1 | 0 | ✓ |
-| 0x5b1f10 | 2345 | 1 | 4 |  |
+| 0x5b1f10 | 2345 | 1 | 3 |  |
 

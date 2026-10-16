@@ -84,8 +84,6 @@ typedef struct engine_calls {
     int (ENG_THISCALL *skill_47a300)(wl_char *self, int32_t a2, int32_t a3);
     int (ENG_THISCALL *skill_47a420)(wl_char *self, int32_t a2, int32_t a3);
     int (ENG_THISCALL *skill_47a7f0)(wl_char *self, int32_t id, uint32_t now, int32_t slot);
-    int (ENG_THISCALL *target_ok_47adb0)(wl_char *cand, wl_char *self, int32_t spell, int32_t a4,
-                                         int32_t a5, int32_t a6, int32_t a7, int32_t a8);
     /* the DirectSound boundary (0x5bb870.. take a buffer wrapper; create / duplicate take the device) */
     int (ENG_THISCALL *dsb_create_5bb250)(void *dev, intptr_t voices, intptr_t module, intptr_t res, intptr_t a5,
                                          intptr_t a6);
@@ -147,18 +145,8 @@ typedef struct engine_calls {
     int (ENG_STDCALL *h556e50)(intptr_t owner, intptr_t id, intptr_t probe);
     /* the cached-frame release 0x5b9390 (DirectDraw boundary; under the grid refresh 0x54c640) */
     eng_tc0 h5b9390;
-    /* the behaviour AI 0x47b990's callees (+ the path follower 0x441f50 under 0x484c10, the error
-     * logger 0x407f30 under 0x47e330) */
-    eng_tc1 h47da60; eng_tc1 h482240; eng_tc1 h482460; eng_tc1 h482ac0;
-    eng_tc2 h47de50; eng_tc2 h47f670; eng_tc2 h47f9d0; eng_tc2 h481ac0; eng_tc2 h482e10; eng_tc2 h4834f0;
-    eng_tc2 h484ea0; eng_tc2 h4854e0; eng_tc2 h485990; eng_tc2 h441f50;
-    eng_tc3 h47d790; eng_tc3 h481310; eng_tc3 h482880; eng_tc3 h407f30;
-    eng_tc4 h47e010; eng_tc4 h47eae0; eng_tc4 h483fb0;
-    eng_tc5 h483de0; eng_tc5 h485350;
-    eng_tc6 h483b50;
-    eng_tc7 h482380; eng_tc7 h484530;
-    eng_tc8 h47e7c0;
-    eng_tc9 h47ecd0;
+    /* the error logger 0x407f30 (under the behaviour helpers 0x47e330, src/behave_helpers.c) */
+    eng_tc3 h407f30;
     /* the room setup 0x586010's roots: the world pointer 0x8a9b50 (it deletes and re-creates the
      * world), the loading-log flag 0x8a6b54 (0 = every setup step is logged; set after the first
      * room loop), the loading log 0x8a6620 (0x406440 / 0x408b90 `this`) */
@@ -211,7 +199,7 @@ typedef struct engine_calls {
     eng_tc2 h402d40; eng_tc4 h406210; eng_tc0 h411610; eng_tc2 h4031c0;
     eng_tc3 h5bcfb0; eng_tc1 h5bbc60; eng_tc1 h5bbc90; eng_tc1 h5bbcd0; eng_tc0 h5bbc20; eng_tc5 h5bcb80;
     /* the room's item use: the effect value 0x47ae00 (thiscall char, 12 args), the use 0x5b1f10 (thiscall room) */
-    eng_tc12 h47ae00; eng_tc6 h5b1f10;
+    eng_tc6 h5b1f10;
     /* the UI toolkit's ruby (furigana) pass: the context test 0x4034f0 (text, cond, pos, word length) and the
      * reading writer 0x4051d0 (glyph record, kana) — Japanese text only */
     int (ENG_STDCALL *h4034f0)(const char *text, int32_t cond, int32_t pos, int32_t len);
@@ -221,7 +209,7 @@ typedef struct engine_calls {
     eng_tc3 h415ae0; eng_tc1 h4192f0; eng_tc1 h418ec0;
     /* the cast step's (`this` = the character): the walk-off 0x441de0 (body, loose), the link jump 0x442710
      * (step index), the swimmer / flyer's walk 0x442640 (body, loose, x, y, facing) */
-    eng_tc2 h441de0; eng_tc1 h442710; eng_tc5 h442640;
+    eng_tc2 h441de0;
     /* the scene runner 0x439690's: the BGM level read 0x5bcfa0, the voice line start 0x43c1b0 (jobs, module,
      * voice, volume), the surface DC get / release 0x5b94e0 / 0x5b9500, the fill 0x5b5ef0 (`this` 0x8a6610: dc,
      * x, y, w, h), the outlined caption 0x43e250 (stdcall: font, paint, text, x, y, bold), SelectObject (GDI32

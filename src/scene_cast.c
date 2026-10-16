@@ -8,6 +8,7 @@
 
 #include "char_ai.h"          /* cmd_clear 0x411530 */
 #include "char_integrate.h"   /* body_action_reset 0x426f20 */
+#include "behave_helpers.h"
 #include "engine_calls.h"
 #include "entity_move.h"      /* entity_move_vertical 0x54e5c0 */
 #include "npc_ai.h"           /* npc_navigate 0x43f880, grid_c_query 0x43ee30 */
@@ -241,7 +242,7 @@ int cast_step(wl_char *c)
         else late = 1;
     }
     switch (c->ai_state) {
-    case 1: g_eng.h441f50(c, IP(b), loose); return 0;
+    case 1: beh_441f50((wl_char *)(c), (int32_t *)(IP(b)), loose); return 0;
     case 7: g_eng.h441de0(c, IP(b), loose); return 0;
     default: break;
     }
@@ -325,7 +326,7 @@ int cast_step(wl_char *c)
         else cast_place(c, b, ld32(a, 0x15b80), ld32(a, 0x15b84));
     }
     if (ground == 0) {   /* swimming / flying: straight there */
-        if (g_eng.h442640(c, IP(b), loose, ld32(a, 0x15b6c), ld32(a, 0x15b70), ld32(a, 0x15b74)) == 0) return 0;
+        if (beh_442640((wl_char *)(c), (int32_t *)(IP(b)), loose, (int32_t)(ld32(a, 0x15b6c)), (int32_t)(ld32(a, 0x15b70)), (int32_t)(ld32(a, 0x15b74))) == 0) return 0;
         goto fin_done;
     }
     switch (ld16(a, 0x15b68)) {
@@ -384,7 +385,7 @@ int cast_step(wl_char *c)
     if (idx < n) {
         const path_rec *s = (const path_rec *)(a + 0x142a0) + idx;
         if (s->kind == 1) {
-            g_eng.h442710(c, idx);
+            beh_442710((wl_char *)(c), (uint16_t)(idx));
             st16(a, 0x1429c, 0);
             st16(a, 0x147a0, 0);
             if (done == 0) return 0;

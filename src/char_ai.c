@@ -11,6 +11,7 @@
 
 #include "char_state.h"
 #include "char_integrate.h"
+#include "behave_helpers.h"
 #include "engine_calls.h"
 #include "party_member.h"
 #include "input.h"
@@ -110,7 +111,7 @@ static void target_cycle(wl_char *self, wl_body *b, int32_t spell, int32_t cur, 
     for (int tries = 0; ; ) {
         idx = (idx + step) % 32;
         c = g_world->chars[idx];
-        if (c->base.alive != 0 && g_eng.target_ok_47adb0(c, self, spell, 0, 0, 0, 1, 0) != 0 && ++hits >= 1)
+        if (c->base.alive != 0 && beh_47adb0((intptr_t)(c), (int32_t)(intptr_t)self, (int32_t *)(spell), 0, 0, 0, 1, 0) != 0 && ++hits >= 1)
             break;
         if (++tries >= 32) { b->target = 0; return; }
     }

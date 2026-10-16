@@ -60,6 +60,7 @@
 #include "arche_sword.h"
 #include "skill_cast.h"
 #include "shots.h"
+#include "behave_helpers.h"
 #include "room_tick.h"
 #include "ui_core.h"
 #include "ui_text.h"
@@ -252,6 +253,26 @@ typedef struct {
     X(H_SH477F10, "shot_477f10", 0x477f10u) X(H_SH4781F0, "shot_4781f0", 0x4781f0u) X(H_SH478550, "shot_478550", 0x478550u) \
     X(H_SH4785A0, "shot_4785a0", 0x4785a0u) X(H_SH478820, "shot_478820", 0x478820u) X(H_SH54CAB0, "shot_54cab0", 0x54cab0u) \
     X(H_SH54CCA0, "shot_54cca0", 0x54cca0u) X(H_SH55F150, "shot_55f150", 0x55f150u) \
+    X(H_BH441F50, "beh_441f50", 0x441f50u) X(H_BH47D790, "beh_47d790", 0x47d790u) X(H_BH47DA60, "beh_47da60", 0x47da60u) \
+    X(H_BH47DE50, "beh_47de50", 0x47de50u) X(H_BH47E010, "beh_47e010", 0x47e010u) X(H_BH47E7C0, "beh_47e7c0", 0x47e7c0u) \
+    X(H_BH47EAE0, "beh_47eae0", 0x47eae0u) X(H_BH47ECD0, "beh_47ecd0", 0x47ecd0u) X(H_BH47F670, "beh_47f670", 0x47f670u) \
+    X(H_BH47F9D0, "beh_47f9d0", 0x47f9d0u) X(H_BH481310, "beh_481310", 0x481310u) X(H_BH481AC0, "beh_481ac0", 0x481ac0u) \
+    X(H_BH482240, "beh_482240", 0x482240u) X(H_BH482380, "beh_482380", 0x482380u) X(H_BH482460, "beh_482460", 0x482460u) \
+    X(H_BH482880, "beh_482880", 0x482880u) X(H_BH482AC0, "beh_482ac0", 0x482ac0u) X(H_BH482E10, "beh_482e10", 0x482e10u) \
+    X(H_BH4834F0, "beh_4834f0", 0x4834f0u) X(H_BH483B50, "beh_483b50", 0x483b50u) X(H_BH483DE0, "beh_483de0", 0x483de0u) \
+    X(H_BH483FB0, "beh_483fb0", 0x483fb0u) X(H_BH484530, "beh_484530", 0x484530u) X(H_BH484EA0, "beh_484ea0", 0x484ea0u) \
+    X(H_BH485350, "beh_485350", 0x485350u) X(H_BH4854E0, "beh_4854e0", 0x4854e0u) X(H_BH485990, "beh_485990", 0x485990u) \
+    X(H_BH442490, "beh_442490", 0x442490u) X(H_BH47AE00, "beh_47ae00", 0x47ae00u) X(H_BH47F610, "beh_47f610", 0x47f610u) \
+    X(H_BH47FD40, "beh_47fd40", 0x47fd40u) X(H_BH480B30, "beh_480b30", 0x480b30u) X(H_BH48BDD0, "beh_48bdd0", 0x48bdd0u) \
+    X(H_BH48BE60, "beh_48be60", 0x48be60u) X(H_BH479E40, "beh_479e40", 0x479e40u) X(H_BH481790, "beh_481790", 0x481790u) \
+    X(H_BH481A20, "beh_481a20", 0x481a20u) X(H_BH479E10, "beh_479e10", 0x479e10u) X(H_BH47A970, "beh_47a970", 0x47a970u) \
+    X(H_BH4826B0, "beh_4826b0", 0x4826b0u) X(H_BH482700, "beh_482700", 0x482700u) X(H_BH482760, "beh_482760", 0x482760u) \
+    X(H_BH483040, "beh_483040", 0x483040u) X(H_BH484830, "beh_484830", 0x484830u) X(H_BH484D60, "beh_484d60", 0x484d60u) \
+    X(H_BH485330, "beh_485330", 0x485330u) X(H_BH483920, "beh_483920", 0x483920u) X(H_BH4848A0, "beh_4848a0", 0x4848a0u) \
+    X(H_BH442640, "beh_442640", 0x442640u) X(H_BH4843C0, "beh_4843c0", 0x4843c0u) X(H_BH442710, "beh_442710", 0x442710u) \
+    X(H_BH485CB0, "beh_485cb0", 0x485cb0u) X(H_BH47B870, "beh_47b870", 0x47b870u) X(H_BH48B920, "beh_48b920", 0x48b920u) \
+    X(H_BH5B4200, "beh_5b4200", 0x5b4200u) X(H_BH480260, "beh_480260", 0x480260u) X(H_BH480580, "beh_480580", 0x480580u) \
+    X(H_BH4832E0, "beh_4832e0", 0x4832e0u) X(H_BH484BC0, "beh_484bc0", 0x484bc0u) \
     X(H_BOOK, "book_read", 0x40dbc0u) X(H_SSETFREE, "sprite_set_free", 0x410300u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
@@ -4093,6 +4114,66 @@ ST_HOOK(H_SH478820, "shot_478820", 5, 1, return (intptr_t)shot_478820((int32_t *
 ST_HOOK(H_SH54CAB0, "shot_54cab0", 12, 1, return (intptr_t)shot_54cab0(a1, a2, a3, a4, a5, a6, a7, U16(a8), a9, a10, a11, a12))
 TC_HOOK(H_SH54CCA0, "shot_54cca0", 5, 1, return (intptr_t)shot_54cca0(self, a1, a2, a3, a4, a5))
 ST_HOOK(H_SH55F150, "shot_55f150", 2, 1, return (intptr_t)shot_55f150(a1, a2))
+/* the behaviour helpers (src/behave_helpers.c; 0x47adb0 takes its caller's ecx: covered by its callers) */
+TC_HOOK(H_BH441F50, "beh_441f50", 2, 0, return (intptr_t)beh_441f50(self, (int32_t *)a1, a2))
+TC_HOOK(H_BH47D790, "beh_47d790", 3, 1, return (intptr_t)beh_47d790(self, a1, a2, a3))
+TC_HOOK(H_BH47DA60, "beh_47da60", 1, 1, return (intptr_t)beh_47da60(self, (int32_t *)a1))
+ST_HOOK(H_BH47DE50, "beh_47de50", 2, 1, return (intptr_t)beh_47de50((int32_t *)a1, a2))
+TC_HOOK(H_BH47E010, "beh_47e010", 4, 1, return (intptr_t)beh_47e010(self, U16(a1), a2, a3, a4))
+ST_HOOK(H_BH47E7C0, "beh_47e7c0", 8, 1, return (intptr_t)beh_47e7c0(a1, U16(a2), (int32_t *)a3, a4, (int32_t *)a5, (int32_t *)a6, (int32_t *)a7, (int32_t *)a8))
+TC_HOOK(H_BH47EAE0, "beh_47eae0", 4, 1, return (intptr_t)beh_47eae0(self, (int32_t *)a1, (int32_t *)a2, (int16_t *)a3, a4))
+TC_HOOK(H_BH47ECD0, "beh_47ecd0", 9, 1, return (intptr_t)beh_47ecd0(self, a1, a2, a3, a4, a5, a6, U16(a7), (int32_t *)a8, (int32_t *)a9))
+TC_HOOK(H_BH47F670, "beh_47f670", 2, 1, return (intptr_t)beh_47f670(self, U16(a1), a2))
+TC_HOOK(H_BH47F9D0, "beh_47f9d0", 2, 1, return (intptr_t)beh_47f9d0(self, U16(a1), a2))
+TC_HOOK(H_BH481310, "beh_481310", 3, 1, return (intptr_t)beh_481310(self, (int32_t *)a1, a2, a3))
+TC_HOOK(H_BH481AC0, "beh_481ac0", 2, 1, return (intptr_t)beh_481ac0(self, (int32_t *)a1, a2))
+TC_HOOK(H_BH482240, "beh_482240", 1, 1, return (intptr_t)beh_482240(self, a1))
+ST_HOOK(H_BH482380, "beh_482380", 7, 1, return (intptr_t)beh_482380(a1, a2, a3, a4, (int32_t *)a5, (uint16_t *)a6, a7))
+TC_HOOK(H_BH482460, "beh_482460", 1, 1, return (intptr_t)beh_482460(self, a1))
+TC_HOOK(H_BH482880, "beh_482880", 3, 1, return (intptr_t)beh_482880(self, a1, a2, a3))
+TC_HOOK(H_BH482AC0, "beh_482ac0", 1, 1, return (intptr_t)beh_482ac0(self, (int32_t *)a1))
+TC_HOOK(H_BH482E10, "beh_482e10", 2, 0, beh_482e10(self, a1, a2); return 0)
+TC_HOOK(H_BH4834F0, "beh_4834f0", 2, 1, return (intptr_t)beh_4834f0(self, a1, a2))
+TC_HOOK(H_BH483B50, "beh_483b50", 6, 1, return (intptr_t)beh_483b50(self, a1, a2, (int32_t *)a3, (int32_t *)a4, (uint16_t *)a5, a6))
+TC_HOOK(H_BH483DE0, "beh_483de0", 5, 1, return (intptr_t)beh_483de0(self, a1, a2, a3, a4, a5))
+TC_HOOK(H_BH483FB0, "beh_483fb0", 4, 0, return (intptr_t)beh_483fb0(self, (int32_t *)a1, a2, a3, a4))
+TC_HOOK(H_BH484530, "beh_484530", 7, 1, return (intptr_t)beh_484530(self, a1, a2, a3, a4, a5, a6, a7))
+TC_HOOK(H_BH484EA0, "beh_484ea0", 2, 0, return (intptr_t)beh_484ea0(self, a1, a2))
+TC_HOOK(H_BH485350, "beh_485350", 5, 1, return (intptr_t)beh_485350(self, (int16_t)a1, (int16_t)a2, a3, a4, a5))
+TC_HOOK(H_BH4854E0, "beh_4854e0", 2, 1, return (intptr_t)beh_4854e0(self, a1, a2))
+TC_HOOK(H_BH485990, "beh_485990", 2, 1, return (intptr_t)beh_485990(self, (int32_t *)a1, a2))
+TC_HOOK(H_BH442490, "beh_442490", 9, 1, return (intptr_t)beh_442490(self, a1, a2, a3, a4, a5, a6, a7, a8, (int32_t *)a9))
+TC_HOOK(H_BH47AE00, "beh_47ae00", 12, 1, return (intptr_t)beh_47ae00(self, a1, a2, a3, a4, a5, a6, (int32_t *)a7, (int32_t *)a8, a9, a10, a11, (int32_t *)a12))
+ST_HOOK(H_BH47F610, "beh_47f610", 3, 1, return (intptr_t)beh_47f610(a1, U16(a2), a3))
+TC_HOOK(H_BH47FD40, "beh_47fd40", 6, 1, return (intptr_t)beh_47fd40(self, (int32_t *)a1, a2, a3, a4, a5, a6))
+TC_HOOK(H_BH480B30, "beh_480b30", 6, 1, return (intptr_t)beh_480b30(self, a1, a2, U16(a3), a4, a5, (int32_t *)a6))
+TC_HOOK(H_BH48BDD0, "beh_48bdd0", 2, 1, return (intptr_t)beh_48bdd0(self, a1, a2))
+TC_HOOK(H_BH48BE60, "beh_48be60", 2, 1, return (intptr_t)beh_48be60(self, U16(a1), a2))
+ST_HOOK(H_BH479E40, "beh_479e40", 5, 1, return (intptr_t)beh_479e40(a1, (int16_t)a2, (int16_t)a3, (int16_t)a4, a5))
+TC_HOOK(H_BH481790, "beh_481790", 7, 1, return (intptr_t)beh_481790(self, U16(a1), a2, a3, (int32_t *)a4, (int32_t *)a5, (int32_t *)a6, (int32_t *)a7))
+TC_HOOK(H_BH481A20, "beh_481a20", 2, 1, return (intptr_t)beh_481a20(self, U16(a1), U16(a2)))
+ST_HOOK(H_BH479E10, "beh_479e10", 4, 1, return (intptr_t)beh_479e10(a1, (int16_t)a2, (int16_t)a3, a4))
+TC_HOOK(H_BH47A970, "beh_47a970", 7, 1, return (intptr_t)beh_47a970(self, a1, (int32_t *)a2, (int32_t *)a3, a4, a5, a6, a7))
+TC_HOOK(H_BH4826B0, "beh_4826b0", 1, 1, return (intptr_t)beh_4826b0(self, (int32_t *)a1))
+TC_HOOK(H_BH482700, "beh_482700", 4, 1, return (intptr_t)beh_482700(self, a1, a2, a3, a4))
+TC_HOOK(H_BH482760, "beh_482760", 5, 1, return (intptr_t)beh_482760(self, a1, a2, a3, a4, a5))
+TC_HOOK(H_BH483040, "beh_483040", 5, 1, return (intptr_t)beh_483040(self, (int32_t *)a1, a2, a3, a4, (int32_t *)a5))
+TC_HOOK(H_BH484830, "beh_484830", 2, 1, return (intptr_t)beh_484830(self, a1, a2))
+TC_HOOK(H_BH484D60, "beh_484d60", 1, 1, return (intptr_t)beh_484d60(self, a1))
+TC_HOOK0(H_BH485330, "beh_485330", 1, return (intptr_t)beh_485330(self))
+ST_HOOK(H_BH483920, "beh_483920", 4, 1, return (intptr_t)beh_483920(a1, (int32_t *)a2, (int32_t *)a3, U16(a4)))
+TC_HOOK(H_BH4848A0, "beh_4848a0", 6, 1, return (intptr_t)beh_4848a0(self, a1, a2, a3, a4, a5, a6))
+TC_HOOK(H_BH442640, "beh_442640", 5, 1, return (intptr_t)beh_442640(self, (int32_t *)a1, a2, a3, a4, a5))
+TC_HOOK(H_BH4843C0, "beh_4843c0", 5, 1, return (intptr_t)beh_4843c0(self, (int32_t *)a1, (int32_t *)a2, (int32_t *)a3, U16(a4), a5))
+TC_HOOK(H_BH442710, "beh_442710", 1, 1, return (intptr_t)beh_442710(self, U16(a1)))
+TC_HOOK(H_BH485CB0, "beh_485cb0", 5, 1, return (intptr_t)beh_485cb0(self, (int32_t *)a1, a2, a3, a4, (int32_t *)a5))
+ST_HOOK(H_BH47B870, "beh_47b870", 2, 1, return (intptr_t)beh_47b870(a1, a2))
+TC_HOOK(H_BH48B920, "beh_48b920", 3, 1, return (intptr_t)beh_48b920(self, a1, a2, a3))
+TC_HOOK0(H_BH5B4200, "beh_5b4200", 1, return (intptr_t)beh_5b4200(self))
+TC_HOOK(H_BH480260, "beh_480260", 4, 1, return (intptr_t)beh_480260(self, (int32_t *)a1, U16(a2), a3, (int32_t *)a4))
+TC_HOOK(H_BH480580, "beh_480580", 7, 1, return (intptr_t)beh_480580(self, a1, (int32_t *)a2, a3, a4, U16(a5), a6, a7))
+TC_HOOK(H_BH4832E0, "beh_4832e0", 5, 1, return (intptr_t)beh_4832e0(self, a1, a2, a3, a4, a5))
+TC_HOOK(H_BH484BC0, "beh_484bc0", 4, 1, return (intptr_t)beh_484bc0(self, a1, a2, (int32_t *)a3, (int32_t *)a4))
 /* the book reader (a frame loop) + the sprite set free (surface frees) — REPLACE only */
 TC_HOOK(H_BOOK, "book_read", 1, 1, return book_read(self, CP(a1)))
 TC_HOOK(H_SSETFREE, "sprite_set_free", 1, 0, sprite_set_free(self, U16(a1)); return 0)
@@ -4318,7 +4399,6 @@ static void bind_engine_calls(void)
     *(void **)&g_eng.skill_47a300        = (void *)(uintptr_t)0x47a300u;
     *(void **)&g_eng.skill_47a420        = (void *)(uintptr_t)0x47a420u;
     *(void **)&g_eng.skill_47a7f0        = (void *)(uintptr_t)0x47a7f0u;
-    *(void **)&g_eng.target_ok_47adb0    = (void *)(uintptr_t)0x47adb0u;
     *(void **)&g_eng.dsb_volume_5bb870   = (void *)(uintptr_t)0x5bb870u;
     *(void **)&g_eng.dsb_pan_5bb880      = (void *)(uintptr_t)0x5bb880u;
     *(void **)&g_eng.dsb_freq_5bb890     = (void *)(uintptr_t)0x5bb890u;
@@ -4358,7 +4438,7 @@ static void bind_engine_calls(void)
     B(56dc20); B(41a890); B(5bf3ee); B(426110); B(560900); B(5bf5db);
     B(428c00); B(429060); B(429db0); B(42a500); B(42a9a0); B(42b9a0); B(42c130); B(42c510);
     B(42cce0); B(42d3c0); B(42da50); B(42f840); B(42ff00); B(430400);
-    B(5bcfb0); B(47ae00); B(5b3b00); B(5b1f10); B(4034f0); B(4051d0); B(415ae0); B(4192f0); B(418ec0); B(441de0); B(442710); B(442640);
+    B(5bcfb0); B(5b3b00); B(5b1f10); B(4034f0); B(4051d0); B(415ae0); B(4192f0); B(418ec0); B(441de0);
     B(5bcfa0); B(43c1b0); B(5b94e0); B(5b9500); B(5b5ef0); B(43e250); B(43d540); B(43d4b0); B(43dd30); B(43d830);
     B(442920); B(4428f0); B(468970);
     B(561d20); B(409150); B(55fdb0); B(41d780); B(4e6520); B(4e61d0); B(41b670); B(4c5af0); B(52fd80); B(5a3870); B(5a00c0);
@@ -4369,9 +4449,9 @@ static void bind_engine_calls(void)
     g_eng.dlog  = (void *)(uintptr_t)0x8a6620u;
     B(552c70); B(552f60); B(5534d0); B(553520); B(553ec0); B(554570); B(554c40); B(5556d0);
     B(556e50);
-    B(47da60); B(482240); B(482460); B(482ac0); B(47de50); B(47f670); B(47f9d0);
-    B(481ac0); B(482e10); B(4834f0); B(484ea0); B(4854e0); B(485990); B(47d790); B(481310); B(482880);
-    B(47e010); B(47eae0); B(483fb0); B(483de0); B(485350); B(483b50); B(482380); B(484530); B(47e7c0); B(47ecd0); B(441f50); B(407f30);
+   
+   
+    B(407f30);
 #undef B
     /* the external-effect calls go through the shadow guards */
     *(void **)&g_eng.h5b9390 = (void *)gd_5b9390;

@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **832** (53.5% of engine-proper) — tested 249, ported 583
-- code bytes touched: **40.9%** (725,840 / 1,776,526 B of engine-proper)
-- unported: **992**
+- touched: **892** (57.4% of engine-proper) — tested 249, ported 643
+- code bytes touched: **43.0%** (763,448 / 1,776,526 B of engine-proper)
+- unported: **932**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (583) — reimplemented, no host test yet
+## ported (643) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -518,8 +518,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4418e0 | sub_4418E0 | 511 | npc_ai.h |
 | 0x441ae0 | sub_441AE0 | 749 | npc_ai.h |
 | 0x441f00 | sub_441F00 | 80 | scene_cast.h |
+| 0x441f50 | sub_441F50 | 1284 | behave_helpers.h |
 | 0x442460 | sub_442460 | 38 | actor_update.c, actor_update.h |
+| 0x442490 | sub_442490 | 329 | behave_helpers.h |
 | 0x442600 | sub_442600 | 53 | scene_cast.h |
+| 0x442640 | sub_442640 | 200 | behave_helpers.h |
+| 0x442710 | sub_442710 | 374 | behave_helpers.h |
 | 0x442890 | sub_442890 | 54 | char_integrate.h |
 | 0x442920 | sub_442920 | 149 | char_integrate.h |
 | 0x4429c0 | sub_4429C0 | 86 | npc_ai.h |
@@ -632,25 +636,77 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4785a0 | sub_4785A0 | 633 | shots.h |
 | 0x478820 | sub_478820 | 551 | shots.h |
 | 0x478a50 | sub_478A50 | 329 | char_attack.h |
+| 0x479e10 | sub_479E10 | 38 | behave_helpers.h |
+| 0x479e40 | sub_479E40 | 41 | behave_helpers.h |
+| 0x47a970 | sub_47A970 | 1059 | behave_helpers.h |
+| 0x47adb0 | sub_47ADB0 | 79 | behave_helpers.h |
+| 0x47ae00 | sub_47AE00 | 2364 | behave_helpers.h |
 | 0x47b770 | sub_47B770 | 77 | behave_ops.h |
 | 0x47b7c0 | sub_47B7C0 | 163 | gimmick.h |
-| 0x47b990 | actor_ai_47B990 | 7461 | behave_ops.h, char_behave.c, char_behave.h |
+| 0x47b870 | sub_47B870 | 250 | behave_helpers.h |
+| 0x47b990 | actor_ai_47B990 | 7461 | behave_helpers.c, behave_ops.h, char_behave.c (+1) |
 | 0x47d740 | sub_47D740 | 26 | actor_update.c, actor_update.h |
 | 0x47d760 | sub_47D760 | 47 | behave_ops.h |
+| 0x47d790 | sub_47D790 | 710 | behave_helpers.h |
+| 0x47da60 | sub_47DA60 | 329 | behave_helpers.h |
 | 0x47dbb0 | sub_47DBB0 | 655 | behave_ops.h |
+| 0x47de50 | sub_47DE50 | 446 | behave_helpers.h |
+| 0x47e010 | sub_47E010 | 504 | behave_helpers.h |
 | 0x47e330 | sub_47E330 | 1120 | behave_ops.h |
 | 0x47e790 | sub_47E790 | 37 | npc_ai.h |
+| 0x47e7c0 | sub_47E7C0 | 799 | behave_helpers.h |
+| 0x47eae0 | sub_47EAE0 | 469 | behave_helpers.h |
+| 0x47ecd0 | sub_47ECD0 | 2303 | behave_helpers.h |
+| 0x47f610 | sub_47F610 | 90 | behave_helpers.h |
+| 0x47f670 | sub_47F670 | 861 | behave_helpers.h |
+| 0x47f9d0 | sub_47F9D0 | 874 | behave_helpers.h |
+| 0x47fd40 | sub_47FD40 | 1242 | behave_helpers.h |
+| 0x480260 | sub_480260 | 577 | behave_helpers.h |
 | 0x4804b0 | sub_4804B0 | 207 | gimmick.h |
+| 0x480580 | sub_480580 | 1430 | behave_helpers.h |
+| 0x480b30 | sub_480B30 | 1932 | behave_helpers.h |
 | 0x4812c0 | sub_4812C0 | 79 | gimmick.h |
+| 0x481310 | sub_481310 | 1144 | behave_helpers.h |
+| 0x481790 | sub_481790 | 645 | behave_helpers.h |
+| 0x481a20 | sub_481A20 | 148 | behave_helpers.h |
+| 0x481ac0 | sub_481AC0 | 1874 | behave_helpers.h |
+| 0x482240 | sub_482240 | 310 | behave_helpers.h |
+| 0x482380 | sub_482380 | 217 | behave_helpers.h |
+| 0x482460 | sub_482460 | 536 | behave_helpers.h |
+| 0x4826b0 | sub_4826B0 | 50 | behave_helpers.h |
+| 0x482700 | sub_482700 | 96 | behave_helpers.h |
+| 0x482760 | sub_482760 | 281 | behave_helpers.h |
+| 0x482880 | sub_482880 | 532 | behave_helpers.h |
+| 0x482ac0 | sub_482AC0 | 844 | behave_helpers.h |
+| 0x482e10 | sub_482E10 | 501 | behave_helpers.h |
+| 0x483040 | sub_483040 | 668 | behave_helpers.h |
+| 0x4832e0 | sub_4832E0 | 519 | behave_helpers.h |
+| 0x4834f0 | sub_4834F0 | 1062 | behave_helpers.h |
+| 0x483920 | sub_483920 | 555 | behave_helpers.h |
+| 0x483b50 | sub_483B50 | 600 | behave_helpers.h |
+| 0x483de0 | sub_483DE0 | 446 | behave_helpers.h |
+| 0x483fb0 | sub_483FB0 | 784 | behave_helpers.h |
 | 0x4842c0 | sub_4842C0 | 244 | npc_ai.h |
+| 0x4843c0 | sub_4843C0 | 360 | behave_helpers.h |
+| 0x484530 | sub_484530 | 740 | behave_helpers.h |
+| 0x484830 | sub_484830 | 90 | behave_helpers.h |
+| 0x4848a0 | sub_4848A0 | 788 | behave_helpers.h |
+| 0x484bc0 | sub_484BC0 | 48 | behave_helpers.h |
 | 0x484bf0 | sub_484BF0 | 31 | behave_ops.h |
 | 0x484c10 | sub_484C10 | 322 | behave_ops.h |
+| 0x484d60 | sub_484D60 | 319 | behave_helpers.h |
+| 0x484ea0 | sub_484EA0 | 1029 | behave_helpers.h |
 | 0x4852c0 | sub_4852C0 | 37 | behave_ops.h |
 | 0x4852f0 | sub_4852F0 | 55 | behave_ops.h |
+| 0x485330 | sub_485330 | 22 | behave_helpers.h |
+| 0x485350 | sub_485350 | 391 | behave_helpers.h |
+| 0x4854e0 | sub_4854E0 | 388 | behave_helpers.h |
 | 0x485670 | sub_485670 | 90 | behave_ops.h |
 | 0x4856d0 | sub_4856D0 | 83 | behave_ops.h |
 | 0x485740 | sub_485740 | 166 | behave_ops.h |
 | 0x4857f0 | sub_4857F0 | 404 | behave_ops.h |
+| 0x485990 | sub_485990 | 793 | behave_helpers.h |
+| 0x485cb0 | sub_485CB0 | 576 | behave_helpers.h |
 | 0x485f30 | sub_485F30 | 55 | behave_ops.h |
 | 0x485f70 | sub_485F70 | 68 | char_state.h |
 | 0x485fc0 | sub_485FC0 | 4709 | char_apply.c, char_apply.h |
@@ -667,7 +723,10 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4895c0 | sub_4895C0 | 8605 | char_hit.c, char_hit.h |
 | 0x48b850 | sub_48B850 | 131 | char_hit.h |
 | 0x48b8e0 | sub_48B8E0 | 60 | char_hit.h |
+| 0x48b920 | sub_48B920 | 526 | behave_helpers.h |
 | 0x48bb30 | sub_48BB30 | 632 | char_status.h |
+| 0x48bdd0 | sub_48BDD0 | 132 | behave_helpers.h |
+| 0x48be60 | sub_48BE60 | 715 | behave_helpers.h |
 | 0x491740 | sub_491740 | 38 | sprite_slot.h |
 | 0x496970 | sub_496970 | 54 | hud_view.h |
 | 0x49a050 | sub_49A050 | 13 | sprite_slot.h |
@@ -843,6 +902,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b3f00 | sub_5B3F00 | 545 | char_hit.h |
 | 0x5b4130 | sub_5B4130 | 60 | char_hit.h |
 | 0x5b4170 | sub_5B4170 | 133 | char_hit.h |
+| 0x5b4200 | sub_5B4200 | 295 | behave_helpers.h |
 | 0x5b4510 | sub_5B4510 | 26 | arche_pose.h |
 | 0x5b4530 | sub_5B4530 | 1209 | party_member.h |
 | 0x5b4a10 | sub_5B4A10 | 741 | party_member.h |
