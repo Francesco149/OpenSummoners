@@ -48,7 +48,8 @@ typedef struct {
     uint32_t seed; int has_seed;
     const char *trace;          /* input trace (.jsonl: {"frame":N,"keys":[sc..]} levels) */
     const char *record;         /* realtime human play: write a flat trace */
-    uint32_t dump_at[16]; int n_dump;
+    uint32_t dump_at[128]; int n_dump;
+    uint32_t vmmap_at[16]; int n_vmmap;   /* log the address-space map (VirtualQuery, by allocation) at these frames */
     uint32_t shot_at[64]; int n_shot; uint32_t shot_every;
     uint32_t hash_every;        /* log state hash every N frames (0 = only at end) */
     uint32_t log_every;         /* status line every N frames */
@@ -94,6 +95,7 @@ int  rh_heap_init(void);
 int  rh_media_reserve(void);              /* the fixed sound-buffer pool (startup) */
 uint32_t rh_media_pool_used(void);
 int  rh_media_in_pool(uint32_t v);
+int  rh_asset_in(uint32_t v);               /* the fixed asset-DLL range (rhost.c) */
 void rh_heap_install(void);
 extern int rh_heap_zero_alloc;   /* uninit-fix site D: zero every arena block handed out */
 int  rh_heap_ranges(uint32_t (*out)[2], int max);
@@ -118,7 +120,10 @@ long rh_handles_live(void);
 uint32_t rh_handles_issued(void);   /* of FAKE_MAX (never reused) */
 
 /* rh_state.c */
-typedef struct { uint64_t full, semantic; uint32_t masked, ranges, bytes; } rh_hash_t;
+typedef struct { uint64_t full, semantic, semv; uint32_t masked, ranges, bytes; } rh_hash_t;
+/* semv: the semantic hash also blind to every VALUE inside an external (system-DLL) region — the series hash:
+ * wine places system-heap objects by thread timing (pointers retail keeps vary run to run); the layout is fixed,
+ * so data that happens to fall in those ranges is masked alike in every run */
 void rh_state_hash(rh_hash_t *h);
 int  rh_state_dump(const char *path);
 void rh_state_volatile_add(uint32_t va);

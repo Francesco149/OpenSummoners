@@ -162,7 +162,7 @@ def rhost_args(a, run_win, trace_win, edition):
     if trace_win:
         args += ["--trace", trace_win]
     for k, flag in (("frames", "--frames"), ("seed", "--seed"), ("hook", "--hook"), ("dump_at", "--dump-at"),
-                    ("hash_every", "--hash-every"), ("shot_at", "--shot-at"), ("shot_every", "--shot-every"),
+                    ("hash_every", "--hash-every"), ("vmmap_at", "--vmmap-at"), ("shot_at", "--shot-at"), ("shot_every", "--shot-every"),
                     ("log_every", "--log-every"), ("stall_ms", "--stall-ms")):
         v = getattr(a, k, None)
         if v is not None and v != "":
@@ -204,6 +204,16 @@ def make_batch(a, runs, tag):
             a.hook = saved_hook
         else:
             args = rhost_args(a, run_win, trace_win, ed)
+        # the hook spec ALWAYS through a file (empty for a pure run): a 15 KB command line grew the CRT heap at
+        # startup, and reading the file only in hybrid runs did too — either moved where the system DLLs' heaps
+        # put the objects retail keeps pointers to (pure and hybrid states differed from frame 0)
+        spec = ""
+        if "--hook" in args:
+            k = args.index("--hook")
+            spec = args[k + 1]
+            del args[k:k + 2]
+        open(os.path.join(rdir, "hooks.txt"), "w").write(spec)
+        args += ["--hook", f"@{run_win}\\hooks.txt"]
         open(os.path.join(rdir, "argv.json"), "w").write(json.dumps(args))
         ps_args = ",".join("'" + x.replace("'", "''") + "'" for x in args)
         lines.append(f"while (@($procs | Where-Object {{ !$_.HasExited }}).Count -ge $J) {{ Start-Sleep -Milliseconds 50 }}")
@@ -368,21 +378,34 @@ def cmd_det(a):
         a.frames = a.frames or 1500
     else:
         tr, save, ed = scenario_inputs(a.scenario)
+    if getattr(a, "learn_every", None):   # mid-run dumps too: slots alive only mid-run (the sem series checks them)
+        ep = os.path.join(SCEN, a.scenario, "expected.json" if a.target == "win" else f"expected.{a.target}.json")
+        last = int(json.load(open(ep))["frame"]) if os.path.exists(ep) else (a.frames or 0)
+        mids = list(range(a.learn_every, last, a.learn_every))[:120]
+        a.dump_at = ",".join(str(f) for f in mids) + ("," + a.dump_at if a.dump_at else "")
     a.dump_at = (a.dump_at + ",end") if a.dump_at else "end"
     runs = [(f"r{i}", tr, save, ed) for i in range(a.n)]
-    batch, bdir, res, out = run_batch(a, runs, "det-" + os.path.basename(a.scenario), fetch=("rhost.log", "state_end.rhs"))
+    batch, bdir, res, out = run_batch(a, runs, "det-" + os.path.basename(a.scenario), fetch=("rhost.log", "state_*.rhs"))
     print_results(res, [r[0] for r in runs])
-    base = os.path.join(bdir, "r0", "state_end.rhs")
+    labels = sorted(f for f in os.listdir(os.path.join(bdir, "r0")) if f.startswith("state_") and f.endswith(".rhs")) \
+        if os.path.isdir(os.path.join(bdir, "r0")) else []
     bad, learned = 0, set()
-    for i in range(1, a.n):
-        other = os.path.join(bdir, f"r{i}", "state_end.rhs")
-        if not (os.path.exists(base) and os.path.exists(other)):
-            print(f"--- r0 vs r{i}: dump missing"); bad += 1; continue
-        print(f"--- r0 vs r{i}")
-        rows = rhs.diff(base, other, show=20)
-        real = [r for r in rows if r[3] not in ("ext-ptr(both)", "ext-ptr(stale)", "volatile-addr")]
-        bad += len(real)
-        learned |= {r[0] for r in rows if r[3] in ("ext-ptr(both)", "ext-ptr(stale)")}
+    for lab in labels or ["state_end.rhs"]:
+        base = os.path.join(bdir, "r0", lab)
+        for i in range(1, a.n):
+            other = os.path.join(bdir, f"r{i}", lab)
+            if not (os.path.exists(base) and os.path.exists(other)):
+                print(f"--- r0 vs r{i} {lab}: dump missing"); bad += 1; continue
+            print(f"--- r0 vs r{i} {lab}")
+            rows = rhs.diff(base, other, show=20)
+            real = [r for r in rows if r[3] not in ("ext-ptr(both)", "ext-ptr(stale)", "volatile-addr")]
+            bad += len(real)
+            learned |= {r[0] for r in rows if r[3] in ("ext-ptr(both)", "ext-ptr(stale)")}
+        if getattr(a, "learn_every", None) and lab != "state_end.rhs":
+            for i in range(a.n):   # 44 MB apiece: dropped once learnt
+                q = os.path.join(bdir, f"r{i}", lab)
+                if os.path.exists(q):
+                    os.remove(q)
     sems = {res.get(r[0], {}).get("state_sem") for r in runs}
     print(f"DETERMINISM {'PASS' if not bad else 'FAIL'}: {bad} non-pointer differing dwords; "
           f"semantic hashes: {len(sems)} distinct; external-pointer slots seen: {len(learned)}")
@@ -401,12 +424,31 @@ def cmd_det(a):
     return 0 if not bad else 1
 
 
+SERIES_EVERY = 600   # corpus --bless / --check: the state_sem every N frames (expected.json "sem_series")
+
+
+def sem_series(log, target="wine"):
+    """frame -> the series hash from an rhost.log's `hash fN ...` lines (--hash-every).  Wine: semv (also blind to
+    values pointing into system-DLL regions: wine places system-heap objects by thread timing, its layout is fixed).
+    Windows: sem (address-masked; the layout itself moves per run there, so value masking would not be stable)"""
+    out = {}
+    if os.path.exists(log):
+        for m in re.finditer(r"^hash f(\d+) full=\w+ sem=(\w+) masked=\d+(?: semv=(\w+))?", open(log, errors="replace").read(), re.M):
+            out[m.group(1)] = (m.group(3) if target == "wine" else None) or m.group(2)
+    return out
+
+
 def cmd_corpus(a):
     names = all_scenarios(a.only)
     if getattr(a, "hybrid", False):     # the hybrid gate: every ported function REPLACES retail
         hs = hybrid_hooks()
         a.hook = ",".join(["replace:" + h for h in hs] + ([a.hook] if a.hook else []))
         print(f"hybrid gate: {len(hs)} hooks replacing retail")
+    if (a.bless or a.check) and not a.hash_every and getattr(a, "target", "win") == "wine":
+        # the sem series (wine): a transient divergence a later room reload erases still shows.  Not on Windows:
+        # its layout moves per run, and mid-run system pointers stay unmasked there (calibrating them means 16 GB
+        # of dumps per scenario over the network) — the end state is the gate there
+        a.hash_every = SERIES_EVERY
     runs = resolve_runs(names)
     batch, bdir, res, out = run_batch(a, runs, "corpus", fetch=("rhost.log",))
     print_results(res, names)
@@ -417,11 +459,21 @@ def cmd_corpus(a):
     for n in names:
         ep = os.path.join(SCEN, n, "expected.json" if getattr(a, "target", "win") == "win" else f"expected.{a.target}.json")
         got = {k: res.get(n, {}).get(k) for k in keys}
+        series = sem_series(os.path.join(bdir, n, "rhost.log"), getattr(a, "target", "win"))
         if a.bless and res.get(n, {}).get("status") == "ok":
+            if series and a.hash_every == SERIES_EVERY:
+                got["sem_series"] = series
             json.dump(got, open(ep, "w"), indent=1); continue
         if a.check and os.path.exists(ep):
             exp = json.load(open(ep))
             diff = {k: (exp.get(k), got[k]) for k in keys if exp.get(k) != got[k]}
+            es = exp.get("sem_series") or {}
+            first = next((f for f in sorted(es, key=int) if f in series and series[f] != es[f]), None)
+            if first is not None:   # the earliest frame whose state differs (+ how many sampled frames differ)
+                nd = sum(1 for f in es if f in series and series[f] != es[f])
+                diff[f"sem@f{first}"] = (es[first], f"{series[first]} ({nd}/{len(es)} sampled frames differ)")
+            elif es and not series:
+                print(f"  note {n}: no sem series in this run (--hash-every {SERIES_EVERY} missing?)")
             if diff:
                 bad += 1; print(f"  REGRESSION {n}: " + ", ".join(f"{k} {e}→{g}" for k, (e, g) in diff.items()))
     if a.bless:
@@ -686,7 +738,7 @@ def cmd_hookbisect(a):
     until single hooks remain.  Compares frame / tick / rng (+ state_sem on the Windows target)."""
     cand = a.hooks.split(",") if a.hooks else hybrid_hooks()
     tr, save, ed = scenario_inputs(a.scenario)
-    keys = ("frame", "tick", "rng") + (("state_sem",) if a.target == "win" else ())
+    keys = ("frame", "tick", "rng") + (("state_sem",) if a.target == "win" else ("state_semv",))   # (wine: blind to system-heap values)
     rnd = 0
     while True:
         rnd += 1
@@ -754,6 +806,7 @@ def main():
         p.add_argument("--seed")
         p.add_argument("--hook")
         p.add_argument("--dump-at")
+        p.add_argument("--vmmap-at")
         p.add_argument("--shot-at")
         p.add_argument("--shot-every", type=int)
         p.add_argument("--hash-every", type=int)
@@ -772,7 +825,9 @@ def main():
     p = sub.add_parser("run"); p.add_argument("scenarios", nargs="+"); common(p); p.set_defaults(fn=cmd_run)
     p = sub.add_parser("boot"); common(p); p.set_defaults(fn=cmd_boot)
     p = sub.add_parser("det"); p.add_argument("scenario"); p.add_argument("-n", type=int, default=3)
-    p.add_argument("--calibrate", action="store_true"); common(p); p.set_defaults(fn=cmd_det)
+    p.add_argument("--calibrate", action="store_true")
+    p.add_argument("--learn-every", type=int, help="also dump + compare every N frames (mid-run slots; with --calibrate)")
+    common(p); p.set_defaults(fn=cmd_det)
     p = sub.add_parser("corpus"); p.add_argument("--only"); p.add_argument("--bless", action="store_true")
     p.add_argument("--check", action="store_true")
     p.add_argument("--hybrid", action="store_true", help="replace: every VERIFY_HOOKS + REPLACE_ONLY_HOOKS function (the hybrid gate)")

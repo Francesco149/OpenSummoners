@@ -272,6 +272,22 @@ static HRESULT WINAPI p_GetPositions(void *ms, LONGLONG *cur, LONGLONG *stop)
     return S_OK_;
 }
 static HRESULT WINAPI p_GetCurrentPosition(void *ms, LONGLONG *cur) { return p_GetPositions(ms, cur, NULL); }
+/* every filter out of a graph (IFilterGraph::EnumFilters 5 -> IEnumFilters::Next 3; RemoveFilter 4) */
+static int graph_clear(void *gb)
+{
+    typedef HRESULT (WINAPI *ef_t)(void *, void **);
+    typedef HRESULT (WINAPI *nx_t)(void *, ULONG, void **, ULONG *);
+    typedef HRESULT (WINAPI *rf2_t)(void *, void *);
+    typedef ULONG (WINAPI *rl_t)(void *);
+    void **vt = *(void ***)gb, *en = NULL, *fl[64];
+    int n = 0;
+    if (((ef_t)vt[5])(gb, &en) < 0 || !en) return -1;
+    ULONG got = 0;
+    while (n < 64 && ((nx_t)(*(void ***)en)[3])(en, 1, &fl[n], &got) == 0 && got == 1) n++;
+    ((rl_t)(*(void ***)en)[2])(en);
+    for (int i = 0; i < n; i++) { ((rf2_t)vt[4])(gb, fl[i]); ((rl_t)(*(void ***)fl[i])[2])(fl[i]); }
+    return n;
+}
 static HRESULT WINAPI p_RenderFile(void *gb, LPCWSTR file, LPCWSTR list)
 {
     char a[MAX_PATH], buf[MAX_PATH]; WCHAR w[MAX_PATH];
@@ -279,6 +295,16 @@ static HRESULT WINAPI p_RenderFile(void *gb, LPCWSTR file, LPCWSTR list)
     const char *q = rh_files_resolve(a, 0, buf, sizeof buf);
     MultiByteToWideChar(CP_ACP, 0, q, -1, w, MAX_PATH);
     HRESULT r = r_RenderFile(gb, w, list);
+    /* wine's DirectShow (gstreamer) now and then fails a WMA it renders fine on the next try (80040218
+     * VFW_E_CANNOT_RENDER under parallel load): retail then logs the error and keeps a different state.  A
+     * replay retries — the game sees the outcome every healthy run sees */
+    for (int k = 0; r < 0 && k < 8 && !O.audible; k++) {
+        int nf = graph_clear(gb);   /* the failed attempt's half-built chain out first: the retry builds what a
+                                     * first-time success builds (else the graph — its duration — differs) */
+        rh_log("bgm RenderFile %s = %08lx: retry %d (%d filters removed, f%u)\n", q, (unsigned long)r, k + 1, nf, g_frame);
+        Sleep(100 * (k + 1));
+        r = r_RenderFile(gb, w, list);
+    }
     vplay_t *v = vp_of(gb); memset(v, 0, sizeof *v); v->id = identity(gb); v->stop = -1;
     if (O.log_media) rh_log("bgm %p RenderFile %s -> %s = %08lx (f%u)\n", v->id, a, q, (unsigned long)r, g_frame);
     return r;

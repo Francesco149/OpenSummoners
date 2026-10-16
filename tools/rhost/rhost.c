@@ -252,10 +252,140 @@ static BOOL WINAPI my_FreeEnvironmentStringsA(LPCH p) { (void)p; return TRUE; }
 static BOOL WINAPI my_FreeEnvironmentStringsW(LPWCH p) { (void)p; return TRUE; }
 static VOID WINAPI my_GetStartupInfoA(LPSTARTUPINFOA si) { memset(si, 0, sizeof *si); si->cb = sizeof *si; si->wShowWindow = SW_SHOWNORMAL; }
 static HANDLE WINAPI my_GetStdHandle(DWORD n) { (void)n; return INVALID_HANDLE_VALUE; }
-static HMODULE WINAPI my_GetModuleHandleA(LPCSTR n) { return n ? GetModuleHandleA(n) : (HMODULE)0x400000; }
+/* ---- the game's asset DLLs (sotesd / sotesw / sotesp, SE's sotesd_en / sotesx_*): resource-only for retail
+ * (no GetProcAddress on them), all preferring 0x10000000 without ASLR, so the loader relocated them to wherever
+ * rhost's own allocations left room: their HMODULEs (in .data and in resource records) moved with rhost's size
+ * and with the hook set.  rhost loads, in load order, a COPY whose ImageBase is a fixed 16 MB slot of a range
+ * reserved at startup (<game>\rhost-assets\, written once; the loader then needs no relocation).  Wine ignores
+ * a requested base for SEC_IMAGE views, so a patched preferred base is the portable pin.  FreeLibrary keeps it
+ * loaded (a reload returns the same handle). */
+#define ASSET_LO 0x80000000u
+#define ASSET_HI 0xb0000000u
+static uint32_t g_asset_top;
+static struct { char name[64]; uint32_t base; HMODULE h; } g_assets[16];
+static int g_nassets;
+static int asset_reserve(void)
+{
+    g_asset_top = ASSET_LO;
+    return VirtualAlloc((void *)(uintptr_t)ASSET_LO, ASSET_HI - ASSET_LO, MEM_RESERVE, PAGE_NOACCESS) == (void *)(uintptr_t)ASSET_LO ? 0 : -1;
+}
+static const char *base_name(const char *p) { const char *b = p; for (; *p; p++) if (*p == '\\' || *p == '/') b = p + 1; return b; }
+static HMODULE asset_find(const char *n)
+{
+    for (int i = 0; i < g_nassets; i++) if (!_stricmp(g_assets[i].name, base_name(n))) return g_assets[i].h;
+    return NULL;
+}
+/* the PE header's ImageBase / SizeOfImage of a DLL file */
+static int pe_base(const char *path, uint32_t *base, uint32_t *size, uint32_t *off)
+{
+    HANDLE f = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
+    if (f == INVALID_HANDLE_VALUE) return -1;
+    uint8_t h[4096]; DWORD got = 0;
+    int ok = ReadFile(f, h, sizeof h, &got, NULL) && got >= 0x400;
+    CloseHandle(f);
+    if (!ok) return -1;
+    uint32_t pe = *(uint32_t *)(h + 0x3c);
+    if (pe + 24 + 60 > got || memcmp(h + pe, "PE\0\0", 4)) return -1;
+    *off = pe + 24 + 28; *base = *(uint32_t *)(h + *off); *size = *(uint32_t *)(h + pe + 24 + 56);
+    return 0;
+}
+/* rebase a DLL file in place (editbin /rebase): every HIGHLOW fixup + the ImageBase move by the delta.  Patched
+ * through a file mapping (no host heap growth: the run that writes the copy keeps the same layout) */
+static int asset_rebase(const char *path, uint32_t want)
+{
+    HANDLE f = CreateFileA(path, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+    if (f == INVALID_HANDLE_VALUE) return -1;
+    DWORD len = GetFileSize(f, NULL);
+    HANDLE m = CreateFileMappingA(f, NULL, PAGE_READWRITE, 0, 0, NULL);
+    uint8_t *b = m ? MapViewOfFile(m, FILE_MAP_WRITE, 0, 0, 0) : NULL;
+    int rc = -1;
+    if (b && len > 0x400) {
+        IMAGE_NT_HEADERS32 *nt = (void *)(b + ((IMAGE_DOS_HEADER *)b)->e_lfanew);
+        IMAGE_SECTION_HEADER *sec = IMAGE_FIRST_SECTION(nt);
+        uint32_t delta = want - nt->OptionalHeader.ImageBase, nsec = nt->FileHeader.NumberOfSections;
+        IMAGE_DATA_DIRECTORY rd = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC];
+        #define RVA2OFF(rva, out) do { (out) = 0; for (uint32_t k_ = 0; k_ < nsec; k_++)                          \
+            if ((rva) >= sec[k_].VirtualAddress && (rva) < sec[k_].VirtualAddress + sec[k_].SizeOfRawData)           \
+                { (out) = sec[k_].PointerToRawData + (rva) - sec[k_].VirtualAddress; break; } } while (0)
+        uint32_t ro; RVA2OFF(rd.VirtualAddress, ro);
+        rc = rd.Size && ro ? 0 : -1;
+        for (uint32_t at = 0; !rc && at + 8 <= rd.Size; ) {
+            IMAGE_BASE_RELOCATION *br = (void *)(b + ro + at);
+            if (br->SizeOfBlock < 8) break;
+            uint16_t *e = (uint16_t *)(br + 1);
+            for (uint32_t i = 0; i < (br->SizeOfBlock - 8) / 2; i++) {
+                uint32_t t = e[i] >> 12, fo;
+                if (t == IMAGE_REL_BASED_ABSOLUTE) continue;
+                if (t != IMAGE_REL_BASED_HIGHLOW) { rc = -1; break; }
+                RVA2OFF(br->VirtualAddress + (e[i] & 0xfffu), fo);
+                if (!fo || fo + 4 > len) { rc = -1; break; }
+                *(uint32_t *)(b + fo) += delta;
+            }
+            at += br->SizeOfBlock;
+        }
+        #undef RVA2OFF
+        if (!rc) nt->OptionalHeader.ImageBase = want;
+    }
+    if (b) UnmapViewOfFile(b);
+    if (m) CloseHandle(m);
+    CloseHandle(f);
+    return rc;
+}
+static HMODULE WINAPI my_LoadLibraryA(LPCSTR n)
+{
+    char src[MAX_PATH], dir[MAX_PATH], dst[MAX_PATH], tmp[MAX_PATH];
+    if (!n) return LoadLibraryA(n);
+    HMODULE h = asset_find(n);
+    if (h) return h;
+    snprintf(src, sizeof src, "%s\\%s", g_gamedir_abs, base_name(n));
+    uint32_t base, size, off;
+    if (g_nassets == (int)(sizeof g_assets / sizeof *g_assets) || pe_base(src, &base, &size, &off))
+        return LoadLibraryA(n);   /* a system DLL */
+    uint32_t want = g_asset_top, next = (want + size + 0xffffffu) & ~0xffffffu;   /* 16 MB slots */
+    if (next >= ASSET_HI) rh_fatal("asset %s: %x bytes do not fit the slot range", src, size);
+    snprintf(dir, sizeof dir, "%s\\rhost-assets", g_gamedir_abs);
+    snprintf(dst, sizeof dst, "%s\\%s", dir, base_name(n));
+    uint32_t have = 0, hs, ho;
+    if (pe_base(dst, &have, &hs, &ho) || have != want) {   /* (re)write the copy: ImageBase = the slot */
+        CreateDirectoryA(dir, NULL);
+        snprintf(tmp, sizeof tmp, "%s.%lu.tmp", dst, GetCurrentProcessId());
+        if (!CopyFileA(src, tmp, FALSE)) rh_fatal("asset %s: copy failed (%lu)", src, GetLastError());
+        if (asset_rebase(tmp, want)) rh_fatal("asset %s: cannot rebase the copy", tmp);
+        if (!MoveFileExA(tmp, dst, MOVEFILE_REPLACE_EXISTING)) {   /* a parallel run may have won the race */
+            DeleteFileA(tmp);
+            if (pe_base(dst, &have, &hs, &ho) || have != want) rh_fatal("asset %s: cannot install the copy (%lu)", dst, GetLastError());
+        }
+        rh_log("asset: wrote %s (ImageBase %08x)\n", dst, want);
+    }
+    if (!VirtualFree((void *)(uintptr_t)g_asset_top, 0, MEM_RELEASE)) rh_fatal("asset %s: cannot release the slot range", dst);
+    h = LoadLibraryA(dst);
+    if (!VirtualAlloc((void *)(uintptr_t)next, ASSET_HI - next, MEM_RESERVE, PAGE_NOACCESS))
+        rh_fatal("asset %s: cannot re-reserve %08x..%08x", dst, next, ASSET_HI);
+    if ((uint32_t)(uintptr_t)h != want) rh_fatal("asset %s: loaded at %p, not the slot %08x (%lu)", dst, (void *)h, want, GetLastError());
+    snprintf(g_assets[g_nassets].name, sizeof g_assets[0].name, "%s", base_name(n));
+    g_assets[g_nassets].base = want; g_assets[g_nassets++].h = h;
+    rh_log("asset: %s loaded at %08x+%x (fixed slot)\n", base_name(n), want, size);
+    g_asset_top = next;
+    return h;
+}
+int rh_asset_in(uint32_t v) { return v >= ASSET_LO && v < ASSET_HI; }
+static BOOL WINAPI my_FreeLibrary(HMODULE h)
+{
+    uint32_t v = (uint32_t)(uintptr_t)h;
+    if (v >= ASSET_LO && v < ASSET_HI) return TRUE;   /* kept mapped: a reload gets the same handle */
+    return FreeLibrary(h);
+}
+static HMODULE WINAPI my_GetModuleHandleA(LPCSTR n)
+{
+    if (!n) return (HMODULE)0x400000;
+    HMODULE h = asset_find(n);
+    return h ? h : GetModuleHandleA(n);
+}
 static DWORD WINAPI my_GetModuleFileNameA(HMODULE h, LPSTR buf, DWORD n)
 {
     if (!h || h == (HMODULE)0x400000) { snprintf(buf, n, "%s\\sotes.exe", g_gamedir_abs); return (DWORD)strlen(buf); }
+    for (int i = 0; i < g_nassets; i++)   /* the asset copies report the original file */
+        if (h == g_assets[i].h) { snprintf(buf, n, "%s\\%s", g_gamedir_abs, g_assets[i].name); return (DWORD)strlen(buf); }
     return GetModuleFileNameA(h, buf, n);
 }
 /* The CRT keeps the PREVIOUS top-level exception filter (0x5c7c05 → DAT_008a9ef8 "lpfn"), which is
@@ -546,17 +676,19 @@ static void __attribute__((thiscall)) w_pal_copy(void *self, uint8_t *src)
 /* per edition: A = `call palcopy` sites (palette at the pushed src), B = inline `lea esi,[esp+0x418]`
  * before a 1 KB rep movsd (+ resume VA), C = move-command copy `lea edi,[esi+OFF]` (+ the
  * stack offset of the WORD-written last field's high half, + resume VA) */
-typedef struct { uint32_t va, size; } frame_zero_t;
+typedef struct { uint32_t va, size, tail; } frame_zero_t;   /* tail: bytes after a short `sub esp,imm8` moved too */
 typedef struct { const char *tag; uint32_t palcopy, a[4]; uint32_t b, b_resume; uint32_t c, c_off, c_pad, c_resume; uint32_t sbh_alloc;
                  frame_zero_t e[4]; } uninit_t;
-/* site E (quirk #161): a function's `sub esp,N` (81 EC imm32) → the same + zero the N-byte frame.  The save writer
+/* site E (quirk #161): a function's `sub esp,N` (81 EC imm32, or 83 EC imm8 + `tail` bytes of the next PIC
+ * instructions, moved into the stub) → the same + zero the N-byte frame.  0x47ecd0 (the AI's skill pick) writes
+ * its never-set [ebp-4] through an out pointer when no record is found (a stale stack address; quirk #168).  The save writer
  * 0x41a890 writes 520 never-filled header bytes from its frame into every snapshot / save file (a real HDC left
  * there by an earlier GetDC caller ⇒ different every run: rh-combat's game-over retry). */
 static const uninit_t UNINIT[] = {
     { "enold",   0x491770u, { 0x586f79u }, 0x4181dfu, 0x4181e6u, 0x440dd1u, 0x14854u, 0x42u, 0x440dd7u, 0x5c73fdu,
-      { { 0x41a8a5u, 0xb90u } } },
+      { { 0x41a8a5u, 0xb90u, 0 }, { 0x47ecd0u, 0x54u, 4 } } },
     { "ense-en", 0x48c300u, { 0x5ad66bu, 0x5ad95bu }, 0x41233fu, 0x412346u, 0x43bcccu, 0x14874u, 0x46u, 0x43bcd2u, 0x5f7afau,
-      { { 0x4155e5u, 0xba0u } } },
+      { { 0x4155e5u, 0xba0u, 0 }, { 0x47b7d0u, 0x54u, 4 } } },
 };
 /* site D (quirk #130): retail reads UNINITIALIZED HEAP — a reused CRT small block keeps the previous
  * owner's bytes, e.g. the 0x54-byte node `new`ed at 0x4158a4 only fills its word array up to its
@@ -619,18 +751,24 @@ static int uninit_fix_install(void)
     }
     for (int k = 0; k < 4 && u->e[k].va; k++) {             /* site E: zero a whole stack frame at entry */
         uint8_t *q = (uint8_t *)(uintptr_t)u->e[k].va;
-        if (q[0] != 0x81 || q[1] != 0xEC || *(uint32_t *)(q + 2) != u->e[k].size) { rh_log("uninit-fix: site E %08x mismatch\n", u->e[k].va); continue; }
+        int lng = q[0] == 0x81 && q[1] == 0xEC && *(uint32_t *)(q + 2) == u->e[k].size && !u->e[k].tail;
+        int sht = q[0] == 0x83 && q[1] == 0xEC && q[2] == u->e[k].size && u->e[k].tail >= 2;
+        if (!lng && !sht) { rh_log("uninit-fix: site E %08x mismatch\n", u->e[k].va); continue; }
+        uint32_t sub = lng ? 6 : 3;
         uint8_t *c = g_stub_top, *o = c;
-        memcpy(o, q, 6); o += 6;                                     /* sub esp,N */
+        memcpy(o, q, sub); o += sub;                                 /* sub esp,N */
         *o++ = 0x60; *o++ = 0x9C;                                    /* pushad; pushfd */
         *o++ = 0x8D; *o++ = 0x7C; *o++ = 0x24; *o++ = 36;            /* lea edi,[esp+36] */
         *o++ = 0xB9; *(uint32_t *)o = u->e[k].size / 4; o += 4;      /* mov ecx,N/4 */
         *o++ = 0x31; *o++ = 0xC0;                                    /* xor eax,eax */
         *o++ = 0xFC; *o++ = 0xF3; *o++ = 0xAB;                       /* cld; rep stosd */
         *o++ = 0x9D; *o++ = 0x61;                                    /* popfd; popad */
-        *o++ = 0xE9; *(int32_t *)o = (int32_t)(u->e[k].va + 6 - ((uint32_t)(uintptr_t)o + 4)); o += 4;
+        memcpy(o, q + sub, u->e[k].tail); o += u->e[k].tail;         /* the moved instruction(s) */
+        uint32_t back = sub + u->e[k].tail;
+        *o++ = 0xE9; *(int32_t *)o = (int32_t)(u->e[k].va + back - ((uint32_t)(uintptr_t)o + 4)); o += 4;
         g_stub_top = (uint8_t *)(((uintptr_t)o + 15) & ~(uintptr_t)15);
-        q[0] = 0xE9; *(int32_t *)(q + 1) = (int32_t)((uint32_t)(uintptr_t)c - (u->e[k].va + 5)); q[5] = 0x90;
+        q[0] = 0xE9; *(int32_t *)(q + 1) = (int32_t)((uint32_t)(uintptr_t)c - (u->e[k].va + 5));
+        for (uint32_t z = 5; z < back; z++) q[z] = 0x90;
         n++;
     }
     return n;
@@ -647,6 +785,32 @@ static void __cdecl my_srand(unsigned s)
 static void finish(const char *why);
 void rh_finish(const char *why) { finish(why); }
 static LARGE_INTEGER g_t0, g_qf;
+/* the address-space map, one line per allocation (base, size, type, committed KB): two runs' maps diff to the
+ * first allocation whose placement differs (what shifted a system DLL's heap) */
+static void vmmap_log(void)
+{
+    uint32_t a = 0x10000u;
+    rh_log("vmmap f%u:\n", g_frame);
+    while (a < 0xfffe0000u) {
+        MEMORY_BASIC_INFORMATION mi;
+        if (!VirtualQuery((void *)(uintptr_t)a, &mi, sizeof mi)) break;
+        uint32_t lo = (uint32_t)(uintptr_t)mi.BaseAddress, sz = (uint32_t)mi.RegionSize;
+        if (mi.State != MEM_FREE) {
+            uint32_t ab = (uint32_t)(uintptr_t)mi.AllocationBase, end = lo + sz, com = mi.State == MEM_COMMIT ? sz : 0;
+            for (;;) {   /* coalesce the allocation's regions */
+                MEMORY_BASIC_INFORMATION m2;
+                if (end >= 0xfffe0000u || !VirtualQuery((void *)(uintptr_t)end, &m2, sizeof m2) ||
+                    (uint32_t)(uintptr_t)m2.AllocationBase != ab || m2.State == MEM_FREE) break;
+                if (m2.State == MEM_COMMIT) com += (uint32_t)m2.RegionSize;
+                end += (uint32_t)m2.RegionSize;
+            }
+            rh_log("  vm %08x..%08x %-7s %6uK committed\n", ab, end,
+                   mi.Type == MEM_IMAGE ? "image" : mi.Type == MEM_MAPPED ? "mapped" : "private", com >> 10);
+            a = end;
+        } else a = lo + sz;
+        if (a <= lo) break;
+    }
+}
 static int is_dump_frame(uint32_t f) { for (int i = 0; i < O.n_dump; i++) if (O.dump_at[i] == f) return 1; return 0; }
 static void dump_now(const char *tag)
 {
@@ -665,6 +829,7 @@ static void __cdecl pre_flip(void)
     if (g_nw) watch_arm_due();
     char t[32]; snprintf(t, sizeof t, "f%06u", g_frame);
     if (is_dump_frame(g_frame)) dump_now(t);
+    for (int i = 0; i < O.n_vmmap; i++) if (O.vmmap_at[i] == g_frame) vmmap_log();
     for (int i = 0; i < O.n_shot; i++) if (O.shot_at[i] == g_frame) rh_shot(t);
     if (O.shot_every && g_frame % O.shot_every == 0) rh_shot(t);
     if (O.log_every && g_frame % O.log_every == 0) {
@@ -676,7 +841,8 @@ static void __cdecl pre_flip(void)
     }
     if (O.hash_every && g_frame % O.hash_every == 0) {
         rh_hash_t h; rh_state_hash(&h);
-        rh_log("hash f%u full=%016llx sem=%016llx masked=%u\n", g_frame, (unsigned long long)h.full, (unsigned long long)h.semantic, h.masked);
+        rh_log("hash f%u full=%016llx sem=%016llx masked=%u semv=%016llx\n", g_frame, (unsigned long long)h.full,
+               (unsigned long long)h.semantic, h.masked, (unsigned long long)h.semv);
     }
     if (g_frame >= O.frames) finish("frames");
     g_frame++;
@@ -709,9 +875,9 @@ static void finish(const char *why)
     rh_hash_t h; rh_state_hash(&h);
     LARGE_INTEGER q; QueryPerformanceCounter(&q);
     double ms = (q.QuadPart - g_t0.QuadPart) * 1000.0 / g_qf.QuadPart;
-    rh_log("RESULT status=%s reason=%s frame=%u tick=%u rng=%08x state_full=%016llx state_sem=%016llx masked=%u state_bytes=%u wall_ms=%.0f fps=%.0f creep=%u %s\n",
+    rh_log("RESULT status=%s reason=%s frame=%u tick=%u rng=%08x state_full=%016llx state_sem=%016llx state_semv=%016llx masked=%u state_bytes=%u wall_ms=%.0f fps=%.0f creep=%u %s\n",
            !strcmp(why, "fatal") ? "fatal" : !strcmp(why, "game-exit") ? "exit" : "ok", why, g_frame, g_ticks, G32(g_ed->rng_seed), (unsigned long long)h.full,
-           (unsigned long long)h.semantic, h.masked, h.bytes, ms, ms > 0 ? g_frame * 1000.0 / ms : 0.0, g_creep_total, rh_trace_status());
+           (unsigned long long)h.semantic, (unsigned long long)h.semv, h.masked, h.bytes, ms, ms > 0 ? g_frame * 1000.0 / ms : 0.0, g_creep_total, rh_trace_status());
     if (O.stall_ms) Sleep(O.stall_ms);
     if (g_logf) fclose(g_logf);
     ExitProcess(0);
@@ -751,13 +917,14 @@ static void parse(int argc, char **argv)
         else if (!strcmp(a, "--trace")) O.trace = ARG();
         else if (!strcmp(a, "--record")) { O.record = ARG(); O.realtime = 1; O.quiet = 0; O.audible = 1; }
         else if (!strcmp(a, "--realtime")) O.realtime = 1;
-        else if (!strcmp(a, "--dump-at")) parse_list(ARG(), O.dump_at, &O.n_dump, 16);
+        else if (!strcmp(a, "--dump-at")) parse_list(ARG(), O.dump_at, &O.n_dump, 128);
+        else if (!strcmp(a, "--vmmap-at")) parse_list(ARG(), O.vmmap_at, &O.n_vmmap, 16);
         else if (!strcmp(a, "--shot-at")) parse_list(ARG(), O.shot_at, &O.n_shot, 64);
         else if (!strcmp(a, "--shot-every")) O.shot_every = strtoul(ARG(), 0, 0);
         else if (!strcmp(a, "--hash-every")) O.hash_every = strtoul(ARG(), 0, 0);
         else if (!strcmp(a, "--log-every")) O.log_every = strtoul(ARG(), 0, 0);
         else if (!strcmp(a, "--tail")) O.tail = strtoul(ARG(), 0, 0);
-        else if (!strcmp(a, "--hook")) O.hooks = ARG();
+        else if (!strcmp(a, "--hook")) O.hooks = ARG();   /* "@path": the spec from a file (read in rh_hooks_install) */
         else if (!strcmp(a, "--coverage")) O.coverage = ARG();
         else if (!strcmp(a, "--stall-ms")) O.stall_ms = strtoul(ARG(), 0, 0);
         else if (!strcmp(a, "--step-ms")) O.step_ms = strtoul(ARG(), 0, 0);
@@ -873,6 +1040,7 @@ int main(int argc, char **argv)
     g_log = stdout;
     if (!O.no_arena && rh_heap_init()) rh_fatal("heap arena reservation failed");
     if (rh_media_reserve()) rh_fatal("rh_media: cannot reserve the sound pool");
+    if (asset_reserve()) rh_fatal("cannot reserve the asset DLL range %08x..%08x", ASSET_LO, ASSET_HI);
     stacks_init();
     GetFullPathNameA(O.gamedir, sizeof g_gamedir_abs, g_gamedir_abs, NULL);
     for (size_t l = strlen(g_gamedir_abs); l && g_gamedir_abs[l - 1] == '\\'; ) g_gamedir_abs[--l] = 0;
@@ -901,6 +1069,8 @@ int main(int argc, char **argv)
     rh_log("rhost: mapped %s edition=%s (imports %d resolved, %d stubbed) entry=%08x text=%08x+%x data=%08x..%08x\n",
            exe_abs, g_ed->tag, img.n_imports_resolved, img.n_imports_stubbed, img.entry, RT_TEXT_LO, RT_TEXT_SZ, RT_DATA_LO, RT_DATA_HI);
     iat_override("GetModuleHandleA", my_GetModuleHandleA);
+    iat_override("LoadLibraryA", my_LoadLibraryA);
+    iat_override("FreeLibrary", my_FreeLibrary);
     iat_override("GetModuleFileNameA", my_GetModuleFileNameA);
     iat_override("FindResourceA", my_FindResourceA);
     iat_try("SetUnhandledExceptionFilter", my_SetUnhandledExceptionFilter);

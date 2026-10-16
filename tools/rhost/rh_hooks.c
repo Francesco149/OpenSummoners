@@ -3277,7 +3277,8 @@ typedef struct { void *self; intptr_t a[23]; intptr_t rr, rp; } gx_ctx;
  * before the retail phase, put back for the port phase, compared after it, and left as retail had it. */
 #define STKW 0x300u
 #define STACK_TOP 0x59000000u   /* rhost.c MAIN_STACK_HI */
-typedef struct { void (*r)(void *), (*p)(void *); gx_ctx *x; int n; uint8_t *ptr[24]; uint32_t len[24]; int diff; uint32_t at; } stkx_t;
+typedef struct { void (*r)(void *), (*p)(void *); gx_ctx *x; int n; uint8_t *ptr[24]; uint32_t len[24]; int arg[24]; int diff; uint32_t at;
+                 int at_arg; uint32_t at_off, rv, pv; } stkx_t;
 static uint8_t g_stk_pre[24][STKW], g_stk_ret[24][STKW];
 static void stkx_r(void *c)
 {
@@ -3293,25 +3294,31 @@ static void stkx_p(void *c)
     s->p(s->x);
     for (int i = 0; i < s->n; i++) {
         for (uint32_t k = 0; !s->diff && k < s->len[i]; k++)
-            if (s->ptr[i][k] != g_stk_ret[i][k]) { s->diff = 1; s->at = (uint32_t)(uintptr_t)s->ptr[i] + k; }
+            if (s->ptr[i][k] != g_stk_ret[i][k]) {
+                s->diff = 1; s->at = (uint32_t)(uintptr_t)s->ptr[i] + k; s->at_arg = s->arg[i]; s->at_off = k;
+                uint32_t k4 = k & ~3u;
+                if (k4 + 4 <= s->len[i]) { memcpy(&s->rv, g_stk_ret[i] + k4, 4); memcpy(&s->pv, s->ptr[i] + k4, 4); }
+            }
         memcpy(s->ptr[i], g_stk_ret[i], s->len[i]);
     }
 }
 static int __attribute__((noinline)) full_shadow_gx(hook_t *h, const char *name, void (*r)(void *), void (*p)(void *), gx_ctx *x)
 {
-    stkx_t s = { r, p, x, 0, { 0 }, { 0 }, 0, 0 };
+    stkx_t s = { r, p, x, 0, { 0 }, { 0 }, { 0 }, 0, 0, 0, 0, 0, 0 };
     uint32_t sp = SP();
     for (int i = -1; i < 23; i++) {
         uint32_t v = (uint32_t)(uintptr_t)(i < 0 ? x->self : (void *)x->a[i]);
         if (v <= (uint32_t)(uintptr_t)x || v >= STACK_TOP || sp >= STACK_TOP) continue;   /* above this frame's ctx: a caller's */
         s.ptr[s.n] = (uint8_t *)(uintptr_t)v;
         s.len[s.n] = STACK_TOP - v < STKW ? STACK_TOP - v : STKW;
+        s.arg[s.n] = i;
         s.n++;
     }
     if (s.n == 0) return full_shadow(h, name, r, p, x, name);
     int d = full_shadow(h, name, stkx_r, stkx_p, &s, name);
     if (d == 0 && s.diff) {
-        diverged(h, "f%u %s: the caller-stack object differs at %08x", g_frame, name, s.at);
+        diverged(h, "f%u %s: the caller-stack object differs at %08x (%s%d +0x%x: dword r%08x/p%08x)", g_frame, name, s.at,
+                 s.at_arg < 0 ? "self" : "a", s.at_arg < 0 ? 0 : s.at_arg + 1, s.at_off, s.rv, s.pv);
         return 1;
     }
     return d;
@@ -4383,7 +4390,17 @@ void rh_hooks_install(void)
         H[H_SFREE].va = H[H_SFREEALL].va = H[H_SGRADED].va = H[H_PSWAP].va = H[H_POPULATE].va = H[H_SINIT].va = H[H_SETH].va = H[H_DINIT].va = H[H_SNDFREE].va = 0;
     if (strcmp(g_ed->tag, "enold")) for (int i = H_CD_SKFIND; i <= H_SLOOP; i++) H[i].va = 0;
     if (!O.hooks) return;
-    char *b = strdup(O.hooks);   /* (a fixed 4 KB buffer silently dropped the tail of a long spec) */
+    char *b;
+    if (O.hooks[0] == '@') {   /* the spec from a file: every mode's command line stays short (rhost.py) */
+        FILE *f = fopen(O.hooks + 1, "rb");
+        if (!f) rh_fatal("hook spec %s: cannot open", O.hooks + 1);
+        fseek(f, 0, SEEK_END); long n = ftell(f); fseek(f, 0, SEEK_SET);
+        b = malloc((size_t)n + 1);
+        if (!b || fread(b, 1, (size_t)n, f) != (size_t)n) rh_fatal("hook spec %s: read failed", O.hooks + 1);
+        b[n] = 0; fclose(f);
+        while (n && (b[n - 1] == '\n' || b[n - 1] == '\r')) b[--n] = 0;
+        if (!n) { free(b); return; }   /* a pure run */
+    } else b = strdup(O.hooks);   /* (a fixed 4 KB buffer silently dropped the tail of a long spec) */
     if (!b) rh_fatal("hook spec: out of memory");
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {
         char *c = strchr(t, ':'); if (!c) rh_fatal("bad hook spec %s", t);

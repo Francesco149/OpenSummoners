@@ -2,5 +2,10 @@
  "frame": "1620",
  "tick": "0",
  "rng": "404a0a8f",
- "state_sem": "f0540a7d69615375"
+ "state_sem": "e42c412e4cb77fe6",
+ "sem_series": {
+  "0": "1ea81e058f933ba9",
+  "600": "60c9a556bc21726c",
+  "1200": "05a0c77427ccc41c"
+ }
 }

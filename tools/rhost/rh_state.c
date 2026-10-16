@@ -93,7 +93,8 @@ void rh_state_hash(rh_hash_t *h)
 {
     static uint32_t r[MAXR][2];
     int n = state_ranges(r);
-    uint64_t f = 1469598103934665603ull, s = f;
+    build_ext_map();
+    uint64_t f = 1469598103934665603ull, s = f, sv = f;
     uint32_t masked = 0, bytes = 0;
     for (int i = 0; i < n; i++) {
         for (const uint32_t *p = (const uint32_t *)(uintptr_t)r[i][0]; p < (const uint32_t *)(uintptr_t)r[i][1]; p++) {
@@ -101,10 +102,12 @@ void rh_state_hash(rh_hash_t *h)
             f ^= v; f *= 1099511628211ull;
             if (g_nvol && is_vol((uint32_t)(uintptr_t)p)) { v = 0x9e3779b9u; masked++; }
             s ^= v; s *= 1099511628211ull;
+            if (is_ext(v)) v = 0x7f4a7c15u;
+            sv ^= v; sv *= 1099511628211ull;
         }
         bytes += r[i][1] - r[i][0];
     }
-    h->full = f; h->semantic = s; h->masked = masked; h->ranges = (uint32_t)n; h->bytes = bytes;
+    h->full = f; h->semantic = s; h->semv = sv; h->masked = masked; h->ranges = (uint32_t)n; h->bytes = bytes;
 }
 
 int rh_state_dump(const char *path)
