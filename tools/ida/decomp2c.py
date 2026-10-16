@@ -55,12 +55,65 @@ def prototypes():
             ps = [p.strip() for p in params.split(",")] if params.strip() not in ("", "void") else []
             types = []
             for p in ps:
+                p = re.sub(r"\s*\b([A-Za-z_]\w*)\s*\[\s*\d*\s*\]$", r" *\1", p)   # `int32_t box[4]` is a pointer
                 if re.search(r"(\*|\w\s+)\s*[A-Za-z_]\w*$", p) and len(re.findall(r"[A-Za-z_]\w*", p)) > 1:
                     p = re.sub(r"[A-Za-z_]\w*$", "", p).strip()
                 types.append(p or "int32_t")
             protos.setdefault(name, (ret, types))
             PROTO_HDR.setdefault(name, fn)
     return protos
+
+
+_ASM = {}
+
+
+def ecx_in(edition, va, size):
+    """an IDA-__stdcall function that reads ecx before writing it (linear scan of its asm, past returns): its
+    caller's ecx — always the caller's `this` — is an input ('read'), or goes on to a thiscall ('call')"""
+    if edition not in _ASM:
+        lines = open(os.path.join(IDA, edition, "all_ida.asm"), errors="replace").read().splitlines()
+        idx = {}
+        for i, l in enumerate(lines):
+            m = re.match(r"^([0-9a-f]{8})\s", l)
+            if m:
+                idx.setdefault(int(m.group(1), 16), i)
+        _ASM[edition] = (lines, idx)
+    lines, idx = _ASM[edition]
+    cc = ida_cc(edition)
+    i, end = idx.get(va), va + size
+    reg = lambda t: re.search(r"\b(ecx|cx|cl|ch)\b", t)
+    while i is not None and i < len(lines):
+        m = re.match(r"^([0-9a-f]{8})\s+(\w+)\s*(.*)$", lines[i]); i += 1
+        if not m:
+            continue
+        if int(m.group(1), 16) >= end:
+            break
+        op, args = m.group(2), m.group(3).split(";")[0]
+        dst, _, src = args.partition(",")
+        if op == "call":
+            cm = re.search(r"sub_([0-9A-F]+)|\w+_([0-9A-F]{6})\b", args)
+            cv = int(cm.group(1) or cm.group(2), 16) if cm else None
+            return "call" if cv in cc and cc[cv][0] == "thiscall" else None
+        if op.startswith("j") or op in ("retn", "ret") or (op == "push" and re.match(r"\s*ecx\s*$", args)):
+            continue   # (push ecx: MSVC's 4-byte local reservation)
+        if op in ("xor", "sub") and re.match(r"\s*ecx,\s*ecx\s*$", args):
+            return None
+        if reg(src) or re.search(r"\[[^\]]*\becx\b", dst) or (op not in ("mov", "lea", "pop", "movzx", "movsx", "xor") and reg(dst)) \
+                or (op == "xor" and reg(dst) and not re.match(r"\s*ecx,\s*ecx", args)):
+            return "read"
+        if reg(dst):
+            return None
+    return None
+
+
+def ida_cc(edition):
+    """va -> (calling convention, IDA argument count) from functions_ida.tsv"""
+    out = {}
+    for line in open(os.path.join(IDA, edition, "functions_ida.tsv")):
+        f = line.rstrip("\n").split("\t")
+        if len(f) > 5 and re.match(r"^[0-9a-f]{8}$", f[0]):
+            out[int(f[0], 16)] = (f[4], int(f[5] or 0))
+    return out
 
 
 def wrappers(used, protos):
@@ -113,16 +166,61 @@ LOCAL = {}
 SYMS = {}
 PTRVARS = set()   # typed-pointer locals / params: an offset off them scales by the element
 CLSIDX = {}       # class-pointer locals (kept as integers): name -> (class, size)
+CLSTYPE = {}      # class-pointer locals / params: name -> class (their fields' real offsets and widths)
+DECLNAMES = set() # the function's declared locals
 _CLS_SIZE = {}
 
 
-def class_size(cls):
+def class_layout(cls):
+    """the struct IDA really has for a recovered class: oss_ida_classes.py declares the fields at their offsets
+    (char gaps between, the extent as the size) and IDA lays the declaration out with natural alignment — a
+    misaligned field moves (and everything after it), the size rounds up.  Replayed here:
+    (size, {nominal field offset: (real offset, width)}, {nominal gap offset: real offset})"""
     if not _CLS_SIZE:
         for line in open(os.path.join(IDA, EDITION[0], "classes_ida.tsv")):
             f = line.rstrip("\n").split("\t")
             if len(f) > 1 and f[0].startswith("cls_"):
-                _CLS_SIZE[f[0]] = int(f[1], 16)
-    return _CLS_SIZE.get(cls, 0)
+                fl = [(int(o, 16), int(w)) for o, w in (x.split(":") for x in f[6].split(",") if x)] if len(f) > 6 and f[6] else []
+                _CLS_SIZE[f[0]] = (int(f[1]), fl)
+    if cls not in _CLS_SIZE:
+        return 0, {}, {}
+    extent, fl = _CLS_SIZE[cls]
+    decl, cur = [], 0   # (nominal offset, size, alignment, kind)
+    for o, w in sorted(fl):
+        if o < cur:
+            continue
+        if o > cur:
+            decl.append((cur, o - cur, 1, "gap"))
+        decl.append((o, w, {1: 1, 2: 2, 4: 4, 8: 8, 10: 8}[w], "field"))
+        cur = o + w
+    if extent > cur:
+        decl.append((cur, extent - cur, 1, "gap"))
+    if not decl:
+        decl = [(0, 4, 1, "gap")]
+    pos, sal, fields, gaps = 0, 1, {}, {}
+    for o, n, al, kind in decl:
+        pos = (pos + al - 1) // al * al
+        if kind == "field":
+            fields[o] = (pos, n)
+        else:
+            gaps[o] = pos
+        pos += n
+        sal = max(sal, al)
+    return (pos + sal - 1) // sal * sal, fields, gaps
+
+
+def class_size(cls):
+    return class_layout(cls)[0]
+
+
+def gap_size(cls, nom):
+    """a gap's byte count (the declared one: char arrays are not padded)"""
+    extent, fl = _CLS_SIZE.get(cls, (0, []))
+    nxt = [o for o, _ in fl if o > nom]
+    return (min(nxt) if nxt else extent) - nom
+
+
+CLS = ["cls_4022A0"]   # the default `this` class (--cls)
 
 
 def accx(f, base, off):
@@ -133,6 +231,9 @@ def accx(f, base, off):
 
 
 EDITION = ["enold"]
+ECXPASS = set()   # module functions that take their caller's ecx (IDA __stdcall reading ecx): a leading ecx_ param
+FASTLOCAL = set() # module functions IDA typed __fastcall that never read edx: thiscall (a1 = this), edx dropped
+CUR = [None]      # the port name of the function being converted
 DECLS = []
 ARRAYS = []
 CLSPTR = []
@@ -169,14 +270,29 @@ def convert(text, names, widths, this):
     lines = text.split("\n")
     k = lines.index("{")
     head, body = " ".join(l.strip() for l in lines[:k]), lines[k + 1:-1]
+    if "__fastcall" in head:   # edx never read: thiscall, a1 = this (the caller's ecx)
+        hm = re.match(r"(.*?\()(.*)(\)\s*)$", head)
+        ps = [x.strip() for x in hm.group(2).split(",")]
+        bt = "\n".join(body)
+        if len(ps) >= 2:
+            n1, n2 = re.match(r".*?\b(\w+)$", ps[0]).group(1), re.match(r".*?\b(\w+)$", ps[1]).group(1)
+            if not re.search(r"\b%s\b" % n2, bt):
+                t1 = re.match(r"(.*?)\s*\b\w+$", ps[0]).group(1)   # its own type: an `int` a1 adds bytes
+                ps = [t1 + " this"] + ps[2:]
+                head = hm.group(1).replace("__fastcall", "__thiscall") + ", ".join(ps) + hm.group(3)
+                body = [re.sub(r"\b%s\b" % n1, "this", l) for l in body]
+                FASTLOCAL.add(CUR[0])
     hm = re.search(r"\((.*)\)\s*$", head)
     for p in (hm.group(1).split(",") if hm else []):
         pm = re.match(r"(.*?)\s*\b(\w+)$", p.strip())
         if pm and "*" in pm.group(1) and "*" in map_type(pm.group(1)):
             PTRVARS.add(pm.group(2))
     out, decls = [], []
+    DECLNAMES.clear()
     for ln in body:
         m = re.match(r"^  ([A-Za-z_][\w\s\*]*?)\s*\b([A-Za-z_]\w*)(\[\d+\])?; // ", ln)
+        if m:
+            DECLNAMES.add(m.group(2))   # a local never takes a same-named data symbol (IDA names one `Block`)
         if m and m.group(1).strip().startswith(("cls_", "_UNKNOWN", "struct ")) and "*" in m.group(1):
             CLSPTR.append(m.group(2))
         if m:
@@ -191,6 +307,8 @@ def convert(text, names, widths, this):
             if "*" in mt:
                 PTRVARS.add(m.group(2))
             cm = re.match(r"(cls_\w+) \*$", m.group(1).strip())
+            if cm:
+                CLSTYPE[m.group(2)] = cm.group(1)
             if cm and class_size(cm.group(1)):
                 CLSIDX[m.group(2)] = (cm.group(1), class_size(cm.group(1)))
             decls.append(f"    {mt} {m.group(2)}{m.group(3) or ''};")
@@ -198,9 +316,24 @@ def convert(text, names, widths, this):
         out.append(ln)
     DECLS.extend(decls)
     s = "\n".join(out)
-    W = {1: "F8", 2: "F16", 4: "F32"}
-    s = re.sub(r"this->field_([0-9A-F]+)", lambda m: f"{W.get(widths.get(int(m.group(1), 16), 4), 'F32')}({this}, 0x{int(m.group(1), 16):x})", s)
-    s = re.sub(r"this->gap([0-9A-F]+)\[([^\]]+)\]", lambda m: f"GAP({this}, 0x{int(m.group(1), 16):x}, {m.group(2)})", s)
+    W = {1: "F8", 2: "F16", 4: "F32", 8: "F64", 10: "F64"}
+    tm = re.search(r"\((cls_\w+) \*this\b", head)
+    tsize, tfields, tgaps = class_layout(tm.group(1) if tm else CLS[0])
+    if not tm:
+        tsize = 1   # no class: `this + n` adds bytes
+    if not tfields:
+        tfields = {o: (o, w) for o, w in widths.items()}
+
+    def fld(base, nom, fields, gaps):
+        off, w = fields.get(nom, (nom, 4))
+        return f"{W.get(w, 'F32')}({base}, 0x{off:x})"
+    if tsize > 1:   # `this + n` (no cast) moves by whole objects, as in the asm
+        s = re.sub(r"(?<![\w)*])this \+ ([^;]+);", lambda m: f"this + {tsize} * ({m.group(1)});", s)
+    s = re.sub(r"this->field_([0-9A-F]+)", lambda m: fld(this, int(m.group(1), 16), tfields, tgaps), s)
+    s = re.sub(r"this->gap([0-9A-F]+)\[([^\]]+)\]", lambda m: f"GAP({this}, 0x{tgaps.get(int(m.group(1), 16), int(m.group(1), 16)):x}, {m.group(2)})", s)
+    s = re.sub(r"\bsizeof\(this->gap([0-9A-F]+)\)", lambda m: str(gap_size(tm.group(1) if tm else CLS[0], int(m.group(1), 16))), s)
+    s = re.sub(r"this->gap([0-9A-F]+)\b(?!\s*\[)", lambda m: f"((uint8_t *)({this}) + 0x{tgaps.get(int(m.group(1), 16), int(m.group(1), 16)):x})", s)
+    s = re.sub(r"\b(v\d+|a\d+)->gap([0-9A-F]+)\[([^\]]+)\]", lambda m: f"GAP({m.group(1)}, 0x{int(m.group(2), 16):x}, {m.group(3)})", s)
     s = re.sub(r"\bthis\b", this, s)
     s = s.replace("nullptr", "0")
     s = re.sub(r"\*\(\(_DWORD \*\)(\w+) \+ (\d+)\)", r"F32(\1, 4 * \2)", s)
@@ -214,7 +347,8 @@ def convert(text, names, widths, this):
         s = re.sub(r"\*\(%s \*\)&W->gap([0-9A-F]+)\[([^\]]+)\]" % t, lambda m: f"{f}(W, 0x{int(m.group(1), 16):x} + ({m.group(2)}))", s)
         s = re.sub(r"\*\(%s \*\)&p_cls_40BE00->gap([0-9A-F]+)\[([^\]]+)\]" % t, lambda m: f"{f}(W, 0x{int(m.group(1), 16):x} + ({m.group(2)}))", s)
         s = re.sub(r"\*\(%s \*\)&(\w+)\[([^\]]+)\]" % t, r"%s(&\1[\2], 0)" % f, s)
-    s = re.sub(r"&p_cls_40BE00->gap([0-9A-F]+)\[(\d+)\]", lambda m: f"(W + 0x{int(m.group(1), 16):x} + {m.group(2)})", s)
+    s = re.sub(r"\*\((?:cls_\w+|_DWORD|int|_UNKNOWN|void) \*\*\)&p_cls_40BE00->gap([0-9A-F]+)\[([^\]]+)\]", lambda m: f"F32(W, 0x{int(m.group(1), 16):x} + ({m.group(2)}))", s)
+    s = re.sub(r"&p_cls_40BE00->gap([0-9A-F]+)\[([^\]]+)\]", lambda m: f"(W + 0x{int(m.group(1), 16):x} + ({m.group(2)}))", s)
     for t, f in (("_BYTE", "F8"), ("_WORD", "F16"), ("_DWORD", "F32"), ("char", "F8"), ("__int16", "S16")):
         s = re.sub(r"\*\*\(%s \*\*\)\(%s \+ (\d+)\)" % (t, inner), lambda m, f=f: f"{f}({accx("F32", m.group(1), m.group(2))}, 0)", s)
     s = re.sub(r"\*\(\(_DWORD \*\)(\w+) \+ ([^()]+?)\)", r"F32(\1, 4 * (\2))", s)
@@ -233,11 +367,24 @@ def convert(text, names, widths, this):
         s = re.sub(r"\*\((?:_UNKNOWN|void|cls_\w+|_DWORD|int|_WORD|_BYTE|char|__int16|unsigned __int16) \*\*\)\(%s\)" % inner, r"F32((\1), 0)", s)
     for v, (cls, n) in CLSIDX.items():   # a class pointer kept as an integer, indexed: by the class size
         s = re.sub(r"(?:\(char \*\))?&%s\[([^\]]+)\]" % v, lambda m: f"({v} + ({m.group(1)}) * 0x{n:x})", s)
+        _, fs, gs = class_layout(cls)
+        s = re.sub(r"\b%s\[([^\]]+)\]\.field_([0-9A-F]+)" % v,
+                   lambda m: f"{ {1: 'F8', 2: 'F16', 4: 'F32', 8: 'F64'}.get(fs.get(int(m.group(2), 16), (0, 4))[1], 'F32')}"
+                             f"({v} + ({m.group(1)}) * 0x{n:x}, 0x{fs.get(int(m.group(2), 16), (int(m.group(2), 16), 4))[0]:x})", s)
+        if n in (1, 2, 4, 8):   # an element of a class this small: a scalar load
+            s = re.sub(r"(?<![\w.&])%s\[([^\]]+)\](?!\s*\.)" % v,
+                       lambda m: f"{ {1: 'F8', 2: 'F16', 4: 'F32', 8: 'F64'}[n]}({v}, ({m.group(1)}) * {n})", s)
     for v in INTVARS:   # an integer local used as a pointer by IDA's cast-free deref: a dword load
         s = re.sub(r"(?<=[=(,!&|<>?:]\s)\*%s\b(?!\s*[\[(])|(?<=[=(,!])\*%s\b(?!\s*[\[(])" % (v, v), f"F32({v}, 0)", s)
     for v in CLSPTR:   # a class pointer kept as an integer: its unary deref is a dword load
         s = re.sub(r"(?<=[=(,!&|<>?:]\s)\*%s\b|(?<=[=(,!])\*%s\b" % (v, v), f"F32({v}, 0)", s)
-    s = re.sub(r"\b(\w+)->field_([0-9A-F]+)", lambda m: f"F32({m.group(1)}, 0x{int(m.group(2), 16):x})", s)
+    def vfld(m):
+        cl = CLSTYPE.get(m.group(1))
+        if cl:
+            _, fs, gs = class_layout(cl)
+            return fld(m.group(1), int(m.group(2), 16), fs, gs)
+        return f"F32({m.group(1)}, 0x{int(m.group(2), 16):x})"
+    s = re.sub(r"\b(\w+)->field_([0-9A-F]+)", vfld, s)
     s = re.sub(r"\*\*\(_DWORD \*\*\)&stru_8A6B60\._pad000\[800\]", "CFG()", s)
     s = re.sub(r"\*\((?:_DWORD|int|cls_\w+) \*\*\)\(%s \+ (\d+)\)" % r"((?:[^()]|\((?:[^()]|\([^()]*\))*\))+?)", r"F32(\1, \2)", s)
     s = s.replace("rand_draw_5BF505()", "rnd()")
@@ -250,7 +397,7 @@ def convert(text, names, widths, this):
         s = re.sub(r"\b%s_([0-9A-F]{6})\[" % kind, lambda m: f"(({f} *)D(0x{int(m.group(1), 16):x}))[", s)
     for name, va in SYMS.items():
         if not re.search(r"\b%s\b" % re.escape(name), s) or name.startswith(("sub_", "p_cls_")) or name in ("Format", "Buffer", "stru_8A6B60") \
-                or re.match(r"^a\d+$", name) or re.search(r"\b%s\b" % re.escape(name), head):
+                or re.match(r"^a\d+$", name) or re.search(r"\b%s\b" % re.escape(name), head) or name in DECLNAMES:
             continue
         s = re.sub(r"&%s\b" % re.escape(name), f"D(0x{va:x})", s)
         if name.startswith(("dword_", "word_", "byte_")):
@@ -284,7 +431,8 @@ def convert(text, names, widths, this):
           "unsigned __int16": "uint16_t", "__int16": "int16_t", "unsigned int": "uint32_t", "void": "uint8_t"}
     s = re.sub(r"\((?:const )?(_DWORD|_WORD|_BYTE|int|char|unsigned __int16|__int16|unsigned int) (\*\*?)\)(?=(?:\w+|\((?:[^()]|\([^()]*\))*\)) [-+] )",
                lambda m: f"({CT[m.group(1)] if m.group(2) == '*' else 'int32_t'} *)", s)
-    s = re.sub(r"\((?:const )?(?:_DWORD|_WORD|_BYTE|int|char|unsigned __int16|__int16|unsigned int|void) \*\*?\)(?=\w|\()", "", s)
+    # every other IDA pointer cast is kept (_DWORD / _WORD / _BYTE are typedefs of the C widths): `**(_WORD **)x`
+    # loads and pointer arithmetic then scale exactly as in the asm
     s = re.sub(r"\*&SYSB\((\d+)\)", r"SYS32(\1)", s)
     s = s.replace("operator new(", "(intptr_t)g_eng.op_new(").replace("operator delete(", "g_eng.op_delete((void *)")
     s = re.sub(r"&stru_8A6B60\._pad000\[([^\]]+)\]", r"((uint8_t *)g_eng.sys + (\1))", s)
@@ -304,7 +452,7 @@ def convert(text, names, widths, this):
                 if depth == 0:
                     break
                 depth -= 1
-            elif ch == ";" and depth == 0:
+            elif ch in ";," and depth == 0:
                 break
             k += 1
         out.append(s[pos:m.start()] + f"{SETS[m.group(1)]}({m.group(2)}, {s[m.end():k]})")
@@ -319,6 +467,11 @@ def convert(text, names, widths, this):
     s = re.sub(r"\(_BYTE\)", "(uint8_t)", s)
     s = re.sub(r"\(_DWORD\)", "(int32_t)", s)
     s = re.sub(r"\(unsigned __int16\)", "(uint16_t)", s)
+    for a_, b_ in (("unsigned __int16", "uint16_t"), ("unsigned __int8", "uint8_t"), ("unsigned __int32", "uint32_t"),
+                   ("__int16", "int16_t"), ("__int8", "int8_t"), ("__int32", "int32_t")):   # MSVC's, for any host
+        s = re.sub(r"\b%s\b" % re.escape(a_), b_, s)
+    for _, t, n, cnt in ARRAYS:   # a stack array lives in frame_ through a pointer: its sizeof is the array's
+        s = re.sub(r"\bsizeof\(%s\)" % re.escape(n), f"({cnt} * sizeof({t}))", s)
     # retail's log 0x406440 inlined (OutputDebugStringA x 3 + the dated line appended to the log file)
     s = re.sub(r"OutputDebugStringA\(([^;]+)\);\s*OutputDebugStringA\(([^;]+)\);\s*OutputDebugStringA\(OutputString\);\s*"
                r"(\w+) = fopen\(stru_8A9530\.path, Mode\);\s*if \( \3 != 0 \)\s*\{\s*GetLocalTime\(&SystemTime\);\s*"
@@ -356,6 +509,11 @@ static inline int32_t abs32(int32_t x) { return x < 0 ? (int32_t)(0u - (uint32_t
 #ifndef __cplusplus
 #include <stdbool.h>
 #endif
+typedef int32_t _DWORD;
+typedef uint16_t _WORD;
+typedef uint8_t _BYTE;
+typedef uint64_t _QWORD;
+#define GAP(p, o, i) F8(p, (o) + (i))   /* IDA's gapN[i]: the byte at +N + i */
 #define SETLO(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff0000u) | (uint16_t)(v)))
 #define SETHI(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffu) | ((uint32_t)(uint16_t)(v) << 16)))
 #define SETLB(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffff00u) | (uint8_t)(v)))
@@ -365,6 +523,7 @@ static inline int32_t abs32(int32_t x) { return x < 0 ? (int32_t)(0u - (uint32_t
 #define F16(p, o) (*(uint16_t *)((uint8_t *)(intptr_t)(p) + (o)))
 #define S16(p, o) (*(int16_t *)((uint8_t *)(intptr_t)(p) + (o)))
 #define F8(p, o)  (*(uint8_t *)((uint8_t *)(intptr_t)(p) + (o)))
+#define F64(p, o) (*(int64_t *)((uint8_t *)(intptr_t)(p) + (o)))
 """
 
 
@@ -374,7 +533,7 @@ def signature(head, name):
     ret, params = m.group(1).replace("__thiscall", "").replace("__stdcall", "").strip(), m.group(2)
     ret = ("void" if ret == "void" else "double" if ret in ("long double", "double", "float")   # st0
            else "int64_t" if "__int64" in ret else "int32_t")                                    # edx:eax
-    out, pro = [], []
+    out, pro = ([], []) if name not in ECXPASS else (["intptr_t ecx_"], [])
     for p in [x.strip() for x in params.split(",") if x.strip()]:
         pm = re.match(r"(.*?)\s*\b(\w+)$", p)
         t, n = pm.group(1), pm.group(2)
@@ -397,16 +556,31 @@ def main():
     names, widths, funcs, todo = port_names(), class_widths(a.edition, a.cls), [], set()
     SYMS.update(data_symbols(a.edition))
     EDITION[0] = a.edition
+    CLS[0] = a.cls
     for spec in a.va:
         va_s, _, pname = spec.partition(":")
         if pname:
             LOCAL[int(va_s, 16)] = pname
-    protos_local = []
+    protos_local, fnames = [], []
+    ccs = ida_cc(a.edition)
+    sizes = {}
+    for line in open(os.path.join(IDA, a.edition, "functions_ida.tsv")):
+        f = line.split("\t")
+        if re.match(r"^[0-9a-f]{8}$", f[0]):
+            sizes[int(f[0], 16)] = int(f[1])
+    for va, pname in LOCAL.items():   # IDA-__stdcall module functions that take their caller's ecx
+        if ccs.get(va, ("",))[0] == "stdcall" and ecx_in(a.edition, va, sizes.get(va, 0)):
+            ECXPASS.add(pname)
     for spec in a.va:
         va_s, _, pname = spec.partition(":")
         va = int(va_s, 16)
-        DECLS.clear(); ARRAYS.clear(); CLSPTR.clear(); INTVARS.clear(); PTRVARS.clear(); CLSIDX.clear()
-        head, s = convert(extract(a.edition, va), names, widths, a.this)
+        fnames.append(pname)
+        CUR[0] = pname
+        DECLS.clear(); ARRAYS.clear(); CLSPTR.clear(); INTVARS.clear(); PTRVARS.clear(); CLSIDX.clear(); CLSTYPE.clear()
+        text = extract(a.edition, va)
+        if pname in ECXPASS and "__stdcall" not in text.split("{")[0]:
+            ECXPASS.discard(pname)   # the decompile's header is the authority (thiscall: its ecx is `this`)
+        head, s = convert(text, names, widths, a.this)
         out = []
         if pname:
             sig, pro = signature(head, pname)
@@ -429,35 +603,55 @@ def main():
         out.append("}")
         funcs.append("\n".join(out))
         todo |= set(re.findall(r"TODO 0x([0-9a-f]+)", s))
-    # a thiscall callee whose `this` IDA left out (its prototype refined after the caller was decompiled; the asm
-    # passes the caller's ecx): the caller's `this` is passed
-    nparm = {}
+    # the call sites IDA got wrong about ecx / edx (one pass over every call to a module function or a port one):
+    # - a thiscall callee whose `this` IDA left out (its prototype refined after the caller was decompiled, or the
+    #   caller passes its own ecx on): the caller's `this` (or its ecx_) is passed
+    # - an IDA-__fastcall callee that is really thiscall + stack arguments (edx never read): IDA's second argument
+    #   is the stale edx — dropped
+    protos = prototypes()
+    cc = ida_cc(a.edition)
+    va_of = {n: v for v, n in names.items()}
+    loc = {}
     for sig in protos_local:
         m = re.match(r"\w+ (\w+)\((.*)\);$", sig)
-        nparm[m.group(1)] = (0 if m.group(2) == "void" else m.group(2).count(",") + 1, m.group(2).startswith("wl_char *self"))
-    for k, f in enumerate(funcs if nparm else []):
+        loc[m.group(1)] = (0 if m.group(2) == "void" else m.group(2).count(",") + 1,
+                           m.group(2).startswith(("wl_char *self", "intptr_t ecx_")), m.group(1) in FASTLOCAL)
+    wnames = [n for n in USED if n in protos and n in va_of]
+    pat = r"(?<![\w.])(?:(%s)|W_(%s))\(" % ("|".join(map(re.escape, loc)) or "(?!x)x", "|".join(map(re.escape, wnames)) or "(?!x)x")
+    for k, f in enumerate(funcs):
         has_this = "intptr_t c = (intptr_t)self;" in f
+        tex = "c" if has_this else ("ecx_" if fnames[k] in ECXPASS else "/*ECX: the caller's ecx*/ 0")
         out, pos = [], 0
-        for m in re.finditer(r"(?<![\w.])(%s)\(" % "|".join(map(re.escape, nparm)), f):
-            if m.start() < pos or re.match(r"\s*(int32_t|void) $", f[max(0, m.start() - 8):m.start()]):
+        for m in re.finditer(pat, f):
+            if m.start() < pos or re.match(r"\s*(int32_t|int64_t|double|void) $", f[max(0, m.start() - 8):m.start()]):
                 continue
-            j, depth, args, top = m.end(), 0, 0, False
+            args, j, depth, start = [], m.end(), 0, m.end()
             while j < len(f) and not (f[j] == ")" and depth == 0):
                 if f[j] in "([":
                     depth += 1
                 elif f[j] in ")]":
                     depth -= 1
                 elif f[j] == "," and depth == 0:
-                    args += 1
-                elif not f[j].isspace():
-                    top = True
+                    args.append((start, j)); start = j + 1
                 j += 1
-            n, thisp = nparm[m.group(1)]
-            if top and args + 1 == n - 1 and thisp:
-                out.append(f[pos:m.end()] + ("c, " if has_this else "/*ECX: the caller's ecx*/ "))
+            args.append((start, j))
+            if len(args) == 1 and not f[args[0][0]:args[0][1]].strip():
+                args = []
+            if m.group(1):
+                n, wants_this, fast = loc[m.group(1)]
+                vcc = "fastcall" if fast else ("thiscall" if wants_this else "")
+            else:
+                wv = va_of[m.group(2)]
+                n, vcc = len(protos[m.group(2)][1]), cc.get(wv, ("",))[0]
+                if vcc == "stdcall" and len(args) == n - 1 and ecx_in(a.edition, wv, sizes.get(wv, 0)):
+                    vcc = "thiscall"   # the port takes the ecx this IDA-__stdcall callee reads as its first parameter
+            if vcc == "fastcall" and len(args) == n + 1 and len(args) >= 2:
+                out.append(f[pos:args[0][1]] + ", /*edx*/")   # skip IDA's edx argument
+                pos = args[1][1] + 1
+            elif vcc == "thiscall" and len(args) == n - 1:
+                out.append(f[pos:m.end()] + tex + (", " if args else ""))
                 pos = m.end()
         funcs[k] = "".join(out) + f[pos:]
-    protos = prototypes()
     print("\n".join(f'#include "{h}"' for h in sorted({PROTO_HDR[n] for n in USED if n in PROTO_HDR})))
     print(PROLOGUE)
     print(wrappers(USED, protos))
