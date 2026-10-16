@@ -576,3 +576,8 @@ int sfx_oneshot(wl_entity *e, wl_vpool *p, int32_t base, int32_t falloff, int32_
     g_eng.dsb_play_5bb8c0(buf);
     return 1;
 }
+
+uint16_t voice_group_prio(const wl_voiceset *vs, uint16_t g)
+{
+    return g != 0 && g < vs->n ? vs->grp[g].prio : 0;
+}

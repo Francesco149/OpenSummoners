@@ -6,6 +6,7 @@
  *
  *   FUN_0049af40  hud_view_tick       FUN_0049bc40  hud_status_icon     FUN_0049bd50  hud_status_drop
  *   FUN_0049bdf0  hud_ease            FUN_00496970  stats_mp_ratio
+ *   FUN_005b5600  foe_gauge_set       FUN_005b58c0  foe_gauge_near
  *
  * The view record V (0x3ec B): +0 shown, +4 the room, +8 live, +0x14 the room +0x4070 flag's fade, +0x18 / u16
  * +0x1c a leader-change flash (the new leader for 100 frames when its +0x200 is 0), the leader panel P at +0x20
@@ -25,6 +26,8 @@
 
 #include <stdint.h>
 
+#include "world_layout.h"
+
 /* move *v toward t by a tenth of the gap (at least 5), then cap it at `max`; returns `max` */
 int32_t hud_ease(int32_t *v, int32_t t, int32_t max);                                   /* 0x49bdf0 */
 /* the MP per mille of a party stat block (MP +0x5c over +0x60 + +0x88 + +0xa0) */
@@ -35,5 +38,12 @@ int32_t hud_status_icon(uint8_t *p, uint16_t k);                                
 int32_t hud_status_drop(uint8_t *p, uint16_t i);                                        /* 0x49bd50 */
 /* one frame of a view record's HUD animation; returns retail's eax */
 int32_t hud_view_tick(uint8_t *v);                                                      /* 0x49af40 */
+/* whether the foe's box sits within the gauge range of the view centre (kinds 10 / 40 / 43: 64000 x 32000, else
+ * 32000 x 24000) */
+int foe_gauge_near(const wl_entity *foe, int32_t kind);                                 /* 0x5b58c0 */
+/* the foe gauge of `atk`'s view record (the two records of its room): `foe` struck (kind 10 by the leader, 40 by
+ * another member) or, `near`, met by the leader (30) — taken when the foe is near the view centre and the shown
+ * one is lower in kind or no longer near (42); HP per mille + the name */
+void foe_gauge_set(const wl_char *atk, const wl_char *foe, int32_t near);               /* 0x5b5600 */
 
 #endif /* OSS_HUD_VIEW_H */

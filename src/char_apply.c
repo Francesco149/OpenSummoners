@@ -17,6 +17,8 @@
 #include "entity_life.h"
 #include "entity_fx.h"
 #include "map_grid.h"
+#include "char_hit.h"        /* char_take_hit 0x4895c0 */
+#include "hud_view.h"       /* foe_gauge_set 0x5b5600 */
 #include "npc_ai.h"
 #include "rng.h"
 #include "sound_fx.h"
@@ -76,7 +78,7 @@ static void leash_release(wl_char *self)
     wl_body *b = self->base.body;
     self->leash = NULL;
     if (warp != 0) char_force_action(self, (int16_t)self->leash_warp, 800);
-    else g_eng.h5b4d00(self, 0, 1, b->facing);
+    else char_die(self, 0, 1, b->facing);
 }
 
 void char_apply(wl_char *self)
@@ -113,7 +115,7 @@ void char_apply(wl_char *self)
             if (fell || (self->party->busy == 0 && pit != 0)) {
                 if (g_world->f1034 == 0 && g_world->scene_kind != 2 && self->f268 == 0 && self->no_sim == 0 &&
                     self->f200 == 0 && char_add_hp(self, -5 * hp_sum(self->party) / 100, NULL, 0))
-                    g_eng.h5b4d00(self, fell, 0, 99);
+                    char_die(self, fell, 0, 99);
                 if (self->respawn != 0) {
                     if (pit != 0) voice_cue(self, 0, kind == 3 ? 0x11 : 0x12, 0, 0, 0);
                     else          voice_cue(self, 0, 0xd, 0, 0, 0);
@@ -134,7 +136,7 @@ void char_apply(wl_char *self)
                     } else if (pit != 0) {
                         int32_t d = 5 * hp_sum(self->party) / 100;
                         if (d < 1) d = 1;
-                        if (char_add_hp(self, -d, NULL, 0)) g_eng.h5b4d00(self, 0, 0, 99);
+                        if (char_add_hp(self, -d, NULL, 0)) char_die(self, 0, 0, 99);
                     }
                 }
             } else if (self->respawn != 0 && !body_slowed(b0) && self->base.body->attach == NULL) {
@@ -206,7 +208,7 @@ void char_apply(wl_char *self)
             if (dx < 0) dx = -dx;
             int32_t dy = part_center_y(&self->base, 0) - part_center_y(&o->base, 0);
             if (dy < 0) dy = -dy;
-            if (dx < 24000 && dy < 12000) g_eng.h5b5600(self, IP(o), 1);
+            if (dx < 24000 && dy < 12000) foe_gauge_set(self, o, 1);
         }
     }
 
@@ -298,7 +300,7 @@ void char_apply(wl_char *self)
     }
 
     if (self->f15ab0 == 1) {
-        g_eng.h4895c0(self);
+        char_take_hit(self);
         self->f15ab0 = 0;
         if (self->base.alive == 0) return;
     }

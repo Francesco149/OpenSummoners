@@ -22,7 +22,7 @@
  *   FUN_00446400  voiceset_tick       FUN_004464f0  voiceset_sounding
  *   FUN_00446580  voiceset_cut        FUN_00489280  sfx_play_jit
  *   FUN_00476880  entity_snd_loop     FUN_005531b0  ambient_sound_timer
- *   FUN_00467380  char_idle_voice
+ *   FUN_00467380  char_idle_voice     FUN_00409970  voice_group_prio
  */
 #ifndef OSS_SOUND_FX_H
 #define OSS_SOUND_FX_H
@@ -68,6 +68,8 @@ void vline_stop(wl_vline *l, int32_t stop);
 void voiceset_tick(wl_voiceset *vs, int32_t dt);
 int voiceset_sounding(const wl_voiceset *vs, wl_vgroup **g, wl_vline **l);
 void voiceset_cut(wl_voiceset *vs);
+/* 0x409970 (thiscall voice set): group g's priority (0 for g 0 / out of range) */
+uint16_t voice_group_prio(const wl_voiceset *vs, uint16_t g);
 /* Start looping channel i from pool `id` (a3 != 0: nothing; culled by placement unless
  * falloff 1): releases what it held (`stop` also stops that buffer), reserves a voice,
  * plays it at -10000 (the channel tick fades it in). */

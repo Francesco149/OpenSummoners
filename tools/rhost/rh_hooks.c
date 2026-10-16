@@ -54,6 +54,9 @@
 #include "scene_cmd.h"
 #include "char_status.h"
 #include "char_attack.h"
+#include "sana_skills.h"
+#include "char_hit.h"
+#include "char_monster.h"
 #include "room_tick.h"
 #include "ui_core.h"
 #include "ui_text.h"
@@ -218,6 +221,19 @@ typedef struct {
     X(H_AT_WRAP, "angle_wrap", 0x460de0u) X(H_AT_PART, "char_particle", 0x4610e0u) X(H_AT_SLIDE, "entity_slide_step", 0x4665d0u) \
     X(H_AT_OINIT, "orbit_init", 0x466700u) X(H_AT_ORBIT, "orbit_step", 0x460ed0u) X(H_AT_POSE, "body_pose_set", 0x467500u) \
     X(H_AT_SLASH, "slash_step", 0x461240u) X(H_AT_TRAIL, "slash_trail", 0x44ce20u) X(H_AT_PUSH, "crate_push", 0x466e80u) \
+    X(H_AT_SHOTS, "hit_breaks_shots", 0x5b3890u) X(H_AT_SHEND, "shot_end", 0x478a50u) \
+    X(H_FOE_SET, "foe_gauge_set", 0x5b5600u) X(H_FOE_NEAR, "foe_gauge_near", 0x5b58c0u) \
+    X(H_AT_MROLL, "char_mag_roll", 0x4483c0u) X(H_AT_CLSEQ, "clip_seq_step", 0x4611c0u) \
+    X(H_AT_PSWAP, "body_pose_swap", 0x461410u) X(H_AT_SHOT, "char_shot_fire", 0x447c10u) \
+    X(H_AT_TINT, "particle_tint_set", 0x450590u) X(H_AT_DESCS, "entity_sprite_descs", 0x4505c0u) \
+    X(H_VG_PRIO, "voice_group_prio", 0x409970u) X(H_SANA, "sana_skills", 0x45e830u) \
+    X(H_TAKEHIT, "char_take_hit", 0x4895c0u) X(H_COMBO, "hit_combo", 0x5b3f00u) \
+    X(H_DMGSCALE, "dmg_party_scale", 0x5b4130u) X(H_DMGREC, "dmg_record", 0x5b4170u) \
+    X(H_DMGGLY, "dmg_glyphs", 0x48b850u) X(H_CRKNOCK, "crate_knock", 0x48b8e0u) \
+    X(H_DIE, "char_die", 0x5b4d00u) X(H_DROPS, "foe_drops", 0x5b5020u) X(H_PICKUP, "pickup_spawn", 0x556990u) \
+    X(H_EXPSHARE, "exp_share", 0x5b5140u) X(H_FLTEXT, "float_text", 0x5b34d0u) X(H_PARTREL, "char_part_release", 0x525ab0u) \
+    X(H_MSLIME, "mon_slime", 0x42e290u) X(H_MSK51, "mon_skill51", 0x42c970u) X(H_MSK29, "mon_skill29", 0x42fbf0u) \
+    X(H_AIHOLD, "ai_rec_hold_set", 0x42ea50u) X(H_SKLIST, "char_skill_list_add", 0x42da20u) \
     X(H_BOOK, "book_read", 0x40dbc0u) X(H_SSETFREE, "sprite_set_free", 0x410300u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
@@ -3980,6 +3996,36 @@ static intptr_t __attribute__((thiscall)) H_AT_SLASH_w(void *self, GP7)
 }
 TC_HOOK(H_AT_TRAIL, "slash_trail", 4, 1, return slash_trail(self, (wl_body *)a1, a2, a3, a4))
 TC_HOOK(H_AT_PUSH, "crate_push", 6, 1, return crate_push(self, CP(a1), (wl_body *)a2, a3, U16(a4), a5, a6))
+TC_HOOK(H_AT_SHOTS, "hit_breaks_shots", 1, 1, return hit_breaks_shots(self, (const int32_t *)a1))   /* (fastcall: edx unused) */
+TC_HOOK(H_AT_SHEND, "shot_end", 2, 0, shot_end(self, (uint8_t *)a1, a2); return 0)
+TC_HOOK(H_FOE_SET, "foe_gauge_set", 2, 0, foe_gauge_set(self, CP(a1), a2); return 0)
+ST_HOOK(H_FOE_NEAR, "foe_gauge_near", 2, 1, return foe_gauge_near(CP(a1), a2))
+TC_HOOK(H_AT_MROLL, "char_mag_roll", 3, 1, return char_mag_roll(self, a1, a2, a3))
+ST_HOOK(H_AT_CLSEQ, "clip_seq_step", 4, 1, return clip_seq_step((wl_body *)a1, a2, U16(a3), U16(a4)))
+TC_HOOK(H_AT_PSWAP, "body_pose_swap", 7, 1, return body_pose_swap(self, (wl_body *)a1, a2, U16(a3), U16(a4), U16(a5), U16(a6), a7))
+TC_HOOK(H_AT_SHOT, "char_shot_fire", 13, 1,
+        return (intptr_t)char_shot_fire(self, a1, (wl_body *)a2, a3, a4, a5, a6, (int16_t)a7, a8, CP(a9), a10, a11, a12, a13))
+TC_HOOK(H_AT_TINT, "particle_tint_set", 1, 0, particle_tint_set(self, a1); return 0)
+TC_HOOK(H_AT_DESCS, "entity_sprite_descs", 3, 1, return entity_sprite_descs(self, CP(a1), (es_desc *)a2, (uint16_t *)a3))
+TC_HOOK(H_VG_PRIO, "voice_group_prio", 1, 1, return voice_group_prio(self, U16(a1)))
+TC_HOOK(H_SANA, "sana_skills", 5, 0, sana_skills(self, (wl_body *)a1, a2, (int32_t *)a3, CP(a4), a5); return 0)
+TC_HOOK0(H_TAKEHIT, "char_take_hit", 1, return char_take_hit(self))
+TC_HOOK(H_COMBO, "hit_combo", 5, 0, hit_combo(self, (wl_body *)a1, (int32_t *)a2, (int32_t *)a3, (wl_char *)a4, a5); return 0)
+TC_HOOK(H_DMGSCALE, "dmg_party_scale", 1, 1, return dmg_party_scale(self, a1))
+TC_HOOK(H_DMGREC, "dmg_record", 2, 1, return dmg_record(self, a1, a2))
+ST_HOOK(H_DMGGLY, "dmg_glyphs", 3, 0, dmg_glyphs(CP(a1), (uint16_t *)a2, (uint16_t *)a3); return 0)
+TC_HOOK(H_CRKNOCK, "crate_knock", 1, 1, return crate_knock(self, a1))
+TC_HOOK(H_DIE, "char_die", 3, 0, char_die(self, a1, a2, a3); return 0)
+TC_HOOK(H_DROPS, "foe_drops", 3, 0, foe_drops(self, a1, a2, a3); return 0)
+ST_HOOK(H_PICKUP, "pickup_spawn", 3, 1, return (intptr_t)pickup_spawn(a1, CP(a2), a3))
+TC_HOOK(H_EXPSHARE, "exp_share", 2, 1, return exp_share(self, a1, a2))
+TC_HOOK(H_FLTEXT, "float_text", 11, 0, float_text(self, CP(a1), a2, (wl_body *)a3, a4, a5, a6, a7, U16(a8), a9, U16(a10), a11); return 0)
+TC_HOOK(H_PARTREL, "char_part_release", 1, 0, char_part_release(self, U16(a1)); return 0)
+TC_HOOK(H_MSLIME, "mon_slime", 4, 0, mon_slime(self, (int16_t)a1, (int16_t)a2, a3, a4); return 0)
+TC_HOOK(H_MSK51, "mon_skill51", 1, 0, mon_skill51(self, (int16_t)a1); return 0)
+TC_HOOK(H_MSK29, "mon_skill29", 3, 0, mon_skill29(self, a1, a2, a3); return 0)
+TC_HOOK(H_AIHOLD, "ai_rec_hold_set", 2, 0, ai_rec_hold_set(self, CP(a1), U16(a2)); return 0)
+TC_HOOK(H_SKLIST, "char_skill_list_add", 1, 0, char_skill_list_add(self, a1); return 0)
 /* the book reader (a frame loop) + the sprite set free (surface frees) — REPLACE only */
 TC_HOOK(H_BOOK, "book_read", 1, 1, return book_read(self, CP(a1)))
 TC_HOOK(H_SSETFREE, "sprite_set_free", 1, 0, sprite_set_free(self, U16(a1)); return 0)
@@ -4223,14 +4269,11 @@ static void bind_engine_calls(void)
     *(void **)&g_eng.op_delete = (void *)(uintptr_t)0x5bef0eu;   /* operator delete (cdecl) */
 #define B(n) *(void **)&g_eng.h##n = (void *)(uintptr_t)0x##n##u
     B(467260); B(44a740); B(45a300); B(44bc10); B(44c250); B(44bf60); B(446900);
-    B(452020); B(449810); B(4539b0); B(44d8f0); B(448dc0); B(452730); B(45e830);
+    B(452020); B(449810); B(4539b0); B(44d8f0); B(448dc0); B(452730);
     B(455d80); B(44b160); B(4516e0); B(4484b0); B(4512d0); B(44a200); B(44e8d0); B(44f690); B(450810);
     B(44d2e0); B(456d30); B(461790); B(445e50);
 #undef B
 #define B(n) *(void **)&g_eng.h##n = (void *)(uintptr_t)0x##n##u
-    B(5b4d00);
-    B(5b5600);
-    B(4895c0);
    
     B(4710c0); B(46da00);
     B(408b90); B(54f140);
@@ -4247,9 +4290,9 @@ static void bind_engine_calls(void)
     *(void **)&g_eng.load_res = iat_lookup("LoadResource");
     *(void **)&g_eng.lock_res = iat_lookup("LockResource");
     B(56dc20); B(41a890); B(5bf3ee); B(426110); B(560900); B(5bf5db);
-    B(428c00); B(429060); B(429db0); B(42a500); B(42a9a0); B(42b9a0); B(42c130); B(42c510); B(42c970);
-    B(42cce0); B(42d3c0); B(42da50); B(42e290); B(42f840); B(42fbf0); B(42ff00); B(430400);
-    B(5bcfb0); B(55d140); B(5b3890); B(47ae00); B(5b1f10); B(4034f0); B(4051d0); B(415ae0); B(4192f0); B(418ec0); B(441de0); B(442710); B(442640);
+    B(428c00); B(429060); B(429db0); B(42a500); B(42a9a0); B(42b9a0); B(42c130); B(42c510);
+    B(42cce0); B(42d3c0); B(42da50); B(42f840); B(42ff00); B(430400);
+    B(5bcfb0); B(55d140); B(47ae00); B(5b1f10); B(4034f0); B(4051d0); B(415ae0); B(4192f0); B(418ec0); B(441de0); B(442710); B(442640);
     B(5bcfa0); B(43c1b0); B(5b94e0); B(5b9500); B(5b5ef0); B(43e250); B(43d540); B(43d4b0); B(43dd30); B(43d830);
     B(442920); B(4428f0); B(468970);
     B(561d20); B(409150); B(55fdb0); B(41d780); B(4e6520); B(4e61d0); B(41b670); B(4c5af0); B(52fd80); B(5a3870); B(5a00c0);

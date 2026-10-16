@@ -14,6 +14,7 @@
 
 #include "char_def.h"
 #include "char_integrate.h"
+#include "char_monster.h"
 #include "char_state.h"
 #include "device_init.h"
 #include "engine_calls.h"
@@ -138,7 +139,7 @@ static void slime(wl_char *c, ci_args *P, int32_t a, int32_t b, int32_t k, int32
 {
     if (P->anchor == 1) P->y += 200;
     SETUP(2, 3200, 3200, -24, -46);
-    g_eng.h42e290(c, a, b, k, n);
+    mon_slime(c, a, b, k, n);
 }
 
 static void l549(wl_char *c)
@@ -783,16 +784,16 @@ static int by_code(wl_char *c, ci_args *P, wl_body *b0)
     case 0xc74e: case 0xc775: case 0xc776:
         if (gated()) return 0;
         SETUP(2, 4000, 4000, -20, -20);
-        g_eng.h42c970(c, P->code == 0xc74e ? 288 : P->code == 0xc775 ? 289 : 290);
+        mon_skill51(c, P->code == 0xc74e ? 288 : P->code == 0xc775 ? 289 : 290);
         break;
     case 0xc74f: case 0xc76b: case 0xc76c:
         SETUP(2, 5600, 4000, -12, -40);
-        if (P->code == 0xc74f) { TRK(294); g_eng.h42fbf0(c, (intptr_t)P->code, 0, 0); }
+        if (P->code == 0xc74f) { TRK(294); mon_skill29(c, P->code, 0, 0); }
         else if (P->code == 0xc76b) {
-            TRK(295); g_eng.h42fbf0(c, (intptr_t)P->code, 3, 150);
+            TRK(295); mon_skill29(c, P->code, 3, 150);
             st32(c, 0x15a90, 0);
             st32(c, 0x1590c, 0);
-        } else { TRK(296); g_eng.h42fbf0(c, (intptr_t)P->code, 5, 100); }
+        } else { TRK(296); mon_skill29(c, P->code, 5, 100); }
         break;
     case 0xc750: wolf(c, P, 291, 0, 16000, 132); break;
     case 0x1874f: wolf(c, P, 291, 1, 16000, 132); break;

@@ -17,6 +17,7 @@
 #include "entity_move.h"
 #include "map_grid.h"
 #include "rng.h"
+#include "sana_skills.h"
 #include "sound_fx.h"
 
 long g_integrate_unported;
@@ -505,7 +506,7 @@ t814:
             } else if (code == 50011) {
                 r = arche_pose(self, out, probe, part, &ctl);
                 g_eng.h45a300(self, IP(out), probe, IP(&ctl), IP(cmd), out->grounded, IP(&dt), IP(g_eng.data(0x636a58)), 210);
-                g_eng.h45e830(self, IP(out), probe, IP(&ctl), IP(cmd), out->grounded);
+                sana_skills(self, out, probe, &ctl, cmd, out->grounded);
                 if (r == 0) PHYS();
             } else if (code == 50012) {
                 goto t861;
@@ -525,7 +526,7 @@ t814:
 t861:
         r = arche_pose(self, out, probe, part, &ctl);
         g_eng.h45a300(self, IP(out), probe, IP(&ctl), IP(cmd), out->grounded, IP(&dt), IP(g_eng.data(0x63cde8)), 210);
-        g_eng.h45e830(self, IP(out), probe, IP(&ctl), IP(cmd), out->grounded);
+        sana_skills(self, out, probe, &ctl, cmd, out->grounded);
         if (r == 0) PHYS();
         if (out->pose != 0) goto tail;
 t795:

@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **756** (48.5% of engine-proper) — tested 249, ported 507
-- code bytes touched: **34.6%** (615,117 / 1,776,526 B of engine-proper)
-- unported: **1068**
+- touched: **785** (50.4% of engine-proper) — tested 249, ported 536
+- code bytes touched: **36.3%** (645,322 / 1,776,526 B of engine-proper)
+- unported: **1039**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (507) — reimplemented, no host test yet
+## ported (536) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -316,6 +316,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x409090 | sub_409090 | 67 | party_member.h |
 | 0x4090e0 | sub_4090E0 | 107 | char_def.h |
 | 0x4094d0 | sub_4094D0 | 71 | party_member.h |
+| 0x409970 | sub_409970 | 45 | sana_skills.h, sound_fx.h |
 | 0x4099a0 | sub_4099A0 | 1251 | sound_fx.h |
 | 0x409e90 | sub_409E90 | 375 | sound_fx.h |
 | 0x40a010 | sub_40A010 | 645 | sound_fx.h |
@@ -470,7 +471,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x428950 | sub_428950 | 146 | char_def.h |
 | 0x4289f0 | sub_4289F0 | 522 | char_def.h |
 | 0x429d00 | sub_429D00 | 68 | party_member.h |
+| 0x42c970 | sub_42C970 | 877 | char_monster.h |
+| 0x42da20 | sub_42DA20 | 39 | char_monster.h |
+| 0x42e290 | sub_42E290 | 1970 | char_monster.h |
+| 0x42ea50 | sub_42EA50 | 195 | char_monster.h |
 | 0x42eb20 | sub_42EB20 | 3097 | char_def.h |
+| 0x42fbf0 | sub_42FBF0 | 772 | char_monster.h |
 | 0x431930 | sub_431930 | 599 | char_def.h |
 | 0x431b90 | sub_431B90 | 15 | char_def.h |
 | 0x431ba0 | sub_431BA0 | 266 | char_def.h |
@@ -532,16 +538,20 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4467d0 | sub_4467D0 | 289 | entity_life.h |
 | 0x4478e0 | sub_4478E0 | 18 | char_attack.h |
 | 0x447900 | sub_447900 | 772 | char_attack.h |
+| 0x447c10 | sub_447C10 | 697 | char_attack.h |
 | 0x447ed0 | sub_447ED0 | 89 | char_attack.h |
 | 0x447f30 | sub_447F30 | 692 | char_attack.h |
 | 0x4481f0 | sub_4481F0 | 424 | char_attack.h |
 | 0x4483a0 | sub_4483A0 | 31 | char_attack.h |
+| 0x4483c0 | sub_4483C0 | 227 | char_attack.h |
 | 0x448c80 | sub_448C80 | 47 | particle_init.h |
 | 0x448cb0 | sub_448CB0 | 264 | entity_fx.c, entity_fx.h |
 | 0x44bbc0 | sub_44BBC0 | 66 | entity_fx.c, entity_fx.h |
 | 0x44ce20 | sub_44CE20 | 505 | char_attack.h |
 | 0x44d020 | sub_44D020 | 308 | char_status.h |
 | 0x44e6c0 | sub_44E6C0 | 108 | char_status.h |
+| 0x450590 | sub_450590 | 46 | char_attack.h |
+| 0x4505c0 | sub_4505C0 | 577 | char_attack.h |
 | 0x450e00 | sub_450E00 | 237 | entity_fx.h |
 | 0x450ef0 | sub_450EF0 | 776 | sound_fx.h |
 | 0x451200 | sub_451200 | 79 | entity_fx.c, entity_fx.h |
@@ -554,11 +564,14 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4593e0 | sub_4593E0 | 1399 | arche_pose.h |
 | 0x459990 | sub_459990 | 1313 | arche_pose.h |
 | 0x459ed0 | sub_459ED0 | 72 | arche_pose.h |
+| 0x45e830 | sub_45E830 | 9388 | sana_skills.c, sana_skills.h |
 | 0x460de0 | sub_460DE0 | 87 | char_attack.h |
 | 0x460e40 | sub_460E40 | 143 | particle_init.h |
 | 0x460ed0 | sub_460ED0 | 525 | char_attack.h |
 | 0x4610e0 | sub_4610E0 | 209 | char_attack.h |
+| 0x4611c0 | sub_4611C0 | 122 | char_attack.h |
 | 0x461240 | sub_461240 | 434 | char_attack.h |
+| 0x461410 | sub_461410 | 558 | char_attack.h |
 | 0x4665d0 | sub_4665D0 | 293 | char_attack.h |
 | 0x466700 | sub_466700 | 73 | char_attack.h |
 | 0x466e80 | sub_466E80 | 803 | char_attack.h |
@@ -578,6 +591,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x476880 | sub_476880 | 509 | sound_fx.h |
 | 0x476c70 | sub_476C70 | 144 | particle_init.h |
 | 0x476d00 | sub_476D00 | 45 | particle_init.h |
+| 0x478a50 | sub_478A50 | 329 | char_attack.h |
 | 0x47b770 | sub_47B770 | 77 | behave_ops.h |
 | 0x47b7c0 | sub_47B7C0 | 163 | gimmick.h |
 | 0x47b990 | actor_ai_47B990 | 7461 | behave_ops.h, char_behave.c, char_behave.h |
@@ -610,6 +624,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x487dc0 | sub_487DC0 | 5082 | char_status.c, char_status.h |
 | 0x4891c0 | sub_4891C0 | 181 | char_status.h |
 | 0x489280 | sub_489280 | 818 | sound_fx.h |
+| 0x4895c0 | sub_4895C0 | 8605 | char_hit.c, char_hit.h |
+| 0x48b850 | sub_48B850 | 131 | char_hit.h |
+| 0x48b8e0 | sub_48B8E0 | 60 | char_hit.h |
 | 0x48bb30 | sub_48BB30 | 632 | char_status.h |
 | 0x491740 | sub_491740 | 38 | sprite_slot.h |
 | 0x496970 | sub_496970 | 54 | hud_view.h |
@@ -660,6 +677,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4e6030 | sub_4E6030 | 54 | party_member.h |
 | 0x4e6070 | sub_4E6070 | 299 | party_member.h |
 | 0x4e61a0 | sub_4E61A0 | 33 | scene_loop.h |
+| 0x525ab0 | sub_525AB0 | 45 | char_hit.h |
 | 0x54bf90 | sub_54BF90 | 30 | room_load.h |
 | 0x54bfb0 | sub_54BFB0 | 801 | world_alloc.c, world_alloc.h |
 | 0x54c2e0 | sub_54C2E0 | 217 | world_alloc.h |
@@ -684,6 +702,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x556610 | sub_556610 | 391 | gimmick.h |
 | 0x5567a0 | sub_5567A0 | 309 | gimmick.h |
 | 0x5568e0 | sub_5568E0 | 161 | gimmick.h |
+| 0x556990 | sub_556990 | 1076 | char_hit.h |
 | 0x556de0 | sub_556DE0 | 98 | gimmick.h |
 | 0x556eb0 | sub_556EB0 | 62 | actor_update.c, actor_update.h |
 | 0x556ef0 | sub_556EF0 | 349 | device_init.h |
@@ -772,11 +791,21 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b15e0 | sub_5B15E0 | 1124 | char_attack.h |
 | 0x5b1aa0 | sub_5B1AA0 | 405 | arche_pose.h |
 | 0x5b1c50 | sub_5B1C50 | 699 | char_attack.h |
+| 0x5b34d0 | sub_5B34D0 | 277 | char_hit.h |
+| 0x5b3890 | sub_5B3890 | 615 | char_attack.h |
+| 0x5b3f00 | sub_5B3F00 | 545 | char_hit.h |
+| 0x5b4130 | sub_5B4130 | 60 | char_hit.h |
+| 0x5b4170 | sub_5B4170 | 133 | char_hit.h |
 | 0x5b4510 | sub_5B4510 | 26 | arche_pose.h |
 | 0x5b4530 | sub_5B4530 | 1209 | party_member.h |
 | 0x5b4a10 | sub_5B4A10 | 741 | party_member.h |
+| 0x5b4d00 | sub_5B4D00 | 792 | char_hit.h |
+| 0x5b5020 | sub_5B5020 | 286 | char_hit.h |
+| 0x5b5140 | sub_5B5140 | 833 | char_hit.h |
 | 0x5b54d0 | sub_5B54D0 | 166 | char_state.h |
 | 0x5b5580 | sub_5B5580 | 121 | char_state.h |
+| 0x5b5600 | sub_5B5600 | 701 | hud_view.h |
+| 0x5b58c0 | sub_5B58C0 | 204 | hud_view.h |
 | 0x5b5990 | sub_5B5990 | 202 | char_state.h |
 | 0x5b6300 | sub_5B6300 | 60 | scene_loop.h |
 | 0x5bf3ee | emit_last_error_line_5BF3EE | 82 | cs_dispatch_win32.c |

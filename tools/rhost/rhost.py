@@ -483,7 +483,13 @@ VERIFY_HOOKS = ["rand", "input_poll", "mover_v", "sweep_h", "ent_move_h", "ent_m
                 "facing_back", "char_mag_sum", "char_atk_roll", "char_skill_roll", "char_lunge", "char_attack_hits",
                 "body_hit_spawn", "char_hit_target",
                 "angle_wrap", "char_particle", "entity_slide_step", "orbit_init", "orbit_step@16", "body_pose_set",
-                "slash_step@16", "slash_trail", "crate_push@256"]
+                "slash_step@16", "slash_trail", "crate_push@256",
+                "hit_breaks_shots", "shot_end", "foe_gauge_set", "foe_gauge_near",
+                "char_mag_roll", "clip_seq_step@4", "body_pose_swap", "char_shot_fire", "particle_tint_set",
+                "entity_sprite_descs@4", "voice_group_prio", "sana_skills@4",
+                "char_take_hit", "hit_combo", "dmg_party_scale", "dmg_record", "dmg_glyphs", "crate_knock",
+                "char_die", "foe_drops", "pickup_spawn", "exp_share", "float_text", "char_part_release",
+                "mon_slime", "mon_skill51", "mon_skill29", "ai_rec_hold_set", "char_skill_list_add"]
 # REPLACE-only hooks (a whole room per call / DirectInput): proven by `corpus --check --hook replace:…`
 REPLACE_ONLY_HOOKS = ["room_loop", "input_repoll_flush", "load_room", "scene_loop", "menu_pace", "menu_run",
                       "shop_run", "shop_buy", "shop_who", "menu_ctx_clear", "scene_run",

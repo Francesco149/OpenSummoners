@@ -4936,6 +4936,83 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   per member 284 B + the 12-B / 16-B lists, the two record tables (+0x37d0 / +0x3800 counts), the u16-counted 8-B
   list at +0xc28c.  Disk / bank failures: the inline fatal logger ("…" + the file name) and exit(0).
 
+### #162 — the speed boost adds 24000 to the walk max, not 6000 (RE 2026-10-16)
+- `0x467bb0` (the movement step): char +0x14810 != 0 → vmax `add [esp+arg_4], 5DC0h` = +24000; +0x14814 → accel
+  +2000, brake −800.  IDA types the vmax local `_DWORD *`, so its decompile reads `v86 += 6000` (pointer
+  arithmetic, ×4).  Seen with Sana (50011) in rh-combat f26792: retail 548 / tick vs a +6000 cap's 540.
+
+### #163 — a hit breaks enemy shots; the foe gauge (port 2026-10-16)
+- **Shots broken** (`0x5b3890`, from a hit box spawn with its flag a19 = 1): every band-64 entity (shots) alive with
+  +0x230, hostile (factions both set, either 3 or different; else only with the attacker's +0x1f0), whose box
+  overlaps the hit rect {x, y, w, h} (part 0's top / bottom): a clink from pool sys+0x568 (gain = the effects
+  volume, frequency 500 − rand × 1000 / 0x8000), 8 sparks 100074 (each: kind rand × 4, dy then dx drawn,
+  ±400) when on screen (margin 16000), then the shot ends (`0x478a50`: its looping sounds let go when +0x254,
+  released).
+- **The foe gauge** (`0x5b5600`, the attacker's party slot +0xc794 → its room's two view records, room loop +0x128 +
+  0x3ec i): kind 10 (struck by the leader), 40 (by another member) or, from the apply pass's ally proximity, 30
+  (met by the leader; others skip); taken when the foe is near the view centre (64000 × 32000 for kinds 10 / 40 /
+  43 with no gauge shown, else 32000 × 24000) and the shown foe has a higher kind or is no longer near (`0x5b58c0`,
+  kind 42).  Sets +0x394 kind, +0x398 foe, +0x390 HP per mille, +0x39c the name; a new foe resets +0x3c4 to 100.
+
+### #164 — taking a hit (`0x4895c0`, port 2026-10-16)
+- Runs from the apply pass when +0x15ab0 = 1 (the hit box spawn's pending hit); skipped in a scene (+0x1034, kind
+  2) or while +0x268 / +0x15908.  Its own locals: `Format` / `Buffer` are stack buffers.
+- **Hit sound** by kind +0x15ad0 (1..17: pool sys+0x364 + 4 × {118..130}, gain / frequency rolled per kind; kinds
+  7..9 / 12..14 / 17 also give the element 3 / 1 / 6 / 4); 13 / 14 are FIXED damage (+0x15ad8 as is).
+- **Hit point** held inside the struck part's box (the body's frame record 20 B × part, mirrored by facing); the
+  part's rect gives the damage multiplier (+16 per mille) and a flinch flag (+20: 1 never armoured, 2 always).
+- **Status roll** (+0x15ac4: 1→5, 3→6, 4→8, 5→2, 6→3, 7→7, 8→9, 17→4): power +0x15ac8 × the resist chain
+  (char +0xc7a8 × party +0xa4 × char +0x15a2c per mille, by the status row 0x628708 + 140 k +0x74; 0 = immune:
+  no roll drawn) less the defence sum; succeeds when rand × 10000 / 0x8000 % 1000 is below it.
+- **Damage**: +0x15ad8 less stat_jitter(defence / 4, 1000, r) (at least 1; × 1.5 with party +0x452), the attacker's
+  hit combo, the part multiplier, the element resist, a block (body state 5 with +0x15a10: −+0x15a14 per mille),
+  the guard meter (party +0x464 set: half absorbed), the slot scale (+0xa08 per mille); the room's record damage.
+- **Damage number**: particle 100042 with glyphs (' ' 255, '!'..'z' 0..89, 40 chars max) of "%d" — "%d Max" (+ a
+  sound, pool sys+0x394) on a new room record above 6; colour 3 / 5 (4 / 6 magic) for foes / the party.
+- **Stagger**: +0xc784 += 1500 a hit (damage > 1, not fixed, not party +0x466); at +0x15a0c (× 1.4 on level 10, ×
+  1.2 on 20, the party only) the break pose +0x15a08 (priority 800), the facing turned, every hit-worn status
+  ended.  Else the **flinch** +0x159ec unless armoured (+0x159fc over the damage, or the +0x15a00 meter fed 200 /
+  600 a hit at +0x272; priority-220 actions resist physical hits, 230 all): the AI paused (+0xc876 per mille roll,
+  +0x14234 = a random hold), knock-back by +0x159f8 (40000 / 24000 / 32000) and the rule +0x15ab8 (0 up-back, 2
+  up / down, 99 by the hit height vs +0x15a04), the flinch pose (+0x15a02 the alternative), +0x158c4 / +0x158c2.
+  Hit-worn statuses (row +0x70) lose that much time; ending lines go to the message log.
+- **Inflicted status**: length = row u16 +0x64 (+ dword +0x68 unless +0x15a94) + rand × u16 +0x66 / 0x8000 —
+  rolled TWICE (a negative first roll gives 0, else a second draw is the length); status 1 ends every other.
+- **Death** when the HP reach 0 (`0x5b4d00`, see #165), else a crate that struck (rider kind 1) is pushed / knocked
+  back, then the guard (sparks 100076, sound pool sys+0x564, the shield entity +0x204 = 3, the guard meter
+  worn by absorbed × max / +0x4c8), the block (sparks 100075, the block sound +0x15a20; 75 adds a world +0x279c
+  meter that clinks at 1000) or the hit sparks 100073 (16 / 32 with the effects option) + the flash +0x26c.
+
+### #165 — the hit combo, death, drops and EXP (port 2026-10-16)
+- **Combo** (`0x5b3f00`, the attacker's room +0x40dc..+0x4100): count +1, the last four attack kinds (+0x40f0..), a
+  bonus (≤ 2000 per mille) growing 30 a hit (40 within the combo clock's first 400 ticks) + 10 / 30 / 50 for 1 / 2 / 3
+  kinds new among the last four; from 5 hits the sound (pool sys+0x408, frequency min(4000, 400 n − 1600)) and the
+  damage + damage × bonus / 1000; the best count +0x40dc.
+- **Death** (`0x5b4d00`): a vanishing foe (+0x15904) lets go of its carrier / carried, releases its parts and voice
+  set; else status 1 (fallen) is rolled (row 1, two draws) and ends every other, "%s has fallen..." (the room
+  logs), the knock-down pose +0x15a0a (priority 800), then (unless a two-room world) a foe's drops (`0x5b5020`:
+  the item by chance per mille, gold as 100 / 10 / 1 coins 100161 / 100160 / 100159 — fewer than 3 coins break a
+  bigger one) and the EXP (`0x5b5140`: × (1 − 8 % / − 5 % / + 5 % / + 10 %) by difficulty 10 / 20 / 40 / 50; every
+  live member of the other side's rooms gets it less 50 % / 0 % / 25 % / 50 % at level < 0 / ≤ 2 / 3 / > 3,
+  levelling up through the stat rows; the rooms' kill / EXP totals; the "Exp +%d" number is the LAST processed
+  room leader's share).
+- **Pickups** (`0x556990`) come from the 96-band (world +0x23e0, cursor room loop +0xd0), tossed up (vy −120000 +
+  rand × 40000, vx 20000 + rand × 30000).
+
+### #166 — Sana's skills (`0x45e830`, 50011 / 50012; port 2026-10-16)
+- By the action pose: 10201 the staff swing (sub 4 = the air swing, restarted as the ground one when grounded),
+  10202 the magic shot 100001 (sub 7 air / 8 ground swap on landing; sub 1 a stream), 10301 the spell bursts (the
+  polar ring r = 800 × the counter, the forward burst, the rising column; particles 100057 / 100067, more with the
+  effects option +0x94), 10302 the spin swing (an orbit of 100077 at char +0x14834), 10303 the back-flip (clip set
+  0x639b48 / 0x63a668; vx −64000, vy −40000; afterimages every 5 ticks), 10 the rest, 13..16 plain clips, 100 /
+  101 the idle sets.  Retail returns AL (unused).
+- Swing sound / particle pairs draw dy BEFORE the x jitter; the back-flip's landing slows vx by +4000 twice while
+  it stays ≤ 0.
+
+### #167 — the frame cache clear zeroes its used count (port fix 2026-10-16)
+- `0x562a70` (the room loop after a menu, the scene loop) frees every cached frame AND writes u16 +6 = 0 (the
+  used count the render `0x48c150` raises); the first port missed it (unseen until rh-combat's menu after a battle).
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

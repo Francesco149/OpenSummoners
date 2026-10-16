@@ -8,9 +8,11 @@
  *   FUN_00460de0  angle_wrap          FUN_004610e0  char_particle       FUN_004665d0  entity_slide_step
  *   FUN_00466700  orbit_init          FUN_00460ed0  orbit_step          FUN_00467500  body_pose_set
  *   FUN_00461240  slash_step          FUN_0044ce20  slash_trail         FUN_00466e80  crate_push
+ *   FUN_005b3890  hit_breaks_shots    FUN_00478a50  shot_end            FUN_004483c0  char_mag_roll
+ *   FUN_004611c0  clip_seq_step       FUN_00461410  body_pose_swap      FUN_00447c10  char_shot_fire
+ *   FUN_004505c0  entity_sprite_descs FUN_00450590  particle_tint_set
  *
- * Slots (unreached in the corpus: no foe is hit yet): the hit's on-spawn effect 0x5b3890 and the damage
- * application 0x5b5600 — PORT-DEBT(engine-call-slots), the combat recording reaches them.
+ * A struck foe goes on the HUD's foe gauge (foe_gauge_set 0x5b5600, hud_view.c).
  *
  * A body's hit records: u8 +0x7f live, u16 +0x80 count (8 at most), +0x84 + 64 k {+4 direction, +8 kind (99
  * none), +0xc, +0x10, +0x14 x, +0x18 y, +0x1c w, +0x20 h, +0x24..+0x3c the damage fields}.  A struck char
@@ -21,6 +23,7 @@
 
 #include <stdint.h>
 
+#include "char_status.h"   /* es_desc */
 #include "world_layout.h"
 
 /* the other facing (3 left / 1 right) */
@@ -30,6 +33,8 @@ int32_t char_mag_sum(const wl_char *c);                                         
 /* a physical power roll: w x (power + stats / 2) / 1000 less its spread (min(100, min(50 %, max(2, 20 %))))
  * plus r (0..999) per mille of it; `alt` (element 6): the stats without +0x74 / +0xc7d8 */
 int32_t char_atk_roll(const wl_char *c, int32_t w, int32_t r, int32_t alt, int32_t power);  /* 0x4481f0 */
+/* a magic power roll: as char_atk_roll on the magic sum (char_mag_sum) */
+int32_t char_mag_roll(const wl_char *c, int32_t w, int32_t r, int32_t power);         /* 0x4483c0 */
 /* a skill record's roll (+0x2dc magic: the magic sum; else as char_atk_roll by element +0xb0 == 6):
  * weight a3 x +0x2c4 / 1000, power +0x2c8 */
 int32_t char_skill_roll(const wl_char *c, const uint8_t *skill, int32_t a3, int32_t r);    /* 0x447f30 */
@@ -50,6 +55,33 @@ int body_hit_spawn(wl_char *self, wl_char *atk, wl_body *b, int32_t dx, int32_t 
  * relation `rel`, not hit by this attack id within part + 30): the first, or the nearest when `nearest` */
 wl_char *char_hit_target(const wl_char *self, const wl_char *skip, uint16_t part, const uint8_t *rec, int32_t rel,
                          int32_t nearest, int32_t *part_out);                          /* 0x5b1c50 */
+
+/* a hit box `r` {x, y, w, h} breaking the hostile shots it overlaps (band64 entities with +0x230 set): a clink
+ * (sound pool sys+0x568, the frequency jittered), 8 sparks 100074 when on screen, the shot ended; 1 = any */
+int hit_breaks_shots(wl_char *self, const int32_t *r);                                 /* 0x5b3890 */
+/* a shot's end: `keep` only zeroes the byte at `flag`; else its looping sounds let go (when +0x254) and the
+ * entity released */
+void shot_end(wl_entity *s, uint8_t *flag, int32_t keep);                              /* 0x478a50 */
+
+/* the body's clip sequence on the phase +0x58 from `base`: at `base` clip `clips`, then (the clip done) the
+ * next of `n` (404 B apart; past them none); the phase + 1.  0 = waiting for the clip */
+int clip_seq_step(wl_body *b, intptr_t clips, uint16_t n, uint16_t base);             /* 0x4611c0 */
+/* the action swaps between (pa, sa) and (pb, sb) by `flag` (with `gate`: 1 in a region-C body or below the
+ * +0xc7e8 count): (pa, sa / any) and 0 -> (pb, sb); (pb, sb) and 1 -> (pa, sa); restarted with the skill
+ * record + a new serial.  1 = swapped */
+int body_pose_swap(wl_char *c, wl_body *b, int32_t flag, uint16_t pa, uint16_t sa, uint16_t pb, uint16_t sb,
+                   int32_t gate);                                                      /* 0x461410 */
+/* a skill's shot `code` from `b` (+0x7f set): the power rolled (the magic sum when +0x2dc, else the attack
+ * roll) by weight `w`, the action serial (a new one when `fresh`), element 7's magic roll; shot_spawn */
+void *char_shot_fire(wl_char *c, int32_t code, wl_body *b, int32_t dx, int32_t dy, int32_t anchor, int32_t a6,
+                     int16_t a7, int32_t a8, const uint8_t *skill, int32_t w, int32_t a11, int32_t fresh,
+                     int32_t a13);                                                     /* 0x447c10 */
+/* a particle's tint index +0x25c (code 100044 also takes the tint table 0x8a92b8 entry) */
+void particle_tint_set(wl_entity *e, int32_t i);                                       /* 0x450590 */
+/* the sprite descriptors of `e` (*n): the drawn bow (codes 100165..100168, 51027, 51252 / 51253 at pose 3 phase
+ * 2) adds the string over the sprite (its alpha by +0x5c); codes 100179 / 100180 the multi-part frame's live
+ * parts; else entity_sprite_desc */
+int entity_sprite_descs(const wl_entity *e, const wl_body *b, es_desc *out, uint16_t *n); /* 0x4505c0 */
 
 /* (a + d) mod 360 n, floored (an exact negative multiple gives 360 n) */
 int32_t angle_wrap(int32_t a, int32_t d, int32_t n);                                   /* 0x460de0 */

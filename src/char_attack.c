@@ -12,6 +12,11 @@
 #include "entity_life.h"   /* entity_carry_riders 0x5563d0 */
 #include "entity_move.h"   /* entity_move_horizontal 0x54db10, faction_relation 0x4416c0 */
 #include "gimmick.h"       /* entity_rect_hit 0x4804b0, world_next_serial 0x40be00 */
+#include "camera_follow.h" /* view_box_visible 0x4766a0 */
+#include "char_physics.h"  /* char_part_top 0x4385e0 */
+#include "hud_view.h"      /* foe_gauge_set 0x5b5600 */
+#include "npc_ai.h"        /* part_bottom 0x4022a0 */
+#include "sound_fx.h"      /* vpool_take 0x40b710, sfx_place 0x40bb90 */
 #include "particle_init.h" /* polar_milli 0x55cdb0 */
 #include "particle_spawn.h"
 #include "rng.h"
@@ -57,6 +62,11 @@ static int32_t atk_stats(const wl_char *c, int32_t alt)
 int32_t char_atk_roll(const wl_char *c, int32_t w, int32_t r, int32_t alt, int32_t power)
 {
     return roll(w, r, atk_stats(c, alt), power);
+}
+
+int32_t char_mag_roll(const wl_char *c, int32_t w, int32_t r, int32_t power)
+{
+    return roll(w, r, char_mag_sum(c), power);
 }
 
 int32_t char_skill_roll(const wl_char *c, const uint8_t *skill, int32_t a3, int32_t r)
@@ -162,7 +172,7 @@ int body_hit_spawn(wl_char *self, wl_char *atk, wl_body *b, int32_t dx, int32_t 
     default: break;
     }
     if (nohit != 0) return 0;
-    if (a19 == 1) g_eng.h5b3890(self, IP(rec + 0x14));
+    if (a19 == 1) hit_breaks_shots(self, (const int32_t *)(rec + 0x14));
     int32_t part = 0;
     wl_char *t = char_hit_target(self, atk, 0, rec, a16, 1, &part);
     if (t == NULL) {
@@ -201,8 +211,61 @@ int body_hit_spawn(wl_char *self, wl_char *atk, wl_body *b, int32_t dx, int32_t 
     st16(bb, 0x5a, (uint16_t)(ld16(bb, 0x5a) + 1));
     if (atk == NULL || a16 == 0) return 1;
     if (ld32(atk, 0x200) == 0) stp(atk, 0x1427c, t);
-    g_eng.h5b5600(atk, IP(t), 0);
+    foe_gauge_set(atk, t, 0);
     return 1;
+}
+
+void shot_end(wl_entity *s, uint8_t *flag, int32_t keep)
+{
+    if (keep != 0) { *flag = 0; return; }
+    if (ld32(s, 0x254) != 0 && s->snd != NULL)
+        for (uint16_t i = 0; i < s->nsnd; i++) {
+            if (s->snd == NULL) continue;
+            wl_sndch *ch = &s->snd[i];      /* (retail logs "ReserveWave over index." past nsnd: unreachable) */
+            if (ch->voice == NULL) continue;
+            ch->voice->owner = 0;
+            ch->voice = NULL;
+            ch->pool = NULL;
+            ch->f20 = 0;
+        }
+    entity_release(s, 0);
+}
+
+int hit_breaks_shots(wl_char *self, const int32_t *r)
+{
+    int hit = 0;
+    for (int k = 0; k < 64; k++) {
+        wl_entity *s = W->band64[k];
+        if (s->alive == 0 || ld32(s, 0x230) == 0) continue;
+        wl_body *sb = s->body;
+        int32_t fs = s->faction, fc = self->base.faction;
+        if (!(fs != 0 && fc != 0 && (fs == 3 || fc == 3 || fs != fc)) && self->base.coll_off == 0) continue;
+        if (sb->x > r[0] + r[2] || sb->w + sb->x <= r[0]) continue;
+        if (char_part_top((const wl_char *)s, 0) > r[1] + r[3] || part_bottom(s, 0) <= r[1]) continue;
+        int32_t freq = 500 - mul(1000, (int32_t)rng_rand()) / 0x8000;
+        wl_body *pb = s->body;
+        wl_voice *v = vpool_take(*(wl_vpool **)((uint8_t *)g_eng.sys + 0x568), 0);
+        if (v != NULL) {
+            void *buf = v->buf;
+            int32_t ov, op;
+            if (sfx_place(s, (**g_eng.keycfg)->sfx_volume, 0, 0, pb, &ov, &op) != 0) {
+                g_eng.dsb_volume_5bb870(buf, ov);
+                g_eng.dsb_pan_5bb880(buf, op);
+                g_eng.dsb_freq_5bb890(buf, freq);
+                g_eng.dsb_play_5bb8c0(buf);
+            }
+        }
+        for (int i = 0; i < 8; i++) {
+            int32_t a = mul(4, (int32_t)rng_rand()) / 0x8000;
+            int32_t dy = mul(800, (int32_t)rng_rand()) / 0x8000 - 400;
+            int32_t dx = mul(800, (int32_t)rng_rand()) / 0x8000 - 400;
+            if (view_box_visible(W->view, sb->x, sb->y, sb->w, sb->h, 16000))
+                particle_spawn(s, s, 100074, sb, dx, dy, 3, 1, 0, a, 2, 0, 0, 0);
+        }
+        shot_end(s, (uint8_t *)sb, 0);
+        hit = 1;
+    }
+    return hit;
 }
 
 wl_char *char_hit_target(const wl_char *self, const wl_char *skip, uint16_t part, const uint8_t *rec, int32_t rel,
@@ -527,3 +590,135 @@ int crate_push(wl_entity *e, const int32_t *cmd, wl_body *b, int32_t armed, uint
     if (iabs(dx) > 0 || iabs(dy) > 0) entity_move_horizontal(e, b, dx, 1, 1, 0, part, 0);
     return 1;
 }
+
+int clip_seq_step(wl_body *b, intptr_t clips, uint16_t n, uint16_t base)
+{
+    uint16_t ph = b->f58;
+    if (ph == base) {
+        if ((intptr_t)b->clip != clips) {
+            b->clip = (const void *)clips;
+            b->clip_done = 0; b->clip_frame = 0; b->clip_timer = 0;
+        }
+    } else {
+        if (b->clip_done == 0) return 0;
+        uint16_t k = (uint16_t)(ph - base);
+        if (k < n) {
+            intptr_t cl = clips + 404 * (intptr_t)k;
+            if ((intptr_t)b->clip != cl) {
+                b->clip = (const void *)cl;
+                b->clip_done = 0; b->clip_frame = 0; b->clip_timer = 0;
+            }
+        }
+    }
+    b->f58 = (uint16_t)(ph + 1);
+    return 1;
+}
+
+/* the body's action restarted as `pose` / `sub` with its skill record (none when 0): a reset first */
+static void pose_restart(wl_char *c, wl_body *b, uint16_t pose, uint16_t sub)
+{
+    b->pose = 0; b->act_len = 210; b->f58 = 0; b->act_ctr = 0; b->act_78 = 0;
+    b->act_arg = 0; b->spell = 0; b->target = 0; b->act_5a = 0; b->act_64 = 0;
+    const uint8_t *rec = NULL;
+    for (uint16_t i = 0, n = ld16(c, 0xc754); i < n; i++)
+        if (ld32(c, 0x754 + 0x300u * i) == (int32_t)pose) { rec = (const uint8_t *)c + 0x754 + 0x300u * i; break; }
+    if (pose == 0) return;
+    b->pose = pose; b->act_len = 210; b->f58 = 0; b->act_ctr = 0; b->act_78 = 0; b->act_5a = 0; b->act_64 = 0;
+    b->act_arg = sub;
+    b->spell = (int32_t)(intptr_t)rec;
+    b->target = 0;
+    b->serial = (int32_t)world_next_serial(W);
+}
+
+int body_pose_swap(wl_char *c, wl_body *b, int32_t flag, uint16_t pa, uint16_t sa, uint16_t pb, uint16_t sb,
+                   int32_t gate)
+{
+    int32_t f = flag;
+    if (gate != 0) {
+        f = b->c_flag != 0 ? 1 : flag;
+        if (ld16(c, 0x158bc) < ld16(c, 0xc7e8)) f = 1;
+    }
+    if (pa == b->pose && (b->act_arg == sa || sa == 0) && f == 0) { pose_restart(c, b, pb, sb); return 1; }
+    if (pb == b->pose && b->act_arg == sb && f == 1) { pose_restart(c, b, pa, sa); return 1; }
+    return 0;
+}
+
+void *char_shot_fire(wl_char *c, int32_t code, wl_body *b, int32_t dx, int32_t dy, int32_t anchor, int32_t a6,
+                     int16_t a7, int32_t a8, const uint8_t *skill, int32_t w, int32_t a11, int32_t fresh, int32_t a13)
+{
+    b->f7f = 1;
+    int32_t serial = b->serial;
+    int32_t r = mul(1000, (int32_t)rng_rand()) / 0x8000;
+    int32_t pw;
+    if (ld32(skill, 0x2dc) != 0)
+        pw = stat_jitter(ld32(skill, 0x2c8) + char_mag_sum(c) / 2, mul(ld32(skill, 0x2c4), w) / 1000, r);
+    else
+        pw = char_atk_roll(c, mul(ld32(skill, 0x2c4), w) / 1000, r, ld32(skill, 0xb0) == 6, ld32(skill, 0x2c8));
+    if (fresh != 0) serial = (int32_t)world_next_serial(W);
+    int32_t mag = 0;
+    if (ld32(skill, 0xb0) == 7) {
+        int32_t r2 = mul(1000, (int32_t)rng_rand()) / 0x8000;
+        mag = char_mag_roll(c, ld32(skill, 0x2cc), r2, ld32(skill, 0x2d0));
+    }
+    const uint8_t *p = party(c);
+    return shot_spawn(c, (int32_t)(intptr_t)c, c->base.faction, code, b, dx, dy, anchor, a6, a7, pw, a8, serial, a11,
+                      ld32(skill, 0xb0), char_mag_sum(c) + ld32(skill, 0xb4), mag, c->base.coll_off,
+                      ld32(p, 0xd8) + ld32(p, 0xe0) + ld32(p, 0xe4), a13);
+}
+
+void particle_tint_set(wl_entity *e, int32_t i)
+{
+    st32(e, 0x25c, i);
+    if (e->code == 100044) {
+        int32_t t = ld32(g_eng.data(0x8a92b8), 4u * (uint32_t)i);
+        st32(e, 0xf4, t);
+        st32(e, 0xf8, t);
+    }
+}
+
+int entity_sprite_descs(const wl_entity *e, const wl_body *b, es_desc *out, uint16_t *n)
+{
+    *n = 1;
+    uint32_t code = (uint32_t)e->code;
+    if (code > 0x18748u) {
+        if (code < 0x18753u || code > 0x18754u) return entity_sprite_desc(e, b, out);
+        const uint8_t *t = e->f08;
+        if (t == NULL) return 0;
+        uint16_t idx = 0;
+        if (b->clip != NULL) {
+            const uint8_t *cl = b->clip;
+            idx = (uint16_t)(ld16(cl, 0) + ld16(cl, 2 + 2u * b->clip_frame));
+            if (b->facing == 3) idx = (uint16_t)(idx + ld16(t, 0x18));
+        }
+        const uint8_t *base = (const uint8_t *)ldp(t, 0) + 52u * (uint32_t)mul((int32_t)ld32(t, 0x1c), idx);
+        uint16_t k = 0;
+        for (uint16_t i = 0; (uint32_t)i < (uint32_t)ld32(e->f08, 0x1c); i++) {
+            const uint8_t *r = base + 52u * i;
+            if (ld32(r, 0x14) != 0 || ld32(r, 0) == 0) continue;
+            es_desc *d = &out[k++];
+            d->slot = ld16(r, 0x18);
+            d->frame = ld16(r, 0x1c);
+            d->alpha = 0;
+            d->x = ld32(r, 4) + ld32(e, 0x28) / 100 / 2;
+            d->y = ld32(r, 8) + ld32(e, 0x2c) / 100 / 2;
+            d->f0c = ld32(r, 0);
+        }
+        *n = k;
+        return k != 0;
+    }
+    if ((code < 0x18745u && code != 0xc753u && (code <= 0xc833u || code > 0xc835u)) || b->pose != 3 || b->f58 != 2)
+        return entity_sprite_desc(e, b, out);
+    uint16_t slot = ld16(e, 0x48);
+    uint16_t fr = 1;
+    if (b->facing == 3) fr = (uint16_t)(ld16(ldp(g_eng.sys, 0x18e0 + 4u * slot), 0) + 1);
+    *n = 2;
+    out[1].x = 0;
+    out[1].y = 0;
+    out[1].frame = fr;
+    out[1].slot = slot;
+    int32_t a = mul(20, b->act_ctr) / 16;
+    if (a < 0) a = 0;
+    out[1].alpha = a < 20 ? ld32(g_eng.data(0x8a9308), 4u * (uint32_t)a) : 0;
+    return entity_sprite_desc(e, b, out);
+}
+

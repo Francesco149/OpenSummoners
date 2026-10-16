@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "arche_pose.h"
+#include "char_hit.h"        /* char_die 0x5b4d00 */
 #include "char_integrate.h"
 #include "engine_calls.h"
 #include "entity_life.h"
@@ -284,7 +285,7 @@ void char_status_tick(wl_char *c, wl_body *b)
     int pose_status = 0;
 
     if (A(c, 4) != 0 && W->f1034 == 0 && W->scene_kind != 2 && f268 == 0 && ld32(c, 0x15908) == 0)
-        g_eng.h5b4d00(c, 0, 1, b->facing);
+        char_die(c, 0, 1, b->facing);
     if (A(c, 3) != 0) {
         st32(c, 0x1f0, 1);
         if (ldp(c, 0xc824) == NULL)

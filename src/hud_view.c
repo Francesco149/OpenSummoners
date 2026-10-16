@@ -327,3 +327,55 @@ previous:
         return t / 100;
     }
 }
+
+/* the gauge's range box around the view centre: kinds 10 / 40 / 43 64000 x 32000, else 32000 x 24000 */
+int foe_gauge_near(const wl_entity *foe, int32_t kind)
+{
+    int32_t rx = 32000, ry = 24000;
+    if (kind == 10 || kind == 40 || kind == 43) { rx = 64000; ry = 32000; }
+    const wl_body *b = foe->body;
+    const camera_view *v = (*g_eng.world)->view;
+    if (abs(b->w / 2 - v->vp_w / 2 - v->cur_x - v->shake_x.out + b->x) > rx) return 0;
+    int32_t dy = b->margin + b->y + (b->h - b->margin) / 2 - v->vp_h / 2 - 100 * v->y_off - v->cur_y - v->shake_y.out;
+    return abs(dy) <= ry;
+}
+
+/* |part centre - view centre| on each axis within (rx, ry) */
+static int near_view(const wl_entity *foe, int32_t rx, int32_t ry)
+{
+    const camera_view *v = (*g_eng.world)->view;
+    if (abs(part_center_x(foe, 0) - v->vp_w / 2 - (v->cur_x + v->shake_x.out)) > rx) return 0;
+    int32_t cy = v->cur_y + 100 * v->y_off + v->shake_y.out;
+    return abs(part_center_y(foe, 0) - (*g_eng.world)->view->vp_h / 2 - cy) <= ry;
+}
+
+void foe_gauge_set(const wl_char *atk, const wl_char *foe, int32_t near)
+{
+    const wl_pslot *ps = (const wl_pslot *)(uintptr_t)atk->fc794;   /* the party slot */
+    if (ps == NULL) return;
+    uint8_t *L = (*g_eng.world)->f1044;
+    for (uint16_t i = 0; i < 2; i++) {
+        uint8_t *v = L + 0x128 + 0x3ec * i;
+        if (ld32(v, 8) == 0 || (const void *)ps->room != ldp(v, 4)) continue;
+        int32_t kind;
+        if (ps->room->leader == ps) kind = near != 0 ? 30 : 10;
+        else if (near != 0) continue;
+        else kind = 40;
+        if (ldp(v, 0x398) != NULL) {
+            if (!near_view(&foe->base, 32000, 24000)) continue;
+        } else if (kind == 10 || kind == 40 || kind == 43) {
+            if (!near_view(&foe->base, 64000, 32000)) continue;
+        } else if (!near_view(&foe->base, 32000, 24000)) continue;
+        const wl_entity *cur = ldp(v, 0x398);
+        if (!((kind != 30 || cur == NULL) && ((uint16_t)kind <= ld16(v, 0x394) || cur == NULL)) && foe_gauge_near(cur, 42))
+            return;
+        if (cur != &foe->base) st16(v, 0x3c4, 100);
+        st32(v, 0x394, kind);
+        stp(v, 0x398, foe);
+        const uint8_t *st = (const uint8_t *)foe->party;
+        st32(v, 0x390, hp_ratio(st));
+        strcpy((char *)v + 0x39c, (const char *)st);
+        return;
+    }
+}
+

@@ -130,14 +130,12 @@ typedef struct engine_calls {
     eng_tc3 h467260; eng_tc6 h44a740; eng_tc8 h45a300;
     eng_tc4 h44bc10; eng_tc4 h44c250; eng_tc4 h44bf60; eng_tc7 h446900; eng_tc7 h452020;
     eng_tc7 h449810; eng_tc6 h4539b0; eng_tc7 h44d8f0; eng_tc7 h448dc0; eng_tc5 h452730;
-    eng_tc5 h45e830; eng_tc7 h455d80; eng_tc6 h44b160;
+    eng_tc7 h455d80; eng_tc6 h44b160;
     eng_tc7 h4516e0; eng_tc7 h4484b0; eng_tc6 h4512d0; eng_tc6 h44a200; eng_tc6 h44e8d0;
     eng_tc8 h44f690; eng_tc6 h450810; eng_tc5 h44d2e0; eng_tc5 h456d30; eng_tc6 h461790;
     eng_tc4 h445e50;
     /* the character apply pass 0x485fc0's callees (HP/MP, damage, respawn, voices, effects) */
-    eng_tc3 h5b4d00; 
-    eng_tc2 h5b5600;
-    eng_tc0 h4895c0; 
+
     /* the tick driver 0x46cd70's band updaters */
     eng_tc4 h4710c0; eng_tc0 h46da00;
     /* the actor update 0x54f980's callees: the per-code behaviours, the looping-sound start,
@@ -185,8 +183,8 @@ typedef struct engine_calls {
     void (*h5bf5db)(int code);
     /* the character init 0x41f200's per-type inits (`this` = the character) */
     eng_tc3 h428c00; eng_tc0 h429060; eng_tc1 h429db0; eng_tc1 h42a500; eng_tc0 h42a9a0; eng_tc1 h42b9a0;
-    eng_tc1 h42c130; eng_tc5 h42c510; eng_tc1 h42c970; eng_tc1 h42cce0; eng_tc0 h42d3c0; eng_tc2 h42da50;
-    eng_tc4 h42e290; eng_tc1 h42f840; eng_tc3 h42fbf0; eng_tc1 h42ff00; eng_tc1 h430400;
+    eng_tc1 h42c130; eng_tc5 h42c510; eng_tc1 h42cce0; eng_tc0 h42d3c0; eng_tc2 h42da50;
+    eng_tc1 h42f840; eng_tc1 h42ff00; eng_tc1 h430400;
     /* the scene loop 0x59f2c0's: the save apply 0x561d20, the demo scene load 0x41b670 + its
      * flag / state adds 0x4c5af0 / 0x52fd80 + merge 0x5a3870, the menu 0x5a00c0 (+ 0x5a3670 under
      * its object's free), the pool head free 0x56c640; the save-file reader (a 0x414-byte object:
@@ -212,9 +210,6 @@ typedef struct engine_calls {
     eng_tc1 h439690; eng_tc6 h4081d0; eng_tc1 h408730; eng_tc2 h407970; eng_tc0 h40a340;
     eng_tc2 h402d40; eng_tc4 h406210; eng_tc0 h411610; eng_tc2 h4031c0;
     eng_tc3 h5bcfb0; eng_tc1 h5bbc60; eng_tc1 h5bbc90; eng_tc1 h5bbcd0; eng_tc0 h5bbc20; eng_tc5 h5bcb80;
-    /* the attack pipeline's (src/char_attack.c): a hit's on-spawn effect 0x5b3890 (thiscall char, rect), the
-     * damage application 0x5b5600 (thiscall attacker, target, 0) */
-    eng_tc1 h5b3890;   /* (h5b5600: with the apply pass's, above) */
     /* the status pass's: the shot init 0x55d140 (thiscall shot, 17 args) */
     eng_tc17 h55d140;
     /* the room's item use: the effect value 0x47ae00 (thiscall char, 12 args), the use 0x5b1f10 (thiscall room) */
