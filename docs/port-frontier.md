@@ -7,18 +7,18 @@ own engine callees ported, so it can land today with zero new dependencies. Sort
 
 For the *forward* port path (the title-menu scene runner and what it calls) and the semantic milestone order, see `ROADMAP.md` — some of that path isn't yet reachable from ported code so won't appear here.
 
-- frontier functions: **349**
-- of those, zero-dependency **leaves: 149** (recommended order below)
+- frontier functions: **344**
+- of those, zero-dependency **leaves: 148** (recommended order below)
 
 ## Leaf shortlist — portable today (top 40 by ported-caller count)
 
 | VA | size | ported callers | band |
 |----|-----:|---------------:|------|
-| 0x5bb870 | 16 | 39 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
-| 0x5bb8c0 | 31 | 35 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
-| 0x5bb890 | 40 | 32 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
-| 0x5bb880 | 16 | 28 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
-| 0x5bb8e0 | 9 | 14 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
+| 0x5bb870 | 16 | 47 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
+| 0x5bb8c0 | 31 | 42 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
+| 0x5bb890 | 40 | 40 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
+| 0x5bb880 | 16 | 36 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
+| 0x5bb8e0 | 9 | 16 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x5bb3a0 | 39 | 4 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x5bbc60 | 45 | 4 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x5bbc90 | 55 | 4 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
@@ -29,6 +29,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x5ba650 | 78 | 3 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x5ba4c0 | 84 | 3 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x5ba2d0 | 95 | 3 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
+| 0x407f30 | 453 | 3 | object-pool ctor + game-loop FSM + font/glyph + msg fmt |
 | 0x4c5af0 | 770 | 3 | scene-event dispatch (narrative scripting) + party/inventory |
 | 0x5a4760 | 16 | 2 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
 | 0x5ba3a0 | 16 | 2 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
@@ -42,7 +43,6 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x579860 | 131 | 2 | master sprite-group register + audio/music init + anim pump |
 | 0x579680 | 191 | 2 | master sprite-group register + audio/music init + anim pump |
 | 0x495e40 | 411 | 2 | tile/sprite grid render + spell fx + battle UI + palette |
-| 0x407f30 | 453 | 2 | object-pool ctor + game-loop FSM + font/glyph + msg fmt |
 | 0x4051d0 | 3244 | 2 | object-pool ctor + game-loop FSM + font/glyph + msg fmt |
 | 0x4034f0 | 7330 | 2 | object-pool ctor + game-loop FSM + font/glyph + msg fmt |
 | 0x5ba3f0 | 17 | 1 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
@@ -65,7 +65,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x40a5d0 | 568 | 7 | 5 |  |
 | 0x40ac90 | 834 | 4 | 4 |  |
 | 0x40bb70 | 30 | 3 | 0 | ✓ |
-| 0x407f30 | 453 | 2 | 0 | ✓ |
+| 0x407f30 | 453 | 3 | 0 | ✓ |
 | 0x409150 | 881 | 2 | 1 |  |
 | 0x4051d0 | 3244 | 2 | 0 | ✓ |
 | 0x4034f0 | 7330 | 2 | 0 | ✓ |
@@ -116,13 +116,12 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x43d830 | 1254 | 1 | 0 | ✓ |
 | 0x430400 | 5039 | 1 | 0 | ✓ |
 
-### entity per-frame FSM + action handlers + dialog + skills (22)
+### entity per-frame FSM + action handlers + dialog + skills (21)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
 | 0x441f50 | 1284 | 2 | 1 |  |
 | 0x4428f0 | 41 | 1 | 0 | ✓ |
-| 0x445ce0 | 67 | 1 | 0 | ✓ |
 | 0x442640 | 200 | 1 | 0 | ✓ |
 | 0x445e50 | 246 | 1 | 0 | ✓ |
 | 0x441de0 | 274 | 1 | 0 | ✓ |
@@ -134,20 +133,19 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x44d2e0 | 1528 | 1 | 4 |  |
 | 0x4484b0 | 1894 | 1 | 0 | ✓ |
 | 0x44d8f0 | 2164 | 1 | 3 |  |
-| 0x448dc0 | 2221 | 1 | 9 |  |
+| 0x448dc0 | 2221 | 1 | 7 |  |
 | 0x449810 | 2221 | 1 | 1 |  |
 | 0x44b160 | 2523 | 1 | 4 |  |
 | 0x44a740 | 2552 | 1 | 4 |  |
 | 0x44c250 | 2972 | 1 | 5 |  |
 | 0x44e8d0 | 3428 | 1 | 4 |  |
-| 0x44f690 | 3586 | 1 | 12 |  |
+| 0x44f690 | 3586 | 1 | 9 |  |
 | 0x446900 | 3869 | 1 | 4 |  |
 
-### master dialogue runner + action/frame dispatch + sprite batch (14)
+### master dialogue runner + action/frame dispatch + sprite batch (13)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
-| 0x46da00 | 1742 | 2 | 8 |  |
 | 0x468b10 | 7214 | 2 | 6 |  |
 | 0x468970 | 172 | 1 | 1 |  |
 | 0x467260 | 208 | 1 | 0 | ✓ |
@@ -158,11 +156,11 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x452020 | 1649 | 1 | 5 |  |
 | 0x4516e0 | 2336 | 1 | 4 |  |
 | 0x455d80 | 3175 | 1 | 5 |  |
-| 0x452730 | 4119 | 1 | 6 |  |
+| 0x452730 | 4119 | 1 | 4 |  |
 | 0x456d30 | 4581 | 1 | 4 |  |
-| 0x4539b0 | 8699 | 1 | 11 |  |
+| 0x4539b0 | 8699 | 1 | 9 |  |
 
-### battle phase controller + NPC AI + particle fx + damage UI (18)
+### battle phase controller + NPC AI + particle fx + damage UI (17)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
@@ -183,7 +181,6 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x479f90 | 875 | 1 | 1 |  |
 | 0x47ecd0 | 2303 | 1 | 6 |  |
 | 0x47ae00 | 2364 | 1 | 3 |  |
-| 0x4710c0 | 20681 | 1 | 33 |  |
 
 ### char anim + hit-test/knockback + GDI glyph + sfx trigger (24)
 
@@ -212,7 +209,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x481310 | 1144 | 1 | 4 |  |
 | 0x48da70 | 1672 | 1 | 0 | ✓ |
 | 0x481ac0 | 1874 | 1 | 7 |  |
-| 0x48ef40 | 4389 | 1 | 7 |  |
+| 0x48ef40 | 4389 | 1 | 6 |  |
 
 ### tile/sprite grid render + spell fx + battle UI + palette (22)
 
@@ -317,7 +314,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x507e70 | 32899 | 1 | 15 |  |
 | 0x525e70 | 40515 | 1 | 13 |  |
 
-### cutscene dispatcher + sprite copy + tilemap collision + camera (16)
+### cutscene dispatcher + sprite copy + tilemap collision + camera (15)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
@@ -334,7 +331,6 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x54f140 | 2094 | 1 | 2 |  |
 | 0x554c40 | 2187 | 1 | 5 |  |
 | 0x553520 | 2458 | 1 | 4 |  |
-| 0x55d140 | 8040 | 1 | 1 |  |
 | 0x546670 | 22187 | 1 | 28 |  |
 | 0x5402e0 | 25033 | 1 | 14 |  |
 
@@ -389,13 +385,12 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x583c90 | 580 | 1 | 0 | ✓ |
 | 0x583fe0 | 979 | 1 | 12 |  |
 
-### inventory/menu + audio cue mgr + render dispatch + scene load (11)
+### inventory/menu + audio cue mgr + render dispatch + scene load (10)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
 | 0x59d540 | 334 | 1 | 4 |  |
 | 0x590480 | 465 | 1 | 3 |  |
-| 0x590230 | 478 | 1 | 5 |  |
 | 0x590f20 | 498 | 1 | 0 | ✓ |
 | 0x59ec30 | 531 | 1 | 3 |  |
 | 0x590ca0 | 592 | 1 | 3 |  |
@@ -409,11 +404,11 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
-| 0x5bb870 | 16 | 39 | 0 | ✓ |
-| 0x5bb8c0 | 31 | 35 | 0 | ✓ |
-| 0x5bb890 | 40 | 32 | 0 | ✓ |
-| 0x5bb880 | 16 | 28 | 0 | ✓ |
-| 0x5bb8e0 | 9 | 14 | 0 | ✓ |
+| 0x5bb870 | 16 | 47 | 0 | ✓ |
+| 0x5bb8c0 | 31 | 42 | 0 | ✓ |
+| 0x5bb890 | 40 | 40 | 0 | ✓ |
+| 0x5bb880 | 16 | 36 | 0 | ✓ |
+| 0x5bb8e0 | 9 | 16 | 0 | ✓ |
 | 0x5bb2f0 | 140 | 5 | 2 |  |
 | 0x5bb250 | 150 | 5 | 2 |  |
 | 0x5bb3a0 | 39 | 4 | 0 | ✓ |

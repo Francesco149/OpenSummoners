@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 547,
-  "unported": 1028,
+  "ported": 583,
+  "unported": 992,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 796,
-  "pct_touched": 51.1,
+  "touched": 832,
+  "pct_touched": 53.5,
   "pct_tested": 15.7,
-  "engine_proper_touched": 783,
+  "engine_proper_touched": 819,
   "bytes_total": 1776526,
-  "bytes_touched": 683326,
-  "pct_bytes_touched": 38.5
+  "bytes_touched": 725840,
+  "pct_bytes_touched": 40.9
  },
  "orphan_refs": [],
  "functions": [
@@ -4075,8 +4075,10 @@
    "name": "sub_445CE0",
    "size": 67,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x445d30",
@@ -4335,16 +4337,20 @@
    "name": "sub_449700",
    "size": 165,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x4497b0",
    "name": "sub_4497B0",
    "size": 82,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x449810",
@@ -4544,8 +4550,10 @@
    "name": "sub_4504C0",
    "size": 197,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x450590",
@@ -4664,8 +4672,10 @@
    "name": "sub_4538F0",
    "size": 112,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x453960",
@@ -5239,32 +5249,41 @@
    "name": "sub_46DA00",
    "size": 1742,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.c",
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x46e110",
    "name": "sub_46E110",
    "size": 62,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x46e150",
    "name": "sub_46E150",
    "size": 49,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x46e190",
    "name": "sub_46E190",
    "size": 877,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x46e510",
@@ -5285,7 +5304,8 @@
    "status": "ported",
    "src": [
     "src/particle_tick.c",
-    "src/particle_tick.h"
+    "src/particle_tick.h",
+    "src/shots.h"
    ]
   },
   {
@@ -5293,24 +5313,31 @@
    "name": "sub_4710C0",
    "size": 20681,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.c",
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x476500",
    "name": "sub_476500",
    "size": 66,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x476550",
    "name": "sub_476550",
    "size": 326,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x4766a0",
@@ -5339,8 +5366,10 @@
    "name": "sub_476740",
    "size": 307,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x476880",
@@ -5357,24 +5386,30 @@
    "name": "sub_476A80",
    "size": 48,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x476ab0",
    "name": "sub_476AB0",
    "size": 229,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x476ba0",
    "name": "sub_476BA0",
    "size": 198,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x476c70",
@@ -5401,112 +5436,140 @@
    "name": "sub_476D30",
    "size": 230,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x476e20",
    "name": "sub_476E20",
    "size": 193,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x476ef0",
    "name": "sub_476EF0",
    "size": 369,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x477070",
    "name": "sub_477070",
    "size": 338,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x4771d0",
    "name": "sub_4771D0",
    "size": 316,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x477310",
    "name": "sub_477310",
    "size": 589,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x477560",
    "name": "sub_477560",
    "size": 232,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x477650",
    "name": "sub_477650",
    "size": 1294,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x477b70",
    "name": "sub_477B70",
    "size": 898,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x477f10",
    "name": "sub_477F10",
    "size": 727,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x4781f0",
    "name": "sub_4781F0",
    "size": 859,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x478550",
    "name": "sub_478550",
    "size": 77,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x4785a0",
    "name": "sub_4785A0",
    "size": 633,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x478820",
    "name": "sub_478820",
    "size": 551,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x478a50",
@@ -8841,24 +8904,30 @@
    "name": "sub_54CAB0",
    "size": 484,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x54cca0",
    "name": "sub_54CCA0",
    "size": 792,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x54cfc0",
    "name": "sub_54CFC0",
    "size": 147,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x54d060",
@@ -9330,16 +9399,21 @@
    "name": "sub_55D140",
    "size": 8040,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.c",
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x55f150",
    "name": "sub_55F150",
    "size": 59,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x55f190",
@@ -11049,8 +11123,10 @@
    "name": "sub_590230",
    "size": 478,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/shots.h"
+   ]
   },
   {
    "va": "0x590410",

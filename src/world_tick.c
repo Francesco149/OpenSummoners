@@ -14,6 +14,7 @@
 #include "entity_move.h"
 #include "gimmick.h"
 #include "particle_tick.h"
+#include "shots.h"
 
 #define IP(p) ((intptr_t)(p))
 
@@ -57,16 +58,16 @@ int world_tick(void *ctl, int32_t cut)
     for (int i = 0; i < 64; i++) {
         wl_entity *e = g_world->band64[i];
         if (e->alive == 0) continue;
-        g_eng.h4710c0(e, IP(e->body), IP(e->body), 0, 0);
+        shots_tick((wl_char *)e, IP(e->body), IP(e->body), 0, 0);
         for (uint16_t k = 1; k < e->nbody; k++)
-            g_eng.h4710c0(e, IP(&e->body[k - 1]), IP(&e->body[k]), 1, k);
+            shots_tick((wl_char *)e, IP(&e->body[k - 1]), IP(&e->body[k]), 1, k);
         if (e->snd != NULL)
             for (uint16_t m = 0; m < e->nsnd; m++) entity_snd_update(e, m);
     }
     for (int i = 0; i < 1024; i++)
         if (g_world->particles[i]->alive != 0) particle_tick((wl_particle *)g_world->particles[i]);
     for (int i = 0; i < 96; i++)
-        if (g_world->band96[i]->alive != 0) g_eng.h46da00(g_world->band96[i]);
+        if (g_world->band96[i]->alive != 0) band96_tick((wl_char *)g_world->band96[i]);
 
     /* ── the actors ── */
     for (int i = 0; i < 128; i++) {

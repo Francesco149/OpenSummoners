@@ -544,7 +544,8 @@ VERIFY_HOOKS = ["rand", "input_poll", "mover_v", "sweep_h", "ent_move_h", "ent_m
                 "mon_slime", "mon_skill51", "mon_skill29", "ai_rec_hold_set", "char_skill_list_add",
                 "arche_sword@4", "arche_combo_skill",
                 "skill_cast@4", "skill_charge", "skill_stage", "skill_mp_pay", "summon_recall", "summon_room_ok",
-                "skill_space_ahead", "summon_init", "summon_spawn"]
+                "skill_space_ahead", "summon_init", "summon_spawn",
+                "shots_tick@16", "room_band64_tick@16", "shot_init", "band96_tick", "shot_449700", "shot_4497b0", "shot_4538f0", "shot_46e190", "shot_476500", "shot_476550", "shot_476740", "shot_476a80", "shot_476ab0", "shot_476d30", "shot_476e20", "shot_476ef0", "shot_477070", "shot_4771d0", "shot_477310", "shot_477560", "shot_477650", "shot_477b70", "shot_477f10", "shot_4781f0", "shot_478550", "shot_4785a0", "shot_478820", "shot_54cab0", "shot_54cca0", "shot_55f150"]
 # REPLACE-only hooks (a whole room per call / DirectInput): proven by `corpus --check --hook replace:…`
 REPLACE_ONLY_HOOKS = ["room_loop", "input_repoll_flush", "load_room", "scene_loop", "menu_pace", "menu_run",
                       "shop_run", "shop_buy", "shop_who", "menu_ctx_clear", "scene_run",

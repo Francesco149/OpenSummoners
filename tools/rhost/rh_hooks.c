@@ -59,6 +59,7 @@
 #include "char_monster.h"
 #include "arche_sword.h"
 #include "skill_cast.h"
+#include "shots.h"
 #include "room_tick.h"
 #include "ui_core.h"
 #include "ui_text.h"
@@ -240,6 +241,17 @@ typedef struct {
     X(H_SCAST, "skill_cast", 0x45a300u) X(H_SCHARGE, "skill_charge", 0x459f20u) X(H_SSTAGE, "skill_stage", 0x45db20u) \
     X(H_SMP, "skill_mp_pay", 0x45a2c0u) X(H_SUMREC, "summon_recall", 0x456a50u) X(H_SUMROOM, "summon_room_ok", 0x456b60u) \
     X(H_SAHEAD, "skill_space_ahead", 0x45e050u) X(H_SUMINIT, "summon_init", 0x45e4c0u) X(H_SUMSPAWN, "summon_spawn", 0x55ce70u) \
+    X(H_SH4710C0, "shots_tick", 0x4710c0u) X(H_SH55D140, "shot_init", 0x55d140u) X(H_SH46DA00, "band96_tick", 0x46da00u) \
+    X(H_SH590230, "room_band64_tick", 0x590230u) \
+    X(H_SH449700, "shot_449700", 0x449700u) X(H_SH4497B0, "shot_4497b0", 0x4497b0u) X(H_SH4538F0, "shot_4538f0", 0x4538f0u) \
+    X(H_SH46E190, "shot_46e190", 0x46e190u) X(H_SH476500, "shot_476500", 0x476500u) X(H_SH476550, "shot_476550", 0x476550u) \
+    X(H_SH476740, "shot_476740", 0x476740u) X(H_SH476A80, "shot_476a80", 0x476a80u) X(H_SH476AB0, "shot_476ab0", 0x476ab0u) \
+    X(H_SH476D30, "shot_476d30", 0x476d30u) X(H_SH476E20, "shot_476e20", 0x476e20u) X(H_SH476EF0, "shot_476ef0", 0x476ef0u) \
+    X(H_SH477070, "shot_477070", 0x477070u) X(H_SH4771D0, "shot_4771d0", 0x4771d0u) X(H_SH477310, "shot_477310", 0x477310u) \
+    X(H_SH477560, "shot_477560", 0x477560u) X(H_SH477650, "shot_477650", 0x477650u) X(H_SH477B70, "shot_477b70", 0x477b70u) \
+    X(H_SH477F10, "shot_477f10", 0x477f10u) X(H_SH4781F0, "shot_4781f0", 0x4781f0u) X(H_SH478550, "shot_478550", 0x478550u) \
+    X(H_SH4785A0, "shot_4785a0", 0x4785a0u) X(H_SH478820, "shot_478820", 0x478820u) X(H_SH54CAB0, "shot_54cab0", 0x54cab0u) \
+    X(H_SH54CCA0, "shot_54cca0", 0x54cca0u) X(H_SH55F150, "shot_55f150", 0x55f150u) \
     X(H_BOOK, "book_read", 0x40dbc0u) X(H_SSETFREE, "sprite_set_free", 0x410300u) \
     X(H_CINIT, "char_init", 0x41f200u)
 #define CDEF_ENUM(id, n, va) id,
@@ -4050,6 +4062,37 @@ TC_HOOK(H_SUMROOM, "summon_room_ok", 4, 1, return summon_room_ok(self, a1, a2, a
 ST_HOOK(H_SAHEAD, "skill_space_ahead", 6, 1, return skill_space_ahead((int32_t *)a1, a2, a3, a4, a5, (int32_t *)a6))
 TC_HOOK(H_SUMINIT, "summon_init", 1, 1, return summon_init(self, (int32_t *)a1))
 ST_HOOK(H_SUMSPAWN, "summon_spawn", 9, 1, return summon_spawn(a1, (int32_t *)a2, a3, a4, a5, a6, a7, a8, a9))
+/* the shots (src/shots.c; the ecx pass-through helpers, the int64 / st0 returns: covered by their callers) */
+TC_HOOK0(H_SH590230, "room_band64_tick", 0, return (intptr_t)room_band64_tick(self))
+TC_HOOK(H_SH4710C0, "shots_tick", 4, 0, return (intptr_t)shots_tick(self, a1, a2, a3, a4))
+TC_HOOK(H_SH55D140, "shot_init", 17, 0, return (intptr_t)shot_init(self, a1, a2, a3, a4, a5, a6, a7, (int16_t)a8, a9, a10, a11, a12, a13, a14, a15, a16, a17))
+TC_HOOK0(H_SH46DA00, "band96_tick", 0, return (intptr_t)band96_tick(self))
+TC_HOOK(H_SH449700, "shot_449700", 7, 1, return (intptr_t)shot_449700(self, a1, a2, U16(a3), a4, a5, a6, a7))
+TC_HOOK(H_SH4497B0, "shot_4497b0", 3, 1, return (intptr_t)shot_4497b0(self, a1, a2, a3))
+ST_HOOK(H_SH4538F0, "shot_4538f0", 3, 1, return (intptr_t)shot_4538f0((int32_t *)a1, (int32_t *)a2, a3))
+TC_HOOK(H_SH46E190, "shot_46e190", 5, 1, return (intptr_t)shot_46e190(self, a1, a2, a3, a4, a5))
+ST_HOOK(H_SH476500, "shot_476500", 3, 1, return (intptr_t)shot_476500(a1, a2, a3))
+ST_HOOK(H_SH476550, "shot_476550", 4, 1, return (intptr_t)shot_476550(a1, a2, (int32_t *)a3, (double *)a4))
+TC_HOOK(H_SH476740, "shot_476740", 1, 0, return (intptr_t)shot_476740(self, a1))
+ST_HOOK(H_SH476A80, "shot_476a80", 1, 1, return (intptr_t)shot_476a80((int32_t *)a1))
+TC_HOOK(H_SH476AB0, "shot_476ab0", 4, 1, return (intptr_t)shot_476ab0(self, (int32_t *)a1, a2, U16(a3), a4))
+TC_HOOK(H_SH476D30, "shot_476d30", 4, 1, return (intptr_t)shot_476d30(self, a1, U16(a2), U16(a3), a4))
+TC_HOOK(H_SH476E20, "shot_476e20", 2, 1, return (intptr_t)shot_476e20(self, a1, a2))
+TC_HOOK(H_SH476EF0, "shot_476ef0", 12, 1, return (intptr_t)shot_476ef0(self, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12))
+TC_HOOK(H_SH477070, "shot_477070", 2, 1, return (intptr_t)shot_477070(self, a1, a2))
+TC_HOOK(H_SH4771D0, "shot_4771d0", 9, 1, return (intptr_t)shot_4771d0(self, a1, a2, a3, U16(a4), (int32_t *)a5, (int32_t *)a6, a7, a8, a9))
+TC_HOOK(H_SH477310, "shot_477310", 7, 1, return (intptr_t)shot_477310(self, a1, (int32_t *)a2, (int32_t *)a3, a4, a5, a6, a7))
+TC_HOOK(H_SH477560, "shot_477560", 7, 1, return (intptr_t)shot_477560(self, (int32_t *)a1, U16(a2), a3, a4, a5, a6, a7))
+TC_HOOK(H_SH477650, "shot_477650", 3, 1, return (intptr_t)shot_477650(self, a1, a2, a3))
+TC_HOOK(H_SH477B70, "shot_477b70", 2, 1, return (intptr_t)shot_477b70(self, a1, a2))
+TC_HOOK(H_SH477F10, "shot_477f10", 2, 1, return (intptr_t)shot_477f10(self, a1, a2))
+TC_HOOK(H_SH4781F0, "shot_4781f0", 2, 1, return (intptr_t)shot_4781f0(self, a1, a2))
+ST_HOOK(H_SH478550, "shot_478550", 2, 1, return (intptr_t)shot_478550(a1, a2))
+TC_HOOK(H_SH4785A0, "shot_4785a0", 7, 0, return (intptr_t)shot_4785a0(self, a1, a2, a3, a4, a5, a6, (int32_t *)a7))
+ST_HOOK(H_SH478820, "shot_478820", 5, 1, return (intptr_t)shot_478820((int32_t *)a1, U16(a2), a3, (int32_t *)a4, a5))
+ST_HOOK(H_SH54CAB0, "shot_54cab0", 12, 1, return (intptr_t)shot_54cab0(a1, a2, a3, a4, a5, a6, a7, U16(a8), a9, a10, a11, a12))
+TC_HOOK(H_SH54CCA0, "shot_54cca0", 5, 1, return (intptr_t)shot_54cca0(self, a1, a2, a3, a4, a5))
+ST_HOOK(H_SH55F150, "shot_55f150", 2, 1, return (intptr_t)shot_55f150(a1, a2))
 /* the book reader (a frame loop) + the sprite set free (surface frees) — REPLACE only */
 TC_HOOK(H_BOOK, "book_read", 1, 1, return book_read(self, CP(a1)))
 TC_HOOK(H_SSETFREE, "sprite_set_free", 1, 0, sprite_set_free(self, U16(a1)); return 0)
@@ -4299,11 +4342,10 @@ static void bind_engine_calls(void)
 #undef B
 #define B(n) *(void **)&g_eng.h##n = (void *)(uintptr_t)0x##n##u
    
-    B(4710c0); B(46da00);
     B(408b90); B(54f140);
     B(40ac90); B(54ed80); B(468b10); B(5bc0c0); B(409520);
     B(5b1030); B(48c150); B(495e40); B(59d160); B(58ffa0); B(590480); B(590f20); B(590ca0); B(59d540);
-    B(591120); B(590230); B(59ad60);
+    B(591120); B(59ad60);
     *(void **)&g_eng.flip_5b8fc0  = g_rh_flip_stub;    /* the virtual clock steps there */
     *(void **)&g_eng.easer_43d1d0 = g_rh_easer_stub;   /* the tick count (+ a camera hook chained behind) */
     B(5ba120); B(5ba290);
@@ -4316,7 +4358,7 @@ static void bind_engine_calls(void)
     B(56dc20); B(41a890); B(5bf3ee); B(426110); B(560900); B(5bf5db);
     B(428c00); B(429060); B(429db0); B(42a500); B(42a9a0); B(42b9a0); B(42c130); B(42c510);
     B(42cce0); B(42d3c0); B(42da50); B(42f840); B(42ff00); B(430400);
-    B(5bcfb0); B(55d140); B(47ae00); B(5b3b00); B(5b1f10); B(4034f0); B(4051d0); B(415ae0); B(4192f0); B(418ec0); B(441de0); B(442710); B(442640);
+    B(5bcfb0); B(47ae00); B(5b3b00); B(5b1f10); B(4034f0); B(4051d0); B(415ae0); B(4192f0); B(418ec0); B(441de0); B(442710); B(442640);
     B(5bcfa0); B(43c1b0); B(5b94e0); B(5b9500); B(5b5ef0); B(43e250); B(43d540); B(43d4b0); B(43dd30); B(43d830);
     B(442920); B(4428f0); B(468970);
     B(561d20); B(409150); B(55fdb0); B(41d780); B(4e6520); B(4e61d0); B(41b670); B(4c5af0); B(52fd80); B(5a3870); B(5a00c0);

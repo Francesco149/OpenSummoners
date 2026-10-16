@@ -18,6 +18,7 @@
 #include "particle_init.h"
 #include "particle_spawn.h"
 #include "rng.h"
+#include "shots.h"         /* shot_init 0x55d140 */
 #include "sound_fx.h"
 
 #define W (*g_eng.world)
@@ -192,7 +193,7 @@ void *shot_spawn(void *self, int32_t a2, int32_t a3, int32_t a4, wl_body *b, int
     case 4: x = dx + b->x + b->w / 2; y = dy + b->y + b->h; break;
     default: x = dx; y = dy; break;
     }
-    g_eng.h55d140(s, a2, a4, a3, x, y, a14, a12, a10, a11, a20, a13, a15, a16, a17, (intptr_t)self, a18, a19);
+    shot_init((wl_char *)s, a2, a4, a3, x, y, a14, a12, a10, a11, a20, a13, a15, a16, a17, (intptr_t)self, a18, a19);
     return s;
 }
 

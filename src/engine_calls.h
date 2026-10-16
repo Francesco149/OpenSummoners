@@ -125,7 +125,7 @@ typedef struct engine_calls {
     eng_tc3 h48c150; eng_tc7 h495e40; eng_tc0 h59d160; eng_tc1 flip_5b8fc0; eng_tc0 easer_43d1d0;
     eng_tc1 h58ffa0; eng_tc0 h590480; eng_tc1 h590f20; eng_tc0 h590ca0;
     eng_tc2 h59d540; eng_tc0 h591120;
-    eng_tc0 h590230; eng_tc1 h59ad60;
+    eng_tc1 h59ad60;
     /* the integrator 0x442a70's callees: per-type behaviour handlers + helpers (by VA) */
     eng_tc3 h467260; eng_tc6 h44a740;
     eng_tc4 h44bc10; eng_tc4 h44c250; eng_tc4 h44bf60; eng_tc7 h446900; eng_tc7 h452020;
@@ -138,8 +138,6 @@ typedef struct engine_calls {
 
     /* the skill casts' (src/skill_cast.c): the item / skill effect 0x5b3b00 (thiscall char, 6 args) */
     eng_tc6 h5b3b00;
-    /* the tick driver 0x46cd70's band updaters */
-    eng_tc4 h4710c0; eng_tc0 h46da00;
     /* the actor update 0x54f980's callees: the per-code behaviours, the looping-sound start,
      * list removal, the second error logger */
     eng_tc3 h408b90;
@@ -212,8 +210,6 @@ typedef struct engine_calls {
     eng_tc1 h439690; eng_tc6 h4081d0; eng_tc1 h408730; eng_tc2 h407970; eng_tc0 h40a340;
     eng_tc2 h402d40; eng_tc4 h406210; eng_tc0 h411610; eng_tc2 h4031c0;
     eng_tc3 h5bcfb0; eng_tc1 h5bbc60; eng_tc1 h5bbc90; eng_tc1 h5bbcd0; eng_tc0 h5bbc20; eng_tc5 h5bcb80;
-    /* the status pass's: the shot init 0x55d140 (thiscall shot, 17 args) */
-    eng_tc17 h55d140;
     /* the room's item use: the effect value 0x47ae00 (thiscall char, 12 args), the use 0x5b1f10 (thiscall room) */
     eng_tc12 h47ae00; eng_tc6 h5b1f10;
     /* the UI toolkit's ruby (furigana) pass: the context test 0x4034f0 (text, cond, pos, word length) and the

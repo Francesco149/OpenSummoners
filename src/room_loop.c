@@ -25,6 +25,7 @@
 #include "char_state.h"
 #include "char_apply.h"
 #include "particle_tick.h"
+#include "shots.h"
 #include "sound_fx.h"
 #include "npc_ai.h"
 #include "room_load.h"
@@ -745,11 +746,11 @@ int room_loop_run(wl_roomloop *rl)
         for (int i = 0; i < 32; i++)
             if (g_world->chars[i]->base.alive != 0) char_apply(g_world->chars[i]);
         for (int i = 0; i < 64; i++)
-            if (g_world->band64[i]->alive != 0) g_eng.h590230(g_world->band64[i]);
+            if (g_world->band64[i]->alive != 0) room_band64_tick((wl_char *)g_world->band64[i]);
         for (int i = 0; i < 1024; i++)
             if (g_world->particles[i]->alive != 0) particle_tick((wl_particle *)g_world->particles[i]);
         for (int i = 0; i < 96; i++)
-            if (g_world->band96[i]->alive != 0) g_eng.h46da00(g_world->band96[i]);
+            if (g_world->band96[i]->alive != 0) band96_tick((wl_char *)g_world->band96[i]);
         for (int i = 0; i < 128; i++)
             if (g_world->actors[i]->alive != 0) room_actor_step((wl_actor *)g_world->actors[i]);
         room_grid_anim(g_world->grid);

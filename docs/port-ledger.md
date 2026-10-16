@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **796** (51.1% of engine-proper) — tested 249, ported 547
-- code bytes touched: **38.5%** (683,326 / 1,776,526 B of engine-proper)
-- unported: **1028**
+- touched: **832** (53.5% of engine-proper) — tested 249, ported 583
+- code bytes touched: **40.9%** (725,840 / 1,776,526 B of engine-proper)
+- unported: **992**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (547) — reimplemented, no host test yet
+## ported (583) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -525,6 +525,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4429c0 | sub_4429C0 | 86 | npc_ai.h |
 | 0x442a20 | sub_442A20 | 76 | npc_ai.h |
 | 0x442a70 | sub_442A70 | 12026 | char_integrate.c, char_integrate.h |
+| 0x445ce0 | sub_445CE0 | 67 | shots.h |
 | 0x445d30 | sub_445D30 | 124 | char_integrate.h |
 | 0x445db0 | sub_445DB0 | 150 | actor_update.c, actor_update.h |
 | 0x445f50 | sub_445F50 | 21 | char_integrate.h |
@@ -546,10 +547,13 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4483c0 | sub_4483C0 | 227 | char_attack.h |
 | 0x448c80 | sub_448C80 | 47 | particle_init.h |
 | 0x448cb0 | sub_448CB0 | 264 | entity_fx.c, entity_fx.h |
+| 0x449700 | sub_449700 | 165 | shots.h |
+| 0x4497b0 | sub_4497B0 | 82 | shots.h |
 | 0x44bbc0 | sub_44BBC0 | 66 | entity_fx.c, entity_fx.h |
 | 0x44ce20 | sub_44CE20 | 505 | char_attack.h |
 | 0x44d020 | sub_44D020 | 308 | char_status.h |
 | 0x44e6c0 | sub_44E6C0 | 108 | char_status.h |
+| 0x4504c0 | sub_4504C0 | 197 | shots.h |
 | 0x450590 | sub_450590 | 46 | char_attack.h |
 | 0x4505c0 | sub_4505C0 | 577 | char_attack.h |
 | 0x450e00 | sub_450E00 | 237 | entity_fx.h |
@@ -557,6 +561,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x451200 | sub_451200 | 79 | entity_fx.c, entity_fx.h |
 | 0x451250 | sub_451250 | 119 | char_integrate.h |
 | 0x4537d0 | sub_4537D0 | 283 | entity_fx.c, entity_fx.h |
+| 0x4538f0 | sub_4538F0 | 112 | shots.h |
 | 0x453960 | velocity_scatter_453960 | 70 | char_state.h |
 | 0x456a50 | sub_456A50 | 272 | skill_cast.h |
 | 0x456b60 | sub_456B60 | 248 | skill_cast.h |
@@ -595,12 +600,37 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x46d180 | sub_46D180 | 798 | entity_fx.c, entity_fx.h |
 | 0x46d4a0 | sub_46D4A0 | 838 | entity_fx.c, entity_fx.h |
 | 0x46d7f0 | sub_46D7F0 | 521 | entity_fx.c, entity_fx.h |
+| 0x46da00 | sub_46DA00 | 1742 | shots.c, shots.h |
+| 0x46e110 | sub_46E110 | 62 | shots.h |
+| 0x46e150 | sub_46E150 | 49 | shots.h |
+| 0x46e190 | sub_46E190 | 877 | shots.h |
 | 0x46e510 | sub_46E510 | 10712 | particle_tick.c, particle_tick.h |
-| 0x471080 | sub_471080 | 49 | particle_tick.c, particle_tick.h |
+| 0x471080 | sub_471080 | 49 | particle_tick.c, particle_tick.h, shots.h |
+| 0x4710c0 | sub_4710C0 | 20681 | shots.c, shots.h |
+| 0x476500 | sub_476500 | 66 | shots.h |
+| 0x476550 | sub_476550 | 326 | shots.h |
 | 0x476710 | sub_476710 | 44 | particle_init.h |
+| 0x476740 | sub_476740 | 307 | shots.h |
 | 0x476880 | sub_476880 | 509 | sound_fx.h |
+| 0x476a80 | sub_476A80 | 48 | shots.h |
+| 0x476ab0 | sub_476AB0 | 229 | shots.h |
+| 0x476ba0 | sub_476BA0 | 198 | shots.h |
 | 0x476c70 | sub_476C70 | 144 | particle_init.h |
 | 0x476d00 | sub_476D00 | 45 | particle_init.h |
+| 0x476d30 | sub_476D30 | 230 | shots.h |
+| 0x476e20 | sub_476E20 | 193 | shots.h |
+| 0x476ef0 | sub_476EF0 | 369 | shots.h |
+| 0x477070 | sub_477070 | 338 | shots.h |
+| 0x4771d0 | sub_4771D0 | 316 | shots.h |
+| 0x477310 | sub_477310 | 589 | shots.h |
+| 0x477560 | sub_477560 | 232 | shots.h |
+| 0x477650 | sub_477650 | 1294 | shots.h |
+| 0x477b70 | sub_477B70 | 898 | shots.h |
+| 0x477f10 | sub_477F10 | 727 | shots.h |
+| 0x4781f0 | sub_4781F0 | 859 | shots.h |
+| 0x478550 | sub_478550 | 77 | shots.h |
+| 0x4785a0 | sub_4785A0 | 633 | shots.h |
+| 0x478820 | sub_478820 | 551 | shots.h |
 | 0x478a50 | sub_478A50 | 329 | char_attack.h |
 | 0x47b770 | sub_47B770 | 77 | behave_ops.h |
 | 0x47b7c0 | sub_47B7C0 | 163 | gimmick.h |
@@ -694,6 +724,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x54c3c0 | sub_54C3C0 | 358 | world_alloc.h |
 | 0x54c640 | sub_54C640 | 812 | grid_refresh.c, grid_refresh.h |
 | 0x54c9d0 | sub_54C9D0 | 214 | grid_refresh.c, grid_refresh.h |
+| 0x54cab0 | sub_54CAB0 | 484 | shots.h |
+| 0x54cca0 | sub_54CCA0 | 792 | shots.h |
+| 0x54cfc0 | sub_54CFC0 | 147 | shots.h |
 | 0x54d060 | sub_54D060 | 36 | arche_pose.h |
 | 0x54d090 | sub_54D090 | 2636 | entity_fx.c, entity_fx.h |
 | 0x54ecf0 | sub_54ECF0 | 137 | gimmick.h |
@@ -725,6 +758,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x55ce50 | sub_55CE50 | 18 | particle_init.h |
 | 0x55ce70 | sub_55CE70 | 311 | skill_cast.h |
 | 0x55cfc0 | sub_55CFC0 | 358 | char_status.h |
+| 0x55d140 | sub_55D140 | 8040 | shots.c, shots.h |
+| 0x55f150 | sub_55F150 | 59 | shots.h |
 | 0x55f190 | sub_55F190 | 936 | ui_run.h |
 | 0x55f550 | sub_55F550 | 199 | ui_run.h |
 | 0x55f790 | sub_55F790 | 1558 | scene_loop.h |
@@ -767,6 +802,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x58ff50 | sub_58FF50 | 66 | room_loop.h |
 | 0x58ffc0 | sub_58FFC0 | 14 | room_tick.h |
 | 0x58ffd0 | sub_58FFD0 | 595 | room_loop.h |
+| 0x590230 | sub_590230 | 478 | shots.h |
 | 0x590410 | sub_590410 | 112 | room_loop.h |
 | 0x590660 | sub_590660 | 566 | room_tick.h |
 | 0x5908a0 | sub_5908A0 | 1011 | room_tick.h |
