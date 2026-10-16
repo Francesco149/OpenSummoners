@@ -106,14 +106,40 @@ def ecx_in(edition, va, size):
     return None
 
 
+_CC = {}
+
+
 def ida_cc(edition):
     """va -> (calling convention, IDA argument count) from functions_ida.tsv"""
-    out = {}
-    for line in open(os.path.join(IDA, edition, "functions_ida.tsv")):
-        f = line.rstrip("\n").split("\t")
-        if len(f) > 5 and re.match(r"^[0-9a-f]{8}$", f[0]):
-            out[int(f[0], 16)] = (f[4], int(f[5] or 0))
-    return out
+    if edition not in _CC:
+        out, pro = {}, {}
+        for line in open(os.path.join(IDA, edition, "functions_ida.tsv")):
+            f = line.rstrip("\n").split("\t")
+            if len(f) > 5 and re.match(r"^[0-9a-f]{8}$", f[0]):
+                out[int(f[0], 16)] = (f[4], int(f[5] or 0))
+                pro[int(f[0], 16)] = f[8] if len(f) > 8 else ""
+        _CC[edition] = (out, pro)
+    return _CC[edition][0]
+
+
+def retail_calls(edition):
+    """the typed pointers to retail's own (unported) callees: RC_xxxxxx(...) = ((rt_xxxxxx)g_eng.retail(va))(...)"""
+    cc = ida_cc(edition)
+    pro = _CC[edition][1]
+    out = []
+    for va in sorted(RETAIL):
+        conv, n = cc.get(va, ("cdecl", 0))
+        ret = pro.get(va, "")
+        rt = "double" if re.match(r"\s*(long double|double|float)\b", ret) else \
+             "int64_t" if "__int64" in ret.split("(")[0] else "void" if re.match(r"\s*void\s", ret) else "intptr_t"
+        if conv == "stdcall" and va in RETAIL_ECX:   # reads its caller's ecx: thiscall, ecx first
+            conv, n = "thiscall", n + 1
+        attr = {"thiscall": "__attribute__((thiscall)) ", "stdcall": "__attribute__((stdcall)) ",
+                "fastcall": "__attribute__((fastcall)) "}.get(conv, "")
+        args = ", ".join(["intptr_t"] * n) or "void"
+        out.append(f"typedef {rt} ({attr}*rt_{va:06x})({args});   /* 0x{va:x} {conv}: unported, retail's */")
+        out.append(f"#define RC_{va:06x} ((rt_{va:06x})g_eng.retail(0x{va:x}u))")
+    return "\n".join(out)
 
 
 def wrappers(used, protos):
@@ -232,6 +258,8 @@ def accx(f, base, off):
 
 
 EDITION = ["enold"]
+RETAIL = set()    # unported callees called through g_eng.retail (PORT-DEBT(engine-call-slots))
+RETAIL_ECX = set()  # ... IDA-__stdcall ones that read their caller's ecx
 ECXPASS = set()   # module functions that take their caller's ecx (IDA __stdcall reading ecx): a leading ecx_ param
 FASTLOCAL = set() # module functions IDA typed __fastcall that never read edx: thiscall (a1 = this), edx dropped
 CUR = [None]      # the port name of the function being converted
@@ -338,7 +366,11 @@ def convert(text, names, widths, this):
     s = re.sub(r"this->gap([0-9A-F]+)\[([^\]]+)\]", lambda m: f"GAP({this}, 0x{tgaps.get(int(m.group(1), 16), int(m.group(1), 16)):x}, {m.group(2)})", s)
     s = re.sub(r"\bsizeof\(this->gap([0-9A-F]+)\)", lambda m: str(gap_size(tm.group(1) if tm else CLS[0], int(m.group(1), 16))), s)
     s = re.sub(r"this->gap([0-9A-F]+)\b(?!\s*\[)", lambda m: f"((uint8_t *)({this}) + 0x{tgaps.get(int(m.group(1), 16), int(m.group(1), 16)):x})", s)
-    s = re.sub(r"\b(v\d+|a\d+)->gap([0-9A-F]+)\[([^\]]+)\]", lambda m: f"GAP({m.group(1)}, 0x{int(m.group(2), 16):x}, {m.group(3)})", s)
+    def vgap(m):   # any class-pointer local's gap byte, at its class's real gap offset
+        cl = CLSTYPE.get(m.group(1))
+        off = class_layout(cl)[2].get(int(m.group(2), 16), int(m.group(2), 16)) if cl else int(m.group(2), 16)
+        return f"GAP({m.group(1)}, 0x{off:x}, {m.group(3)})"
+    s = re.sub(r"\b(?!this\b)([A-Za-z_]\w*)->gap([0-9A-F]+)\[([^\]]+)\]", vgap, s)
     s = re.sub(r"\bthis\b", this, s)
     s = s.replace("nullptr", "0")
     s = re.sub(r"\*\(\(_DWORD \*\)(\w+) \+ (\d+)\)", r"F32(\1, 4 * \2)", s)
@@ -417,6 +449,8 @@ def convert(text, names, widths, this):
         elif re.match(r"^(a[A-Z0-9]\w*|trailer|stru_\w+|unk_\w+|off_\w+|asc_\w+)$", name):
             s = re.sub(r"(?<![\w.&])%s\b(?!\s*[\[.])" % re.escape(name), f"D(0x{va:x})", s)
     s = re.sub(r"&(?:unk|byte|dword|word|asc|off|stru|o_cls_\w+?)_(?!8A6B60\b)([0-9A-F]{6})\b", lambda m: f"D(0x{int(m.group(1), 16):x})", s)
+    for kind, f in (("dword", "F32"), ("word", "F16"), ("byte", "F8")):   # a global's value (not in data_xrefs)
+        s = re.sub(r"(?<![\w&.])%s_([0-9A-F]{6})\b(?!\s*\[)" % kind, lambda m, f=f: f"{f}(D(0x{int(m.group(1), 16):x}), 0)", s)
 
     DSB = {0x5bb870: "g_eng.dsb_volume_5bb870", 0x5bb880: "g_eng.dsb_pan_5bb880", 0x5bb890: "g_eng.dsb_freq_5bb890",
            0x5bb8c0: "g_eng.dsb_play_5bb8c0", 0x5bb8e0: "g_eng.dsb_stop_5bb8e0",
@@ -434,7 +468,8 @@ def convert(text, names, widths, this):
         if n:
             USED.add(n)
             return f"W_{n}("
-        return f"/*TODO 0x{va:x}*/sub_{m.group(1)}("
+        RETAIL.add(va)   # unported: a typed call of retail's own function (g_eng.retail: rhost = identity)
+        return f"RC_{va:06x}("
     s = re.sub(r"\b(?:sub|[A-Za-z_]+?)_([0-9A-F]{6})\(", lambda m: call(m) if re.match(r"(sub|\w+)_[0-9A-F]{6}\(", m.group(0)) else m.group(0), s)
     s = re.sub(r"\(cls_\w+ \*+\)", "", s)
     # a pointer cast under arithmetic scales it (`(_BYTE *)v + 2` = 2 bytes): kept, as the C type
@@ -446,9 +481,21 @@ def convert(text, names, widths, this):
     # loads and pointer arithmetic then scale exactly as in the asm
     s = re.sub(r"\*&SYSB\((\d+)\)", r"SYS32(\1)", s)
     s = s.replace("operator new(", "(intptr_t)g_eng.op_new(").replace("operator delete(", "g_eng.op_delete((void *)")
+    s = re.sub(r"(?<![\w.])exit\(", "g_eng.h5bf5db(", s)                    # the CRT exit 0x5bf5db (FLIRT `exit`)
+    s = re.sub(r"\bstru_8A6B60\.zdm_ptr->name\b", "(SYS32(0x2884) + 0x2c)", s)  # the manager's track name (inline)
+    s = re.sub(r"\bstru_8A6B60\.zdm_ptr\b", "SYS32(0x2884)", s)              # the system's music manager
+    s = re.sub(r"&stru_8A9530\b(?!\.)", "((intptr_t)g_eng.log)", s)          # the error log object
+    wsz, _, wgaps = class_layout("cls_40BE00")
+    s = re.sub(r"(&?)(?:p_cls_40BE00|\bW)\[(\d+)\]\.gap([0-9A-F]+)\[([^\]]+)\]",
+               lambda m: f"{m.group(1)}GAP(W, {int(m.group(2)) * wsz} + 0x{wgaps.get(int(m.group(3), 16), int(m.group(3), 16)):x}, {m.group(4)})", s)
+    s = re.sub(r"&stru_8A6B60\b(?!\.)", "((intptr_t)g_eng.sys)", s)
     s = re.sub(r"&stru_8A6B60\._pad000\[([^\]]+)\]", r"((uint8_t *)g_eng.sys + (\1))", s)
     s = re.sub(r"\*\(_DWORD \*\)&W->gap([0-9A-F]+)\[(\d+)\]", lambda m: f"F32(W, 0x{int(m.group(1), 16):x} + {m.group(2)})", s)
     s = re.sub(r"W->field_([0-9A-F]+)", lambda m: f"F32(W, 0x{int(m.group(1), 16):x})", s)
+    fa = r"(F32|F16)\(((?:[^()]|\((?:[^()]|\([^()]*\))*\))+?), ((?:[^()]|\([^()]*\))+?)\)"
+    for part, (acc, add) in (("LOWORD", ("F16", 0)), ("HIWORD", ("F16", 2)), ("LOBYTE", ("F8", 0)), ("BYTE1", ("F8", 1)),
+                             ("BYTE2", ("F8", 2)), ("HIBYTE", ("F8", 3))):   # a part of a field: the narrower field
+        s = re.sub(r"\b%s\(%s\)" % (part, fa), lambda m, acc=acc, add=add: f"{acc}({m.group(2)}, {m.group(3)}{f' + {add}' if add else ''})", s)
     SETS = {"LOWORD": "SETLO", "HIWORD": "SETHI", "LOBYTE": "SETLB", "LODWORD": "SETLODW", "HIDWORD": "SETHIDW"}
     out, pos = [], 0
     for m in re.finditer(r"\b(LOWORD|HIWORD|LOBYTE|LODWORD|HIDWORD)\((\w+)\) = ", s):
@@ -488,6 +535,8 @@ def convert(text, names, widths, this):
                r"(\w+) = fopen\(stru_8A9530\.path, Mode\);\s*if \( \3 != 0 \)\s*\{\s*GetLocalTime\(&SystemTime\);\s*"
                r"fprintf\(.*?\);\s*fclose\(\3\);\s*\}",
                r"g_eng.log_fail_406440(g_eng.log, (const char *)(\1), (const char *)(\2));", s, flags=re.S)
+    s = re.sub(r"(\w+) = GetLastError\(\);.*?g_eng\.log_fail_406440\(\(const char \*\)(?:D\(0x8a9530\)|\(\(intptr_t\)g_eng\.log\)), (D\(0x[0-9a-f]+\)), D\(0x8a9b6c\)\);",
+               r"g_eng.h426110(g_eng.log, (intptr_t)\2, 1, (intptr_t)D(0x8a9b6c));   /* the error box 0x426110, inlined */", s, flags=re.S)
     for _, t, n in FRAMEVARS:   # (last: the patterns above see IDA's names)
         s = re.sub(r"(?<![\w.>])%s\b" % re.escape(n), f"(*{n}__f)", s)
     return head, s
@@ -618,7 +667,7 @@ def main():
         out.append(s)
         out.append("}")
         funcs.append("\n".join(out))
-        todo |= set(re.findall(r"TODO 0x([0-9a-f]+)", s))
+        todo |= set(re.findall(r"RC_([0-9a-f]{6})\(", s))
     # the call sites IDA got wrong about ecx / edx (one pass over every call to a module function or a port one):
     # - a thiscall callee whose `this` IDA left out (its prototype refined after the caller was decompiled, or the
     #   caller passes its own ecx on): the caller's `this` (or its ecx_) is passed
@@ -633,7 +682,7 @@ def main():
         loc[m.group(1)] = (0 if m.group(2) == "void" else m.group(2).count(",") + 1,
                            m.group(2).startswith(("wl_char *self", "intptr_t ecx_")), m.group(1) in FASTLOCAL)
     wnames = [n for n in USED if n in protos and n in va_of]
-    pat = r"(?<![\w.])(?:(%s)|W_(%s))\(" % ("|".join(map(re.escape, loc)) or "(?!x)x", "|".join(map(re.escape, wnames)) or "(?!x)x")
+    pat = r"(?<![\w.])(?:(%s)|W_(%s)|RC_([0-9a-f]{6}))\(" % ("|".join(map(re.escape, loc)) or "(?!x)x", "|".join(map(re.escape, wnames)) or "(?!x)x")
     for k, f in enumerate(funcs):
         has_this = "intptr_t c = (intptr_t)self;" in f
         tex = "c" if has_this else ("ecx_" if fnames[k] in ECXPASS else "/*ECX: the caller's ecx*/ 0")
@@ -656,6 +705,14 @@ def main():
             if m.group(1):
                 n, wants_this, fast = loc[m.group(1)]
                 vcc = "fastcall" if fast else ("thiscall" if wants_this else "")
+            elif m.group(3):   # a retail callee: its IDA arity counts `this` / ecx, edx as IDA's call does
+                rv = int(m.group(3), 16)
+                vcc, n = cc.get(rv, ("", 0))
+                if vcc == "fastcall":
+                    vcc = ""   # retail's own fastcall gets ecx, edx as IDA passes them
+                if vcc == "stdcall" and ecx_in(a.edition, rv, sizes.get(rv, 0)):
+                    RETAIL_ECX.add(rv)   # declared thiscall with ecx first: the caller's this goes in
+                    vcc, n = "thiscall", n + 1
             else:
                 wv = va_of[m.group(2)]
                 n, vcc = len(protos[m.group(2)][1]), cc.get(wv, ("",))[0]
@@ -671,6 +728,7 @@ def main():
     print("\n".join(f'#include "{h}"' for h in sorted({PROTO_HDR[n] for n in USED if n in PROTO_HDR})))
     print(PROLOGUE)
     print(wrappers(USED, protos))
+    print(retail_calls(a.edition))
     print("\n".join(protos_local))
     print()
     print("\n\n".join(funcs))
