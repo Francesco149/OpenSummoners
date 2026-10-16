@@ -43,43 +43,65 @@ static inline int ofadd32_(int32_t a, int32_t b) { int32_t r; return __builtin_a
 #define __CFADD__(a, b) ((uint32_t)(a) + (uint32_t)(b) < (uint32_t)(a))
 #define __CFSUB__(a, b) ((uint32_t)(a) < (uint32_t)(b))
 #define __SETS__(x) ((int32_t)(x) < 0)
+#define LODWORD(x) ((uint32_t)(uint64_t)(x))
+#define HIDWORD(x) ((uint32_t)((uint64_t)(x) >> 32))
+#define WORD1(x) ((uint16_t)((uint64_t)(x) >> 16))
+#define WORD2(x) ((uint16_t)((uint64_t)(x) >> 32))
+#define BYTE1(x) ((uint8_t)((uint64_t)(x) >> 8))
+#define BYTE2(x) ((uint8_t)((uint64_t)(x) >> 16))
+#define HIBYTE(x) ((uint8_t)((uint32_t)(x) >> 24))
+#define HIWORD(x) ((uint16_t)((uint32_t)(x) >> 16))
+#define SHIDWORD(x) ((int32_t)((uint64_t)(x) >> 32))
+#define SLODWORD(x) ((int32_t)(x))
+#include <math.h>
+/* 0x471080: rounded half away from zero (fcomp 0.0, then fsub / fadd 0.5 and __ftol's truncation) */
+static inline int64_t ftol_round_(double a) { return a < 0.0 ? (int64_t)(a - 0.5) : (int64_t)(a + 0.5); }
 static inline int32_t abs32(int32_t x) { return x < 0 ? (int32_t)(0u - (uint32_t)x) : x; }
 #ifndef __cplusplus
 #include <stdbool.h>
 #endif
+typedef int32_t _DWORD;
+typedef uint16_t _WORD;
+typedef uint8_t _BYTE;
+typedef uint64_t _QWORD;
+#define GAP(p, o, i) F8(p, (o) + (i))   /* IDA's gapN[i]: the byte at +N + i */
 #define SETLO(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff0000u) | (uint16_t)(v)))
 #define SETHI(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffu) | ((uint32_t)(uint16_t)(v) << 16)))
 #define SETLB(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffff00u) | (uint8_t)(v)))
+#define SETLODW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffff00000000ull) | (uint32_t)(v)))
+#define SETHIDW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffffull) | ((uint64_t)(uint32_t)(v) << 32)))
 #define F32(p, o) (*(int32_t *)((uint8_t *)(intptr_t)(p) + (o)))
 #define F16(p, o) (*(uint16_t *)((uint8_t *)(intptr_t)(p) + (o)))
 #define S16(p, o) (*(int16_t *)((uint8_t *)(intptr_t)(p) + (o)))
 #define F8(p, o)  (*(uint8_t *)((uint8_t *)(intptr_t)(p) + (o)))
+#define F64(p, o) (*(int64_t *)((uint8_t *)(intptr_t)(p) + (o)))
 
-static inline intptr_t W_body_action_reset(intptr_t a0) { body_action_reset((wl_body *)a0); return 0; }
-static inline intptr_t W_body_action_start(intptr_t a0, intptr_t a1, intptr_t a2) { return (intptr_t)body_action_start((wl_body *)a0, (int16_t)a1, (int32_t)a2); }
-static inline intptr_t W_body_set_clip(intptr_t a0, intptr_t a1) { body_set_clip((wl_body *)a0, (const void *)a1); return 0; }
-static inline intptr_t W_char_die(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3) { char_die((wl_char *)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3); return 0; }
-static inline intptr_t W_char_init(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, intptr_t a7, intptr_t a8, intptr_t a9, intptr_t a10, intptr_t a11, intptr_t a12, intptr_t a13, intptr_t a14) { char_init((wl_char *)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3, (int32_t)a4, (int32_t)a5, (int32_t)a6, (int32_t)a7, (int32_t)a8, (int32_t)a9, (int32_t)a10, (int32_t)a11, (int32_t)a12, (int32_t)a13, (int32_t)a14); return 0; }
-static inline intptr_t W_char_mag_roll(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3) { return (intptr_t)char_mag_roll((const wl_char *)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3); }
-static inline intptr_t W_char_mag_sum(intptr_t a0) { return (intptr_t)char_mag_sum((const wl_char *)a0); }
-static inline intptr_t W_char_shot_fire(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, intptr_t a7, intptr_t a8, intptr_t a9, intptr_t a10, intptr_t a11, intptr_t a12, intptr_t a13) { return (intptr_t)char_shot_fire((wl_char *)a0, (int32_t)a1, (wl_body *)a2, (int32_t)a3, (int32_t)a4, (int32_t)a5, (int32_t)a6, (int16_t)a7, (int32_t)a8, (const uint8_t *)a9, (int32_t)a10, (int32_t)a11, (int32_t)a12, (int32_t)a13); }
-static inline intptr_t W_char_skill_roll(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3) { return (intptr_t)char_skill_roll((const wl_char *)a0, (const uint8_t *)a1, (int32_t)a2, (int32_t)a3); }
-static inline intptr_t W_entity_snd_keep(intptr_t a0, intptr_t a1, intptr_t a2) { entity_snd_keep((wl_entity *)a0, (uint16_t)a1, (intptr_t)a2); return 0; }
-static inline intptr_t W_entity_snd_release(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3) { entity_snd_release((wl_entity *)a0, (uint16_t)a1, (intptr_t)a2, (int32_t)a3); return 0; }
-static inline intptr_t W_entity_snd_start(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, intptr_t a7) { return (intptr_t)entity_snd_start((wl_entity *)a0, (uint16_t)a1, (int32_t)a2, (uint16_t)a3, (int32_t)a4, (int32_t)a5, (int32_t)a6, (int32_t)a7); }
-static inline intptr_t W_particle_spawn(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, intptr_t a7, intptr_t a8, intptr_t a9, intptr_t a10, intptr_t a11, intptr_t a12, intptr_t a13) { return (intptr_t)particle_spawn((wl_entity *)a0, (wl_entity *)a1, (int32_t)a2, (const wl_body *)a3, (int32_t)a4, (int32_t)a5, (int32_t)a6, (int32_t)a7, (int32_t)a8, (int32_t)a9, (int32_t)a10, (int32_t)a11, (int32_t)a12, (int32_t)a13); }
-static inline intptr_t W_party_find(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4) { return (intptr_t)party_find((const wl_char *)a0, (int32_t)a1, (int16_t)a2, (uint16_t *)a3, (uint16_t)a4); }
-static inline intptr_t W_sfx_place(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6) { return (intptr_t)sfx_place((const wl_entity *)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3, (const wl_body *)a4, (int32_t *)a5, (int32_t *)a6); }
-static inline intptr_t W_shot_spawn(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, intptr_t a7, intptr_t a8, intptr_t a9, intptr_t a10, intptr_t a11, intptr_t a12, intptr_t a13, intptr_t a14, intptr_t a15, intptr_t a16, intptr_t a17, intptr_t a18, intptr_t a19) { return (intptr_t)shot_spawn((void *)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3, (wl_body *)a4, (int32_t)a5, (int32_t)a6, (int32_t)a7, (int32_t)a8, (int16_t)a9, (int32_t)a10, (int32_t)a11, (int32_t)a12, (int32_t)a13, (int32_t)a14, (int32_t)a15, (int32_t)a16, (int32_t)a17, (int32_t)a18, (int32_t)a19); }
-static inline intptr_t W_speed_ramp(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3) { return (intptr_t)speed_ramp((int32_t)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3); }
-static inline intptr_t W_stat_jitter(intptr_t a0, intptr_t a1, intptr_t a2) { return (intptr_t)stat_jitter((int32_t)a0, (int32_t)a1, (int32_t)a2); }
-static inline intptr_t W_tint_fade_a(intptr_t a0, intptr_t a1) { return (intptr_t)tint_fade_a((int32_t)a0, (int32_t)a1); }
-static inline intptr_t W_vline_stop(intptr_t a0, intptr_t a1) { vline_stop((wl_vline *)a0, (int32_t)a1); return 0; }
-static inline intptr_t W_voice_cue(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5) { return (intptr_t)voice_cue((wl_char *)a0, (int32_t)a1, (uint16_t)a2, (int32_t)a3, (int32_t)a4, (int32_t)a5); }
-static inline intptr_t W_voice_place(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3) { return (intptr_t)voice_place((const wl_char *)a0, (int32_t *)a1, (int32_t *)a2, (int32_t *)a3); }
-static inline intptr_t W_voice_play(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6) { return (intptr_t)voice_play((wl_voiceset *)a0, (uint16_t)a1, (int32_t)a2, (int32_t)a3, (int32_t)a4, (int32_t)a5, (int32_t)a6); }
-static inline intptr_t W_voiceset_sounding(intptr_t a0, intptr_t a1, intptr_t a2) { return (intptr_t)voiceset_sounding((const wl_voiceset *)a0, (wl_vgroup **)a1, (wl_vline **)a2); }
-static inline intptr_t W_vpool_take(intptr_t a0, intptr_t a1) { return (intptr_t)vpool_take((wl_vpool *)a0, (int32_t)a1); }
+static inline intptr_t W_body_action_reset(intptr_t a0, ...) { body_action_reset((wl_body *)a0); return 0; }
+static inline intptr_t W_body_action_start(intptr_t a0, intptr_t a1, intptr_t a2, ...) { return (intptr_t)body_action_start((wl_body *)a0, (int16_t)a1, (int32_t)a2); }
+static inline intptr_t W_body_set_clip(intptr_t a0, intptr_t a1, ...) { body_set_clip((wl_body *)a0, (const void *)a1); return 0; }
+static inline intptr_t W_char_die(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, ...) { char_die((wl_char *)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3); return 0; }
+static inline intptr_t W_char_init(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, intptr_t a7, intptr_t a8, intptr_t a9, intptr_t a10, intptr_t a11, intptr_t a12, intptr_t a13, intptr_t a14, ...) { char_init((wl_char *)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3, (int32_t)a4, (int32_t)a5, (int32_t)a6, (int32_t)a7, (int32_t)a8, (int32_t)a9, (int32_t)a10, (int32_t)a11, (int32_t)a12, (int32_t)a13, (int32_t)a14); return 0; }
+static inline intptr_t W_char_mag_roll(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, ...) { return (intptr_t)char_mag_roll((const wl_char *)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3); }
+static inline intptr_t W_char_mag_sum(intptr_t a0, ...) { return (intptr_t)char_mag_sum((const wl_char *)a0); }
+static inline intptr_t W_char_shot_fire(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, intptr_t a7, intptr_t a8, intptr_t a9, intptr_t a10, intptr_t a11, intptr_t a12, intptr_t a13, ...) { return (intptr_t)char_shot_fire((wl_char *)a0, (int32_t)a1, (wl_body *)a2, (int32_t)a3, (int32_t)a4, (int32_t)a5, (int32_t)a6, (int16_t)a7, (int32_t)a8, (const uint8_t *)a9, (int32_t)a10, (int32_t)a11, (int32_t)a12, (int32_t)a13); }
+static inline intptr_t W_char_skill_roll(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, ...) { return (intptr_t)char_skill_roll((const wl_char *)a0, (const uint8_t *)a1, (int32_t)a2, (int32_t)a3); }
+static inline intptr_t W_entity_snd_keep(intptr_t a0, intptr_t a1, intptr_t a2, ...) { entity_snd_keep((wl_entity *)a0, (uint16_t)a1, (intptr_t)a2); return 0; }
+static inline intptr_t W_entity_snd_release(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, ...) { entity_snd_release((wl_entity *)a0, (uint16_t)a1, (intptr_t)a2, (int32_t)a3); return 0; }
+static inline intptr_t W_entity_snd_start(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, intptr_t a7, ...) { return (intptr_t)entity_snd_start((wl_entity *)a0, (uint16_t)a1, (int32_t)a2, (uint16_t)a3, (int32_t)a4, (int32_t)a5, (int32_t)a6, (int32_t)a7); }
+static inline intptr_t W_item_effect(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, ...) { return (intptr_t)item_effect((wl_char *)a0, (int32_t)a1, (int32_t)a2, (uint16_t *)a3, (int32_t)a4, (int32_t)a5, (int16_t)a6); }
+static inline intptr_t W_particle_spawn(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, intptr_t a7, intptr_t a8, intptr_t a9, intptr_t a10, intptr_t a11, intptr_t a12, intptr_t a13, ...) { return (intptr_t)particle_spawn((wl_entity *)a0, (wl_entity *)a1, (int32_t)a2, (const wl_body *)a3, (int32_t)a4, (int32_t)a5, (int32_t)a6, (int32_t)a7, (int32_t)a8, (int32_t)a9, (int32_t)a10, (int32_t)a11, (int32_t)a12, (int32_t)a13); }
+static inline intptr_t W_party_find(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, ...) { return (intptr_t)party_find((const wl_char *)a0, (int32_t)a1, (int16_t)a2, (uint16_t *)a3, (uint16_t)a4); }
+static inline intptr_t W_sfx_place(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, ...) { return (intptr_t)sfx_place((const wl_entity *)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3, (const wl_body *)a4, (int32_t *)a5, (int32_t *)a6); }
+static inline intptr_t W_shot_spawn(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, intptr_t a7, intptr_t a8, intptr_t a9, intptr_t a10, intptr_t a11, intptr_t a12, intptr_t a13, intptr_t a14, intptr_t a15, intptr_t a16, intptr_t a17, intptr_t a18, intptr_t a19, ...) { return (intptr_t)shot_spawn((void *)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3, (wl_body *)a4, (int32_t)a5, (int32_t)a6, (int32_t)a7, (int32_t)a8, (int16_t)a9, (int32_t)a10, (int32_t)a11, (int32_t)a12, (int32_t)a13, (int32_t)a14, (int32_t)a15, (int32_t)a16, (int32_t)a17, (int32_t)a18, (int32_t)a19); }
+static inline intptr_t W_speed_ramp(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, ...) { return (intptr_t)speed_ramp((int32_t)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3); }
+static inline intptr_t W_stat_jitter(intptr_t a0, intptr_t a1, intptr_t a2, ...) { return (intptr_t)stat_jitter((int32_t)a0, (int32_t)a1, (int32_t)a2); }
+static inline intptr_t W_tint_fade_a(intptr_t a0, intptr_t a1, ...) { return (intptr_t)tint_fade_a((int32_t)a0, (int32_t)a1); }
+static inline intptr_t W_vline_stop(intptr_t a0, intptr_t a1, ...) { vline_stop((wl_vline *)a0, (int32_t)a1); return 0; }
+static inline intptr_t W_voice_cue(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, ...) { return (intptr_t)voice_cue((wl_char *)a0, (int32_t)a1, (uint16_t)a2, (int32_t)a3, (int32_t)a4, (int32_t)a5); }
+static inline intptr_t W_voice_place(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, ...) { return (intptr_t)voice_place((const wl_char *)a0, (int32_t *)a1, (int32_t *)a2, (int32_t *)a3); }
+static inline intptr_t W_voice_play(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, ...) { return (intptr_t)voice_play((wl_voiceset *)a0, (uint16_t)a1, (int32_t)a2, (int32_t)a3, (int32_t)a4, (int32_t)a5, (int32_t)a6); }
+static inline intptr_t W_voiceset_sounding(intptr_t a0, intptr_t a1, intptr_t a2, ...) { return (intptr_t)voiceset_sounding((const wl_voiceset *)a0, (wl_vgroup **)a1, (wl_vline **)a2); }
+static inline intptr_t W_vpool_take(intptr_t a0, intptr_t a1, ...) { return (intptr_t)vpool_take((wl_vpool *)a0, (int32_t)a1); }
 int32_t skill_cast(wl_char *self, int32_t a2, int32_t errno_decorate, int32_t a4, int32_t a5, int32_t a6, int32_t * a7, uint16_t * a8, int32_t a9);
 int32_t skill_charge(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t * a5, int32_t a6, uint16_t * a7, uint16_t a8, int32_t a9);
 int32_t skill_stage(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t * a5, int32_t a6, uint16_t * a7, uint16_t a8, int16_t a9, int32_t a10);
@@ -318,49 +340,49 @@ int32_t skill_cast(wl_char *self, int32_t a2, int32_t errno_decorate, int32_t a4
     uint16_t * v232;
     intptr_t v233;
     intptr_t v234;
-    intptr_t v235;
-    intptr_t v236;
-    intptr_t v237;
-    intptr_t v238;
-    intptr_t v239;
-    intptr_t v240;
-    intptr_t v241;
-    intptr_t v242;
-    intptr_t v243;
-    intptr_t v244;
-    intptr_t v245;
-    intptr_t v246;
-    intptr_t v247;
-    intptr_t v248;
-    intptr_t v249;
-    intptr_t v250;
-    intptr_t v251;
-    intptr_t v252;
-    intptr_t v253;
-    intptr_t v254;
-    intptr_t v255;
-    intptr_t v256;
-    intptr_t v257;
-    intptr_t v258;
-    intptr_t v259;
-    intptr_t v260;
-    intptr_t v261;
-    intptr_t v262;
-    intptr_t v263;
-    int16_t v264;
     uint16_t v268;
-    _Alignas(4) uint8_t frame_[0x54 + 0x1000];   /* the stack arrays at their ebp offsets */
+    _Alignas(8) uint8_t frame_[0x7c + 0x10];   /* the stack locals at their ebp offsets */
     memset(frame_, 0, sizeof frame_);
-    intptr_t *v265 = (intptr_t *)(frame_ + 0x0);   /* [5] at ebp-0x54 */
-    intptr_t *v266 = (intptr_t *)(frame_ + 0x14);   /* [8] at ebp-0x40 */
-    intptr_t *v267 = (intptr_t *)(frame_ + 0x34);   /* [8] at ebp-0x20 */
+    intptr_t *v265 = (intptr_t *)(frame_ + 0x28);   /* [5] at ebp-0x54 */
+    intptr_t *v266 = (intptr_t *)(frame_ + 0x3c);   /* [8] at ebp-0x40 */
+    intptr_t *v267 = (intptr_t *)(frame_ + 0x5c);   /* [8] at ebp-0x20 */
+    intptr_t *const v241__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x7c */
+    intptr_t *const v240__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x7c */
+    intptr_t *const v239__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x7c */
+    intptr_t *const v238__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x7c */
+    intptr_t *const v237__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x7c */
+    intptr_t *const v236__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x7c */
+    intptr_t *const v235__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x7c */
+    intptr_t *const v248__f = (intptr_t *)(frame_ + 0x4);   /* ebp-0x78 */
+    intptr_t *const v247__f = (intptr_t *)(frame_ + 0x4);   /* ebp-0x78 */
+    intptr_t *const v246__f = (intptr_t *)(frame_ + 0x4);   /* ebp-0x78 */
+    intptr_t *const v245__f = (intptr_t *)(frame_ + 0x4);   /* ebp-0x78 */
+    intptr_t *const v244__f = (intptr_t *)(frame_ + 0x4);   /* ebp-0x78 */
+    intptr_t *const v243__f = (intptr_t *)(frame_ + 0x4);   /* ebp-0x78 */
+    intptr_t *const v242__f = (intptr_t *)(frame_ + 0x4);   /* ebp-0x78 */
+    intptr_t *const v255__f = (intptr_t *)(frame_ + 0x8);   /* ebp-0x74 */
+    intptr_t *const v254__f = (intptr_t *)(frame_ + 0x8);   /* ebp-0x74 */
+    intptr_t *const v253__f = (intptr_t *)(frame_ + 0x8);   /* ebp-0x74 */
+    intptr_t *const v252__f = (intptr_t *)(frame_ + 0x8);   /* ebp-0x74 */
+    intptr_t *const v251__f = (intptr_t *)(frame_ + 0x8);   /* ebp-0x74 */
+    intptr_t *const v250__f = (intptr_t *)(frame_ + 0x8);   /* ebp-0x74 */
+    intptr_t *const v249__f = (intptr_t *)(frame_ + 0x8);   /* ebp-0x74 */
+    intptr_t *const v262__f = (intptr_t *)(frame_ + 0xc);   /* ebp-0x70 */
+    intptr_t *const v261__f = (intptr_t *)(frame_ + 0xc);   /* ebp-0x70 */
+    intptr_t *const v260__f = (intptr_t *)(frame_ + 0xc);   /* ebp-0x70 */
+    intptr_t *const v259__f = (intptr_t *)(frame_ + 0xc);   /* ebp-0x70 */
+    intptr_t *const v258__f = (intptr_t *)(frame_ + 0xc);   /* ebp-0x70 */
+    intptr_t *const v257__f = (intptr_t *)(frame_ + 0xc);   /* ebp-0x70 */
+    intptr_t *const v256__f = (intptr_t *)(frame_ + 0xc);   /* ebp-0x70 */
+    intptr_t *const v263__f = (intptr_t *)(frame_ + 0x20);   /* ebp-0x5c */
+    int16_t *const v264__f = (int16_t *)(frame_ + 0x24);   /* ebp-0x58 */
 
   v267[0] = 10;
   v266[3] = 10;
   v266[7] = 10;
   v10 = F16(a2, 72);
   v12 = 0;
-  v263 = 0;
+  (*v263__f) = 0;
   v267[1] = 50;
   v267[2] = 30;
   v267[3] = 60;
@@ -388,8 +410,8 @@ LABEL_603:
       v222 = a8;
       v223 = errno_decorate;
       F32(a4, 0) = 1;
-      v263 = skill_stage(c, a2, v223, a5, a7, F32(a2, 76), v222, 0x3Cu, v221, 8);
-      if ( v263 != 0 )
+      (*v263__f) = skill_stage(c, a2, v223, a5, a7, F32(a2, 76), v222, 0x3Cu, v221, 8);
+      if ( (*v263__f) != 0 )
       {
         v224 = F16(a2, 88);
         if ( (uint16_t)v224 != 3 && v224 == 6 )
@@ -427,7 +449,7 @@ LABEL_603:
           W_voice_cue(c, (int)v223, 0x3Fu, 0, 0, 0);
         }
       }
-      return v263;
+      return (*v263__f);
     }
     if ( v10 <= 10114 )
     {
@@ -480,7 +502,7 @@ LABEL_16:
                   F16(a2, 88) = 1;
                 }
                 if ( F8(a2, 116) == 0 )
-                  return v263;
+                  return (*v263__f);
                 F16(a2, 72) = 0;
                 F16(a2, 86) = 210;
                 F16(a2, 88) = 0;
@@ -498,12 +520,12 @@ LABEL_16:
                 v42 = a8;
                 v43 = errno_decorate;
                 F32(a4, 0) = 1;
-                v263 = skill_stage(c, a2, v43, a5, a7, F32(a2, 76), v42, 0x50u, v41, 8);
-                if ( v263 == 0 )
-                  return v263;
+                (*v263__f) = skill_stage(c, a2, v43, a5, a7, F32(a2, 76), v42, 0x50u, v41, 8);
+                if ( (*v263__f) == 0 )
+                  return (*v263__f);
                 v44 = F16(a2, 88);
                 if ( (uint16_t)v44 == 3 || v44 != 6 )
-                  return v263;
+                  return (*v263__f);
                 W_voice_cue(c, (int)v43, 0x38u, 0, 0, 0);
                 v45 = W_char_shot_fire(
                         c,
@@ -538,20 +560,20 @@ LABEL_16:
                         1,
                         2);
                 if ( v46 == 0 )
-                  return v263;
+                  return (*v263__f);
                 F32(v46, 516) = 20;
-                return v263;
+                return (*v263__f);
               case 48:
                 v35 = a9;
                 v36 = a8;
                 v37 = errno_decorate;
                 F32(a4, 0) = 1;
-                v263 = skill_stage(c, a2, v37, a5, a7, F32(a2, 76), v36, 0x50u, v35, 8);
-                if ( v263 == 0 )
-                  return v263;
+                (*v263__f) = skill_stage(c, a2, v37, a5, a7, F32(a2, 76), v36, 0x50u, v35, 8);
+                if ( (*v263__f) == 0 )
+                  return (*v263__f);
                 v38 = F16(a2, 88);
                 if ( (uint16_t)v38 == 3 || v38 != 6 )
-                  return v263;
+                  return (*v263__f);
                 v39 = 0;
                 W_voice_cue(c, (int)v37, 0x37u, 0, 0, 0);
                 W_char_shot_fire(
@@ -593,7 +615,7 @@ LABEL_16:
                   ++errno_decorate;
                 }
                 while ( (uint16_t)errno_decorate < 0x18u );
-                return v263;
+                return (*v263__f);
               case 127:
                 v24 = a8;
                 v25 = errno_decorate;
@@ -640,7 +662,7 @@ LABEL_70:
                       c,
                       (int)c,
                       100095,
-                      a2,
+                      (_DWORD *)a2,
                       F32(c, 0x15a64),
                       F32(c, 0x15a68),
                       99,
@@ -658,7 +680,7 @@ LABEL_70:
                                            c,
                                            (int)c,
                                            100096,
-                                           a2,
+                                           (_DWORD *)a2,
                                            F32(c, 0x15a64),
                                            F32(c, 0x15a68),
                                            99,
@@ -672,13 +694,13 @@ LABEL_70:
                     F32(c, 0xc830) = 1;
                   }
                 }
-                v263 = v26;
+                (*v263__f) = v26;
                 if ( v26 != 0 )
                 {
                   v30 = F16(a2, 88);
                   if ( (uint16_t)v30 != 3 && v30 == 6 && v25 == 0 )
                   {
-                    v31 = F32(c, 0x40);
+                    v31 = (_DWORD *)F32(c, 0x40);
                     v32 = W_vpool_take(SYS32(1256), 0);
                     if ( v32 != 0 )
                     {
@@ -713,7 +735,7 @@ LABEL_70:
                     }
                   }
                 }
-                return v263;
+                return (*v263__f);
               case 128:
                 v16 = a8;
                 v17 = a7;
@@ -762,7 +784,7 @@ LABEL_33:
                       c,
                       (int)c,
                       100095,
-                      a2,
+                      (_DWORD *)a2,
                       F32(c, 0x15a64),
                       F32(c, 0x15a68),
                       99,
@@ -780,7 +802,7 @@ LABEL_33:
                                            c,
                                            (int)c,
                                            100096,
-                                           a2,
+                                           (_DWORD *)a2,
                                            F32(c, 0x15a64),
                                            F32(c, 0x15a68),
                                            99,
@@ -794,9 +816,9 @@ LABEL_33:
                     F32(c, 0xc830) = 1;
                   }
                 }
-                v263 = errno_decorate;
+                (*v263__f) = errno_decorate;
                 if ( errno_decorate == 0 )
-                  return v263;
+                  return (*v263__f);
                 v23 = F16(a2, 88);
                 if ( (uint16_t)v23 == 3
                   || v23 != 6
@@ -805,14 +827,14 @@ LABEL_33:
                   || F32(c, 0x15b5c) != 0
                   || F32(c, 0x15a8c) == 1 && F32(CFG(), 400) == 0 )
                 {
-                  return v263;
+                  return (*v263__f);
                 }
                 if ( W_voice_place(c, &a9, &a4, &errno_decorate) == 0 )
-                  return v263;
+                  return (*v263__f);
                 W_voice_play(F32(c, 0x15b54), 0x28u, 0, a9, a4, errno_decorate, 0);
-                return v263;
+                return (*v263__f);
               default:
-                return v263;
+                return (*v263__f);
             }
             return result;
           }
@@ -822,8 +844,8 @@ LABEL_118:
           v48 = a8;
           v49 = errno_decorate;
           F32(a4, 0) = 1;
-          v263 = skill_stage(c, a2, v49, a5, a7, F32(a2, 76), v48, 0x50u, v47, 8);
-          if ( v263 != 0 )
+          (*v263__f) = skill_stage(c, a2, v49, a5, a7, F32(a2, 76), v48, 0x50u, v47, 8);
+          if ( (*v263__f) != 0 )
           {
             v50 = F16(a2, 88);
             if ( (uint16_t)v50 != 3 && v50 == 6 )
@@ -915,7 +937,7 @@ LABEL_118:
               W_voice_cue(c, (int)v49, 0x3Cu, 0, 0, 0);
             }
           }
-          return v263;
+          return (*v263__f);
         }
         if ( v10 <= 139 )
         {
@@ -978,7 +1000,7 @@ LABEL_153:
                       c,
                       (int)c,
                       100095,
-                      a2,
+                      (_DWORD *)a2,
                       F32(c, 0x15a64),
                       F32(c, 0x15a68),
                       99,
@@ -996,7 +1018,7 @@ LABEL_153:
                                            c,
                                            (int)c,
                                            100096,
-                                           a2,
+                                           (_DWORD *)a2,
                                            F32(c, 0x15a64),
                                            F32(c, 0x15a68),
                                            99,
@@ -1010,12 +1032,12 @@ LABEL_153:
                     F32(c, 0xc830) = 1;
                   }
                 }
-                v263 = v60;
+                (*v263__f) = v60;
                 if ( v60 == 0 )
-                  return v263;
+                  return (*v263__f);
                 v64 = F16(a2, 88);
                 if ( (uint16_t)v64 == 3 || v64 != 6 )
-                  return v263;
+                  return (*v263__f);
                 if ( v55 == 0
                   && F32(c, 0x15b54) != 0
                   && F32(c, 0x15b5c) == 0
@@ -1026,24 +1048,24 @@ LABEL_153:
                 }
                 v65 = F32(a2, 76);
                 if ( v55 != 0 )
-                  return v263;
+                  return (*v263__f);
                 if ( !summon_room_ok(c, (int)c, v65[177], v65[178], v65[179]) )
                 {
                   if ( F32(c, 0xc794) == 0 )
-                    return v263;
+                    return (*v263__f);
                   while ( !summon_room_ok(c, (int)c, v65[177], v65[178], v65[179])
                        && (summon_recall((int)c, v65[177]) != 0 || summon_recall((int)c, 0) != 0) )
                     ;
                 }
-                if ( skill_space_ahead(a2, 9600, 0, 6400, 6400, &errno_decorate) == 0 )
+                if ( skill_space_ahead((_DWORD *)a2, 9600, 0, 6400, 6400, &errno_decorate) == 0 )
                 {
                   if ( F32(c, 0xc794) == 0 )
-                    return v263;
+                    return (*v263__f);
                   errno_decorate = 0;
                 }
                 v66 = summon_spawn(
                                       v65[177],
-                                      a2,
+                                      (_DWORD *)a2,
                                       errno_decorate,
                                       0,
                                       4,
@@ -1108,7 +1130,7 @@ LABEL_207:
                       c,
                       (int)c,
                       100095,
-                      a2,
+                      (_DWORD *)a2,
                       F32(c, 0x15a64),
                       F32(c, 0x15a68),
                       99,
@@ -1126,7 +1148,7 @@ LABEL_207:
                                            c,
                                            (int)c,
                                            100096,
-                                           a2,
+                                           (_DWORD *)a2,
                                            F32(c, 0x15a64),
                                            F32(c, 0x15a68),
                                            99,
@@ -1140,12 +1162,12 @@ LABEL_207:
                     F32(c, 0xc830) = 1;
                   }
                 }
-                v263 = v72;
+                (*v263__f) = v72;
                 if ( v72 == 0 )
-                  return v263;
+                  return (*v263__f);
                 v76 = F16(a2, 88);
                 if ( (uint16_t)v76 == 3 || v76 != 6 )
-                  return v263;
+                  return (*v263__f);
                 if ( v67 == 0
                   && F32(c, 0x15b54) != 0
                   && F32(c, 0x15b5c) == 0
@@ -1156,23 +1178,23 @@ LABEL_207:
                 }
                 v77 = F32(a2, 76);
                 if ( v67 != 0 )
-                  return v263;
+                  return (*v263__f);
                 if ( !summon_room_ok(c, (int)c, v77[177], v77[178], v77[179]) )
                 {
                   if ( F32(c, 0xc794) == 0 )
-                    return v263;
+                    return (*v263__f);
                   while ( !summon_room_ok(c, (int)c, v77[177], v77[178], v77[179])
                        && (summon_recall((int)c, v77[177]) != 0 || summon_recall((int)c, 0) != 0) )
                     ;
                 }
-                if ( skill_space_ahead(a2, 9600, 0, 12800, 6400, &errno_decorate) != 0 )
+                if ( skill_space_ahead((_DWORD *)a2, 9600, 0, 12800, 6400, &errno_decorate) != 0 )
                   goto LABEL_487;
                 if ( F32(c, 0xc794) == 0 )
-                  return v263;
+                  return (*v263__f);
                 errno_decorate = 0;
                 goto LABEL_487;
               default:
-                return v263;
+                return (*v263__f);
             }
           }
 LABEL_595:
@@ -1180,8 +1202,8 @@ LABEL_595:
           v216 = a8;
           v217 = errno_decorate;
           F32(a4, 0) = 1;
-          v263 = skill_stage(c, a2, v217, a5, a7, F32(a2, 76), v216, 0x3Cu, v215, 8);
-          if ( v263 != 0 )
+          (*v263__f) = skill_stage(c, a2, v217, a5, a7, F32(a2, 76), v216, 0x3Cu, v215, 8);
+          if ( (*v263__f) != 0 )
           {
             v218 = F16(a2, 88);
             if ( (uint16_t)v218 != 3 && v218 == 6 )
@@ -1214,7 +1236,7 @@ LABEL_595:
               W_voice_cue(c, (int)v217, 0x40u, 0, 0, 0);
             }
           }
-          return v263;
+          return (*v263__f);
         }
         if ( v10 != 140 )
         {
@@ -1225,13 +1247,13 @@ LABEL_595:
               W_body_action_reset(a2);
               return 0;
             }
-            v78 = a4;
+            v78 = (_DWORD *)a4;
             v79 = a9;
             v80 = a7;
             v81 = errno_decorate;
             F32(a4, 0) = 1;
-            v263 = skill_stage(c, a2, v81, a5, v80, F32(a2, 76), D(0x630378), 0x3Cu, v79, 9);
-            if ( v263 != 0 )
+            (*v263__f) = skill_stage(c, a2, v81, a5, v80, F32(a2, 76), D(0x630378), 0x3Cu, v79, 9);
+            if ( (*v263__f) != 0 )
             {
               v82 = F16(a2, 88);
               if ( (uint16_t)v82 == 3 )
@@ -1241,9 +1263,9 @@ LABEL_595:
               else if ( v82 == 6 )
               {
                 W_voice_cue(c, (int)v81, 0x42u, 1, 0, 0);
-                item_effect((wl_char *)(intptr_t)(c), (int32_t)(a2), (int32_t)((int)v81), (uint16_t *)(intptr_t)(F32(a2, 80)), (int32_t)(F32(a2, 76)), (int32_t)(0), (int16_t)(0));
+                W_item_effect(c, a2, (int)v81, F32(a2, 80), F32(a2, 76), 0, 0);
                 if ( F32(c, 0x200) == 0 && v81 == 0 )
-                  F32(W + 0x2774, 8) = 1;
+                  *(_DWORD *)&GAP(W, 0x2774, 8) = 1;
               }
             }
             if ( F16(a2, 88) >= 5u )
@@ -1252,10 +1274,10 @@ LABEL_595:
               F32(a2, 28) = 1000;
               F32(a2, 40) = 5000;
               *v78 = 3;
-              return v263;
+              return (*v263__f);
             }
           }
-          return v263;
+          return (*v263__f);
         }
 LABEL_378:
         v113 = 0;
@@ -1311,7 +1333,7 @@ LABEL_407:
                   c,
                   (int)c,
                   100095,
-                  a2,
+                  (_DWORD *)a2,
                   F32(c, 0x15a64),
                   F32(c, 0x15a68),
                   99,
@@ -1329,7 +1351,7 @@ LABEL_407:
                                        c,
                                        (int)c,
                                        100096,
-                                       a2,
+                                       (_DWORD *)a2,
                                        F32(c, 0x15a64),
                                        F32(c, 0x15a68),
                                        99,
@@ -1343,13 +1365,13 @@ LABEL_407:
                 F32(c, 0xc830) = 1;
               }
             }
-            v263 = errno_decorate;
+            (*v263__f) = errno_decorate;
             if ( errno_decorate != 0 )
             {
               v149 = F16(a2, 88);
               if ( (uint16_t)v149 != 3 && v149 == 6 )
               {
-                item_effect((wl_char *)(intptr_t)(c), (int32_t)(a2), (int32_t)((int)v140), (uint16_t *)(intptr_t)(F32(a2, 80)), (int32_t)(F32(a2, 76)), (int32_t)(v113), (int16_t)(v264));
+                W_item_effect(c, a2, (int)v140, F32(a2, 80), F32(a2, 76), v113, (*v264__f));
                 if ( v140 == 0
                   && F32(c, 0x15b54) != 0
                   && F32(c, 0x15b5c) == 0
@@ -1357,11 +1379,11 @@ LABEL_407:
                   && W_voice_place(c, &a9, &a4, &errno_decorate) != 0 )
                 {
                   W_voice_play(F32(c, 0x15b54), v268, 0, a9, a4, errno_decorate, 0);
-                  return v263;
+                  return (*v263__f);
                 }
               }
             }
-            return v263;
+            return (*v263__f);
           }
           if ( v140 == 0 )
           {
@@ -1383,8 +1405,8 @@ LABEL_267:
       v87 = a8;
       v88 = errno_decorate;
       F32(a4, 0) = 1;
-      v263 = skill_stage(c, a2, v88, a5, a7, F32(a2, 76), v87, 0x50u, v86, 8);
-      if ( v263 != 0 )
+      (*v263__f) = skill_stage(c, a2, v88, a5, a7, F32(a2, 76), v87, 0x50u, v86, 8);
+      if ( (*v263__f) != 0 )
       {
         v89 = F16(a2, 88);
         if ( (uint16_t)v89 == 3 )
@@ -1409,10 +1431,10 @@ LABEL_267:
             F32(a2, 44),
             0,
             2);
-          return v263;
+          return (*v263__f);
         }
       }
-      return v263;
+      return (*v263__f);
     }
     if ( v10 > 20106 )
     {
@@ -1440,7 +1462,7 @@ LABEL_267:
     {
 LABEL_384:
       v113 = 100150;
-      v264 = 30;
+      (*v264__f) = 30;
       v268 = 32;
       goto LABEL_386;
     }
@@ -1460,8 +1482,8 @@ LABEL_368:
           v137 = a8;
           v138 = errno_decorate;
           F32(a4, 0) = 1;
-          v263 = skill_stage(c, a2, v138, a5, a7, F32(a2, 76), v137, 0x50u, v136, 8);
-          if ( v263 != 0 )
+          (*v263__f) = skill_stage(c, a2, v138, a5, a7, F32(a2, 76), v137, 0x50u, v136, 8);
+          if ( (*v263__f) != 0 )
           {
             v139 = F16(a2, 88);
             if ( (uint16_t)v139 != 3 && v139 == 6 )
@@ -1546,7 +1568,7 @@ LABEL_368:
               W_voice_cue(c, (int)v138, 0x21u, 0, 0, 0);
             }
           }
-          return v263;
+          return (*v263__f);
         }
         if ( v84 != 1 )
           return 0;
@@ -1598,7 +1620,7 @@ LABEL_282:
             c,
             (int)c,
             100095,
-            a2,
+            (_DWORD *)a2,
             F32(c, 0x15a64),
             F32(c, 0x15a68),
             99,
@@ -1616,7 +1638,7 @@ LABEL_282:
                                  c,
                                  (int)c,
                                  100096,
-                                 a2,
+                                 (_DWORD *)a2,
                                  F32(c, 0x15a64),
                                  F32(c, 0x15a68),
                                  99,
@@ -1630,13 +1652,13 @@ LABEL_282:
           F32(c, 0xc830) = 1;
         }
       }
-      v263 = v93;
+      (*v263__f) = v93;
       if ( v93 != 0 )
       {
         v97 = F16(a2, 88);
         if ( (uint16_t)v97 != 3 && v97 == 6 )
         {
-          v98 = F32(c, 0x40);
+          v98 = (_DWORD *)F32(c, 0x40);
           if ( v92 == 0 )
           {
             v99 = W_vpool_take(SYS32(1248), 0);
@@ -1661,25 +1683,25 @@ LABEL_282:
             F8(a2, 127) = 1;
             a8 = v102;
             v104 = rnd();
-            a7 = W_char_skill_roll(c, v103, 1000, 1000 * v104 / 0x8000);
+            a7 = (_DWORD *)W_char_skill_roll(c, v103, 1000, 1000 * v104 / 0x8000);
             if ( v103[44] == 7 )
             {
-              v256 = v103[180];
+              (*v256__f) = v103[180];
               v105 = rnd();
-              a4 = W_char_mag_roll(c, v103[179], 1000 * v105 / 0x8000, v256);
+              a4 = W_char_mag_roll(c, v103[179], 1000 * v105 / 0x8000, (*v256__f));
             }
-            v249 = F32(F32(c, 0x750), 216)
+            (*v249__f) = F32(F32(c, 0x750), 216)
                  + F32(F32(c, 0x750), 224)
                  + F32(F32(c, 0x750), 228);
-            v242 = F32(c, 0x1f0);
-            v235 = a4;
+            (*v242__f) = F32(c, 0x1f0);
+            (*v235__f) = a4;
             v106 = W_char_mag_sum(c);
             W_shot_spawn(
               c,
               (int)c,
               F32(c, 0x1dc),
               100018,
-              a2,
+              (_DWORD *)a2,
               2000,
               0,
               1,
@@ -1691,9 +1713,9 @@ LABEL_282:
               a9,
               v103[44],
               v103[45] + v106,
-              v235,
-              v242,
-              v249,
+              (*v235__f),
+              (*v242__f),
+              (*v249__f),
               2);
             v107 = F32(a2, 96);
             v108 = F32(a2, 76);
@@ -1702,25 +1724,25 @@ LABEL_282:
             F8(a2, 127) = 1;
             a8 = v107;
             v109 = rnd();
-            a7 = W_char_skill_roll(c, v108, 1000, 1000 * v109 / 0x8000);
+            a7 = (_DWORD *)W_char_skill_roll(c, v108, 1000, 1000 * v109 / 0x8000);
             if ( v108[44] == 7 )
             {
-              v257 = v108[180];
+              (*v257__f) = v108[180];
               v110 = rnd();
-              a4 = W_char_mag_roll(c, v108[179], 1000 * v110 / 0x8000, v257);
+              a4 = W_char_mag_roll(c, v108[179], 1000 * v110 / 0x8000, (*v257__f));
             }
-            v250 = F32(F32(c, 0x750), 216)
+            (*v250__f) = F32(F32(c, 0x750), 216)
                  + F32(F32(c, 0x750), 224)
                  + F32(F32(c, 0x750), 228);
-            v243 = F32(c, 0x1f0);
-            v236 = a4;
+            (*v243__f) = F32(c, 0x1f0);
+            (*v236__f) = a4;
             v111 = W_char_mag_sum(c);
             W_shot_spawn(
               c,
               (int)c,
               F32(c, 0x1dc),
               100018,
-              a2,
+              (_DWORD *)a2,
               -2000,
               0,
               1,
@@ -1732,23 +1754,23 @@ LABEL_282:
               a9,
               v108[44],
               v108[45] + v111,
-              v236,
-              v243,
-              v250,
+              (*v236__f),
+              (*v243__f),
+              (*v250__f),
               2);
           }
           W_voice_cue(c, errno_decorate, 0x33u, 0, 0, 0);
         }
       }
-      return v263;
+      return (*v263__f);
     }
     v112 = v10 - 20104;
     if ( v112 != 0 )
     {
       if ( v112 != 1 )
-        return v263;
+        return (*v263__f);
       v113 = 100153;
-      v264 = 20;
+      (*v264__f) = 20;
       v268 = 36;
       goto LABEL_386;
     }
@@ -1795,7 +1817,7 @@ LABEL_326:
               c,
               (int)c,
               100095,
-              a2,
+              (_DWORD *)a2,
               F32(c, 0x15a64),
               F32(c, 0x15a68),
               99,
@@ -1813,7 +1835,7 @@ LABEL_326:
                                    c,
                                    (int)c,
                                    100096,
-                                   a2,
+                                   (_DWORD *)a2,
                                    F32(c, 0x15a64),
                                    F32(c, 0x15a68),
                                    99,
@@ -1827,13 +1849,13 @@ LABEL_326:
             F32(c, 0xc830) = 1;
           }
         }
-        v263 = v117;
+        (*v263__f) = v117;
         if ( v117 != 0 )
         {
           v121 = F16(a2, 88);
           if ( (uint16_t)v121 != 3 && v121 == 6 )
           {
-            v122 = F32(c, 0x40);
+            v122 = (_DWORD *)F32(c, 0x40);
             if ( v116 == 0 )
             {
               v123 = W_vpool_take(SYS32(1248), 0);
@@ -1858,25 +1880,25 @@ LABEL_326:
               F8(a2, 127) = 1;
               a8 = v126;
               v128 = rnd();
-              a7 = W_char_skill_roll(c, v127, 1000, 1000 * v128 / 0x8000);
+              a7 = (_DWORD *)W_char_skill_roll(c, v127, 1000, 1000 * v128 / 0x8000);
               if ( v127[44] == 7 )
               {
-                v258 = v127[180];
+                (*v258__f) = v127[180];
                 v129 = rnd();
-                a4 = W_char_mag_roll(c, v127[179], 1000 * v129 / 0x8000, v258);
+                a4 = W_char_mag_roll(c, v127[179], 1000 * v129 / 0x8000, (*v258__f));
               }
-              v251 = F32(F32(c, 0x750), 216)
+              (*v251__f) = F32(F32(c, 0x750), 216)
                    + F32(F32(c, 0x750), 224)
                    + F32(F32(c, 0x750), 228);
-              v244 = F32(c, 0x1f0);
-              v237 = a4;
+              (*v244__f) = F32(c, 0x1f0);
+              (*v237__f) = a4;
               v130 = W_char_mag_sum(c);
               W_shot_spawn(
                 c,
                 (int)c,
                 F32(c, 0x1dc),
                 100020,
-                a2,
+                (_DWORD *)a2,
                 2000,
                 0,
                 1,
@@ -1888,9 +1910,9 @@ LABEL_326:
                 a9,
                 v127[44],
                 v127[45] + v130,
-                v237,
-                v244,
-                v251,
+                (*v237__f),
+                (*v244__f),
+                (*v251__f),
                 2);
               v131 = F32(a2, 96);
               v132 = F32(a2, 76);
@@ -1899,25 +1921,25 @@ LABEL_326:
               F8(a2, 127) = 1;
               a8 = v131;
               v133 = rnd();
-              a7 = W_char_skill_roll(c, v132, 1000, 1000 * v133 / 0x8000);
+              a7 = (_DWORD *)W_char_skill_roll(c, v132, 1000, 1000 * v133 / 0x8000);
               if ( v132[44] == 7 )
               {
-                v259 = v132[180];
+                (*v259__f) = v132[180];
                 v134 = rnd();
-                a4 = W_char_mag_roll(c, v132[179], 1000 * v134 / 0x8000, v259);
+                a4 = W_char_mag_roll(c, v132[179], 1000 * v134 / 0x8000, (*v259__f));
               }
-              v252 = F32(F32(c, 0x750), 216)
+              (*v252__f) = F32(F32(c, 0x750), 216)
                    + F32(F32(c, 0x750), 224)
                    + F32(F32(c, 0x750), 228);
-              v245 = F32(c, 0x1f0);
-              v238 = a4;
+              (*v245__f) = F32(c, 0x1f0);
+              (*v238__f) = a4;
               v135 = W_char_mag_sum(c);
               W_shot_spawn(
                 c,
                 (int)c,
                 F32(c, 0x1dc),
                 100020,
-                a2,
+                (_DWORD *)a2,
                 -2000,
                 0,
                 1,
@@ -1929,9 +1951,9 @@ LABEL_326:
                 a9,
                 v132[44],
                 v132[45] + v135,
-                v238,
-                v245,
-                v252,
+                (*v238__f),
+                (*v245__f),
+                (*v252__f),
                 2);
             }
             if ( errno_decorate == 0
@@ -1941,11 +1963,11 @@ LABEL_326:
               && W_voice_place(c, &a9, &a4, &errno_decorate) != 0 )
             {
               W_voice_play(F32(c, 0x15b54), 0x25u, 0, a9, a4, errno_decorate, 0);
-              return v263;
+              return (*v263__f);
             }
           }
         }
-        return v263;
+        return (*v263__f);
       }
       W_entity_snd_keep(c, 1u, v116);
     }
@@ -1956,7 +1978,7 @@ LABEL_326:
   {
     case 20113:
       v113 = 100152;
-      v264 = 30;
+      (*v264__f) = 30;
       v268 = 52;
       goto LABEL_386;
     case 20114:
@@ -1973,8 +1995,8 @@ LABEL_326:
       v212 = a8;
       v213 = errno_decorate;
       F32(a4, 0) = 1;
-      v263 = skill_stage(c, a2, v213, a5, a7, F32(a2, 76), v212, 0x50u, v211, 8);
-      if ( v263 != 0 )
+      (*v263__f) = skill_stage(c, a2, v213, a5, a7, F32(a2, 76), v212, 0x50u, v211, 8);
+      if ( (*v263__f) != 0 )
       {
         v214 = F16(a2, 88);
         if ( (uint16_t)v214 != 3 && v214 == 6 )
@@ -1997,7 +2019,7 @@ LABEL_326:
           W_voice_cue(c, (int)v213, 0x3Eu, 0, 0, 0);
         }
       }
-      return v263;
+      return (*v263__f);
     case 20118:
       v170 = a8;
       v171 = a7;
@@ -2045,7 +2067,7 @@ LABEL_539:
             c,
             (int)c,
             100095,
-            a2,
+            (_DWORD *)a2,
             F32(c, 0x15a64),
             F32(c, 0x15a68),
             99,
@@ -2063,7 +2085,7 @@ LABEL_539:
                                  c,
                                  (int)c,
                                  100096,
-                                 a2,
+                                 (_DWORD *)a2,
                                  F32(c, 0x15a64),
                                  F32(c, 0x15a68),
                                  99,
@@ -2077,12 +2099,12 @@ LABEL_539:
           F32(c, 0xc830) = 1;
         }
       }
-      v263 = v173;
+      (*v263__f) = v173;
       if ( v173 == 0 )
-        return v263;
+        return (*v263__f);
       v177 = F16(a2, 88);
       if ( (uint16_t)v177 == 3 || v177 != 6 )
-        return v263;
+        return (*v263__f);
       v178 = 40;
       a4 = 20;
       do
@@ -2097,22 +2119,22 @@ LABEL_539:
         a5 = W_char_skill_roll(c, v180, 1000, 1000 * v181 / 0x8000);
         if ( v180[44] == 7 )
         {
-          v260 = v180[180];
+          (*v260__f) = v180[180];
           v182 = rnd();
-          a9 = W_char_mag_roll(c, v180[179], 1000 * v182 / 0x8000, v260);
+          a9 = W_char_mag_roll(c, v180[179], 1000 * v182 / 0x8000, (*v260__f));
         }
-        v253 = F32(F32(c, 0x750), 216)
+        (*v253__f) = F32(F32(c, 0x750), 216)
              + F32(F32(c, 0x750), 224)
              + F32(F32(c, 0x750), 228);
-        v246 = F32(c, 0x1f0);
-        v239 = a9;
+        (*v246__f) = F32(c, 0x1f0);
+        (*v239__f) = a9;
         v183 = W_char_mag_sum(c);
         W_shot_spawn(
           c,
           (int)c,
           F32(c, 0x1dc),
           100021,
-          a2,
+          (_DWORD *)a2,
           4000,
           800,
           1,
@@ -2124,9 +2146,9 @@ LABEL_539:
           (int)a8,
           v180[44],
           v180[45] + v183,
-          v239,
-          v246,
-          v253,
+          (*v239__f),
+          (*v246__f),
+          (*v253__f),
           2);
         v184 = F32(a2, 96);
         v185 = F32(a2, 76);
@@ -2138,22 +2160,22 @@ LABEL_539:
         a5 = W_char_skill_roll(c, v185, 1000, 1000 * v186 / 0x8000);
         if ( v185[44] == 7 )
         {
-          v261 = v185[180];
+          (*v261__f) = v185[180];
           v187 = rnd();
-          a9 = W_char_mag_roll(c, v185[179], 1000 * v187 / 0x8000, v261);
+          a9 = W_char_mag_roll(c, v185[179], 1000 * v187 / 0x8000, (*v261__f));
         }
-        v254 = F32(F32(c, 0x750), 216)
+        (*v254__f) = F32(F32(c, 0x750), 216)
              + F32(F32(c, 0x750), 224)
              + F32(F32(c, 0x750), 228);
-        v247 = F32(c, 0x1f0);
-        v240 = a9;
+        (*v247__f) = F32(c, 0x1f0);
+        (*v240__f) = a9;
         v188 = W_char_mag_sum(c);
         W_shot_spawn(
           c,
           (int)c,
           F32(c, 0x1dc),
           100021,
-          a2,
+          (_DWORD *)a2,
           4000,
           800,
           1,
@@ -2165,9 +2187,9 @@ LABEL_539:
           (int)a8,
           v185[44],
           v185[45] + v188,
-          v240,
-          v247,
-          v254,
+          (*v240__f),
+          (*v247__f),
+          (*v254__f),
           2);
         v189 = F32(a2, 96);
         v190 = F32(a2, 76);
@@ -2179,15 +2201,15 @@ LABEL_539:
         a5 = W_char_skill_roll(c, v190, 1000, 1000 * v191 / 0x8000);
         if ( v190[44] == 7 )
         {
-          v262 = v190[180];
+          (*v262__f) = v190[180];
           v192 = rnd();
-          a9 = W_char_mag_roll(c, v190[179], 1000 * v192 / 0x8000, v262);
+          a9 = W_char_mag_roll(c, v190[179], 1000 * v192 / 0x8000, (*v262__f));
         }
-        v255 = F32(F32(c, 0x750), 216)
+        (*v255__f) = F32(F32(c, 0x750), 216)
              + F32(F32(c, 0x750), 224)
              + F32(F32(c, 0x750), 228);
-        v248 = F32(c, 0x1f0);
-        v241 = a9;
+        (*v248__f) = F32(c, 0x1f0);
+        (*v241__f) = a9;
         v193 = W_char_mag_sum(c);
         v194 = v190[45];
         v195 = v190[44];
@@ -2197,7 +2219,7 @@ LABEL_539:
           (int)c,
           F32(c, 0x1dc),
           100021,
-          a2,
+          (_DWORD *)a2,
           4000,
           800,
           1,
@@ -2209,9 +2231,9 @@ LABEL_539:
           (int)a8,
           v195,
           v194 + v193,
-          v241,
-          v248,
-          v255,
+          (*v241__f),
+          (*v248__f),
+          (*v255__f),
           2);
         v178 += 5;
         a4 = v196 + 60;
@@ -2223,10 +2245,10 @@ LABEL_539:
         || F32(c, 0x15a8c) == 1 && F32(CFG(), 400) == 0
         || W_voice_place(c, &a9, &a4, &errno_decorate) == 0 )
       {
-        return v263;
+        return (*v263__f);
       }
       W_voice_play(F32(c, 0x15b54), 0x3Du, 0, a9, a4, errno_decorate, 0);
-      return v263;
+      return (*v263__f);
     case 20119:
 LABEL_377:
       v113 = 0;
@@ -2234,7 +2256,7 @@ LABEL_377:
       goto LABEL_386;
     case 20120:
       v113 = 100153;
-      v264 = 20;
+      (*v264__f) = 20;
       v268 = 35;
       goto LABEL_386;
     case 20121:
@@ -2284,7 +2306,7 @@ LABEL_499:
             c,
             (int)c,
             100095,
-            a2,
+            (_DWORD *)a2,
             F32(c, 0x15a64),
             F32(c, 0x15a68),
             99,
@@ -2302,7 +2324,7 @@ LABEL_499:
                                  c,
                                  (int)c,
                                  100096,
-                                 a2,
+                                 (_DWORD *)a2,
                                  F32(c, 0x15a64),
                                  F32(c, 0x15a68),
                                  99,
@@ -2316,13 +2338,13 @@ LABEL_499:
           F32(c, 0xc830) = 1;
         }
       }
-      v263 = v162;
+      (*v263__f) = v162;
       if ( v162 == 0 )
-        return v263;
+        return (*v263__f);
       v166 = F16(a2, 88);
       if ( (uint16_t)v166 == 3 || v166 != 6 || v161 != 0 )
-        return v263;
-      v167 = F32(c, 0x40);
+        return (*v263__f);
+      v167 = (_DWORD *)F32(c, 0x40);
       v168 = W_vpool_take(SYS32(1256), 0);
       if ( v168 != 0 )
       {
@@ -2342,26 +2364,26 @@ LABEL_499:
           g_eng.dsb_play_5bb8c0(v169);
         }
       }
-      item_effect((wl_char *)(intptr_t)(c), (int32_t)(a2), (int32_t)(0), (uint16_t *)(intptr_t)(F32(a2, 80)), (int32_t)(F32(a2, 76)), (int32_t)(0), (int16_t)(0));
+      W_item_effect(c, a2, 0, F32(a2, 80), F32(a2, 76), 0, 0);
       if ( F32(c, 0x15b54) == 0
         || F32(c, 0x15b5c) != 0
         || F32(c, 0x15a8c) == 1 && F32(CFG(), 400) == 0 )
       {
-        return v263;
+        return (*v263__f);
       }
       if ( W_voice_place(c, &a9, &a4, &errno_decorate) == 0 )
-        return v263;
+        return (*v263__f);
 LABEL_100:
       W_voice_play(F32(c, 0x15b54), 0x27u, 0, a9, a4, errno_decorate, 0);
-      return v263;
+      return (*v263__f);
     case 20122:
     case 20130:
       v231 = a9;
       v232 = a8;
       v233 = errno_decorate;
       F32(a4, 0) = 1;
-      v263 = skill_stage(c, a2, v233, a5, a7, F32(a2, 76), v232, 0x50u, v231, 8);
-      if ( v263 != 0 )
+      (*v263__f) = skill_stage(c, a2, v233, a5, a7, F32(a2, 76), v232, 0x50u, v231, 8);
+      if ( (*v263__f) != 0 )
       {
         v234 = F16(a2, 88);
         if ( (uint16_t)v234 != 3 && v234 == 6 )
@@ -2384,13 +2406,13 @@ LABEL_100:
           W_voice_cue(c, (int)v233, 0x22u, 0, 0, 0);
         }
       }
-      return v263;
+      return (*v263__f);
     case 20123:
       v197 = a9;
       v198 = a8;
       F32(a4, 0) = 1;
-      v263 = skill_stage(c, a2, errno_decorate, a5, a7, F32(a2, 76), v198, 0x50u, v197, 8);
-      if ( v263 != 0 )
+      (*v263__f) = skill_stage(c, a2, errno_decorate, a5, a7, F32(a2, 76), v198, 0x50u, v197, 8);
+      if ( (*v263__f) != 0 )
       {
         v199 = F16(a2, 88);
         if ( (uint16_t)v199 != 3 && v199 == 6 )
@@ -2421,21 +2443,21 @@ LABEL_100:
           W_voice_cue(c, errno_decorate, 0x2Au, 0, 0, 0);
         }
       }
-      return v263;
+      return (*v263__f);
     case 20124:
     case 20136:
       goto LABEL_378;
     case 20125:
       v113 = 100151;
-      v264 = 30;
+      (*v264__f) = 30;
       v268 = 46;
       goto LABEL_386;
     case 20126:
       v225 = a9;
       v226 = a8;
       F32(a4, 0) = 1;
-      v263 = skill_stage(c, a2, errno_decorate, a5, a7, F32(a2, 76), v226, 0x50u, v225, 8);
-      if ( v263 != 0 )
+      (*v263__f) = skill_stage(c, a2, errno_decorate, a5, a7, F32(a2, 76), v226, 0x50u, v225, 8);
+      if ( (*v263__f) != 0 )
       {
         v227 = F16(a2, 88);
         if ( (uint16_t)v227 != 3 && v227 == 6 )
@@ -2468,14 +2490,14 @@ LABEL_100:
           W_voice_cue(c, errno_decorate, 0x2Du, 0, 0, 0);
         }
       }
-      return v263;
+      return (*v263__f);
     case 20127:
       v207 = a9;
       v208 = a8;
       v209 = errno_decorate;
       F32(a4, 0) = 1;
-      v263 = skill_stage(c, a2, v209, a5, a7, F32(a2, 76), v208, 0x50u, v207, 8);
-      if ( v263 != 0 )
+      (*v263__f) = skill_stage(c, a2, v209, a5, a7, F32(a2, 76), v208, 0x50u, v207, 8);
+      if ( (*v263__f) != 0 )
       {
         v210 = F16(a2, 88);
         if ( (uint16_t)v210 != 3 && v210 == 6 )
@@ -2573,15 +2595,15 @@ LABEL_100:
           W_voice_cue(c, (int)v209, 0x2Fu, 0, 0, 0);
         }
       }
-      return v263;
+      return (*v263__f);
     case 20128:
       goto LABEL_603;
     case 20131:
       v202 = a9;
       v203 = a8;
       F32(a4, 0) = 1;
-      v263 = skill_stage(c, a2, errno_decorate, a5, a7, F32(a2, 76), v203, 0x50u, v202, 8);
-      if ( v263 != 0 )
+      (*v263__f) = skill_stage(c, a2, errno_decorate, a5, a7, F32(a2, 76), v203, 0x50u, v202, 8);
+      if ( (*v263__f) != 0 )
       {
         v204 = F16(a2, 88);
         if ( (uint16_t)v204 != 3 && v204 == 6 )
@@ -2628,7 +2650,7 @@ LABEL_100:
           W_voice_cue(c, errno_decorate, 0x2Bu, 0, 0, 0);
         }
       }
-      return v263;
+      return (*v263__f);
     case 20132:
       goto LABEL_384;
     case 20133:
@@ -2637,7 +2659,7 @@ LABEL_100:
       goto LABEL_386;
     case 20134:
       v113 = 100150;
-      v264 = 30;
+      (*v264__f) = 30;
       v268 = 48;
       goto LABEL_386;
     case 20135:
@@ -2693,7 +2715,7 @@ LABEL_450:
             c,
             (int)c,
             100095,
-            a2,
+            (_DWORD *)a2,
             F32(c, 0x15a64),
             F32(c, 0x15a68),
             99,
@@ -2711,7 +2733,7 @@ LABEL_450:
                                  c,
                                  (int)c,
                                  100096,
-                                 a2,
+                                 (_DWORD *)a2,
                                  F32(c, 0x15a64),
                                  F32(c, 0x15a68),
                                  99,
@@ -2725,12 +2747,12 @@ LABEL_450:
           F32(c, 0xc830) = 1;
         }
       }
-      v263 = v154;
+      (*v263__f) = v154;
       if ( v154 == 0 )
-        return v263;
+        return (*v263__f);
       v158 = F16(a2, 88);
       if ( (uint16_t)v158 == 3 || v158 != 6 )
-        return v263;
+        return (*v263__f);
       if ( v150 == 0
         && F32(c, 0x15b54) != 0
         && F32(c, 0x15b5c) == 0
@@ -2741,31 +2763,31 @@ LABEL_450:
       }
       v77 = F32(a2, 76);
       if ( v150 != 0 )
-        return v263;
+        return (*v263__f);
       if ( !summon_room_ok(c, (int)c, v77[177], v77[178], v77[179]) )
       {
         if ( F32(c, 0xc794) == 0 )
-          return v263;
+          return (*v263__f);
         while ( !summon_room_ok(c, (int)c, v77[177], v77[178], v77[179])
              && (summon_recall((int)c, v77[177]) != 0 || summon_recall((int)c, 0) != 0) )
           ;
       }
-      if ( skill_space_ahead(a2, 9600, 0, 12800, 6400, &errno_decorate) == 0 )
+      if ( skill_space_ahead((_DWORD *)a2, 9600, 0, 12800, 6400, &errno_decorate) == 0 )
       {
         if ( F32(c, 0xc794) == 0 )
-          return v263;
+          return (*v263__f);
         errno_decorate = 0;
       }
 LABEL_487:
-      v66 = summon_spawn(v77[177], a2, errno_decorate, 0, 4, 0, F32(a2, 44), 5, 0);
+      v66 = summon_spawn(v77[177], (_DWORD *)a2, errno_decorate, 0, 4, 0, F32(a2, 44), 5, 0);
 LABEL_488:
       if ( v66 == 0 )
-        return v263;
+        return (*v263__f);
       summon_init(v66, c);
-      result = v263;
+      result = (*v263__f);
       break;
     default:
-      return v263;
+      return (*v263__f);
   }
   return result;
 }
@@ -2996,10 +3018,12 @@ int32_t skill_stage(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t *
     intptr_t v19;
     uint16_t v20;
     intptr_t v21;
-    intptr_t v23;
     intptr_t * v24;
+    _Alignas(8) uint8_t frame_[0x4 + 0x10];   /* the stack locals at their ebp offsets */
+    memset(frame_, 0, sizeof frame_);
+    intptr_t *const v23__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x4 */
 
-  v23 = 0;
+  (*v23__f) = 0;
   v11 = a7;
   switch ( F16(a2, 88) )
   {
@@ -3010,7 +3034,7 @@ int32_t skill_stage(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t *
       if ( a7[33] != 0 )
         W_body_set_clip(a2, (int)a7);
       F16(a2, 88) = 1;
-      v23 = 1;
+      (*v23__f) = 1;
       goto LABEL_7;
     case 1:
 LABEL_7:
@@ -3019,14 +3043,14 @@ LABEL_7:
         if ( v11[235] != 0 )
           W_body_set_clip(a2, (int)(v11 + 202));
         F16(a2, 88) = 2;
-        v23 = 1;
+        (*v23__f) = 1;
       }
       goto LABEL_20;
     case 2:
       if ( F16(a2, 102) >= 0x64u )
       {
         F16(a2, 88) = 3;
-        v23 = 1;
+        (*v23__f) = 1;
       }
       goto LABEL_14;
     case 3:
@@ -3057,7 +3081,7 @@ LABEL_20:
       if ( F16(a2, 102) >= 0x3E8u )
       {
         F16(a2, 88) = 4;
-        v23 = 1;
+        (*v23__f) = 1;
 LABEL_48:
         v15 = F16(a2, 88);
         if ( v15 >= 4u && v15 <= 6u )
@@ -3074,7 +3098,7 @@ LABEL_3:
       }
 LABEL_51:
       F16(a2, 86) = a9;
-      if ( v23 != 0 )
+      if ( (*v23__f) != 0 )
       {
         if ( F16(a2, 88) == 1 )
         {
@@ -3082,7 +3106,7 @@ LABEL_51:
           {
             if ( F16(c, 0x1b4) != 0 )
             {
-              if ( W_sfx_place(c, 0, 0, 0, F32(c, 0x40), 0, 0) != 0 )
+              if ( W_sfx_place(c, 0, 0, 0, (_DWORD *)F32(c, 0x40), 0, 0) != 0 )
               {
                 v16 = F32(c, 0x1b0);
                 v17 = SYS32(1192);
@@ -3145,7 +3169,7 @@ LABEL_68:
             c,
             (int)c,
             100095,
-            a2,
+            (_DWORD *)a2,
             F32(c, 0x15a64),
             F32(c, 0x15a68),
             99,
@@ -3163,7 +3187,7 @@ LABEL_68:
                                  c,
                                  (int)c,
                                  100096,
-                                 a2,
+                                 (_DWORD *)a2,
                                  F32(c, 0x15a64),
                                  F32(c, 0x15a68),
                                  99,
@@ -3177,13 +3201,13 @@ LABEL_68:
           F32(c, 0xc830) = 1;
         }
       }
-      return v23;
+      return (*v23__f);
     case 4:
       if ( a7[639] != 0 )
         W_body_set_clip(a2, (int)(a7 + 606));
       F16(a2, 88) = 5;
       F8(a2, 104) = 1;
-      v23 = 1;
+      (*v23__f) = 1;
       goto LABEL_33;
     case 5:
 LABEL_33:
@@ -3193,7 +3217,7 @@ LABEL_33:
         goto LABEL_24;
       if ( a7[841] != 0 )
         W_body_set_clip(a2, (int)(a7 + 808));
-      v23 = 1;
+      (*v23__f) = 1;
       F16(a2, 88) = 6;
       goto LABEL_20;
     case 6:
@@ -3204,13 +3228,13 @@ LABEL_33:
         if ( a7[1043] != 0 )
           W_body_set_clip(a2, (int)(a7 + 1010));
         F16(a2, 88) = 7;
-        v23 = 1;
+        (*v23__f) = 1;
       }
       goto LABEL_20;
     case 7:
       if ( F8(a2, 116) == 0 && a7[1043] != 0 )
         goto LABEL_20;
-      v23 = 1;
+      (*v23__f) = 1;
       W_body_action_reset(a2);
       goto LABEL_51;
     default:
@@ -3251,7 +3275,7 @@ int32_t summon_recall(int32_t a1, int32_t a2)
 
   v2 = 0;
   v3 = 0;
-  v4 = W + 4448;
+  v4 = (uint8_t *)W + 4448;
   for ( i = 32; i != 0; --i )
   {
     v6 = F32(v4, 0);
@@ -3262,7 +3286,7 @@ int32_t summon_recall(int32_t a1, int32_t a2)
       && (F32(v6, 468) == a2 || a2 == 0)
       && (v3 < F32(v6, 88264) || v2 == 0) )
     {
-      v2 = *v4;
+      v2 = *(_DWORD **)v4;
       v3 = F32(v6, 88264);
     }
     v4 += 4;
@@ -3308,13 +3332,15 @@ int32_t summon_room_ok(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_
     intptr_t v9;
     intptr_t v10;
     intptr_t v11;
-    intptr_t v13;
-    intptr_t v14;
+    _Alignas(8) uint8_t frame_[0xc + 0x10];   /* the stack locals at their ebp offsets */
+    memset(frame_, 0, sizeof frame_);
+    intptr_t *const v13__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0xc */
+    intptr_t *const v14__f = (intptr_t *)(frame_ + 0x4);   /* ebp-0x8 */
 
   v5 = 0;
-  v6 = (W + 0x1030 + 304);
-  v13 = 0;
-  v14 = 0;
+  v6 = &GAP(W, 0x1030, 304);
+  (*v13__f) = 0;
+  (*v14__f) = 0;
   for ( i = 32; i != 0; --i )
   {
     v8 = F32(v6, 0);
@@ -3331,21 +3357,21 @@ int32_t summon_room_ok(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_
           ++v5;
           if ( F32(v8, 88928) != a2 )
             goto LABEL_16;
-          ++v14;
+          ++(*v14__f);
         }
         if ( F32(v8, 88928) == a2 )
-          ++v13;
+          ++(*v13__f);
       }
     }
 LABEL_16:
     v6 += 4;
   }
   v11 = F32(c, 0x15a6c);
-  if ( v11 != 0 && v11 <= v13 )
+  if ( v11 != 0 && v11 <= (*v13__f) )
     return false;
   if ( a5 > 0 && a5 <= v5 )
     return false;
-  return a4 <= 0 || a4 > v14;
+  return a4 <= 0 || a4 > (*v14__f);
 }
 
 /* 0x45e050: int __stdcall sub_45E050(_DWORD *a1, int a2, int a3, int a4, int a5, _DWORD *a6) */
@@ -3367,29 +3393,31 @@ int32_t skill_space_ahead(int32_t * a1, int32_t a2, int32_t a3, int32_t a4, int3
     intptr_t v18;
     uint16_t * v19;
     intptr_t v20;
-    intptr_t v22;
-    intptr_t v23;
-    intptr_t v24;
-    intptr_t v25;
-    intptr_t v26;
-    intptr_t v27;
-    intptr_t v28;
     intptr_t v29;
     intptr_t v30;
     intptr_t v31;
     intptr_t v32;
+    _Alignas(8) uint8_t frame_[0x1c + 0x10];   /* the stack locals at their ebp offsets */
+    memset(frame_, 0, sizeof frame_);
+    intptr_t *const v22__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x1c */
+    intptr_t *const v23__f = (intptr_t *)(frame_ + 0x4);   /* ebp-0x18 */
+    intptr_t *const v24__f = (intptr_t *)(frame_ + 0x8);   /* ebp-0x14 */
+    intptr_t *const v25__f = (intptr_t *)(frame_ + 0xc);   /* ebp-0x10 */
+    intptr_t *const v26__f = (intptr_t *)(frame_ + 0x10);   /* ebp-0xc */
+    intptr_t *const v27__f = (intptr_t *)(frame_ + 0x14);   /* ebp-0x8 */
+    intptr_t *const v28__f = (intptr_t *)(frame_ + 0x18);   /* ebp-0x4 */
 
-  v25 = 0;
-  v22 = 0;
-  v24 = 1;
+  (*v25__f) = 0;
+  (*v22__f) = 0;
+  (*v24__f) = 1;
   v6 = a2 - 25600;
-  v23 = a2 - 25600;
+  (*v23__f) = a2 - 25600;
   if ( __OFSUB__(a2 - 25600, a2 + 25600) )
     goto LABEL_23;
-  v27 = a1[11];
+  (*v27__f) = a1[11];
   v7 = a3 + a1[2] - a1[4] / 2;
   v8 = a1[1] - a1[3] / 2;
-  v26 = v8;
+  (*v26__f) = v8;
   v29 = a4 / 2;
   v9 = v7 - a5 / 2;
   v10 = a5 / 2 + v7;
@@ -3400,7 +3428,7 @@ int32_t skill_space_ahead(int32_t * a1, int32_t a2, int32_t a3, int32_t a4, int3
   while ( 1 )
   {
     v12 = v11;
-    if ( v27 != 3 )
+    if ( (*v27__f) != 3 )
       v12 = v6;
     v13 = v8 + v12 + v29;
     v14 = (v8 + v12 - v29) / 3200;
@@ -3408,7 +3436,7 @@ int32_t skill_space_ahead(int32_t * a1, int32_t a2, int32_t a3, int32_t a4, int3
     if ( v14 >= 0 )
     {
       v16 = F32(W, 4 * 1042);
-      v28 = v16;
+      (*v28__f) = v16;
       if ( v15 <= F32(v16, 2887728) )
       {
         v17 = v30;
@@ -3417,12 +3445,12 @@ int32_t skill_space_ahead(int32_t * a1, int32_t a2, int32_t a3, int32_t a4, int3
           if ( v30 >= v31 )
           {
 LABEL_17:
-            if ( (int)abs32(v32 + a2) > (int)abs32(v11 + a2) || v24 != 0 )
+            if ( (int)abs32(v32 + a2) > (int)abs32(v11 + a2) || (*v24__f) != 0 )
             {
-              v25 = v6;
+              (*v25__f) = v6;
               v32 = v11;
-              v22 = 1;
-              v24 = 0;
+              (*v22__f) = 1;
+              (*v24__f) = 0;
             }
           }
           else
@@ -3436,38 +3464,38 @@ LABEL_16:
               if ( ++v17 >= v31 )
                 goto LABEL_17;
             }
-            v19 = (v16 + 2 * (v17 + (v14 << 7)) + 2887744);
+            v19 = (_WORD *)(v16 + 2 * (v17 + (v14 << 7)) + 2887744);
             while ( *v19 != 1 )
             {
               ++v18;
               v19 += 128;
               if ( v18 >= v15 )
               {
-                v6 = v23;
-                v16 = v28;
+                v6 = (*v23__f);
+                v16 = (*v28__f);
                 goto LABEL_16;
               }
             }
-            v6 = v23;
+            v6 = (*v23__f);
           }
         }
       }
     }
     v6 += 1600;
     v11 -= 1600;
-    v23 = v6;
+    (*v23__f) = v6;
     if ( v6 >= a2 + 25600 )
       break;
-    v8 = v26;
+    v8 = (*v26__f);
   }
-  if ( v22 != 0 )
-    v20 = v25;
+  if ( (*v22__f) != 0 )
+    v20 = (*v25__f);
   else
 LABEL_23:
     v20 = 0;
   if ( a6 != 0 )
     *a6 = v20;
-  return v22;
+  return (*v22__f);
 }
 
 /* 0x45e4c0: int __thiscall sub_45E4C0(cls_4022A0 *this, _DWORD *a2) */
@@ -3646,4 +3674,4 @@ LABEL_16:
   W_char_init(v13, v15, v16, a8, 4, 0, a1, 0, a7, 0, 0, 0, a9, 0, 0);
   return v13;
 }
-/* unported callees: 0x408b90 0x5b3b00 */
+/* unported callees: none */
