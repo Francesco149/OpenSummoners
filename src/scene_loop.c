@@ -543,6 +543,7 @@ void frame_cache_clear(uint8_t *c)
         r = (uint8_t *)ldp(c, 0) + 28u * i;
         for (uint32_t o = 0; o < 24; o += 4) st32(r, o, 0);
     }
+    st16(c, 6, 0);   /* the used count (rh-combat: the render 0x48c150 had set it) */
 }
 
 void room_end_cleanup(uint8_t *ss)
