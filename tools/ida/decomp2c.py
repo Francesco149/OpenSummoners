@@ -116,6 +116,8 @@ def ecx_in(edition, va, size):
             continue   # (push ecx: MSVC's 4-byte local reservation)
         if op in ("xor", "sub") and re.match(r"\s*ecx,\s*ecx\s*$", args):
             return None
+        if (op == "or" and re.match(r"\s*ecx,\s*0FFFFFFFFh\s*$", args)) or (op == "and" and re.match(r"\s*ecx,\s*0\s*$", args)):
+            return None   # a constant write (`or ecx, -1`: the repne scasb strlen idiom), not a read
         if reg(src) or re.search(r"\[[^\]]*\becx\b", dst) or (op not in ("mov", "lea", "pop", "movzx", "movsx", "xor") and reg(dst)) \
                 or (op == "xor" and reg(dst) and not re.match(r"\s*ecx,\s*ecx", args)):
             return "read"
@@ -212,6 +214,99 @@ def call_args(f, j):
     if f[start:j].strip():
         args.append(f[start:j])
     return args, j
+
+
+_EXE = {}
+EXE_PATHS = {"enold": "vendor/unpacked/sotes.unpacked.exe", "ense-en": "vendor/unpacked/sotes_en.unpacked.exe"}
+
+
+def exe_read(va, n, edition=None):
+    """n bytes of the retail image at va (the PE's section table), or b"" """
+    ed = edition or EDITION[0]
+    if ed not in _EXE:
+        import struct
+        try:
+            d = open(os.path.join(REPO, EXE_PATHS.get(ed, "")), "rb").read()
+        except OSError:
+            d = b""
+        secs = []
+        if d[:2] == b"MZ":
+            pe = struct.unpack_from("<I", d, 0x3c)[0]
+            ns, osz = struct.unpack_from("<H", d, pe + 6)[0], struct.unpack_from("<H", d, pe + 20)[0]
+            base = struct.unpack_from("<I", d, pe + 24 + 28)[0]
+            for i in range(ns):
+                o = pe + 24 + osz + 40 * i
+                vs, rva, rs, ro = struct.unpack_from("<IIII", d, o + 8)
+                secs.append((base + rva, max(vs, rs), ro, rs))
+        _EXE[ed] = (d, secs)
+    d, secs = _EXE[ed]
+    for sva, sz, ro, rs in secs:
+        if sva <= va < sva + sz:
+            off = va - sva
+            return d[ro + off:ro + min(off + n, rs)] if off < rs else b"\0" * n
+    return b""
+
+
+def is_cstr(va):
+    """the image holds a non-empty NUL-terminated text string at va (ASCII / SJIS bytes)"""
+    b = exe_read(va, 512)
+    z = b.find(b"\0")
+    return z > 0 and all(c >= 0x20 or c in (9, 10, 13) for c in b[:z])
+
+
+_KBN = []
+
+
+def kb_names():
+    if not _KBN:
+        _KBN.append({n for n, _ in kb_globals().values()})
+    return _KBN[0]
+
+
+# CRT calls with an effect outside the program (the clock, files, the environment): retail's own CRT (FLIRT `_x`), so
+# rhost's virtual clock / file overlay stay under them — the host CRT would bypass both
+CRT_REDIRECT = ("time", "localtime", "gmtime", "mktime", "strftime", "clock", "fopen", "fclose", "fprintf", "fread",
+                "fwrite", "fseek", "ftell", "fgets", "fputs", "fflush", "remove", "rename", "getenv", "_findfirst",
+                "_findnext", "_findclose", "_mkdir", "_access")
+CRT_USED = {}
+
+
+def crt_calls(f, edition):
+    flirt = {}
+    for line in open(os.path.join(IDA, edition, "functions_ida.tsv")):
+        x = line.split("\t")
+        if len(x) > 3 and x[3] == "1":
+            flirt.setdefault(x[2], int(x[0], 16))
+    def rep(m):
+        n = m.group(1)
+        va = flirt.get("_" + n.lstrip("_")) or flirt.get(n)
+        if n in CRT_REDIRECT and va:
+            CRT_USED[n] = va
+            return f"CRT_{n}("
+        return m.group(0)
+    return re.sub(r"(?<![\w.>])([A-Za-z_]\w*)\(", rep, f)
+
+
+def crt_decls():
+    return "\n".join(f"#define CRT_{n} ((intptr_t (*)())g_eng.retail(0x{va:x}u))   /* retail's CRT {n} (cdecl) */"
+                      for n, va in sorted(CRT_USED.items()))
+
+
+def strip_seh(body):
+    """MSVC's SEH / C++ EH frame (the TEB's ExceptionList link, the handler stub, the __alloca_probe result): only the
+    unwinder reads them — dropped"""
+    out = []
+    for ln in body:
+        if re.match(r"^\s*ExceptionList = NtCurrentTeb\(\)->NtTib\.ExceptionList;\s*$", ln) or \
+                re.match(r"^\s*NtCurrentTeb\(\)->NtTib\.ExceptionList = .*;\s*$", ln) or \
+                re.match(r"^\s*[\w\[\]\.]+ = &loc_[0-9A-F]+;\s*$", ln) or \
+                re.match(r"^\s*[\w\[\]\.]+ = ExceptionList;\s*$", ln):
+            continue
+        am = re.match(r"^\s*(\w+) = alloca\(\d+\);\s*$", ln)
+        if am and sum(len(re.findall(r"\b%s\b" % am.group(1), x)) for x in body) == 2:   # (its decl + this line)
+            continue
+        out.append(ln)
+    return out
 
 
 def api_calls(f, imps):
@@ -473,7 +568,7 @@ def convert(text, names, widths, this):
     bt = re.sub(r"if \( (\w+) != nullptr \)\r?\n(\s+)(\w+)\(\1\);\r?\n(\s+)else\r?\n(\s+)(\w+) = nullptr;",
                 lambda m: f"if ( {m.group(1)} != nullptr )\n{m.group(2)}{{ {m.group(3)}({m.group(1)}); {m.group(6)} = {m.group(1)}; }}   /* (a ctor returns its object) */\n"
                           f"{m.group(4)}else\n{m.group(5)}{m.group(6)} = nullptr;", bt)
-    body = bt.split("\n")
+    body = strip_seh(bt.split("\n"))
     for rn in RESERVED:   # IDA names TextOutA's length local `c`: it would alias `this` (0x496ec0 read this->+0x3d0 off it)
         if any(re.match(r"^  [A-Za-z_][\w\s\*]*?\b%s(\[\d+\])?; // " % rn, l) for l in body) or re.search(r"[(,]\s*[^,()]*\b%s\)" % rn, head):
             body = [re.sub(r"\b%s\b" % rn, rn + "_l", l) for l in body]
@@ -596,6 +691,9 @@ def convert(text, names, widths, this):
     s = s.replace("nullptr", "0")
     s = re.sub(r"\*\(\(_DWORD \*\)(\w+) \+ (\d+)\)", r"F32(\1, 4 * \2)", s)
     s = re.sub(r"\*\(\(_WORD \*\)(\w+) \+ (\d+)\)", r"F16(\1, 2 * \2)", s)
+    # `*(&dword_X + i)`: element i of a global table (IDA's pointer arithmetic: by the element size)
+    for kind, f, n in (("dword", "F32", 4), ("word", "F16", 2), ("byte", "F8", 1)):
+        s = re.sub(r"\*\(&%s_([0-9A-F]{6}) \+ ([^()]+?)\)" % kind, lambda m, f=f, n=n: f"{f}(D(0x{int(m.group(1), 16):x}), {n} * ({m.group(2)}))", s)
     inner = r"((?:[^()]|\((?:[^()]|\([^()]*\))*\))+?)"
     s = re.sub(r"\*\*\(_DWORD \*\*\)&stru_8A6B60\._pad000\[800\]", "CFG()", s)
     s = re.sub(r"\*\*\((?:_DWORD|int|cls_\w+|_UNKNOWN) \*\*\)&stru_8A6B60\._pad000\[((?:[^\[\]]|\[[^\[\]]*\])+)\]", r"F32(SYS32(\1), 0)", s)
@@ -617,7 +715,9 @@ def convert(text, names, widths, this):
     for t, f in (("_DWORD", "F32"), ("int", "F32"), ("_WORD", "F16"), ("__int16", "S16"), ("unsigned __int16", "F16"), ("_BYTE", "F8")):
         s = re.sub(r"\*\(%s \*\)(\w+)->gap([0-9A-F]+)\b(?!\s*\[)" % t,
                    lambda m, f=f: f"{f}({'W' if m.group(1) == 'p_cls_40BE00' else m.group(1)}, 0x{int(m.group(2), 16):x})", s)
-    s = re.sub(r"(?<!\*)\*\((?:cls_\w+|_UNKNOWN|void) \*\*+\)(\w+)\b(?!\s*[\[(])", r"F32(\1, 0)", s)
+    # `*(T **)v->field_N` is `*(v->field_N)` (-> binds tighter than the cast): the field load stays for vfld below
+    s = re.sub(r"(?<!\*)\*\((?:cls_\w+|_UNKNOWN|void|_DWORD|int) \*\*+\)(\w+->field_[0-9A-F]+)\b", r"F32(\1, 0)", s)
+    s = re.sub(r"(?<!\*)\*\((?:cls_\w+|_UNKNOWN|void) \*\*+\)(\w+)\b(?!\s*[\[(]|->)", r"F32(\1, 0)", s)
     for _ in range(4):
         for t, f in (("_DWORD", "F32"), ("int", "F32"), ("_WORD", "F16"), ("__int16", "S16"), ("unsigned __int16", "F16"),
                      ("_BYTE", "F8"), ("char", "F8"), ("unsigned __int8", "F8"), ("unsigned int", "FU32"), ("_UNKNOWN \\*", "F32")):
@@ -628,6 +728,9 @@ def convert(text, names, widths, this):
     for v, (cls, n) in CLSIDX.items():   # a class pointer's `v + k` as a value moves by whole objects (0x5642e0's v9 + 1)
         if n > 1:
             s = re.sub(r"(?<=[=,(] )%s \+ (\d+)(?=[;,)])" % re.escape(v), lambda m: f"{v} + {n} * {m.group(1)}", s)
+            # ... and so does its ++ / -- (0x56c430's dword walk: `++v3` is +4)
+            s = re.sub(r"(?m)^(\s*)(?:\+\+%s|%s\+\+);" % (re.escape(v), re.escape(v)), lambda m: f"{m.group(1)}{v} += {n};", s)
+            s = re.sub(r"(?m)^(\s*)(?:--%s|%s--);" % (re.escape(v), re.escape(v)), lambda m: f"{m.group(1)}{v} -= {n};", s)
     for v, (cls, n) in CLSIDX.items():   # a class pointer kept as an integer, indexed: by the class size
         _, fs0, gs0 = class_layout(cls)
         el = lambda i: f"({v} + ({i}) * 0x{n:x})"
@@ -649,6 +752,7 @@ def convert(text, names, widths, this):
         s = re.sub(r"(?<=[=(,!&|<>?:]\s)\*%s\b(?!\s*[\[(])|(?<=[=(,!])\*%s\b(?!\s*[\[(])" % (v, v), f"F32({v}, 0)", s)
     for v in CLSPTR:   # a class pointer kept as an integer: its unary deref is a dword load
         s = re.sub(r"(?<=[=(,!&|<>?:]\s)\*%s\b|(?<=[=(,!])\*%s\b" % (v, v), f"F32({v}, 0)", s)
+        s = re.sub(r"(?m)^(\s*)\*%s\b(?=\s*=[^=])" % v, lambda m: f"{m.group(1)}F32({v}, 0)", s)   # `*v3 = 0;` (a store)
     def vfld(m):
         cl = CLSTYPE.get(m.group(1))
         if cl:
@@ -680,6 +784,11 @@ def convert(text, names, widths, this):
         if name.startswith(("dword_", "word_", "byte_")):
             acc = {"dword_": "F32", "word_": "F16", "byte_": "F8"}[name.split("_")[0] + "_"]
             s = re.sub(r"(?<![\w.])%s\b(?!\s*\[)" % re.escape(name), f"{acc}(D(0x{va:x}), 0)", s)
+        elif re.match(r"^[A-Za-z]\w*$", name) and not re.match(r"^(dword|word|byte|qword|flt|dbl|off|unk|stru|asc|o_cls)_|^a[A-Z0-9]", name) \
+                and is_cstr(va) and name not in kb_names():
+            # a global IDA named after the API parameter it feeds (SubBlock "\\", Mode "a", OutputString "\n", msg):
+            # its bytes are a C string — the name is the string's address
+            s = re.sub(r"(?<![\w.&:])%s\b(?!\s*[\[.(]|\s*->)" % re.escape(name), f"((char *)D(0x{va:x}))", s)
         elif re.match(r"^(a[A-Z0-9]\w*|trailer|stru_\w+|unk_\w+|off_\w+|asc_\w+)$", name):
             if TYPED[0] and re.match(r"^a[A-Z0-9]", name):   # a string: indexable (--typed passes words anyway)
                 s = re.sub(r"(?<![\w.&])%s\b(?!\s*[.])" % re.escape(name), f"((char *)D(0x{va:x}))", s)
@@ -695,6 +804,7 @@ def convert(text, names, widths, this):
             s = re.sub(r"&%s\b" % name, f"(({mt} *)D(0x{va:x}))", s)
             s = re.sub(r"(?<![\w.])%s\b" % name, f"(*({mt} *)D(0x{va:x}))", s)
     s = re.sub(r"&(?:unk|byte|dword|word|asc|off|stru|o_cls_\w+?)_(?!8A6B60\b)([0-9A-F]{6})\b", lambda m: f"D(0x{int(m.group(1), 16):x})", s)
+    s = re.sub(r"(?<![\w&])o_cls_\w+?_([0-9A-F]{6})\b", lambda m: f"D(0x{int(m.group(1), 16):x})", s)   # a vtable (an array: its address)
     for kind, f in (("dword", "F32"), ("word", "F16"), ("byte", "F8")):   # a global's value (not in data_xrefs)
         s = re.sub(r"(?<![\w&.])%s_([0-9A-F]{6})\b(?!\s*\[)" % kind, lambda m, f=f: f"{f}(D(0x{int(m.group(1), 16):x}), 0)", s)
 
@@ -951,7 +1061,8 @@ def main():
     va_of = {n: v for v, n in names.items()}
     loc = {}
     for sig in protos_local:
-        m = re.match(r"\w+ (\w+)\((.*)\);$", sig)
+        m = re.match(r"[\w\s*]*?\b(\w+)\((.*)\);$", sig)   # (a pointer return type: `char * f(...)`)
+        if m is None: sys.exit(f"decomp2c: unparsed signature {sig!r}")
         loc[m.group(1)] = (0 if m.group(2) == "void" else m.group(2).count(",") + 1,
                            m.group(2).startswith(("wl_char *self", "intptr_t ecx_")), m.group(1) in FASTLOCAL)
     wnames = [n for n in USED if n in protos and n in va_of]
@@ -1015,7 +1126,7 @@ def main():
                 pos = m.end()
         funcs[k] = "".join(out) + f[pos:]
     imps = imports(a.edition)
-    funcs = [api_calls(f, imps) for f in funcs]
+    funcs = [crt_calls(api_calls(f, imps), a.edition) for f in funcs]
     if TYPED[0]:
         funcs = [word_args(f) for f in funcs]
     if WINH[0] or any(re.search(r"\b(%s)\b" % "|".join(WIN_STRUCT), f) for f in funcs):
@@ -1027,6 +1138,8 @@ def main():
     print(retail_calls(a.edition))
     if API_USED:
         print(api_decls())
+    if CRT_USED:
+        print(crt_decls())
     print("\n".join(protos_local))
     print()
     print("\n\n".join(funcs))

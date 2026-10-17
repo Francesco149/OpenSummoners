@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **1074** (69.3% of engine-proper) — tested 249, ported 825
-- code bytes touched: **61.6%** (1,093,848 / 1,776,526 B of engine-proper)
-- unported: **750**
+- touched: **1087** (70.1% of engine-proper) — tested 249, ported 838
+- code bytes touched: **62.1%** (1,103,904 / 1,776,526 B of engine-proper)
+- unported: **737**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (825) — reimplemented, no host test yet
+## ported (838) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -999,6 +999,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x568de0 | sub_568DE0 | 998 | title_menu.h |
 | 0x56a220 | sub_56A220 | 66 | title_menu.h |
 | 0x56bfd0 | sub_56BFD0 | 88 | title_menu.h |
+| 0x56c430 | sub_56C430 | 64 | field_menu.h |
 | 0x56cb90 | sub_56CB90 | 113 | title_menu.h |
 | 0x56cc10 | sub_56CC10 | 267 | title_menu.h |
 | 0x56d710 | sub_56D710 | 510 | title_menu.h |
@@ -1038,8 +1039,18 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x58ffd0 | sub_58FFD0 | 595 | room_loop.h |
 | 0x590230 | sub_590230 | 478 | shots.h |
 | 0x590410 | sub_590410 | 112 | room_loop.h |
+| 0x590480 | sub_590480 | 465 | field_menu.h |
 | 0x590660 | sub_590660 | 566 | room_tick.h |
 | 0x5908a0 | sub_5908A0 | 1011 | room_tick.h |
+| 0x590ca0 | sub_590CA0 | 592 | field_menu.h |
+| 0x590f20 | sub_590F20 | 498 | field_menu.h |
+| 0x591120 | sub_591120 | 1096 | field_menu.h |
+| 0x591590 | sub_591590 | 41 | field_menu.h |
+| 0x596d60 | sub_596D60 | 1697 | field_menu.h |
+| 0x597aa0 | sub_597AA0 | 2492 | field_menu.h |
+| 0x598460 | sub_598460 | 89 | field_menu.h |
+| 0x5984c0 | sub_5984C0 | 300 | field_menu.h |
+| 0x5985f0 | sub_5985F0 | 1773 | field_menu.h |
 | 0x59a1f0 | sub_59A1F0 | 1485 | gimmick.h |
 | 0x59a7c0 | sub_59A7C0 | 181 | gimmick.h |
 | 0x59a880 | sub_59A880 | 138 | gimmick.h |
@@ -1047,6 +1058,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x59aa40 | sub_59AA40 | 630 | room_tick.c, room_tick.h |
 | 0x59acc0 | sub_59ACC0 | 90 | room_tick.h |
 | 0x59ad20 | sub_59AD20 | 60 | room_tick.h |
+| 0x59ad60 | sub_59AD60 | 615 | field_menu.h |
 | 0x59afd0 | sub_59AFD0 | 374 | gimmick.c, gimmick.h |
 | 0x59b170 | sub_59B170 | 2621 | gimmick.c, gimmick.h |
 | 0x59bdd0 | sub_59BDD0 | 1129 | gimmick.h |
@@ -1057,6 +1069,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x59ce60 | sub_59CE60 | 350 | room_tick.h |
 | 0x59cfc0 | sub_59CFC0 | 405 | scene_loop.h |
 | 0x59d3f0 | sub_59D3F0 | 323 | room_loop.h |
+| 0x59d540 | sub_59D540 | 334 | field_menu.h |
 | 0x59db70 | sub_59DB70 | 227 | room_load.h |
 | 0x59e1a0 | sub_59E1A0 | 34 | scene_loop.h |
 | 0x59ec30 | sub_59EC30 | 531 | title_menu.h |

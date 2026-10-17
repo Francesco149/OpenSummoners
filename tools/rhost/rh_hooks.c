@@ -66,6 +66,7 @@
 #include "render_draw.h"
 #include "render_platform.h"
 #include "title_menu.h"
+#include "field_menu.h"
 #include "chapter_scripts.h"
 #include "room_tick.h"
 #include "ui_core.h"
@@ -315,6 +316,11 @@ typedef struct {
     X(H_TM560A00, "tm_560a00", 0x560a00u) X(H_TM562A10, "tm_562a10", 0x562a10u) X(H_TM41BB80, "tm_41bb80", 0x41bb80u) \
     X(H_TM56C2B0, "tm_56c2b0", 0x56c2b0u) X(H_TM562AF0, "tm_562af0", 0x562af0u) X(H_TM40BB70, "tm_40bb70", 0x40bb70u) \
     X(H_TM56D710, "tm_56d710", 0x56d710u) X(H_TM41D780, "tm_41d780", 0x41d780u) X(H_TM49A6E0, "tm_49a6e0", 0x49a6e0u) \
+    X(H_FM591120, "fm_591120", 0x591120u) X(H_FM591590, "fm_591590", 0x591590u) X(H_FM596D60, "fm_596d60", 0x596d60u) \
+    X(H_FM597AA0, "fm_597aa0", 0x597aa0u) X(H_FM598460, "fm_598460", 0x598460u) X(H_FM5984C0, "fm_5984c0", 0x5984c0u) \
+    X(H_FM5985F0, "fm_5985f0", 0x5985f0u) X(H_FM56C430, "fm_56c430", 0x56c430u) X(H_FM590480, "fm_590480", 0x590480u) \
+    X(H_FM590F20, "fm_590f20", 0x590f20u) X(H_FM590CA0, "fm_590ca0", 0x590ca0u) X(H_FM59D540, "fm_59d540", 0x59d540u) \
+    X(H_FM59AD60, "fm_59ad60", 0x59ad60u) \
     X(H_SC401D80, "sc_401d80", 0x401d80u) X(H_SC402030, "sc_402030", 0x402030u) X(H_SC4020A0, "sc_4020a0", 0x4020a0u) \
     X(H_SC4024E0, "sc_4024e0", 0x4024e0u) X(H_SC402610, "sc_402610", 0x402610u) X(H_SC402F40, "sc_402f40", 0x402f40u) \
     X(H_SC406500, "sc_406500", 0x406500u) X(H_SC406AB0, "sc_406ab0", 0x406ab0u) X(H_SC406C70, "sc_406c70", 0x406c70u) \
@@ -4368,6 +4374,21 @@ TC_HOOK(H_TM40BB70, "tm_40bb70", 1, 1, return (intptr_t)tm_40bb70((wl_char *)sel
 TC_HOOK0(H_TM56D710, "tm_56d710", 1, return (intptr_t)tm_56d710((wl_char *)self))
 TC_HOOK(H_TM41D780, "tm_41d780", 3, 1, return (intptr_t)tm_41d780((wl_char *)self, a1, a2, a3))
 TC_HOOK0(H_TM49A6E0, "tm_49a6e0", 0, tm_49a6e0((wl_char *)self); return 0)
+/* the room loop's menus (src/field_menu.c: the main menu, Messages, System, the hotkey menus, the menu context, the
+ * scene runner; decomp2c) — the frame loops / DirectInput / script-engine ones REPLACE only; the leaves shadow */
+TC_HOOK0(H_FM591120, "fm_591120", 1, return (intptr_t)fm_591120((wl_char *)self))
+TC_HOOK(H_FM591590, "fm_591590", 2, 1, return (intptr_t)fm_591590((wl_char *)self, (int32_t *)a1, (int32_t *)a2))
+TC_HOOK0(H_FM596D60, "fm_596d60", 1, return (intptr_t)fm_596d60((wl_char *)self))
+TC_HOOK(H_FM597AA0, "fm_597aa0", 1, 1, return (intptr_t)fm_597aa0((wl_char *)self, (int32_t *)a1))
+TC_HOOK(H_FM598460, "fm_598460", 1, 0, fm_598460((wl_char *)self, a1); return 0)
+ST_HOOK(H_FM5984C0, "fm_5984c0", 4, 1, return (intptr_t)fm_5984c0((char *)a1, (char *)a2, a3, (char *)a4))
+TC_HOOK(H_FM5985F0, "fm_5985f0", 2, 1, return (intptr_t)fm_5985f0((wl_char *)self, a1, a2))
+TC_HOOK(H_FM56C430, "fm_56c430", 1, 1, return (intptr_t)fm_56c430((wl_char *)self, (char)a1))
+TC_HOOK0(H_FM590480, "fm_590480", 1, return (intptr_t)fm_590480((wl_char *)self))
+TC_HOOK(H_FM590F20, "fm_590f20", 1, 1, return (intptr_t)fm_590f20((wl_char *)self, a1))
+TC_HOOK0(H_FM590CA0, "fm_590ca0", 1, return (intptr_t)fm_590ca0((wl_char *)self))
+TC_HOOK(H_FM59D540, "fm_59d540", 2, 1, return (intptr_t)fm_59d540((wl_char *)self, a1, a2))
+TC_HOOK(H_FM59AD60, "fm_59ad60", 1, 1, return (intptr_t)fm_59ad60((wl_char *)self, a1))
 /* the chapter scripts' file / sound / DirectX-free callees (src/script_helpers.c; 0x4a5e40 0x4cbfb0 0x4cbfd0 0x4d6490
  * read their caller's ecx: thiscall wrappers) */
 ST_HOOK(H_SC401D80, "sc_401d80", 3, 1, return (intptr_t)sc_401d80(a1, a2, a3))

@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 825,
-  "unported": 750,
+  "ported": 838,
+  "unported": 737,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 1074,
-  "pct_touched": 69.3,
+  "touched": 1087,
+  "pct_touched": 70.1,
   "pct_tested": 15.7,
-  "engine_proper_touched": 1061,
+  "engine_proper_touched": 1074,
   "bytes_total": 1776526,
-  "bytes_touched": 1093848,
-  "pct_bytes_touched": 61.6
+  "bytes_touched": 1103904,
+  "pct_bytes_touched": 62.1
  },
  "orphan_refs": [],
  "functions": [
@@ -10647,8 +10647,10 @@
    "name": "sub_56C430",
    "size": 64,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/field_menu.h"
+   ]
   },
   {
    "va": "0x56c470",
@@ -11663,8 +11665,10 @@
    "name": "sub_590480",
    "size": 465,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/field_menu.h"
+   ]
   },
   {
    "va": "0x590660",
@@ -11691,32 +11695,40 @@
    "name": "sub_590CA0",
    "size": 592,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/field_menu.h"
+   ]
   },
   {
    "va": "0x590f20",
    "name": "sub_590F20",
    "size": 498,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/field_menu.h"
+   ]
   },
   {
    "va": "0x591120",
    "name": "sub_591120",
    "size": 1096,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/field_menu.h"
+   ]
   },
   {
    "va": "0x591590",
    "name": "sub_591590",
    "size": 41,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/field_menu.h"
+   ]
   },
   {
    "va": "0x5915c0",
@@ -11883,8 +11895,10 @@
    "name": "sub_596D60",
    "size": 1697,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/field_menu.h"
+   ]
   },
   {
    "va": "0x597480",
@@ -11915,32 +11929,40 @@
    "name": "sub_597AA0",
    "size": 2492,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/field_menu.h"
+   ]
   },
   {
    "va": "0x598460",
    "name": "sub_598460",
    "size": 89,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/field_menu.h"
+   ]
   },
   {
    "va": "0x5984c0",
    "name": "sub_5984C0",
    "size": 300,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/field_menu.h"
+   ]
   },
   {
    "va": "0x5985f0",
    "name": "sub_5985F0",
    "size": 1773,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/field_menu.h"
+   ]
   },
   {
    "va": "0x598d00",
@@ -12074,8 +12096,10 @@
    "name": "sub_59AD60",
    "size": 615,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/field_menu.h"
+   ]
   },
   {
    "va": "0x59afd0",
@@ -12194,8 +12218,10 @@
    "name": "sub_59D540",
    "size": 334,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/field_menu.h"
+   ]
   },
   {
    "va": "0x59d690",
