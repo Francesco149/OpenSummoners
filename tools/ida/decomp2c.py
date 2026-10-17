@@ -256,7 +256,7 @@ def retail_calls(edition):
         conv, n = cc.get(va, ("cdecl", 0))
         ret = pro.get(va, "")
         rt = "double" if re.match(r"\s*(long double|double|float)\b", ret) else \
-             "int64_t" if "__int64" in ret.split("(")[0] else "void" if re.match(r"\s*void\s", ret) else "intptr_t"
+             "int64_t" if "__int64" in ret.split("(")[0] else "intptr_t"   # (a `void` one too: a caller may read eax)
         if conv == "stdcall" and va in RETAIL_ECX:   # reads its caller's ecx: thiscall, ecx first
             conv, n = "thiscall", n + 1
         attr = {"thiscall": "__attribute__((thiscall)) ", "stdcall": "__attribute__((stdcall)) ",
@@ -289,7 +289,7 @@ def data_symbols(edition):
     syms = {}
     for line in open(os.path.join(IDA, edition, "data_xrefs.tsv")):
         f = line.rstrip("\n").split("\t")
-        if len(f) > 1 and re.match(r"^[0-9a-f]{8}$", f[0]) and re.match(r"^[A-Za-z_]\w{2,}$", f[1]):
+        if len(f) > 1 and re.match(r"^[0-9a-f]{8}$", f[0]) and re.match(r"^(?:[A-Za-z_]\w{2,}|a[A-Z0-9]\w*)$", f[1]):   # (aA: a string)
             syms.setdefault(f[1], int(f[0], 16))
     return syms
 
@@ -318,6 +318,7 @@ SYMS = {}
 PTRVARS = set()   # typed-pointer locals / params: an offset off them scales by the element
 CLSIDX = {}       # class-pointer locals (kept as integers): name -> (class, size)
 CLSTYPE = {}      # class-pointer locals / params: name -> class (their fields' real offsets and widths)
+FRAMECLS = {}     # class objects held by value on the stack: name -> class
 DECLNAMES = set() # the function's declared locals
 FRAMEVARS = []    # stack scalars: (ebp offset, type, name), laid out in frame_ like the arrays
 _CLS_SIZE = {}
@@ -399,8 +400,12 @@ WIN_INT = {"HDC", "HGDIOBJ", "HWND", "HBITMAP", "HFONT", "HBRUSH", "HPEN", "HAND
 WIN_UINT = {"UINT", "DWORD", "COLORREF", "WPARAM", "ULONG", "SIZE_T"}   # ... unsigned
 WIN_STRUCT = {"POINT", "RECT", "SIZE", "BITMAPINFOHEADER", "BITMAPINFO", "RGBQUAD", "PALETTEENTRY", "LOGFONTA",
               "TEXTMETRICA", "BITMAP", "MSG", "PAINTSTRUCT", "SYSTEMTIME"}   # kept as <windows.h>'s own
-WORD_SHELLS = ("paint_ctx", "input_dev", "input_mgr")   # wnd_proc.h's shells: passed through as words
-WIN_ALIAS = {"LPCSTR": "char *", "LPSTR": "char *", "LPBITMAPINFO": "BITMAPINFO *", "LPPOINT": "POINT *",
+WORD_SHELLS = ("paint_ctx", "input_dev", "input_mgr", "zdm")   # wnd_proc.h's shells: passed through as words
+SHELL_FIELDS = {"paint_ctx": {"zdd_device": 0x2c, "blit_x": 0x138, "blit_y": 0x13c, "blit_w": 0x140, "blit_h": 0x144,
+                              "state": 0x164, "back_ctx": 0x16c}}   # (wnd_proc.h's pinned offsets)
+WIN_ALIAS = {"struct tagRECT": "RECT", "tagRECT": "RECT", "struct tagPOINT": "POINT", "tagPOINT": "POINT",
+             "struct tagSIZE": "SIZE",
+             "LPCSTR": "char *", "LPSTR": "char *", "LPBITMAPINFO": "BITMAPINFO *", "LPPOINT": "POINT *",
              "LPRECT": "RECT *", "WORD": "uint16_t", "BYTE": "uint8_t", "LPBYTE": "uint8_t *", "HPSTR": "char *"}
 TYPEMAP = [("unsigned __int16", "uint16_t"), ("__int16", "int16_t"), ("unsigned int", "uint32_t"),
            ("unsigned __int8", "uint8_t"), ("_DWORD", "int32_t"), ("_WORD", "uint16_t"), ("_BYTE", "uint8_t"),
@@ -410,6 +415,9 @@ TYPEMAP = [("unsigned __int16", "uint16_t"), ("__int16", "int16_t"), ("unsigned 
 def map_type(t):
     t = re.sub(r"\b(const|volatile)\s+", "", t.strip()).strip()   # qualifiers: the pointer stays a pointer
     t = re.sub(r"\bCHAR\b", "char", t)
+    if t.replace("*", "").strip() in WIN_ALIAS:
+        st = t.count("*"); a = WIN_ALIAS[t.replace("*", "").strip()]
+        return a + (" " + "*" * st if st else "")
     if t.startswith("cls_") or t.startswith("struct ") or t.startswith("_UNKNOWN"):
         n = t.count("*")
         if n >= 2:   # a pointer to class pointers: a table of 4-byte slots
@@ -496,6 +504,8 @@ def convert(text, names, widths, this):
                 CLSTYPE[m.group(2)] = cm.group(1)
             if cm and class_size(cm.group(1)):
                 CLSIDX[m.group(2)] = (cm.group(1), class_size(cm.group(1)))
+            if fo and re.match(r"^cls_\w+$", m.group(1).strip()):
+                FRAMECLS[m.group(2)] = m.group(1).strip()
             if fo:   # a stack local lives in frame_ at its ebp offset too: IDA splits arrays / structs into neighbour
                      # locals (`&v34` handed to a rect writer, then v35..v37 read), and slots it reuses alias as in retail
                 FRAMEVARS.append((int(fo.group(1), 16), mt, m.group(2)))
@@ -506,6 +516,20 @@ def convert(text, names, widths, this):
         out.append(ln)
     DECLS.extend(decls)
     s = "\n".join(out)
+    for n, cl in FRAMECLS.items():   # a class object held by value on the stack: its fields at their real offsets
+        _, fsv, gsv = class_layout(cl)
+        W2 = {1: "F8", 2: "F16", 4: "F32", 8: "F64"}
+        s = re.sub(r"(?<![\w.>])%s\.field_([0-9A-F]+)" % re.escape(n),
+                   lambda m: f"{W2.get(fsv.get(int(m.group(1), 16), (0, 4))[1], 'F32')}({n}__f, 0x{fsv.get(int(m.group(1), 16), (int(m.group(1), 16), 4))[0]:x})", s)
+        s = re.sub(r"(?<![\w.>])%s\.gap([0-9A-F]+)\[([^\]]+)\]" % re.escape(n),
+                   lambda m: f"GAP({n}__f, 0x{gsv.get(int(m.group(1), 16), int(m.group(1), 16)):x}, {m.group(2)})", s)
+        s = re.sub(r"(?<![\w.>])%s\.gap([0-9A-F]+)\b" % re.escape(n),
+                   lambda m: f"((uint8_t *)({n}__f) + 0x{gsv.get(int(m.group(1), 16), int(m.group(1), 16)):x})", s)
+    # a global struct's members, by offset (its _padNNN shells are named by offset; the log singleton's path: +0x404)
+    s = re.sub(r"\bstru_(?!8A6B60\b)([0-9A-F]{6})\._pad([0-9a-f]{3})\b", lambda m: f"((uint8_t *)D(0x{int(m.group(1), 16):x}) + 0x{m.group(2)})", s)
+    s = re.sub(r"(?<!fopen\()\bstru_8A9530\.path\b", "((char *)D(0x8a9530) + 0x404)", s)   # (the inlined log's fopen: collapsed below)
+    s = s.replace("Concurrency::details::_ReaderWriterLock::_ReaderWriterLock(", "sub_5A4760(")   # (FLIRT's name for a 16-byte retail ctor)
+    s = re.sub(r"\((cls_\w+)\)(?=[\w(])", "", s)   # IDA's by-value class cast of an expression
     W = {1: "F8", 2: "F16", 4: "F32", 8: "F64", 10: "F64"}
     tm = re.search(r"\(\s*(cls_\w+) \*this\b", head)   # (a long header breaks after the paren: `( cls_X *this`)
     tsize, tfields, tgaps = class_layout(tm.group(1) if tm else CLS[0])
@@ -515,7 +539,8 @@ def convert(text, names, widths, this):
     this_expr = this
     if tp and tp.group(1) != "void" and not tp.group(1).startswith(("struct", "_UNKNOWN")):
         mt = map_type(tp.group(1) + " " + tp.group(2)[1:])   # `HDC *this` / `_DWORD *this`: `this + n` scales by the element
-        if mt in ("intptr_t", "int32_t", "uint32_t", "uint16_t", "int16_t", "uint8_t", "char") or mt.endswith("*") or mt in WIN_STRUCT:
+        if mt in ("intptr_t", "int32_t", "uint32_t", "uint16_t", "int16_t", "uint8_t", "char") or mt.endswith("*") or mt in WIN_STRUCT \
+                or (TYPED[0] and mt in kb_types()):
             this_expr = f"(({mt} *){this})"
     if not tfields:
         tfields = {o: (o, w) for o, w in widths.items()}
@@ -540,7 +565,12 @@ def convert(text, names, widths, this):
         off = class_layout(cl)[2].get(int(m.group(2), 16), int(m.group(2), 16)) if cl else int(m.group(2), 16)
         return f"((uint8_t *)({m.group(1)}) + 0x{off:x})"
     s = re.sub(r"\b(?!this\b|p_cls_)([A-Za-z_]\w*)->gap([0-9A-F]+)\b(?!\s*\[)", vgap0, s)
+    for sh, flds in SHELL_FIELDS.items():   # a word shell's member: a load at its pinned offset
+        vs = set(re.findall(r"\b%s \*(\w+)\b" % sh, head + "\n" + text))
+        for v in vs:
+            s = re.sub(r"\b%s->(%s)\b" % (re.escape(v), "|".join(flds)), lambda m, v=v: f"F32({v}, 0x{flds[m.group(1)]:x})", s)
     if this_expr != this:   # a non-class `T *this`: its derefs / indexing scale by T; a plain use stays the word
+        s = re.sub(r"\bthis->", this_expr + "->", s)   # (a KB struct's member, --typed)
         s = re.sub(r"\bthis\[", this_expr + "[", s)
         s = re.sub(r"\*\(this \+ ", "*(" + this_expr + " + ", s)
         s = re.sub(r"\*this\b", "(*" + this_expr + ")", s)
@@ -608,6 +638,7 @@ def convert(text, names, widths, this):
             return fld(m.group(1), int(m.group(2), 16), fs, gs)
         return f"F32({m.group(1)}, 0x{int(m.group(2), 16):x})"
     s = re.sub(r"\b(\w+)->field_([0-9A-F]+)", vfld, s)
+    s = re.sub(r"\(?(F32\((?:[^()]|\([^()]*\))*\))\)?->field_([0-9A-F]+)", lambda m: f"F32({m.group(1)}, 0x{int(m.group(2), 16):x})", s)   # (*pp)->field
     s = re.sub(r"\*\*\(_DWORD \*\*\)&stru_8A6B60\._pad000\[800\]", "CFG()", s)
     s = re.sub(r"(?<!\*)\*\((?:_DWORD|int|cls_\w+) \*\*\)\(%s \+ (\d+)\)" % r"((?:[^()]|\((?:[^()]|\([^()]*\))*\))+?)", r"F32(\1, \2)", s)
     s = s.replace("rand_draw_5BF505()", "rnd()")
@@ -620,13 +651,17 @@ def convert(text, names, widths, this):
         s = re.sub(r"\b%s_([0-9A-F]{6})\[" % kind, lambda m: f"(({f} *)D(0x{int(m.group(1), 16):x}))[", s)
     for name, va in SYMS.items():
         if not re.search(r"\b%s\b" % re.escape(name), s) or name.startswith(("sub_", "p_cls_")) or name in ("Format", "Buffer", "stru_8A6B60") \
-                or re.match(r"^a\d+$", name) or re.search(r"\b%s\b" % re.escape(name), head) or name in DECLNAMES:
+                or re.search(r"\b%s\b" % re.escape(name), head) or name in DECLNAMES:   # (a1..: a parameter only when in the head)
             continue
+        if re.match(r"^a[A-Z0-9]", name):   # a string's element address: &aText[i]
+            s = re.sub(r"&%s\[((?:[^\[\]]|\[[^\[\]]*\])+)\]" % re.escape(name), lambda m: f"((char *)D(0x{va:x}) + ({m.group(1)}))", s)
         s = re.sub(r"&%s\b" % re.escape(name), f"D(0x{va:x})", s)
         if name.startswith(("dword_", "word_", "byte_")):
             acc = {"dword_": "F32", "word_": "F16", "byte_": "F8"}[name.split("_")[0] + "_"]
             s = re.sub(r"(?<![\w.])%s\b(?!\s*\[)" % re.escape(name), f"{acc}(D(0x{va:x}), 0)", s)
         elif re.match(r"^(a[A-Z0-9]\w*|trailer|stru_\w+|unk_\w+|off_\w+|asc_\w+)$", name):
+            if TYPED[0] and re.match(r"^a[A-Z0-9]", name):   # a string: indexable (--typed passes words anyway)
+                s = re.sub(r"(?<![\w.&])%s\b(?!\s*[.])" % re.escape(name), f"((char *)D(0x{va:x}))", s)
             s = re.sub(r"(?<![\w.&])%s\b(?!\s*[\[.])" % re.escape(name), f"D(0x{va:x})", s)
     for va, (name, ct) in kb_globals().items():   # the knowledge pack's named globals (g_gamma_lut ...), typed
         if not re.search(r"\b%s\b" % name, s):
@@ -742,6 +777,9 @@ def convert(text, names, widths, this):
     s = re.sub(r"(\w+) = GetLastError\(\);.*?g_eng\.log_fail_406440\((?:\(const char \*\)(?:D\(0x8a9530\)|\(\(intptr_t\)g_eng\.log\)), (D\(0x[0-9a-f]+\)), D\(0x8a9b6c\)"
                r"|g_eng\.log, \(const char \*\)\((D\(0x[0-9a-f]+\))\), \(const char \*\)\(D\(0x8a9b6c\)\))\);",
                lambda m: f"g_eng.h426110(g_eng.log, (intptr_t){m.group(2) or m.group(3)}, 1, (intptr_t)D(0x8a9b6c));   /* the error box 0x426110, inlined */", s, flags=re.S)
+    s = re.sub(r"\((cls_\w+)\)(?=-?\d)", "", s)   # IDA's by-value class cast of a constant
+    s = re.sub(r"(?<![\w:])::([A-Za-z_]\w*)\b", lambda m: (f"((char *)D(0x{SYMS[m.group(1)]:x}))" if TYPED[0] else f"D(0x{SYMS[m.group(1)]:x})")
+               if m.group(1) in SYMS else m.group(1), s)   # `::X`: the global X (a local may share its name)
     for _, t, n in FRAMEVARS:   # (last: the patterns above see IDA's names)
         s = re.sub(r"(?<![\w.>])%s\b" % re.escape(n), f"(*{n}__f)", s)
     return head, s
@@ -852,6 +890,7 @@ def main():
         fnames.append(pname)
         CUR[0] = pname
         DECLS.clear(); ARRAYS.clear(); CLSPTR.clear(); INTVARS.clear(); PTRVARS.clear(); CLSIDX.clear(); CLSTYPE.clear()
+        FRAMECLS.clear()
         FRAMEVARS.clear()
         text = extract(a.edition, va)
         if pname in ECXPASS and "__stdcall" not in text.split("{")[0]:

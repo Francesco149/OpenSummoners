@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **1037** (66.8% of engine-proper) — tested 249, ported 788
-- code bytes touched: **60.9%** (1,082,716 / 1,776,526 B of engine-proper)
-- unported: **787**
+- touched: **1039** (67.0% of engine-proper) — tested 249, ported 790
+- code bytes touched: **61.0%** (1,082,827 / 1,776,526 B of engine-proper)
+- unported: **785**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -215,9 +215,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b89d0 | zdd_set_coop_level_5B89D0 | 71 | main.c, zdd.h, zdd_win32.c |
 | 0x5b8a20 | sub_5B8A20 | 181 | zdd.c, zdd.h, zdd_win32.c |
 | 0x5b8ae0 | pd_format_get_masks_5B8AE0 | 30 | pixel_drawer.c, pixel_drawer.h |
-| 0x5b8b00 | zdd_color_convert_5B8B00 | 59 | zdd.c, zdd.h |
-| 0x5b8b40 | sub_5B8B40 | 184 | cs_dispatch.c, zdd.c, zdd.h |
-| 0x5b8c00 | zdd_create_surface_5B8C00 | 372 | zdd.c, zdd.h, zdd_win32.c |
+| 0x5b8b00 | zdd_color_convert_5B8B00 | 59 | render_platform.h, zdd.c, zdd.h |
+| 0x5b8b40 | sub_5B8B40 | 184 | cs_dispatch.c, render_platform.h, zdd.c (+1) |
+| 0x5b8c00 | zdd_create_surface_5B8C00 | 372 | render_platform.h, zdd.c, zdd.h (+1) |
 | 0x5b8da0 | sub_5B8DA0 | 33 | zdd.h |
 | 0x5b8dd0 | sub_5B8DD0 | 33 | cs_dispatch.c, zdd.h |
 | 0x5b8e00 | sub_5B8E00 | 157 | zdd.h, zdd_win32.c |
@@ -227,28 +227,28 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b91d0 | sub_5B91D0 | 109 | zdd.h |
 | 0x5b9240 | sub_5B9240 | 60 | zdd.h |
 | 0x5b9280 | sub_5B9280 | 203 | zdd.c, zdd.h |
-| 0x5b9350 | sub_5B9350 | 50 | zdd.c, zdd.h |
-| 0x5b9390 | title_frame_free_5B9390 | 75 | asset_register.c, asset_register.h, cs_dispatch.c (+4) |
-| 0x5b93e0 | zdd_object_local_free_5B93E0 | 42 | zdd.h, zdd_win32.c |
+| 0x5b9350 | sub_5B9350 | 50 | render_platform.h, zdd.c, zdd.h |
+| 0x5b9390 | title_frame_free_5B9390 | 75 | asset_register.c, asset_register.h, cs_dispatch.c (+5) |
+| 0x5b93e0 | zdd_object_local_free_5B93E0 | 42 | render_platform.h, zdd.h, zdd_win32.c |
 | 0x5b9410 | zdd_object_clear_5B9410 | 49 | main.c, osr_format.h, zdd.c (+1) |
-| 0x5b9490 | sub_5B9490 | 63 | zdd.c, zdd.h, zdd_win32.c |
-| 0x5b94d0 | sub_5B94D0 | 15 | zdd.c, zdd.h, zdd_win32.c |
-| 0x5b94e0 | sub_5B94E0 | 29 | wnd_proc.h, zdd.c, zdd.h (+1) |
-| 0x5b9500 | sub_5B9500 | 17 | wnd_proc.h, zdd.c, zdd.h (+1) |
-| 0x5b9520 | sub_5B9520 | 157 | zdd.c, zdd.h, zdd_win32.c |
-| 0x5b95c0 | sub_5B95C0 | 110 | zdd.c, zdd.h |
+| 0x5b9490 | sub_5B9490 | 63 | render_platform.h, zdd.c, zdd.h (+1) |
+| 0x5b94d0 | sub_5B94D0 | 15 | render_platform.h, zdd.c, zdd.h (+1) |
+| 0x5b94e0 | sub_5B94E0 | 29 | render_platform.h, wnd_proc.h, zdd.c (+2) |
+| 0x5b9500 | sub_5B9500 | 17 | render_platform.h, wnd_proc.h, zdd.c (+2) |
+| 0x5b9520 | sub_5B9520 | 157 | render_platform.h, zdd.c, zdd.h (+1) |
+| 0x5b95c0 | sub_5B95C0 | 110 | render_platform.h, zdd.c, zdd.h |
 | 0x5b9630 | sub_5B9630 | 268 | zdd.c, zdd.h |
 | 0x5b9740 | zdd_get_attached_surface_5B9740 | 153 | zdd.h, zdd_win32.c |
-| 0x5b97e0 | sub_5B97E0 | 66 | zdd.c, zdd.h |
-| 0x5b9830 | zdd_surface_set_color_key_5B9830 | 138 | zdd.c, zdd.h, zdd_win32.c |
-| 0x5b98c0 | sub_5B98C0 | 73 | zdd.c, zdd.h |
+| 0x5b97e0 | sub_5B97E0 | 66 | render_platform.h, zdd.c, zdd.h |
+| 0x5b9830 | zdd_surface_set_color_key_5B9830 | 138 | render_platform.h, zdd.c, zdd.h (+1) |
+| 0x5b98c0 | sub_5B98C0 | 73 | render_platform.h, zdd.c, zdd.h |
 | 0x5b9910 | sub_5B9910 | 291 | zdd.c, zdd.h |
-| 0x5b9a40 | blt_onto_5B9A40 | 112 | main.c, parallax.h, town_render.h (+2) |
+| 0x5b9a40 | blt_onto_5B9A40 | 112 | main.c, parallax.h, render_platform.h (+3) |
 | 0x5b9ab0 | sub_5B9AB0 | 10 | zdd.h |
 | 0x5b9ac0 | sub_5B9AC0 | 22 | zdd.c, zdd.h |
-| 0x5b9ae0 | blt_rects_5B9AE0 | 140 | zdd.c, zdd.h |
-| 0x5b9b70 | blt_keyed_5B9B70 | 122 | hud.h, main.c, map_present.c (+4) |
-| 0x5b9bf0 | blt_clipped_5B9BF0 | 256 | main.c, map_present.c, map_present.h (+3) |
+| 0x5b9ae0 | blt_rects_5B9AE0 | 140 | render_platform.h, zdd.c, zdd.h |
+| 0x5b9b70 | blt_keyed_5B9B70 | 122 | hud.h, main.c, map_present.c (+5) |
+| 0x5b9bf0 | blt_clipped_5B9BF0 | 256 | main.c, map_present.c, map_present.h (+4) |
 | 0x5ba290 | sub_5BA290 | 30 | wnd_proc.h, wnd_proc_win32.c |
 | 0x5bad20 | sub_5BAD20 | 26 | wnd_proc.h |
 | 0x5bad40 | sub_5BAD40 | 26 | wnd_proc.h |
@@ -262,8 +262,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5bd3b0 | pd_blend_set_color_5BD3B0 | 30 | pixel_drawer.c, pixel_drawer.h |
 | 0x5bd3d0 | pd_blend_commit_5BD3D0 | 241 | pixel_drawer.c, pixel_drawer.h |
 | 0x5bd4d0 | pd_blend_init_5BD4D0 | 71 | pixel_drawer.c, pixel_drawer.h |
-| 0x5bd550 | blt_alpha_5BD550 | 302 | hud.h, main.c, map_present.c (+7) |
-| 0x5bd680 | sub_5BD680 | 1072 | zdd.c, zdd.h |
+| 0x5bd550 | blt_alpha_5BD550 | 302 | hud.h, main.c, map_present.c (+8) |
+| 0x5bd680 | sub_5BD680 | 1072 | render_platform.h, zdd.c, zdd.h |
 | 0x5bef0e | ??3@YAXPAX@Z | 11 | asset_register.c, asset_register.h, cs_dispatch.c (+4) |
 | 0x5bf4e8 | _fopen | 19 | cs_dispatch_win32.c, wnd_proc.h |
 | 0x5bf505 | rand_draw_5BF505 | 30 | cutscene.c, main.c, rng.c (+1) |
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (788) — reimplemented, no host test yet
+## ported (790) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -1059,7 +1059,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b5600 | sub_5B5600 | 701 | hud_view.h |
 | 0x5b58c0 | sub_5B58C0 | 204 | hud_view.h |
 | 0x5b5990 | sub_5B5990 | 202 | char_state.h |
+| 0x5b5eb0 | sub_5B5EB0 | 59 | render_platform.h |
 | 0x5b6300 | sub_5B6300 | 60 | scene_loop.h |
+| 0x5b9450 | sub_5B9450 | 52 | render_platform.h |
 | 0x5bf3ee | emit_last_error_line_5BF3EE | 82 | cs_dispatch_win32.c |
 | 0x5bf440 | _fclose | 86 | cs_dispatch_win32.c |
 | 0x5bf496 | _fprintf | 50 | cs_dispatch_win32.c |

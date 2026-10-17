@@ -108,8 +108,9 @@
   | the INTEGRATOR's reached handlers (monsters' skill bodies) + the ITEM / SKILL EFFECT + its value (decomp2c) | `0x455d80` `0x44d2e0` `0x4512d0` `0x4466b0` `0x467260` `0x456c60` / `0x5b3b00` `0x5b28a0` | 112,293@8 / 31,853@8 / 24,751@8 / 4 / 3 / – / 1 / 1 | 0 |
   | the CHAPTER SCRIPTS the corpus reaches (34 of 35; decomp2c, unported callees as retail's own via `g_eng.retail`; `0x49f7c0` converted but OFF: rh-errands-items diverges from f7835) | `0x4d7d80` `0x4dc510` … `0x4c45a0` (~240 KB) | REPLACE (nested frame loops) | – |
   | the chapter scripts' file / sound / DirectX-free callees (scene / script commands, flag table, runner getters; decomp2c; the scripts now call them directly) | `0x401d80` `0x402030` `0x4020a0` … `0x5b4330` (50) | 91 shadow calls over 11 functions (`0x41efe0` 17, `0x4a63d0` 64, …); 39 unreached = UNVERIFIED (header lists them) | 0 |
+  | the render's PLATFORM layer (decomp2c): surface DC get / release, lock / unlock, the blits (onto / keyed / clipped / rects), the software ALPHA blender `0x5bd680`, the surface cache (create / free / color key), Polyline | `0x5b9b70` `0x5b9bf0` `0x5bd550` `0x5bd680` `0x5b94e0` `0x5b8b40` … (23) | REPLACE (20 entry hooks: every blit of the corpus; the render gate) | – |
   | the frame RENDER (decomp2c `--typed`): the per-frame render `0x48c150` (room / scene / menu), its bands (characters, actors, effects), the actor / character emitters, the message box, the HUD (party panels, gauges, notices), glyph text, the sprite-frame resolver `0x418470` + palette grade `0x417c40`; the zdd / bitmap / blit platform layer + the frame loaders stay retail's | `0x48c150` `0x491ae0` `0x493ba0` `0x494e60` `0x48c820` `0x417c40` `0x418470` … (78) | REPLACE (11 entry hooks; the render gate: pixel-identical every frame) | – |
-  Hybrid gate (`corpus --check --hybrid`): with all of the above REPLACING retail (736 hooks; port→port calls through engine slots / RC_ reach the replacing ports too) (the whole character tick, driver → tile
+  Hybrid gate (`corpus --check --hybrid`): with all of the above REPLACING retail (756 hooks; port→port calls through engine slots / RC_ reach the replacing ports too) (the whole character tick, driver → tile
   movers, + the room loop's passes and per-tick calls, runs as port code), every corpus scenario ends byte-identical
   — and on wine matches pure retail at EVERY 600-frame sample (the sem series, 2026-10-16: catches transient
   divergences a later room reload erases; it took pinning rhost's own footprint — asset DLL slots, host heap,
@@ -132,9 +133,10 @@
 - **Next (port side):**
   00000. (2026-10-17) the frame RENDER runs as port code (`src/render_draw.c`, 78 functions; 11 REPLACE hooks):
      pure ≡ hybrid in pixels on every presented frame (the render gate).  Every decomp2c module regenerated from a
-     fresh IDA export (callers had lost their callee's `this`).  Next: the render's platform layer (zdd surfaces /
-     blitters 0x5b8xxx..0x5bdxxx, the bitmap session 0x5b6xxx), the frame loaders 0x4184a0 / 0x4188b0 / 0x4178e0 /
-     0x499850; a targeted (sampled) shadow verify of the regenerated modules; `_DWORD` is unsigned in IDA but
+     fresh IDA export (callers had lost their callee's `this`); its platform layer too (`src/render_platform.c`: every
+     blit).  Next: the frame loaders 0x4184a0 / 0x4188b0 / 0x4178e0 / 0x499850 + the bitmap session 0x5b6xxx; the
+     title / menu screens (a decomp2c `title_menu` pass is PARKED in the session scratchpad: the title drive 0x562ea0
+     returns "quit" at boot — debug it first); a targeted (sampled) shadow verify of the regenerated modules; `_DWORD` is unsigned in IDA but
      signed in decomp2c's prologue (check before relying on `>>` / `<` of a `_DWORD` load).
   0000. (2026-10-16 evening) the shots, the behaviour layer, the integrator's reached handlers + the item / skill
      effect + 34 chapter scripts run as port code; the hybrid gate holds at every 600-frame sample (wine).  Open:

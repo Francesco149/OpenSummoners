@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 788,
-  "unported": 787,
+  "ported": 790,
+  "unported": 785,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 1037,
-  "pct_touched": 66.8,
+  "touched": 1039,
+  "pct_touched": 67.0,
   "pct_tested": 15.7,
-  "engine_proper_touched": 1024,
+  "engine_proper_touched": 1026,
   "bytes_total": 1776526,
-  "bytes_touched": 1082716,
-  "pct_bytes_touched": 60.9
+  "bytes_touched": 1082827,
+  "pct_bytes_touched": 61.0
  },
  "orphan_refs": [],
  "functions": [
@@ -12912,8 +12912,10 @@
    "name": "sub_5B5EB0",
    "size": 59,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/render_platform.h"
+   ]
   },
   {
    "va": "0x5b5ef0",
@@ -13616,6 +13618,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/render_platform.h",
     "src/zdd.c",
     "src/zdd.h"
    ]
@@ -13628,6 +13631,7 @@
    "status": "tested",
    "src": [
     "src/cs_dispatch.c",
+    "src/render_platform.h",
     "src/zdd.c",
     "src/zdd.h"
    ]
@@ -13639,6 +13643,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/render_platform.h",
     "src/zdd.c",
     "src/zdd.h",
     "src/zdd_win32.c"
@@ -13760,6 +13765,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/render_platform.h",
     "src/zdd.c",
     "src/zdd.h"
    ]
@@ -13775,6 +13781,7 @@
     "src/asset_register.h",
     "src/cs_dispatch.c",
     "src/main.c",
+    "src/render_platform.h",
     "src/zdd.c",
     "src/zdd.h",
     "src/zdd_win32.c"
@@ -13787,6 +13794,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/render_platform.h",
     "src/zdd.h",
     "src/zdd_win32.c"
    ]
@@ -13809,8 +13817,10 @@
    "name": "sub_5B9450",
    "size": 52,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/render_platform.h"
+   ]
   },
   {
    "va": "0x5b9490",
@@ -13819,6 +13829,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/render_platform.h",
     "src/zdd.c",
     "src/zdd.h",
     "src/zdd_win32.c"
@@ -13831,6 +13842,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/render_platform.h",
     "src/zdd.c",
     "src/zdd.h",
     "src/zdd_win32.c"
@@ -13843,6 +13855,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/render_platform.h",
     "src/wnd_proc.h",
     "src/zdd.c",
     "src/zdd.h",
@@ -13856,6 +13869,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/render_platform.h",
     "src/wnd_proc.h",
     "src/zdd.c",
     "src/zdd.h",
@@ -13869,6 +13883,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/render_platform.h",
     "src/zdd.c",
     "src/zdd.h",
     "src/zdd_win32.c"
@@ -13881,6 +13896,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/render_platform.h",
     "src/zdd.c",
     "src/zdd.h"
    ]
@@ -13914,6 +13930,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/render_platform.h",
     "src/zdd.c",
     "src/zdd.h"
    ]
@@ -13925,6 +13942,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/render_platform.h",
     "src/zdd.c",
     "src/zdd.h",
     "src/zdd_win32.c"
@@ -13937,6 +13955,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/render_platform.h",
     "src/zdd.c",
     "src/zdd.h"
    ]
@@ -13961,6 +13980,7 @@
    "src": [
     "src/main.c",
     "src/parallax.h",
+    "src/render_platform.h",
     "src/town_render.h",
     "src/zdd.c",
     "src/zdd.h"
@@ -13994,6 +14014,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/render_platform.h",
     "src/zdd.c",
     "src/zdd.h"
    ]
@@ -14010,6 +14031,7 @@
     "src/map_present.c",
     "src/map_present.h",
     "src/newgame_cursor.h",
+    "src/render_platform.h",
     "src/zdd.c",
     "src/zdd.h"
    ]
@@ -14025,6 +14047,7 @@
     "src/map_present.c",
     "src/map_present.h",
     "src/newgame_box.h",
+    "src/render_platform.h",
     "src/zdd.c",
     "src/zdd.h"
    ]
@@ -14861,6 +14884,7 @@
     "src/map_present.h",
     "src/newgame_box.h",
     "src/newgame_cursor.h",
+    "src/render_platform.h",
     "src/scene_fade.h",
     "src/zdd.c",
     "src/zdd.h",
@@ -14874,6 +14898,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/render_platform.h",
     "src/zdd.c",
     "src/zdd.h"
    ]

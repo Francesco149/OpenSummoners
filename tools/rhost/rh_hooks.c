@@ -64,6 +64,7 @@
 #include "char_handlers.h"
 #include "script_helpers.h"
 #include "render_draw.h"
+#include "render_platform.h"
 #include "chapter_scripts.h"
 #include "room_tick.h"
 #include "ui_core.h"
@@ -296,6 +297,13 @@ typedef struct {
     X(H_RD48C150, "rd_48c150", 0x48c150u) X(H_RD48C820, "rd_48c820", 0x48c820u) X(H_RD491820, "rd_491820", 0x491820u) \
     X(H_RD494E10, "rd_494e10", 0x494e10u) X(H_RD495DC0, "rd_495dc0", 0x495dc0u) X(H_RD495E40, "rd_495e40", 0x495e40u) \
     X(H_RD4961E0, "rd_4961e0", 0x4961e0u) X(H_RD496240, "rd_496240", 0x496240u) \
+    X(H_RP5B5EB0, "rp_5b5eb0", 0x5b5eb0u) X(H_RP5B8B40, "rp_5b8b40", 0x5b8b40u) X(H_RP5B9350, "rp_5b9350", 0x5b9350u) \
+    X(H_RP5B9390, "rp_5b9390", 0x5b9390u) X(H_RP5B95C0, "rp_5b95c0", 0x5b95c0u) X(H_RP5B97E0, "rp_5b97e0", 0x5b97e0u) \
+    X(H_RP5B9830, "rp_5b9830", 0x5b9830u) X(H_RP5B98C0, "rp_5b98c0", 0x5b98c0u) X(H_RP5B9450, "rp_5b9450", 0x5b9450u) \
+    X(H_RP5B9490, "rp_5b9490", 0x5b9490u) X(H_RP5B94D0, "rp_5b94d0", 0x5b94d0u) X(H_RP5B94E0, "rp_5b94e0", 0x5b94e0u) \
+    X(H_RP5B9500, "rp_5b9500", 0x5b9500u) X(H_RP5B9520, "rp_5b9520", 0x5b9520u) X(H_RP5B9A40, "rp_5b9a40", 0x5b9a40u) \
+    X(H_RP5B9AE0, "rp_5b9ae0", 0x5b9ae0u) X(H_RP5B9B70, "rp_5b9b70", 0x5b9b70u) X(H_RP5B9BF0, "rp_5b9bf0", 0x5b9bf0u) \
+    X(H_RP5BD550, "rp_5bd550", 0x5bd550u) X(H_RP5BD680, "rp_5bd680", 0x5bd680u) \
     X(H_SC401D80, "sc_401d80", 0x401d80u) X(H_SC402030, "sc_402030", 0x402030u) X(H_SC4020A0, "sc_4020a0", 0x4020a0u) \
     X(H_SC4024E0, "sc_4024e0", 0x4024e0u) X(H_SC402610, "sc_402610", 0x402610u) X(H_SC402F40, "sc_402f40", 0x402f40u) \
     X(H_SC406500, "sc_406500", 0x406500u) X(H_SC406AB0, "sc_406ab0", 0x406ab0u) X(H_SC406C70, "sc_406c70", 0x406c70u) \
@@ -4291,6 +4299,28 @@ ST_HOOK(H_RD495DC0, "rd_495dc0", 3, 1, return (intptr_t)rd_495dc0(a1, U16(a2), (
 TC_HOOK(H_RD495E40, "rd_495e40", 7, 1, return (intptr_t)rd_495e40((wl_char *)self, a1, (char *)a2, U16(a3), a4, a5, a6, a7))
 TC_HOOK(H_RD4961E0, "rd_4961e0", 2, 1, return (intptr_t)rd_4961e0((wl_char *)self, a1, a2))
 TC_HOOK(H_RD496240, "rd_496240", 2, 1, return (intptr_t)rd_496240((wl_char *)self, a1, a2))
+/* the render's platform layer (src/render_platform.c: surface DC / lock, blits, the alpha blender, the surface
+ * cache) — REPLACE only (the render gate) */
+ST_HOOK(H_RP5B5EB0, "rp_5b5eb0", 5, 1, return (intptr_t)rp_5b5eb0(a1, a2, a3, a4, a5))
+TC_HOOK(H_RP5B8B40, "rp_5b8b40", 5, 1, return (intptr_t)rp_5b8b40((wl_char *)self, (int32_t *)a1, a2, a3, a4, a5))
+TC_HOOK(H_RP5B9350, "rp_5b9350", 1, 1, return (intptr_t)rp_5b9350((wl_char *)self, a1))
+TC_HOOK0(H_RP5B9390, "rp_5b9390", 1, return (intptr_t)rp_5b9390((wl_char *)self))
+TC_HOOK(H_RP5B95C0, "rp_5b95c0", 9, 1, return (intptr_t)rp_5b95c0((wl_char *)self, a1, a2, a3, a4, a5, a6, a7, a8, a9))
+TC_HOOK(H_RP5B97E0, "rp_5b97e0", 2, 1, return (intptr_t)rp_5b97e0((wl_char *)self, a1, a2))
+TC_HOOK(H_RP5B9830, "rp_5b9830", 1, 1, return (intptr_t)rp_5b9830((wl_char *)self, a1))
+TC_HOOK(H_RP5B98C0, "rp_5b98c0", 6, 1, return (intptr_t)rp_5b98c0((wl_char *)self, a1, a2, a3, a4, a5, a6))
+TC_HOOK(H_RP5B9450, "rp_5b9450", 1, 1, return (intptr_t)rp_5b9450((wl_char *)self, a1))
+TC_HOOK0(H_RP5B9490, "rp_5b9490", 1, return (intptr_t)rp_5b9490((wl_char *)self))
+TC_HOOK0(H_RP5B94D0, "rp_5b94d0", 1, return (intptr_t)rp_5b94d0((wl_char *)self))
+TC_HOOK(H_RP5B94E0, "rp_5b94e0", 1, 1, return (intptr_t)rp_5b94e0((wl_char *)self, (intptr_t *)a1))
+TC_HOOK(H_RP5B9500, "rp_5b9500", 1, 0, rp_5b9500((wl_char *)self, a1); return 0)
+TC_HOOK0(H_RP5B9520, "rp_5b9520", 1, return (intptr_t)rp_5b9520((wl_char *)self))
+TC_HOOK(H_RP5B9A40, "rp_5b9a40", 3, 1, return (intptr_t)rp_5b9a40((wl_char *)self, a1, a2, a3))
+TC_HOOK(H_RP5B9AE0, "rp_5b9ae0", 9, 1, return (intptr_t)rp_5b9ae0((wl_char *)self, a1, a2, a3, a4, a5, a6, a7, a8, a9))
+TC_HOOK(H_RP5B9B70, "rp_5b9b70", 3, 1, return (intptr_t)rp_5b9b70((wl_char *)self, a1, a2, a3))
+TC_HOOK(H_RP5B9BF0, "rp_5b9bf0", 7, 1, return (intptr_t)rp_5b9bf0((wl_char *)self, a1, a2, a3, a4, a5, a6, a7))
+TC_HOOK(H_RP5BD550, "rp_5bd550", 10, 1, return (intptr_t)rp_5bd550((wl_char *)self, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10))
+TC_HOOK(H_RP5BD680, "rp_5bd680", 9, 1, return (intptr_t)rp_5bd680((wl_char *)self, (int32_t * *)a1, (int32_t * *)a2, a3, a4, a5, a6, a7, a8, a9))
 /* the chapter scripts' file / sound / DirectX-free callees (src/script_helpers.c; 0x4a5e40 0x4cbfb0 0x4cbfd0 0x4d6490
  * read their caller's ecx: thiscall wrappers) */
 ST_HOOK(H_SC401D80, "sc_401d80", 3, 1, return (intptr_t)sc_401d80(a1, a2, a3))

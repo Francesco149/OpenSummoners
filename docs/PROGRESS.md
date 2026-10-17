@@ -6,6 +6,23 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-17 (morning) — the render's platform layer; decomp2c's next constructs
+
+- `src/render_platform.c` (23 functions, decomp2c): surface DC get / release, lock / unlock, the blits, the
+  software alpha blender 0x5bd680, the surface cache, Polyline — COM calls through the vtable as IDA has them.
+  20 REPLACE hooks: every blit of the corpus runs as port code, pixel-identical (the render gate).  The render module
+  now calls them directly (3 retail callees left: the frame loaders).
+- decomp2c: `paint_ctx` members at wnd_proc.h's pinned offsets, class objects held by value in the frame
+  (`v.field_N` at the class's real offsets), a KB-typed `this` (`ar_gdi_slot *this`), RECT / POINT locals, the
+  string symbols (`aA`, `a100`, `&aText[i]`, `::OutputString`), global structs' `_padNNN` / the log path, by-value
+  class casts, `(*pp)->field`, FLIRT's name for 0x5a4760; RC_ typedefs return eax even when IDA says `void`.
+- A `title_menu` pass (59 functions: the title drive, new-game options, the load screen) compiles but is PARKED:
+  the title drive returns "quit" at boot under REPLACE.
+- Evidence for the regenerated decomp2c modules (2821c62): a sampled shadow verify (`@8`, Windows) — 380,906 calls
+  compared over 47 hooks in all 9 scenarios (66 of 72 split runs; the last 6 combat / errands / my-play splits were
+  stopped after 2 h), 0 divergences.  Hybrid with the platform layer (756 hooks): PASS 9/9 on wine (every 600-frame
+  sample, state + pixels) and Windows.
+
 ## 2026-10-17 — a fresh IDA export: the decompile's missing `this`; every decomp2c module regenerated
 
 - The IDA export reused Hex-Rays' cached bodies from the class-recovery pass, decompiled BEFORE their callees got
