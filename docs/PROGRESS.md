@@ -6,6 +6,28 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-17 (afternoon) — save chains; the menus and saving / loading as port code; decomp2c reads ecx from the asm
+
+- rhost: `record NEXT --from PREV` boots with the user\ dir PREV's pure replay leaves (`final_save`, cached under
+  `_saves/`, keyed on PREV's trace + start save + edition + target); the trace records `"from"` + the save's digest and
+  every replay re-derives it. rh-combat's save is byte-identical on Windows and wine; a chained trace's Continue
+  resumes in Arche's house that morning. EN-old's statue saves are `.sdt` (quirk #171).
+- Coverage (`rhost.py coverage`, 9 scenarios): 1,068 / 1,550 game functions reached. rh-combat already reaches
+  monsters, an ally's AI, the menus, a statue save, a game over — the reached-but-unported list is the frontier
+  (FRONT 000000). 0x5a00c0 is the ending credits, not the menu.
+- `src/field_menu.c` (13 functions: main menu, Messages, System, hotkey menus, menu context, scene runner) and
+  `src/save_game.c` (12: statue dialog, slot list, writer, reader, apply, file name). Hybrid 811 hooks: PASS 9/9 on
+  Windows and wine (every 600-frame sample). The save writer's four inlined copies of the logger 0x406440 are two
+  helpers over retail's own logger (hand finish, scripted).
+- decomp2c, found by these two modules: the caller's ecx for an IDA-__stdcall callee that reads it is now READ FROM
+  THE ASM at each call (`lea ecx, [esp+…+var_N]` → the frame local; the guess "the caller's this" handed the scene
+  object to the reader's file calls); `*(T **)v->field_N` precedence; a class pointer's ++; a table IDA indexes is an
+  array (its bare name = its address: 0x41bf60's `push offset dword_6940C8`); SEH frame lines; the CRT's clock / file
+  calls through retail's own CRT; `.data` string globals; `*(&dword_X + i)`. `tools/ida/decomp2c_drift.py` regenerates
+  every committed module and lists the functions today's tool would emit differently (the chapter script 0x4d64f0
+  still loads `dword_6C0CD0`'s first element where retail takes its address — that branch is unreached).
+- `room_to_scene` (0x55f790) returns the eax retail leaves (0x55f620 hands it on; the shadow compares it now).
+
 ## 2026-10-17 (morning, 2) — the title pass's lessons: rhost owns the Flip for RC_ too; two latent table bugs
 
 - rhost: `g_eng.retail(0x5b8fc0)` / `(0x43d1d0)` now hand out rhost's Flip / easer stubs (as the named slots do): a

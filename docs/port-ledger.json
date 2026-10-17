@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 838,
-  "unported": 737,
+  "ported": 850,
+  "unported": 725,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 1087,
-  "pct_touched": 70.1,
+  "touched": 1099,
+  "pct_touched": 70.9,
   "pct_tested": 15.7,
-  "engine_proper_touched": 1074,
+  "engine_proper_touched": 1086,
   "bytes_total": 1776526,
-  "bytes_touched": 1103904,
-  "pct_bytes_touched": 62.1
+  "bytes_touched": 1115111,
+  "pct_bytes_touched": 62.8
  },
  "orphan_refs": [],
  "functions": [
@@ -2180,8 +2180,10 @@
    "name": "sub_41A430",
    "size": 947,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/save_game.h"
+   ]
   },
   {
    "va": "0x41a7f0",
@@ -2198,8 +2200,10 @@
    "name": "sub_41A890",
    "size": 3030,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/save_game.h"
+   ]
   },
   {
    "va": "0x41b470",
@@ -2214,8 +2218,10 @@
    "name": "sub_41B670",
    "size": 1295,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/save_game.h"
+   ]
   },
   {
    "va": "0x41bb80",
@@ -2242,16 +2248,20 @@
    "name": "sub_41BD20",
    "size": 566,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/save_game.h"
+   ]
   },
   {
    "va": "0x41bf60",
    "name": "sub_41BF60",
    "size": 488,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/save_game.h"
+   ]
   },
   {
    "va": "0x41c150",
@@ -2332,8 +2342,10 @@
    "name": "sub_41CFD0",
    "size": 438,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/save_game.h"
+   ]
   },
   {
    "va": "0x41d190",
@@ -9889,8 +9901,10 @@
    "name": "sub_55F620",
    "size": 354,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/save_game.h"
+   ]
   },
   {
    "va": "0x55f790",
@@ -9923,8 +9937,10 @@
    "name": "sub_560530",
    "size": 962,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/save_game.h"
+   ]
   },
   {
    "va": "0x560900",
@@ -10043,16 +10059,20 @@
    "name": "sub_561560",
    "size": 1673,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/save_game.h"
+   ]
   },
   {
    "va": "0x561bf0",
    "name": "sub_561BF0",
    "size": 152,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/save_game.h"
+   ]
   },
   {
    "va": "0x561c90",
@@ -10071,16 +10091,20 @@
    "name": "sub_561CF0",
    "size": 43,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/save_game.h"
+   ]
   },
   {
    "va": "0x561d20",
    "name": "sub_561D20",
    "size": 1259,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/save_game.h"
+   ]
   },
   {
    "va": "0x562210",

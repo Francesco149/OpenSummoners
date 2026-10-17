@@ -92,7 +92,7 @@ void world_delete(wl_world *w, int32_t flags);                       /* 0x562e40
  * time (+0x7c = (now - +0x4068) / 1000 + +0x406c), the items (+0x2010, 16 B), each slot's member
  * (+0x20a4 + 0x11c x k: id, code, leader, stats, skills, ...; its 12-byte skill records and the
  * 16-byte equipment marks of 0x628708's 18 rows at +0x2984 + 0x420 x k), the fill table, the flags */
-void room_to_scene(const wl_room *r, uint8_t *so);
+int32_t room_to_scene(const wl_room *r, uint8_t *so);
 /* 0x59cfc0 (stdcall): a scene starts in this room: with `zone`, the next area = this map at that gate
  * with the leader's facing; with `retry`, it is also the retry point (+0x40d0); the room's actor
  * states saved (the 0x58e330 loop inlined) and the room snapshot into the scene object */

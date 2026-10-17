@@ -126,6 +126,89 @@ def ecx_in(edition, va, size):
     return None
 
 
+_SIZES = {}
+FMAPS = []   # per module function: (va, ARRAYS, FRAMEVARS, FRAMECLS) — the stack locals by ebp offset
+
+
+def asm_calls(edition, caller, callee):
+    """the line indices of `call <callee>` in the caller's asm, in address order"""
+    if edition not in _ASM:
+        ecx_in(edition, caller, 0)   # (builds the asm index)
+    lines, idx = _ASM[edition]
+    i = idx.get(caller)
+    if i is None:
+        return [], lines
+    out = []
+    if edition not in _SIZES:
+        _SIZES[edition] = {int(x.split("\t")[0], 16): int(x.split("\t")[1]) for x in open(os.path.join(IDA, edition, "functions_ida.tsv"))
+                           if re.match(r"^[0-9a-f]{8}\t\d+", x)}
+    end = caller + _SIZES[edition].get(caller, 0)
+    while i < len(lines):
+        m = re.match(r"^([0-9a-f]{8})\s+(\w+)\s*(.*)$", lines[i])
+        if m and int(m.group(1), 16) >= end:
+            break
+        if m and m.group(2) == "call":
+            cm = re.match(r"\s*(?:sub_([0-9A-F]+)|[A-Za-z_]\w*?_([0-9A-F]{6}))\b", m.group(3))
+            if cm and int(cm.group(1) or cm.group(2), 16) == callee:
+                out.append(i)
+        i += 1
+    return out, lines
+
+
+def frame_expr(fmap, off, addr):
+    """the C expression for the stack slot at ebp-off (its address when addr, else its dword value), or None"""
+    _, arrays, fvars, fcls = fmap
+    for o, t, n, cnt in arrays:
+        esz = {"uint8_t": 1, "char": 1, "int8_t": 1, "uint16_t": 2, "int16_t": 2}.get(t, 4)
+        if o >= off > o - cnt * esz:
+            if addr:
+                return f"(intptr_t){n}" if o == off else f"((intptr_t)(uint8_t *){n} + 0x{o - off:x})"
+            return f"F32({n}, 0x{o - off:x})"
+    for o, t, n in fvars:
+        size = class_size(fcls[n]) if n in fcls else 4
+        if o >= off > o - max(size or 4, 4):
+            if addr:
+                return f"((intptr_t){n}__f + 0x{o - off:x})" if o != off else f"(intptr_t){n}__f"
+            return f"(intptr_t)(*{n}__f)" if o == off else f"F32({n}__f, 0x{o - off:x})"
+    return None
+
+
+def asm_ecx(edition, fmap, callee, occ, c_count):
+    """what the caller loads into ecx before its occ-th call of callee (when its asm has as many calls as the C):
+    a frame local's address / value, the system object, a global — else None"""
+    calls, lines = asm_calls(edition, fmap[0], callee)
+    if len(calls) != c_count or occ >= len(calls):
+        return None
+    targets = set()
+    for ln in lines[calls[0] - 400 if calls[0] > 400 else 0:calls[-1]]:
+        jm = re.match(r"^[0-9a-f]{8}\s+j\w+\s+(?:short\s+)?loc_([0-9A-F]+)", ln)
+        if jm:
+            targets.add(int(jm.group(1), 16))
+    i = calls[occ] - 1
+    for _ in range(24):
+        m = re.match(r"^([0-9a-f]{8})\s+(\w+)\s*(.*?)(?:;.*)?$", lines[i])
+        if not m:
+            return None
+        va, op, args = int(m.group(1), 16), m.group(2), m.group(3).strip()
+        if op == "call" or op.startswith("j") or op in ("retn", "ret"):
+            return None
+        if re.match(r"(ecx|cx|cl|ch)\b", args) and op not in ("push", "cmp", "test"):
+            fm = re.match(r"ecx,\s*\[esp\+[0-9A-F]+h\+var_([0-9A-F]+)(?:\.\w+)?(?:\+([0-9A-F]+)h?)?\]$", args)
+            if fm and op in ("lea", "mov"):
+                off = int(fm.group(1), 16) - (int(fm.group(2), 16) if fm.group(2) else 0)
+                return frame_expr(fmap, off, op == "lea")
+            if op == "mov" and re.match(r"ecx,\s*offset stru_8A6B60$", args):
+                return "(intptr_t)g_eng.sys"
+            om = re.match(r"ecx,\s*offset \w+?_([0-9A-F]{6})$", args)
+            if op == "mov" and om:
+                return f"D(0x{int(om.group(1), 16):x})"
+            return None
+        if va in targets:   # another path joins here: its ecx is not this block's
+            return None
+        i -= 1
+    return None
+
+
 _CC = {}
 
 
@@ -558,7 +641,12 @@ def map_type(t):
 RESERVED = ("c", "self", "W", "D", "rnd")   # the converter's own names: an IDA local by one of them is renamed
 
 
+INDEXED = set()   # the dword_ / word_ / byte_ tables a function indexes (an array: its bare name is its address)
+
+
 def convert(text, names, widths, this):
+    INDEXED.clear()
+    INDEXED.update(re.findall(r"\b((?:dword|word|byte)_[0-9A-F]{6})\s*\[", text))
     lines = text.split("\n")
     k = lines.index("{")
     head, body = " ".join(l.strip() for l in lines[:k]), lines[k + 1:-1]
@@ -781,7 +869,12 @@ def convert(text, names, widths, this):
         if re.match(r"^a[A-Z0-9]", name):   # a string's element address: &aText[i]
             s = re.sub(r"&%s\[((?:[^\[\]]|\[[^\[\]]*\])+)\]" % re.escape(name), lambda m: f"((char *)D(0x{va:x}) + ({m.group(1)}))", s)
         s = re.sub(r"&%s\b" % re.escape(name), f"D(0x{va:x})", s)
-        if name.startswith(("dword_", "word_", "byte_")):
+        if name.startswith(("dword_", "word_", "byte_")) and name in INDEXED:
+            # IDA indexes it somewhere in this function: an ARRAY — its bare name is its address (0x41bf60 passes
+            # dword_6940C8 to 0x41c150: `push offset`), not its first element
+            ct = {"dword_": "int32_t", "word_": "uint16_t", "byte_": "uint8_t"}[name.split("_")[0] + "_"]
+            s = re.sub(r"(?<![\w.])%s\b(?!\s*\[)" % re.escape(name), f"(({ct} *)D(0x{va:x}))", s)
+        elif name.startswith(("dword_", "word_", "byte_")):
             acc = {"dword_": "F32", "word_": "F16", "byte_": "F8"}[name.split("_")[0] + "_"]
             s = re.sub(r"(?<![\w.])%s\b(?!\s*\[)" % re.escape(name), f"{acc}(D(0x{va:x}), 0)", s)
         elif re.match(r"^[A-Za-z]\w*$", name) and not re.match(r"^(dword|word|byte|qword|flt|dbl|off|unk|stru|asc|o_cls)_|^a[A-Z0-9]", name) \
@@ -1027,6 +1120,7 @@ def main():
         if pname in ECXPASS and "__stdcall" not in text.split("{")[0]:
             ECXPASS.discard(pname)   # the decompile's header is the authority (thiscall: its ecx is `this`)
         head, s = convert(text, names, widths, a.this)
+        FMAPS.append((va, list(ARRAYS), list(FRAMEVARS), dict(FRAMECLS)))
         out = []
         if pname:
             sig, pro = signature(head, pname)
@@ -1067,13 +1161,25 @@ def main():
                            m.group(2).startswith(("wl_char *self", "intptr_t ecx_")), m.group(1) in FASTLOCAL)
     wnames = [n for n in USED if n in protos and n in va_of]
     pat = r"(?<![\w.])(?:(%s)|W_(%s)|RC_([0-9a-f]{6}))\(" % ("|".join(map(re.escape, loc)) or "(?!x)x", "|".join(map(re.escape, wnames)) or "(?!x)x")
+    lva = {n: v for v, n in LOCAL.items()}
     for k, f in enumerate(funcs):
         has_this = "intptr_t c = (intptr_t)self;" in f
         tex = "c" if has_this else ("ecx_" if fnames[k] in ECXPASS else "/*ECX: the caller's ecx*/ 0")
         out, pos = [], 0
+        occ, ccount = {}, {}
+        for m in re.finditer(pat, f):   # every call of each callee in this function (the asm's order to match)
+            if not re.match(r"\s*(int32_t|int64_t|double|void) $", f[max(0, m.start() - 8):m.start()]):
+                ccount[m.group(0)] = ccount.get(m.group(0), 0) + 1
         for m in re.finditer(pat, f):
-            if m.start() < pos or re.match(r"\s*(int32_t|int64_t|double|void) $", f[max(0, m.start() - 8):m.start()]):
+            if re.match(r"\s*(int32_t|int64_t|double|void) $", f[max(0, m.start() - 8):m.start()]):
                 continue
+            o = occ.get(m.group(0), 0)
+            occ[m.group(0)] = o + 1
+            if m.start() < pos:
+                continue
+            cva = lva.get(m.group(1)) if m.group(1) else (int(m.group(3), 16) if m.group(3) else va_of.get(m.group(2)))
+            ex = asm_ecx(a.edition, FMAPS[k], cva, o, ccount[m.group(0)]) if cva else None
+            ctex = ex or tex   # the caller's ecx as its asm loads it; else the guess (its this / ecx_)
             args, j, depth, start = [], m.end(), 0, m.end()
             while j < len(f) and not (f[j] == ")" and depth == 0):
                 if f[j] in "([":
@@ -1122,7 +1228,7 @@ def main():
                     out.append(f[pos:args[0][1]] + ", /*edx*/")   # skip IDA's edx argument
                     pos = args[1][1] + 1
             elif vcc == "thiscall" and len(args) == n - 1:
-                out.append(f[pos:m.end()] + tex + (", " if args else ""))
+                out.append(f[pos:m.end()] + ctex + (", " if args else ""))
                 pos = m.end()
         funcs[k] = "".join(out) + f[pos:]
     imps = imports(a.edition)

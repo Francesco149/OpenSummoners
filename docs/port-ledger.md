@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **1087** (70.1% of engine-proper) — tested 249, ported 838
-- code bytes touched: **62.1%** (1,103,904 / 1,776,526 B of engine-proper)
-- unported: **737**
+- touched: **1099** (70.9% of engine-proper) — tested 249, ported 850
+- code bytes touched: **62.8%** (1,115,111 / 1,776,526 B of engine-proper)
+- unported: **725**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (838) — reimplemented, no host test yet
+## ported (850) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -417,14 +417,20 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x41a140 | sub_41A140 | 28 | room_loop.h |
 | 0x41a2a0 | sub_41A2A0 | 254 | scene_cmd.h |
 | 0x41a3a0 | sub_41A3A0 | 136 | script_helpers.h |
+| 0x41a430 | sub_41A430 | 947 | save_game.h |
 | 0x41a7f0 | sub_41A7F0 | 152 | scene_loop.h |
+| 0x41a890 | sub_41A890 | 3030 | save_game.h |
+| 0x41b670 | sub_41B670 | 1295 | save_game.h |
 | 0x41bb80 | sub_41BB80 | 95 | title_menu.h |
 | 0x41bbe0 | sub_41BBE0 | 312 | title_menu.h |
+| 0x41bd20 | sub_41BD20 | 566 | save_game.h |
+| 0x41bf60 | sub_41BF60 | 488 | save_game.h |
 | 0x41c150 | sub_41C150 | 219 | title_menu.h |
 | 0x41c240 | sub_41C240 | 58 | title_menu.h |
 | 0x41c280 | sub_41C280 | 112 | ui_core.h |
 | 0x41c2f0 | sub_41C2F0 | 42 | title_menu.h |
 | 0x41c320 | sub_41C320 | 105 | title_menu.h |
+| 0x41cfd0 | sub_41CFD0 | 438 | save_game.h |
 | 0x41d190 | sub_41D190 | 779 | scene_cmd.h |
 | 0x41d780 | sub_41D780 | 942 | title_menu.h |
 | 0x41dc40 | sub_41DC40 | 75 | party_member.h |
@@ -972,7 +978,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x55f150 | sub_55F150 | 59 | shots.h |
 | 0x55f190 | sub_55F190 | 936 | ui_run.h |
 | 0x55f550 | sub_55F550 | 199 | ui_run.h |
+| 0x55f620 | sub_55F620 | 354 | save_game.h |
 | 0x55f790 | sub_55F790 | 1558 | scene_loop.h |
+| 0x560530 | sub_560530 | 962 | save_game.h |
 | 0x560a00 | sub_560A00 | 57 | title_menu.h |
 | 0x560a40 | sub_560A40 | 1049 | title_menu.h |
 | 0x560e90 | sub_560E90 | 700 | scene_loop.h |
@@ -981,6 +989,10 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x561280 | sub_561280 | 37 | scene_loop.h |
 | 0x5612b0 | sub_5612B0 | 56 | scene_loop.h |
 | 0x5614e0 | sub_5614E0 | 113 | scene_loop.h |
+| 0x561560 | sub_561560 | 1673 | save_game.h |
+| 0x561bf0 | sub_561BF0 | 152 | save_game.h |
+| 0x561cf0 | sub_561CF0 | 43 | save_game.h |
+| 0x561d20 | sub_561D20 | 1259 | save_game.h |
 | 0x562a70 | sub_562A70 | 127 | scene_loop.h |
 | 0x562af0 | sub_562AF0 | 82 | title_menu.h |
 | 0x562ba0 | sub_562BA0 | 432 | scene_loop.h |

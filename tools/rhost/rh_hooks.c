@@ -67,6 +67,7 @@
 #include "render_platform.h"
 #include "title_menu.h"
 #include "field_menu.h"
+#include "save_game.h"
 #include "chapter_scripts.h"
 #include "room_tick.h"
 #include "ui_core.h"
@@ -321,6 +322,10 @@ typedef struct {
     X(H_FM5985F0, "fm_5985f0", 0x5985f0u) X(H_FM56C430, "fm_56c430", 0x56c430u) X(H_FM590480, "fm_590480", 0x590480u) \
     X(H_FM590F20, "fm_590f20", 0x590f20u) X(H_FM590CA0, "fm_590ca0", 0x590ca0u) X(H_FM59D540, "fm_59d540", 0x59d540u) \
     X(H_FM59AD60, "fm_59ad60", 0x59ad60u) \
+    X(H_SV41A430, "sv_41a430", 0x41a430u) X(H_SV41A890, "sv_41a890", 0x41a890u) X(H_SV41B670, "sv_41b670", 0x41b670u) \
+    X(H_SV41BD20, "sv_41bd20", 0x41bd20u) X(H_SV41BF60, "sv_41bf60", 0x41bf60u) X(H_SV55F620, "sv_55f620", 0x55f620u) \
+    X(H_SV561560, "sv_561560", 0x561560u) X(H_SV561BF0, "sv_561bf0", 0x561bf0u) X(H_SV561CF0, "sv_561cf0", 0x561cf0u) \
+    X(H_SV561D20, "sv_561d20", 0x561d20u) X(H_SV560530, "sv_560530", 0x560530u) X(H_SV41CFD0, "sv_41cfd0", 0x41cfd0u) \
     X(H_SC401D80, "sc_401d80", 0x401d80u) X(H_SC402030, "sc_402030", 0x402030u) X(H_SC4020A0, "sc_4020a0", 0x4020a0u) \
     X(H_SC4024E0, "sc_4024e0", 0x4024e0u) X(H_SC402610, "sc_402610", 0x402610u) X(H_SC402F40, "sc_402f40", 0x402f40u) \
     X(H_SC406500, "sc_406500", 0x406500u) X(H_SC406AB0, "sc_406ab0", 0x406ab0u) X(H_SC406C70, "sc_406c70", 0x406c70u) \
@@ -3583,7 +3588,7 @@ TC_HOOK0(H_SL_FCACHE, "frame_cache_clear", 0, frame_cache_clear(self); return 0)
 TC_HOOK(H_SL_FREAD, "file_read_section", 3, 0, return file_read_section(self, (void *)a1, a2, (uint32_t)a3))
 TC_HOOK(H_SL_POBJDEL, "pool_obj_delete", 1, 0, pool_obj_delete(self, a1); return (intptr_t)self)
 TC_HOOK(H_SL_WDEL, "world_delete", 1, 0, world_delete(self, a1); return (intptr_t)self)
-TC_HOOK(H_SL_TOSC, "room_to_scene", 1, 0, room_to_scene(self, (uint8_t *)a1); return 0)
+TC_HOOK(H_SL_TOSC, "room_to_scene", 1, 1, return room_to_scene(self, (uint8_t *)a1))
 ST_HOOK(H_SL_SSTART, "scene_start", 4, 0, return scene_start((uint8_t *)a1, (wl_room *)a2, a3, a4))
 /* the party API (src/party_member.c) */
 TC_HOOK(H_PA_BYID, "pslot_by_id", 2, 1, return (intptr_t)pslot_by_id(self, a1, a2))
@@ -4389,6 +4394,20 @@ TC_HOOK(H_FM590F20, "fm_590f20", 1, 1, return (intptr_t)fm_590f20((wl_char *)sel
 TC_HOOK0(H_FM590CA0, "fm_590ca0", 1, return (intptr_t)fm_590ca0((wl_char *)self))
 TC_HOOK(H_FM59D540, "fm_59d540", 2, 1, return (intptr_t)fm_59d540((wl_char *)self, a1, a2))
 TC_HOOK(H_FM59AD60, "fm_59ad60", 1, 1, return (intptr_t)fm_59ad60((wl_char *)self, a1))
+/* saving / loading (src/save_game.c; decomp2c): the dialog, slot list, writer, reader, apply — file I/O / frame loops:
+ * REPLACE only; the memory-only helpers shadow.  0x41bd20 (IDA __stdcall) reads its caller's ecx: a thiscall wrapper */
+TC_HOOK(H_SV41A430, "sv_41a430", 2, 1, return (intptr_t)sv_41a430((wl_char *)self, a1, a2))
+TC_HOOK(H_SV41A890, "sv_41a890", 4, 1, return (intptr_t)sv_41a890((wl_char *)self, a1, U16(a2), a3, a4))
+TC_HOOK(H_SV41B670, "sv_41b670", 3, 1, return (intptr_t)sv_41b670((wl_char *)self, a1, U16(a2), (int32_t *)a3))
+TC_HOOK(H_SV41BD20, "sv_41bd20", 2, 1, return (intptr_t)sv_41bd20((intptr_t)self, a1, a2))
+ST_HOOK(H_SV41BF60, "sv_41bf60", 2, 0, sv_41bf60((int32_t *)a1, a2); return 0)
+TC_HOOK(H_SV55F620, "sv_55f620", 2, 1, return (intptr_t)sv_55f620((wl_char *)self, a1, a2))
+ST_HOOK(H_SV561560, "sv_561560", 6, 0, sv_561560(a1, a2, U16(a3), a4, (char *)a5, a6); return 0)
+TC_HOOK(H_SV561BF0, "sv_561bf0", 1, 1, return (intptr_t)sv_561bf0((wl_char *)self, a1))
+TC_HOOK(H_SV561CF0, "sv_561cf0", 1, 1, return (intptr_t)sv_561cf0((wl_char *)self, a1))
+TC_HOOK(H_SV561D20, "sv_561d20", 1, 1, return (intptr_t)sv_561d20((wl_char *)self, a1))
+TC_HOOK(H_SV560530, "sv_560530", 1, 1, return (intptr_t)sv_560530((wl_char *)self, a1))
+ST_HOOK(H_SV41CFD0, "sv_41cfd0", 4, 1, return (intptr_t)sv_41cfd0(a1, U16(a2), (char *)a3, (int32_t *)a4))
 /* the chapter scripts' file / sound / DirectX-free callees (src/script_helpers.c; 0x4a5e40 0x4cbfb0 0x4cbfd0 0x4d6490
  * read their caller's ecx: thiscall wrappers) */
 ST_HOOK(H_SC401D80, "sc_401d80", 3, 1, return (intptr_t)sc_401d80(a1, a2, a3))

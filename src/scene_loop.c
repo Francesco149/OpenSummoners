@@ -657,7 +657,7 @@ void obj_delete(uint8_t *o, int32_t flags)
 
 /* ---- the room snapshot ---- */
 
-void room_to_scene(const wl_room *r, uint8_t *so)
+int32_t room_to_scene(const wl_room *r, uint8_t *so)
 {
     st16(so, 0, 8);
     st16(so, 8, ld16(r, 0x4010));
@@ -774,6 +774,9 @@ void room_to_scene(const wl_room *r, uint8_t *so)
         st32(so, 0xc290 + 8u * i, r->flags[i].id);
         st32(so, 0xc294 + 8u * i, r->flags[i].state);
     }
+    /* eax as retail leaves it (0x55f620 returns it on): the last flag index; with no flags ax = 0 over the fill
+     * table pointer still in eax (0 without one) */
+    return r->nflags != 0 ? (int32_t)(r->nflags - 1) : (int32_t)((uint32_t)(uintptr_t)fill & 0xffff0000u);
 }
 
 int scene_start(uint8_t *scene, wl_room *r, int32_t zone, int32_t retry)

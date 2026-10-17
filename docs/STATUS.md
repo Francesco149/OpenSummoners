@@ -7,15 +7,15 @@
 ## Port coverage (engine-proper functions of `sotes.exe`)
 
 ```
-██████████████░░░░░░  70.1% touched   (15.7% host-tested, 62.1% of code bytes)
+██████████████░░░░░░  70.9% touched   (15.7% host-tested, 62.8% of code bytes)
 ```
 
 | status      | count | what it means                                          |
 |-------------|------:|--------------------------------------------------------|
 | tested      |   249 | ported + module covered by the host unit suite       |
-| ported      |   838 | reimplemented in src/, no host test for that module  |
-| **touched** | **1087** | tested + ported (FUN_ provenance ref in src/)    |
-| unported    |   737 | exists in engine, never referenced from src/         |
+| ported      |   850 | reimplemented in src/, no host test for that module  |
+| **touched** | **1099** | tested + ported (FUN_ provenance ref in src/)    |
+| unported    |   725 | exists in engine, never referenced from src/         |
 
 **Denominator note (read this before judging the %):** the headline % is over
 **engine-proper** functions — the **1532** below
@@ -26,7 +26,7 @@ those like retail rather than porting them (PLAN.md §2-3), so counting them
 would bury real progress. Full table is **1824** non-thunk
 functions (of 1824 incl. thunks).
 
-Code-byte coverage (62.1% of engine-proper bytes) is the truer progress
+Code-byte coverage (62.8% of engine-proper bytes) is the truer progress
 signal: the engine has a long tail of tiny leaf helpers, so function count
 understates how much actual instruction volume is ported.
 
@@ -38,7 +38,9 @@ understates how much actual instruction volume is ported.
   DEFAULT (`--no-boot-loading` = legacy axis; old port-timed traces keep working).
   Corpus: 8 scenarios incl. the USER's `rh-my-play` (15.7k flips: intro → house errands → town → shop;
   10 room loads) + `rh-errands-items` (16.4k flips: errands, item finds, the storage box) + `rh-combat` (57.6k
-  flips, the USER 2026-10-16: combat, story advancement, a game over + retry). `rhost.py verify` (shadow, per call; full-state where a function writes widely):
+  flips, the USER 2026-10-16: combat on the way to school, a party ally fighting, a statue save, the main menu, a game
+  over + retry). **Save chains (2026-10-17):** `rhost.py record NEXT --from PREV` continues a play from PREV's final
+  save (re-derived from PREV's trace on every replay; nothing committed but the trace). `rhost.py verify` (shadow, per call; full-state where a function writes widely):
   | function | VA | calls | div |
   |---|---|---:|---:|
   | tile movers | `0x54e990` / `0x54ded0` | 2.50M / 288k | 0 |
@@ -136,7 +138,9 @@ understates how much actual instruction volume is ported.
   | the TITLE and its menus (decomp2c): the title drive, splash + title menu, New Game options, Options, the load screen, sparkles / compositor | `0x562ea0` `0x56aea0` `0x564780` `0x568de0` `0x566a80` … (59) | REPLACE (30 entry hooks; title / options / new-game / load flows of the corpus) | – |
   | the render's PLATFORM layer (decomp2c): surface DC get / release, lock / unlock, the blits (onto / keyed / clipped / rects), the software ALPHA blender `0x5bd680`, the surface cache (create / free / color key), Polyline | `0x5b9b70` `0x5b9bf0` `0x5bd550` `0x5bd680` `0x5b94e0` `0x5b8b40` … (23) | REPLACE (20 entry hooks: every blit of the corpus; the render gate) | – |
   | the frame RENDER (decomp2c `--typed`): the per-frame render `0x48c150` (room / scene / menu), its bands (characters, actors, effects), the actor / character emitters, the message box, the HUD (party panels, gauges, notices), glyph text, the sprite-frame resolver `0x418470` + palette grade `0x417c40`; the zdd / bitmap / blit platform layer + the frame loaders stay retail's | `0x48c150` `0x491ae0` `0x493ba0` `0x494e60` `0x48c820` `0x417c40` `0x418470` … (78) | REPLACE (11 entry hooks; the render gate: pixel-identical every frame) | – |
-  Hybrid gate (`corpus --check --hybrid`): with all of the above REPLACING retail (786 hooks; port→port calls through engine slots / RC_ reach the replacing ports too) (the whole character tick, driver → tile
+  | the room loop's MENUS (decomp2c): the main menu, Messages (list, one message, the line clip `0x5984c0`), System, the party / item hotkey menus, the menu context, the scene runner | `0x591120` `0x597aa0` `0x5985f0` `0x5984c0` `0x596d60` `0x590480` `0x590f20` `0x590ca0` `0x59d540` `0x59ad60` … (13) | REPLACE (9; rh-combat: menu 4, scene runner 4,206; retail's own entries 0 hits) + shadow `0x591590` 4 / `0x5984c0` 40 / `0x598460` 2 / `0x56c430` 1 | 0 |
+  | SAVING / LOADING (decomp2c): the statue dialog, the slot list (24 rows: Save Point / LV / time / date), the WRITER (room-start snapshots + the slot file), the READER, the snapshot prep, the APPLY, the file name | `0x41a430` `0x41bd20` `0x41bf60` `0x561560` `0x41a890` `0x41b670` `0x55f620` `0x561d20` `0x560530` `0x41cfd0` `0x561bf0` `0x561cf0` (12) | REPLACE (7; writer 40 in 5 scenarios, the reader's 49 row / slot reads now port code) + shadow `0x55f620` 1 / `0x561cf0` 25 / `0x560530` 2 / `0x561bf0` 1 / `0x41cfd0` 1 / `room_to_scene` 70 (ret compared) | 0 |
+  Hybrid gate (`corpus --check --hybrid`): with all of the above REPLACING retail (811 hooks; port→port calls through engine slots / RC_ reach the replacing ports too) (the whole character tick, driver → tile
   movers, + the room loop's passes and per-tick calls, runs as port code), every corpus scenario ends byte-identical
   — and on wine matches pure retail at EVERY 600-frame sample (the sem series, 2026-10-16: catches transient
   divergences a later room reload erases; it took pinning rhost's own footprint — asset DLL slots, host heap,
@@ -157,12 +161,25 @@ understates how much actual instruction volume is ported.
   ahead, `0x4418e0`, `0x440e40`, `0x441700`, `0x43ee30`, …; scratch bodies from retail's heap via
   `g_eng.op_new`). Hybrid gate with all 12 movement functions replacing retail: PASS.
 - **Next (port side):**
+  000000. (2026-10-17 afternoon) coverage over the corpus (`rhost.py coverage`): 1,068 of 1,550 game functions reached;
+     reached but unported (rhost modules, engine-proper) ~120 KB outside the platform layer — the corpus ALREADY
+     reaches monsters, a party ally's AI, the menus, a statue save and a game over (rh-combat), so these are all
+     verifiable now.  Done today: the room loop's menus (`src/field_menu.c`) + saving / loading (`src/save_game.c`).
+     Left, by size: the boot asset group loaders 0x56e190 / 0x57ca40 / 0x5752e0 / 0x57b280 / 0x57a330 / 0x582e90 /
+     0x5749b0 (~85 KB, every scenario; DirectDraw surfaces + resource reads), WinMain's init 0x5a4770 (46 KB, platform
+     heavy), the script callees 0x408730 (gifts) / 0x409520 / 0x40a340 / 0x41a160 / 0x41d4a0 / 0x408b90 / 0x40a5d0
+     (BGM), the AI skill pick 0x479f90, the frame loaders 0x4184a0 / 0x4188b0, the input re-poll 0x40fe00.  (0x54e4f0
+     and 0x58c8c0 / 0x58c8d0 are inlined in the hand ports of the tile mover / map decode.)  NOT the menu: 0x5a00c0 is
+     the ENDING CREDITS ("Produced by" …), unreachable until the game is beaten.  decomp2c now resolves a call's ecx
+     from the caller's asm (`lea ecx, [esp+…+var_N]` → that local) — the "caller's this" guess put the scene object
+     in the reader's file calls; `tools/ida/decomp2c_drift.py` lists committed functions today's decomp2c would emit
+     differently (the chapter script 0x4d64f0 carries a stale table-address bug: unreached).
   00000. (2026-10-17) the frame RENDER runs as port code (`src/render_draw.c`, 78 functions; 11 REPLACE hooks):
      pure ≡ hybrid in pixels on every presented frame (the render gate).  Every decomp2c module regenerated from a
      fresh IDA export (callers had lost their callee's `this`); its platform layer too (`src/render_platform.c`: every
      blit).  Next: the frame loaders 0x4184a0 / 0x4188b0 / 0x4178e0 / 0x499850 + the bitmap session 0x5b6xxx;  the
      title runs as port code too (`src/title_menu.c`); next on that side: the asset group loaders (0x56e190 0x57ca40
-     0x5752e0 0x57b280: ~75 KB, boot-time) and the in-game menu 0x5a00c0; a targeted (sampled) shadow verify of the regenerated modules; `_DWORD` is unsigned in IDA but
+     0x5752e0 0x57b280: ~75 KB, boot-time); a targeted (sampled) shadow verify of the regenerated modules; `_DWORD` is unsigned in IDA but
      signed in decomp2c's prologue (check before relying on `>>` / `<` of a `_DWORD` load).
   0000. (2026-10-16 evening) the shots, the behaviour layer, the integrator's reached handlers + the item / skill
      effect + 34 chapter scripts run as port code; the hybrid gate holds at every 600-frame sample (wine).  Open:
@@ -180,16 +197,14 @@ understates how much actual instruction volume is ported.
      Slots left under it: the 17 per-type inits `0x428c00` `0x429060` `0x429db0` `0x42a500` `0x42a9a0` `0x42b9a0`
      `0x42c130` `0x42c510` `0x42c970` `0x42cce0` `0x42d3c0` `0x42da50` `0x42e290` `0x42f840` `0x42fbf0`
      `0x42ff00` `0x430400` (monsters / bosses / party allies; ~30 KB, built from the char_def helpers + 0x41e020 /
-     0x426db0 / 0x556380 + a few leaves 0x429d00 0x429d50 0x42b550.. 0x42da20 0x42ea50) — **the corpus reaches NONE
-     of them** (no dungeon / monster room: 17 townsfolk / party codes only), so porting them needs a monster-room
-     scenario first (USER `rhost.py record`); the palette read `0x4178e0` + frames `0x418470` / `0x417c40`
-     (DirectDraw), `0x56dc20` (Now Loading + Flip), `0x41a890`, the joysticks `0x5ba120` / `0x5ba290` (platform). The SCENE LOOP `0x59f2c0` above it runs as port code too
-     (`src/scene_loop.c`, quirk #141; its save-load half is unexercised: a save scenario is needed). Its slots: the
-     save writer `0x41a890`,
-     the save apply `0x561d20`, the demo scene `0x41b670` (+ `0x4c5af0` / `0x52fd80` / `0x5a3870`), the menu
-     `0x5a00c0` (13.7 KB), the file reader `0x5b6060`.. (platform). The party API (`src/party_member.c`, quirk
-     #142) is ported; its slots: the level-up stats `0x409150`, the cue `0x55fdb0`, the level / status sync `0x41d780`, the start gear `0x4e6520` / `0x4e61d0`. Next: `0x41a890`
-     (the save writer, every room start).
+     0x426db0 / 0x556380 + a few leaves 0x429d00 0x429d50 0x42b550.. 0x42da20 0x42ea50) — rh-combat reaches three
+     (0x42e290 0x42c970 0x42fbf0, ported); the other 14 are monster / boss / ally types no recording meets yet (the
+     coverage run says which); the palette read `0x4178e0` + frames `0x418470` / `0x417c40`
+     (DirectDraw), `0x56dc20` (Now Loading + Flip), the joysticks `0x5ba120` / `0x5ba290` (platform). The SCENE LOOP `0x59f2c0` above it runs as port code too
+     (`src/scene_loop.c`, quirk #141; its save-load half: rh-combat reaches one apply `0x561d20`; the title's Continue
+     enters the corpus with the first chained `--from` scenario). Its slots: the demo scene blocks `0x4c5af0` / `0x52fd80` / `0x5a3870`, the file stream `0x5b6060`..
+     (platform); the save writer / reader / apply are port code (`src/save_game.c`, quirks #171 / #172). The party API (`src/party_member.c`, quirk
+     #142) is ported; its slots: the level-up stats `0x409150`, the cue `0x55fdb0`, the level / status sync `0x41d780`, the start gear `0x4e6520` / `0x4e61d0`.
   00. the ROOM LOOP `0x58f360` RUNS AS PORT CODE (`room_loop_run`, REPLACE-verified; Flip / the camera
      easer go through rhost's own stubs), with the script engine / scene commands (`src/script_engine.c`,
      `src/scene_cmd.c`), the status pass (`src/char_status.c`) and the party chores (`src/room_tick.c`). Left

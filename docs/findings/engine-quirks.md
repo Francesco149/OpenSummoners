@@ -5032,6 +5032,34 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
 - The particle setup `0x557550` inlines the entity setup per code; 100137 alone stores -4 into the box offsets
   +0x30 / +0x34 (every other code 0). Spawned by entity code 70363 (rh-errands-items f8084).
 
+### #171 — EN-old's statue saves are `savedataNN.sdt` (kind 10040), not `.dat` (RE 2026-10-17)
+- The save kinds `0x41a890` / `0x41b670` / `0x41b470` / `0x41cfd0` switch on: 10010 → `savedataNN.dat`, 1 →
+  `savedataNN.bak` (the overwrite backup `0x41b470` copies the slot there first), 10020 / 10030 → memory banks 0 / 1
+  (`0x8a93f0[]`: the room-start / retry snapshots, no file), anything else → `savedataNN.sdt` + bank 2. The statue
+  dialog `0x41a430` and the slot list (`0x41bf60`: 24 rows of `0x561560(…, 10040, slot, …)`) use 10040; so does
+  the title's Continue (`0x41c2f0` sets kind 10040). The path: sys+259 (the game dir) + `"\\"` (.data `0x854f5c`) +
+  the name. A full user\ dir after rh-combat: `config.dat`, `save_chk.tmp` (0 B), `savedata00.sdt` (3,490 B).
+- The writer's failure paths (open / bank write / flush) are retail's logger `0x406440` INLINED + the error flag
+  (`0x8a9530` +0 = 1, the message appended at +4 after a `"\n"`), then `exit(0)`: "Unable to write files, cannot
+  save game. …" (`0x854ef4`) / "Disk Logic Error" (`0x854ee0`). With `a4 != 0` (the statue dialog passes 1) a failed
+  .sdt flush only logs and returns 0 (the dialog then shows its failure message).
+
+### #172 — the save list's row reader runs on a reader object, not the scene (RE 2026-10-17)
+- `0x41b670` (load a save into a scene object) builds a file-stream object on its own stack (`0x5b6060` ctor,
+  ebp-0x620) and every section read `0x5b6300` is a thiscall on THAT object (`lea ecx, [esp+…+var_620]`): the header
+  (604 B: dword 139 / +0x22c must be 10001, dword 140 / +0x230 the asked kind; dword 138 / +0x228 the save time → `a4`), the scene (164 B), the
+  member blocks (284 B + the 12 B / 16 B lists), the record tables, the 8-B list. IDA's decompile shows the 0x5b6300
+  calls without `this` (it types 0x5b6300 __stdcall), so a decompile reading of them puts the wrong object in ecx.
+- `0x41bd20` → `0x41bf60` → `0x561560` hand their caller's ecx down (each stores it, then reloads it before the next
+  call) but `0x561560` overwrites ecx unread: the value is dead.
+
+### #173 — the Messages screen clips its lines with a DBCS-aware copy (`0x5984c0`, port 2026-10-17)
+- `0x5984c0(src, dst, width, suffix)`: copies src one character at a time (a byte with bit 7 set takes the next byte
+  along) while the 16-bit index stays <= width (signed compare); past it the copy is cut back where the index FIRST
+  reached `width - strlen(suffix)` (unsigned: a suffix longer than the width never cuts) and the suffix appended. The
+  Messages list uses width 16 / 32 with suffix `0x8a3760`. Retail builds each character in the stack slot of its
+  first argument (a 4-byte buffer).
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`
