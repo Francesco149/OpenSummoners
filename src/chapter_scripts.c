@@ -6668,7 +6668,7 @@ LABEL_77:
                       W_char_stats_init(v47 + 2576, (*v92__f), 1);
                       W_member_skills_learn(v47, (*v92__f), 1);
                       (*v93__f) = 0;
-                      v48 = F32(D(0x6c0cd0), 0);
+                      v48 = (int32_t *)D(0x6c0cd0);   /* the table's address (mov ebx, offset dword_6C0CD0) */
                       do
                       {
                         if ( v48[174] == 100000102
