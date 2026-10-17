@@ -41,7 +41,13 @@ state hash; ~830–1000 fps; no Frida, no pins. Editions: `enold` (port target) 
   back buffer (`fb`, + `fb_series` on wine) — pure ≡ hybrid in PIXELS on every presented frame, the
   verification for render ports (REPLACE; a shadow can't re-blit).
   Big functions: `tools/ida/decomp2c.py VA:name ...` first pass (keeps IDA's control flow / types / real class
-  layouts, stack locals at their ebp offsets, ecx/edx call-site fixes) → review → wire → verify.
+  layouts, stack locals at their ebp offsets, ecx/edx call-site fixes; unported callees as retail's own `RC_`,
+  Win32 calls through retail's import slots `API_x`; `--typed` keeps the KB structs from `src/` headers) → review
+  → wire → verify. Only port functions in rhost-linked modules (`tools/rhost/build.sh`) are bound by name.
+  **The IDA export must be decompiled AFTER class recovery with a cleared cfunc cache** (`oss_ida_export.py`,
+  2026-10-16): before, ~19.7k lines showed callers of now-thiscall methods WITHOUT their `this`, and decomp2c's
+  "caller's this" guess was wrong in places (e.g. `beh_47adb0(c, …)` vs retail's `ecx = v43`). Re-export with
+  `ida.py export --kb --fresh` after touching the exporter.
 - **Probes:** `--watch-write VA@FRAME` (who writes an address), `--trap VA` (registers),
   `coverage` (first-hit over all IDA functions), `--dump-at` + `rhs.py` (state diffs).
 - **Windows:** `ssh win` + task `oss-rhost-runner` + `C:\oss-rhost\` — separate from openrecet's

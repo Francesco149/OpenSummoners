@@ -32,13 +32,13 @@
 int32_t shots_tick(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5);
 int32_t shot_init(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6, int32_t a7, int32_t a8, int16_t a9, int32_t a10, int32_t a11, int32_t a12, int32_t a13, int32_t a14, int32_t a15, int32_t a16, int32_t a17, int32_t a18);
 int32_t band96_tick(wl_char *self);
-int32_t shot_445ce0(intptr_t ecx_, int32_t a1, int32_t a2);
+int32_t shot_445ce0(wl_char *self, int32_t * a1, uint16_t a2);
 int32_t shot_449700(wl_char *self, int32_t a2, int32_t a3, uint16_t a4, int32_t a5, int32_t a6, int32_t a7, int32_t a8);
 int32_t shot_4497b0(wl_char *self, int32_t a2, int32_t a3, int32_t a4);
-int32_t shot_4504c0(intptr_t ecx_, int32_t a1, int32_t a2, int32_t a3, int32_t * a4, int32_t a5, int32_t a6, int32_t a7, int32_t a8, int32_t a9, int32_t a10, int32_t a11, int32_t a12, int32_t a13, int32_t a14);
+int32_t shot_4504c0(wl_char *self, int32_t a1, int32_t a2, int32_t a3, int32_t * a4, int32_t a5, int32_t a6, int32_t a7, int32_t a8, int32_t a9, int32_t a10, int32_t a11, int32_t a12, int32_t a13, int32_t a14);
 int32_t shot_4538f0(int32_t * a1, int32_t * a2, int32_t a3);
-int32_t shot_46e110(intptr_t ecx_, int32_t a1, int32_t a2);
-int32_t shot_46e150(intptr_t ecx_, int32_t a1, int32_t a2);
+int32_t shot_46e110(wl_char *self, int32_t * a1, uint16_t a2);
+int32_t shot_46e150(wl_char *self, int32_t * a1, uint16_t a2);
 int32_t shot_46e190(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6);
 int32_t shot_476500(int32_t a1, int32_t a2, int32_t a3);
 int32_t shot_476550(int32_t a1, int32_t a2, int32_t * a3, double * a4);

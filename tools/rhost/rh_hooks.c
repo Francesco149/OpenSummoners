@@ -63,6 +63,7 @@
 #include "behave_helpers.h"
 #include "char_handlers.h"
 #include "script_helpers.h"
+#include "render_draw.h"
 #include "chapter_scripts.h"
 #include "room_tick.h"
 #include "ui_core.h"
@@ -291,6 +292,10 @@ typedef struct {
     X(H_CS4BE220, "chs_4be220", 0x4be220u) X(H_CS4C1A30, "chs_4c1a30", 0x4c1a30u) X(H_CS4C1C20, "chs_4c1c20", 0x4c1c20u) \
     X(H_CS4C2310, "chs_4c2310", 0x4c2310u) X(H_CS4C29C0, "chs_4c29c0", 0x4c29c0u) X(H_CS4C2DC0, "chs_4c2dc0", 0x4c2dc0u) \
     X(H_CS4C3EE0, "chs_4c3ee0", 0x4c3ee0u) X(H_CS4C45A0, "chs_4c45a0", 0x4c45a0u) \
+    X(H_RD417C40, "rd_417c40", 0x417c40u) X(H_RD418470, "rd_418470", 0x418470u) X(H_RD43E250, "rd_43e250", 0x43e250u) \
+    X(H_RD48C150, "rd_48c150", 0x48c150u) X(H_RD48C820, "rd_48c820", 0x48c820u) X(H_RD491820, "rd_491820", 0x491820u) \
+    X(H_RD494E10, "rd_494e10", 0x494e10u) X(H_RD495DC0, "rd_495dc0", 0x495dc0u) X(H_RD495E40, "rd_495e40", 0x495e40u) \
+    X(H_RD4961E0, "rd_4961e0", 0x4961e0u) X(H_RD496240, "rd_496240", 0x496240u) \
     X(H_SC401D80, "sc_401d80", 0x401d80u) X(H_SC402030, "sc_402030", 0x402030u) X(H_SC4020A0, "sc_4020a0", 0x4020a0u) \
     X(H_SC4024E0, "sc_4024e0", 0x4024e0u) X(H_SC402610, "sc_402610", 0x402610u) X(H_SC402F40, "sc_402f40", 0x402f40u) \
     X(H_SC406500, "sc_406500", 0x406500u) X(H_SC406AB0, "sc_406ab0", 0x406ab0u) X(H_SC406C70, "sc_406c70", 0x406c70u) \
@@ -2227,7 +2232,14 @@ static int __attribute__((thiscall)) gd_49bf90(void *d, intptr_t v) { GUARD("the
 #define EV_GUARD(ev, what) if ((ev)->mode != 3 && (ev)->mode != 4) { GUARD(what) }
 #define H_CS_FIRST H_CS4D7D80
 #define H_CS_LAST H_CS4C45A0
-static void *rh_retail(uint32_t va) { return (void *)(uintptr_t)va; }   /* decomp2c's RC_ calls: retail is mapped in place */
+static uint32_t g_rep_va[1024]; static void *g_rep_w[1024]; static int g_nrep;   /* the REPLACE hooks, by VA */
+/* decomp2c's RC_ calls: retail is mapped in place — a function a hook REPLACES: its wrapper (the port) */
+static void *rh_retail(uint32_t va)
+{
+    int lo = 0, hi = g_nrep - 1;
+    while (lo <= hi) { int m = (lo + hi) / 2; if (g_rep_va[m] == va) return g_rep_w[m]; if (g_rep_va[m] < va) lo = m + 1; else hi = m - 1; }
+    return (void *)(uintptr_t)va;
+}
 static int rh_script_call(uint32_t va, wl_event *ev)
 {
     EV_GUARD(ev, "a chapter script (mode != 3/4)")
@@ -3438,7 +3450,13 @@ static int __attribute__((noinline)) full_shadow_gx(hook_t *h, const char *name,
     static void ID##_p(void *c) { gx_ctx *x = c; port_world(); x->rp = ID##_port(GX##N); }           \
     static intptr_t __attribute__((stdcall)) ID##_w(GP##N)                                           \
     { hook_t *h = &H[ID]; gx_ctx x = { 0, { GA##N }, 0, 0 }; GX_TAIL(ID, NAME, CMP) }
-#define ST_HOOK0(ID, NAME, CMP, PORT)                                                                    typedef intptr_t (__attribute__((stdcall)) *ID##_t)(void);                                           static intptr_t ID##_port(void) { PORT; }                                                            static void ID##_r(void *c) { gx_ctx *x = c; x->rr = ((ID##_t)(uintptr_t)H[ID].va)(); }                static void ID##_p(void *c) { gx_ctx *x = c; port_world(); x->rp = ID##_port(); }                    static intptr_t __attribute__((stdcall)) ID##_w(void)                                                { hook_t *h = &H[ID]; gx_ctx x = { 0, { 0 }, 0, 0 }; GX_TAIL(ID, NAME, CMP) }
+#define ST_HOOK0(ID, NAME, CMP, PORT)                                                                \
+    typedef intptr_t (__attribute__((stdcall)) *ID##_t)(void);                                       \
+    static intptr_t ID##_port(void) { PORT; }                                                        \
+    static void ID##_r(void *c) { gx_ctx *x = c; x->rr = ((ID##_t)(uintptr_t)H[ID].va)(); }            \
+    static void ID##_p(void *c) { gx_ctx *x = c; port_world(); x->rp = ID##_port(); }                \
+    static intptr_t __attribute__((stdcall)) ID##_w(void)                                            \
+    { hook_t *h = &H[ID]; gx_ctx x = { 0, { 0 }, 0, 0 }; GX_TAIL(ID, NAME, CMP) }
 #define CP(v) ((const void *)(v))
 #define U16(v) ((uint16_t)(v))
 TC_HOOK(H_CD_SKFIND, "char_skill_find", 1, 1, return (intptr_t)char_skill_find(self, U16(a1)))
@@ -4260,6 +4278,19 @@ TC_HOOK0(H_CS4C29C0, "chs_4c29c0", 1, return (intptr_t)chs_4c29c0((wl_char *)sel
 TC_HOOK0(H_CS4C2DC0, "chs_4c2dc0", 1, return (intptr_t)chs_4c2dc0((wl_char *)self))
 TC_HOOK0(H_CS4C3EE0, "chs_4c3ee0", 1, return (intptr_t)chs_4c3ee0((wl_char *)self))
 TC_HOOK0(H_CS4C45A0, "chs_4c45a0", 1, return (intptr_t)chs_4c45a0((wl_char *)self))
+/* the frame render's entry points retail calls from outside src/render_draw.c (REPLACE only: they blit / write
+ * surface memory a shadow cannot restore; the render gate (--fb-hash) proves them) */
+TC_HOOK(H_RD417C40, "rd_417c40", 2, 1, return (intptr_t)rd_417c40((wl_char *)self, U16(a1), U16(a2)))
+TC_HOOK(H_RD418470, "rd_418470", 1, 1, return (intptr_t)rd_418470((wl_char *)self, U16(a1)))
+ST_HOOK(H_RD43E250, "rd_43e250", 6, 0, rd_43e250(U16(a1), a2, a3, a4, a5, a6); return 0)
+TC_HOOK(H_RD48C150, "rd_48c150", 3, 1, return (intptr_t)rd_48c150((wl_char *)self, a1, a2, a3))
+TC_HOOK(H_RD48C820, "rd_48c820", 2, 1, return (intptr_t)rd_48c820((wl_char *)self, a1, a2))
+TC_HOOK(H_RD491820, "rd_491820", 10, 1, return (intptr_t)rd_491820((wl_char *)self, a1, (char *)a2, U16(a3), a4, a5, a6, a7, a8, a9, a10))
+TC_HOOK(H_RD494E10, "rd_494e10", 6, 1, return (intptr_t)rd_494e10((wl_char *)self, a1, (int32_t *)a2, a3, a4, a5, a6))
+ST_HOOK(H_RD495DC0, "rd_495dc0", 3, 1, return (intptr_t)rd_495dc0(a1, U16(a2), (char *)a3))
+TC_HOOK(H_RD495E40, "rd_495e40", 7, 1, return (intptr_t)rd_495e40((wl_char *)self, a1, (char *)a2, U16(a3), a4, a5, a6, a7))
+TC_HOOK(H_RD4961E0, "rd_4961e0", 2, 1, return (intptr_t)rd_4961e0((wl_char *)self, a1, a2))
+TC_HOOK(H_RD496240, "rd_496240", 2, 1, return (intptr_t)rd_496240((wl_char *)self, a1, a2))
 /* the chapter scripts' file / sound / DirectX-free callees (src/script_helpers.c; 0x4a5e40 0x4cbfb0 0x4cbfd0 0x4d6490
  * read their caller's ecx: thiscall wrappers) */
 ST_HOOK(H_SC401D80, "sc_401d80", 3, 1, return (intptr_t)sc_401d80(a1, a2, a3))
@@ -4274,7 +4305,7 @@ ST_HOOK(H_SC406C70, "sc_406c70", 5, 1, return (intptr_t)sc_406c70(a1, a2, a3, U1
 TC_HOOK(H_SC41A3A0, "sc_41a3a0", 1, 1, return (intptr_t)sc_41a3a0((wl_char *)self, a1))
 TC_HOOK(H_SC41E2B0, "sc_41e2b0", 1, 1, return (intptr_t)sc_41e2b0((wl_char *)self, a1))
 ST_HOOK(H_SC41E340, "sc_41e340", 2, 1, return (intptr_t)sc_41e340(a1, a2))
-ST_HOOK(H_SC41EB30, "sc_41eb30", 1, 0, sc_41eb30(a1); return 0)
+ST_HOOK(H_SC41EB30, "sc_41eb30", 1, 0, sc_41eb30(0, 0, a1); return 0)   /* (stdcall, 1 stack arg: IDA's fastcall ecx / edx unread) */
 TC_HOOK(H_SC41ECE0, "sc_41ece0", 6, 1, return (intptr_t)sc_41ece0((wl_char *)self, a1, a2, a3, a4, a5, a6))
 ST_HOOK(H_SC41EFE0, "sc_41efe0", 2, 1, return (intptr_t)sc_41efe0(a1, a2))
 ST_HOOK(H_SC41F050, "sc_41f050", 2, 1, return (intptr_t)sc_41f050(a1, a2))
@@ -4595,6 +4626,7 @@ static void bind_engine_calls(void)
     *(void **)&g_eng.h5b9390 = (void *)gd_5b9390;
     g_eng.script_call = rh_script_call;
     g_eng.retail = rh_retail;
+    g_eng.api = iat_lookup;
     *(void **)&g_eng.h439690 = (void *)gd_439690;
     *(void **)&g_eng.h4081d0 = (void *)gd_4081d0; *(void **)&g_eng.h408730 = (void *)gd_408730;
     *(void **)&g_eng.h407970 = (void *)gd_407970; *(void **)&g_eng.h40a340 = (void *)gd_40a340;
@@ -4689,6 +4721,24 @@ void rh_hooks_install(void)
         rh_log("hook %s:%s @%08x every=%u: %d call sites\n", mode, name, h->va, every, n);
         if (!n) rh_fatal("hook %s: no direct call sites", name);
     }
+    /* Port code reaches a REPLACED function through its engine-call slot (bound to retail's VA) or an RC_ call too —
+     * not only through retail's call sites: those land on the hook's wrapper (retail's convention) as well.  Before,
+     * a ported caller of a ported callee ran retail's (the room loop's render 0x48c150 never ran as port code). */
+    for (int i = 0; i < H_N && g_nrep < 1024; i++)
+        if (H[i].mode == 2 && H[i].va) {
+            int k = g_nrep++;
+            while (k && g_rep_va[k - 1] > H[i].va) { g_rep_va[k] = g_rep_va[k - 1]; g_rep_w[k] = g_rep_w[k - 1]; k--; }
+            g_rep_va[k] = H[i].va; g_rep_w[k] = H[i].wrapper;
+        }
+    int nslot = 0;
+    uint32_t *sl = (uint32_t *)(void *)&g_eng;
+    for (size_t k = 0; k < sizeof g_eng / sizeof *sl; k++) {
+        void *w = rh_retail(sl[k]);
+        if (w != (void *)(uintptr_t)sl[k]) { rh_log("hook: slot +%03x %08x -> port\n", (unsigned)(k * 4), sl[k]); sl[k] = (uint32_t)(uintptr_t)w; nslot++; }
+    }
+    /* ... except a port's delegation to retail's OWN version (the integrator's unported special poses) */
+    if ((uintptr_t)g_eng.integrate_442a70 != 0x442a70u) { *(void **)&g_eng.integrate_442a70 = (void *)(uintptr_t)0x442a70u; nslot--; }
+    if (g_nrep) rh_log("hook: %d engine-call slots retargeted to the replacing ports (%d replace hooks)\n", nslot, g_nrep);
 }
 
 void rh_hooks_report(void)

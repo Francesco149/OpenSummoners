@@ -6,6 +6,35 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-17 — a fresh IDA export: the decompile's missing `this`; every decomp2c module regenerated
+
+- The IDA export reused Hex-Rays' cached bodies from the class-recovery pass, decompiled BEFORE their callees got
+  their thiscall types: ~19.7k lines of callers showed a now-thiscall call without its `this` (`blt_clipped(a1,
+  …)`), and decomp2c's "the caller's this" guess was wrong in places — `beh_47adb0(c, …)` where retail's ecx is the
+  candidate character `v43`, `W_entity_ground_probe(c, …)` for `(v18, …)`.  Fix: `clear_cached_cfuncs()` after the
+  class recovery (`tools/ida/oss_ida_export.py`); `ida.py export --kb --fresh` (601 classes, identical tables).
+- All seven decomp2c modules regenerated from it (shots, behaviour layer, handlers, chapter scripts + helpers,
+  Arche's sword, skill casts); three hand finishes are now the converter's own output.  The fresh decompile also
+  shows some stdcall callees as `__fastcall(ecx, edx, stack…)` (0x41e360 char_unload, 0x41eb30): the first
+  regeneration passed the RUNNER to char_unload (a free of pointer 1 at errands f14865, combat f10474 — rhost's
+  heap now logs the caller chain of a foreign free; `-fno-omit-frame-pointer` for the port objects); decomp2c now
+  drops those pass-through registers.
+- The FRAME RENDER as port code: `src/render_draw.c` (78 functions, decomp2c `--typed --zero-locals`): the per-frame
+  render 0x48c150, the bands, actor / character emitters, the message box, the HUD, glyph text, the sprite-frame
+  resolver 0x418470 + palette grade 0x417c40 (11 REPLACE hooks; the platform layer + the frame loaders stay
+  retail's).  The render gate named its bugs one by one: `this + 2604` on a `_DWORD *this` (+10416 bytes),
+  `unsigned int` locals that decomp2c had made signed (`v >> 31` = retail's shr: the props drawn 2 px low in a
+  vertical scroll at rh-combat f12745), an IDA local named `c` aliasing decomp2c's `this` (0x496ec0 read +0x3d0
+  off TextOutA's length: the crash at f26548).
+- rhost: REPLACE now reaches port→port calls — engine-call slots / RC_ holding a replaced VA go to the hook's
+  wrapper (the ported room loop's render had kept running retail's); semv's external map also covers the whole
+  system zone 0x05c00000..0x20000000 (wine's heaps grow there to a timing-dependent high-water mark: byte
+  tuples like 0x0b0a0908 were masked in one run only — the remaining hybrid flake); probes: `--trap-frames A-B`
+  + stack args on trap lines, an access-violation logger (address, registers, ebp chain).
+- decomp2c, also: `long double` = MSVC's double; KB names with digits; `**(T **)` double derefs kept typed; `&v[i].field`;
+  Win32 imports through retail's IAT (`API_x`, `g_eng.api`); `--typed` (KB structs from src/ headers); the IDA KB
+  globals typed; non-class `T *this` derefs scale by T; only rhost-linked port functions bound by name.
+
 ## 2026-10-16 (night, 3) — the render gate; the wine flake named
 
 - rhost `--fb-hash`: every Flip's back buffer hashed and chained (RESULT `fb`, series lines `fb=`);

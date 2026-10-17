@@ -18,6 +18,7 @@
 static intptr_t rnd(void) { return (intptr_t)rng_rand(); }
 
 
+
 #include "actor_update.h"
 #include "char_def.h"
 #include "char_state.h"
@@ -40,6 +41,7 @@ static intptr_t rnd(void) { return (intptr_t)rng_rand(); }
 #pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
 #define CFG() ((intptr_t)**(uint8_t ***)((uint8_t *)g_eng.sys + 0x320))
 #define SYS32(o) F32(g_eng.sys, (o))
+#define SYSB(o) F8(g_eng.sys, (o))   /* the system object's byte at +o (an lvalue: &SYSB(o) is its address) */
 static inline int ofsub32_(int32_t a, int32_t b) { int32_t r; return __builtin_sub_overflow(a, b, &r); }
 static inline int ofadd32_(int32_t a, int32_t b) { int32_t r; return __builtin_add_overflow(a, b, &r); }
 #define __OFSUB__(a, b) ofsub32_((int32_t)(a), (int32_t)(b))
@@ -77,6 +79,7 @@ typedef char CHAR;
 #define SETLODW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffff00000000ull) | (uint32_t)(v)))
 #define SETHIDW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffffull) | ((uint64_t)(uint32_t)(v) << 32)))
 #define F32(p, o) (*(int32_t *)((uint8_t *)(intptr_t)(p) + (o)))
+#define FU32(p, o) (*(uint32_t *)((uint8_t *)(intptr_t)(p) + (o)))   /* an `unsigned int` load: >> / < / / stay unsigned */
 #define F16(p, o) (*(uint16_t *)((uint8_t *)(intptr_t)(p) + (o)))
 #define S16(p, o) (*(int16_t *)((uint8_t *)(intptr_t)(p) + (o)))
 #define F8(p, o)  (*(uint8_t *)((uint8_t *)(intptr_t)(p) + (o)))
@@ -119,7 +122,7 @@ static inline intptr_t W_sc_406ab0(intptr_t a0, intptr_t a1, intptr_t a2, intptr
 static inline intptr_t W_sc_41a3a0(intptr_t a0, intptr_t a1, ...) { return (intptr_t)sc_41a3a0((wl_char *)a0, (int32_t)a1); }
 static inline intptr_t W_sc_41e2b0(intptr_t a0, intptr_t a1, ...) { return (intptr_t)sc_41e2b0((wl_char *)a0, (int32_t)a1); }
 static inline intptr_t W_sc_41e340(intptr_t a0, intptr_t a1, ...) { return (intptr_t)sc_41e340((int32_t)a0, (int32_t)a1); }
-static inline intptr_t W_sc_41eb30(intptr_t a0, ...) { sc_41eb30((int32_t)a0); return 0; }
+static inline intptr_t W_sc_41eb30(intptr_t a0, intptr_t a1, intptr_t a2, ...) { sc_41eb30((int32_t)a0, (int32_t)a1, (int32_t)a2); return 0; }
 static inline intptr_t W_sc_41ece0(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, ...) { return (intptr_t)sc_41ece0((wl_char *)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3, (int32_t)a4, (int32_t)a5, (int32_t)a6); }
 static inline intptr_t W_sc_41efe0(intptr_t a0, intptr_t a1, ...) { return (intptr_t)sc_41efe0((int32_t)a0, (int32_t)a1); }
 static inline intptr_t W_sc_41f050(intptr_t a0, intptr_t a1, ...) { return (intptr_t)sc_41f050((int32_t)a0, (int32_t)a1); }
@@ -134,7 +137,7 @@ static inline intptr_t W_sc_4a5e70(intptr_t a0, intptr_t a1, intptr_t a2, intptr
 static inline intptr_t W_sc_4a5ea0(intptr_t a0, ...) { return (intptr_t)sc_4a5ea0((wl_char *)a0); }
 static inline intptr_t W_sc_4a5ec0(intptr_t a0, ...) { return (intptr_t)sc_4a5ec0((wl_char *)a0); }
 static inline intptr_t W_sc_4a5f80(intptr_t a0, intptr_t a1, ...) { return (intptr_t)sc_4a5f80((wl_char *)a0, (int32_t)a1); }
-static inline intptr_t W_sc_4a63d0(intptr_t a0, intptr_t a1, ...) { return (intptr_t)sc_4a63d0((wl_char *)a0, (int32_t)a1); }
+static inline intptr_t W_sc_4a63d0(intptr_t a0, intptr_t a1, ...) { return (intptr_t)sc_4a63d0((wl_char *)a0, (uint32_t)a1); }
 static inline intptr_t W_sc_4ac610(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, ...) { return (intptr_t)sc_4ac610((wl_char *)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3, (int32_t)a4, (int32_t)a5, (int32_t)a6); }
 static inline intptr_t W_sc_4ac660(intptr_t a0, intptr_t a1, intptr_t a2, ...) { return (intptr_t)sc_4ac660((wl_char *)a0, (int32_t)a1, (char *)a2); }
 static inline intptr_t W_sc_4b3b10(void) { return (intptr_t)sc_4b3b10(); }
@@ -283,14 +286,14 @@ int32_t chs_4d7d80(wl_char *self)
     intptr_t v23;
     intptr_t v24;
     intptr_t v25;
-    int32_t * v26;
+    intptr_t v26;
     int32_t * v27;
-    int32_t * v28;
+    intptr_t v28;
     int32_t * v29;
     intptr_t v30;
-    intptr_t v31;
+    int32_t * v31;
     intptr_t v32;
-    intptr_t v33;
+    int32_t * v33;
     intptr_t v34;
     intptr_t v35;
     intptr_t v36;
@@ -302,28 +305,28 @@ int32_t chs_4d7d80(wl_char *self)
     intptr_t v42;
     intptr_t v43;
     intptr_t v44;
-    int32_t * v45;
+    intptr_t v45;
     intptr_t v46;
-    intptr_t result;
+    intptr_t v47;
     intptr_t v48;
     intptr_t v49;
-    intptr_t v50;
+    int32_t * v50;
     intptr_t v51;
-    intptr_t v52;
+    intptr_t result;
     intptr_t v53;
     intptr_t v54;
     intptr_t v55;
     intptr_t v56;
     intptr_t v57;
     intptr_t v58;
-    int32_t * v59;
+    intptr_t v59;
     intptr_t v60;
-    int32_t * v61;
+    intptr_t v61;
     intptr_t v62;
     intptr_t v63;
-    intptr_t v64;
+    int32_t * v64;
     intptr_t v65;
-    intptr_t v66;
+    int32_t * v66;
     intptr_t v67;
     intptr_t v68;
     intptr_t v69;
@@ -334,21 +337,21 @@ int32_t chs_4d7d80(wl_char *self)
     intptr_t v74;
     intptr_t v75;
     intptr_t v76;
-    int32_t * v77;
-    int32_t * v78;
-    int32_t * v79;
-    int32_t * v80;
-    int32_t * v81;
+    intptr_t v77;
+    intptr_t v78;
+    intptr_t v79;
+    intptr_t v80;
+    intptr_t v81;
     intptr_t v82;
-    intptr_t v83;
+    int32_t * v83;
     intptr_t v84;
-    intptr_t v85;
+    int32_t * v85;
     intptr_t v86;
-    intptr_t v87;
+    int32_t * v87;
     intptr_t v88;
-    intptr_t v89;
+    int32_t * v89;
     intptr_t v90;
-    intptr_t v91;
+    int32_t * v91;
     intptr_t v92;
     intptr_t v93;
     intptr_t v94;
@@ -411,7 +414,7 @@ int32_t chs_4d7d80(wl_char *self)
     intptr_t v151;
     intptr_t v152;
     intptr_t v153;
-    int32_t * v154;
+    intptr_t v154;
     intptr_t v155;
     intptr_t v156;
     intptr_t v157;
@@ -422,7 +425,7 @@ int32_t chs_4d7d80(wl_char *self)
     intptr_t v162;
     intptr_t v163;
     intptr_t v164;
-    intptr_t v165;
+    int32_t * v165;
     intptr_t v166;
     intptr_t v167;
     intptr_t v168;
@@ -437,7 +440,7 @@ int32_t chs_4d7d80(wl_char *self)
     intptr_t v177;
     intptr_t v178;
     intptr_t v179;
-    int32_t * v180;
+    intptr_t v180;
     intptr_t v181;
     intptr_t v182;
     intptr_t v183;
@@ -449,7 +452,7 @@ int32_t chs_4d7d80(wl_char *self)
     intptr_t v189;
     intptr_t v190;
     intptr_t v191;
-    intptr_t v192;
+    int32_t * v192;
     intptr_t v193;
     intptr_t v194;
     intptr_t v195;
@@ -476,27 +479,40 @@ int32_t chs_4d7d80(wl_char *self)
     intptr_t v216;
     intptr_t v217;
     intptr_t v218;
+    intptr_t v219;
+    intptr_t v220;
+    intptr_t v221;
+    intptr_t v222;
+    intptr_t v223;
+    intptr_t v224;
+    intptr_t v225;
+    intptr_t v226;
+    intptr_t v227;
+    intptr_t v228;
+    intptr_t v229;
+    intptr_t v230;
+    intptr_t v231;
     _Alignas(8) uint8_t frame_[0x3c + 0x10];   /* the stack locals at their ebp offsets */
     memset(frame_, 0, sizeof frame_);
-    intptr_t *const v223__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x3c */
-    intptr_t *const v222__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x3c */
-    intptr_t *const v221__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x3c */
-    intptr_t *const v220__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x3c */
-    intptr_t *const v219__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x3c */
-    char * *const v224__f = (char * *)(frame_ + 0x4);   /* ebp-0x38 */
-    intptr_t *const v225__f = (intptr_t *)(frame_ + 0x18);   /* ebp-0x24 */
-    intptr_t *const v228__f = (intptr_t *)(frame_ + 0x1c);   /* ebp-0x20 */
-    intptr_t *const v227__f = (intptr_t *)(frame_ + 0x1c);   /* ebp-0x20 */
-    intptr_t *const v226__f = (intptr_t *)(frame_ + 0x1c);   /* ebp-0x20 */
-    intptr_t *const v231__f = (intptr_t *)(frame_ + 0x20);   /* ebp-0x1c */
-    intptr_t *const v230__f = (intptr_t *)(frame_ + 0x20);   /* ebp-0x1c */
-    intptr_t *const v229__f = (intptr_t *)(frame_ + 0x20);   /* ebp-0x1c */
-    intptr_t *const v234__f = (intptr_t *)(frame_ + 0x34);   /* ebp-0x8 */
-    intptr_t *const v233__f = (intptr_t *)(frame_ + 0x34);   /* ebp-0x8 */
-    intptr_t *const v232__f = (intptr_t *)(frame_ + 0x34);   /* ebp-0x8 */
-    intptr_t *const v238__f = (intptr_t *)(frame_ + 0x38);   /* ebp-0x4 */
-    intptr_t *const v237__f = (intptr_t *)(frame_ + 0x38);   /* ebp-0x4 */
-    intptr_t *const v235__f = (intptr_t *)(frame_ + 0x38);   /* ebp-0x4 */
+    intptr_t *const v236__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x3c */
+    intptr_t *const v235__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x3c */
+    intptr_t *const v234__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x3c */
+    intptr_t *const v233__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x3c */
+    intptr_t *const v232__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x3c */
+    char * *const v237__f = (char * *)(frame_ + 0x4);   /* ebp-0x38 */
+    intptr_t *const v238__f = (intptr_t *)(frame_ + 0x18);   /* ebp-0x24 */
+    intptr_t *const v241__f = (intptr_t *)(frame_ + 0x1c);   /* ebp-0x20 */
+    intptr_t *const v240__f = (intptr_t *)(frame_ + 0x1c);   /* ebp-0x20 */
+    intptr_t *const v239__f = (intptr_t *)(frame_ + 0x1c);   /* ebp-0x20 */
+    intptr_t *const v244__f = (intptr_t *)(frame_ + 0x20);   /* ebp-0x1c */
+    intptr_t *const v243__f = (intptr_t *)(frame_ + 0x20);   /* ebp-0x1c */
+    intptr_t *const v242__f = (intptr_t *)(frame_ + 0x20);   /* ebp-0x1c */
+    intptr_t *const v247__f = (intptr_t *)(frame_ + 0x34);   /* ebp-0x8 */
+    intptr_t *const v246__f = (intptr_t *)(frame_ + 0x34);   /* ebp-0x8 */
+    intptr_t *const v245__f = (intptr_t *)(frame_ + 0x34);   /* ebp-0x8 */
+    intptr_t *const v251__f = (intptr_t *)(frame_ + 0x38);   /* ebp-0x4 */
+    intptr_t *const v250__f = (intptr_t *)(frame_ + 0x38);   /* ebp-0x4 */
+    intptr_t *const v248__f = (intptr_t *)(frame_ + 0x38);   /* ebp-0x4 */
     intptr_t *const i__f = (intptr_t *)(frame_ + 0x38);   /* ebp-0x4 */
 
   v1 = *(_DWORD **)&GAP(W, 0x1030, 8);
@@ -579,28 +595,28 @@ int32_t chs_4d7d80(wl_char *self)
                           v3 = W_script_wait(c);
                           if ( v3 != 6 )
                           {
-                            (*v235__f) = F32(c, 0x8);
-                            v12 = W_pslot_by_id((*v235__f), 100000102, 0);
+                            (*v248__f) = F32(c, 0x8);
+                            v12 = W_pslot_by_id((*v248__f), 100000102, 0);
                             v13 = (_DWORD *)v12;
                             if ( v12 != 0 )
                             {
-                              (*v232__f) = F32(v12, 2548);
-                              W_room_member_leave((*v235__f), v12, 1);
-                              if ( (*v232__f) != 0 )
+                              (*v245__f) = F32(v12, 2548);
+                              W_room_member_leave((*v248__f), v12, 1);
+                              if ( (*v245__f) != 0 )
                               {
-                                if ( *v13 != 0 && W_sc_4cc250((*v235__f), 1, (int)v13) == 0 )
+                                if ( *v13 != 0 && W_sc_4cc250((*v248__f), 1, (int)v13) == 0 )
                                 {
-                                  F32((*v232__f), 0x158a4) = 0;
-                                  F32((*v232__f), 0x200) = 1;
-                                  W_char_ai_reset((*v232__f), 1);
-                                  W_char_ground_probe((*v232__f));
+                                  F32((*v245__f), 0x158a4) = 0;
+                                  F32((*v245__f), 0x200) = 1;
+                                  W_char_ai_reset((*v245__f), 1);
+                                  W_char_ground_probe((*v245__f));
                                 }
-                                W_sc_5b4330((int)(*v232__f), v14, (int)v13, 100000102);
+                                W_sc_5b4330((int)(*v245__f), v14, (int)v13, 100000102);
                               }
-                              W_room_formation((*v235__f));
+                              W_room_formation((*v248__f));
                             }
                             v15 = (_DWORD *)W_actor_by_handle(100000102);
-                            W_char_unload(v15);
+                            W_char_unload(/*ecx, edx*/  v15);
                             F32(c, 0x30) = 1;
                             F32(c, 0x34) = 2;
                             F32(c, 0x3c) = 500;
@@ -628,18 +644,18 @@ int32_t chs_4d7d80(wl_char *self)
         }
         else
         {
-          v16 = W_script_flag(c, 100100101);
-          if ( v16 != 0 )
+          v17 = W_script_flag(c, 100100101);
+          if ( v17 != 0 )
           {
-            v17 = v16 - 200;
-            if ( v17 != 0 )
+            v18 = v17 - 200;
+            if ( v18 != 0 )
             {
-              if ( v17 == 10 && (F32(c, 0x10) == 1 || F32(c, 0x10) == 7) )
+              if ( v18 == 10 && (F32(c, 0x10) == 1 || F32(c, 0x10) == 7) )
               {
                 W_script_begin(c);
-                v18 = W_script_leader(c);
+                v19 = W_script_leader(c);
                 F32(c, 0x4c) = 0;
-                F32(c, 0x5c) = v18;
+                F32(c, 0x5c) = v19;
                 F32(c, 0x50) = 0;
                 F32(c, 0x54) = 0;
                 F32(c, 0x58) = 800;
@@ -648,9 +664,9 @@ int32_t chs_4d7d80(wl_char *self)
                 v3 = W_script_wait(c);
                 if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
                 {
-                  v19 = W_script_leader(c);
+                  v20 = W_script_leader(c);
                   F32(c, 0x4c) = 0;
-                  F32(c, 0x5c) = v19;
+                  F32(c, 0x5c) = v20;
                   F32(c, 0x50) = 0;
                   F32(c, 0x54) = 0;
                   F32(c, 0x58) = 800;
@@ -658,8 +674,8 @@ int32_t chs_4d7d80(wl_char *self)
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
-                    (*v225__f) = 11;
-                    (*v224__f) = D(0x86d864);
+                    (*v238__f) = 11;
+                    (*v237__f) = D(0x86d864);
                     goto LABEL_183;
                   }
                 }
@@ -668,9 +684,9 @@ int32_t chs_4d7d80(wl_char *self)
             else if ( F32(c, 0x10) == 1 )
             {
               W_script_begin(c);
-              v20 = W_script_leader(c);
+              v21 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v20;
+              F32(c, 0x5c) = v21;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -679,9 +695,9 @@ int32_t chs_4d7d80(wl_char *self)
               v3 = W_script_wait(c);
               if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
               {
-                v21 = W_script_leader(c);
+                v22 = W_script_leader(c);
                 F32(c, 0x4c) = 0;
-                F32(c, 0x5c) = v21;
+                F32(c, 0x5c) = v22;
                 F32(c, 0x50) = 0;
                 F32(c, 0x54) = 0;
                 F32(c, 0x58) = 800;
@@ -689,8 +705,8 @@ int32_t chs_4d7d80(wl_char *self)
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
-                  (*v225__f) = 15;
-                  (*v224__f) = D(0x86d844);
+                  (*v238__f) = 15;
+                  (*v237__f) = D(0x86d844);
                   goto LABEL_183;
                 }
               }
@@ -699,9 +715,9 @@ int32_t chs_4d7d80(wl_char *self)
           else if ( F32(c, 0x10) == 1 || F32(c, 0x10) == 7 )
           {
             W_script_begin(c);
-            v22 = W_script_leader(c);
+            v23 = W_script_leader(c);
             F32(c, 0x4c) = 0;
-            F32(c, 0x5c) = v22;
+            F32(c, 0x5c) = v23;
             F32(c, 0x50) = 0;
             F32(c, 0x54) = 0;
             F32(c, 0x58) = 800;
@@ -710,9 +726,9 @@ int32_t chs_4d7d80(wl_char *self)
             v3 = W_script_wait(c);
             if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
             {
-              v23 = W_script_leader(c);
+              v24 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v23;
+              F32(c, 0x5c) = v24;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -720,8 +736,8 @@ int32_t chs_4d7d80(wl_char *self)
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                (*v225__f) = 4;
-                (*v224__f) = D(0x86d800);
+                (*v238__f) = 4;
+                (*v237__f) = D(0x86d800);
                 goto LABEL_183;
               }
             }
@@ -729,8 +745,8 @@ int32_t chs_4d7d80(wl_char *self)
         }
         return v3;
       }
-      v24 = W_script_flag(c, 100100101);
-      if ( v24 == 0 )
+      v25 = W_script_flag(c, 100100101);
+      if ( v25 == 0 )
       {
         if ( W_script_flag(c, 101100111) == 0 )
         {
@@ -742,11 +758,11 @@ int32_t chs_4d7d80(wl_char *self)
           W_scene_spawn_at_door(c, 0, 50160, 101, 25600, 0, 3, 0, 0);
           W_scene_spawn_at_door(c, 100000211, 0, 101, 8000, 0, 3, 0, 0);
           W_scene_spawn_at_door(c, 100000212, 0, 101, -3200, 0, 1, 0, 0);
-          v62 = F32(c, 0x0);
-          F32(v62, 0xd8) = 0;
-          F16(v62, 0xdc) = 0;
-          SETLO(v63, W_bgm_pick(v62));
-          RC_40a5d0((int)((intptr_t)g_eng.sys), v63, 1, 0, 20, 1);
+          v68 = F32(c, 0x0);
+          F32(v68, 0xd8) = 0;
+          F16(v68, 0xdc) = 0;
+          SETLO(v69, W_bgm_pick(v68));
+          RC_40a5d0((int)((intptr_t)g_eng.sys), v69, 1, 0, 20, 1);
           F32(c, 0x40) = 1;
           F32(c, 0x5c) = 0;
           F32(c, 0x44) = 128000;
@@ -788,48 +804,48 @@ int32_t chs_4d7d80(wl_char *self)
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
-                  v64 = W_actor_by_handle(100000211);
-                  W_scene_msg(c, 0, v64, D(0x86d58c), 0, 1, 1, 0, 30, 0, 1003);
+                  v70 = W_actor_by_handle(100000211);
+                  W_scene_msg(c, 0, v70, D(0x86d58c), 0, 1, 1, 0, 30, 0, 1003);
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
-                    v65 = W_actor_by_handle(100000101);
-                    W_scene_msg(c, 0, v65, D(0x86d55c), 0, 1, 1, 0, 2, 0, 1004);
+                    v71 = W_actor_by_handle(100000101);
+                    W_scene_msg(c, 0, v71, D(0x86d55c), 0, 1, 1, 0, 2, 0, 1004);
                     v3 = W_script_wait(c);
                     if ( v3 != 6 )
                     {
-                      v66 = W_actor_by_handle(100000212);
-                      W_scene_msg(c, 0, v66, D(0x86d500), 0, 1, 1, 0, 30, 0, 1005);
+                      v72 = W_actor_by_handle(100000212);
+                      W_scene_msg(c, 0, v72, D(0x86d500), 0, 1, 1, 0, 30, 0, 1005);
                       v3 = W_script_wait(c);
                       if ( v3 != 6 )
                       {
-                        v67 = W_actor_by_handle(100000101);
-                        W_scene_msg(c, 0, v67, D(0x86d4c8), 0, 1, 1, 0, 3, 0, 1006);
+                        v73 = W_actor_by_handle(100000101);
+                        W_scene_msg(c, 0, v73, D(0x86d4c8), 0, 1, 1, 0, 3, 0, 1006);
                         v3 = W_script_wait(c);
                         if ( v3 != 6 )
                         {
-                          v68 = W_actor_by_handle(100000101);
-                          W_scene_msg(c, 0, v68, D(0x86d47c), 0, 1, 1, 0, 9, 0, 1007);
+                          v74 = W_actor_by_handle(100000101);
+                          W_scene_msg(c, 0, v74, D(0x86d47c), 0, 1, 1, 0, 9, 0, 1007);
                           v3 = W_script_wait(c);
                           if ( v3 != 6 )
                           {
-                            v69 = W_actor_by_handle(100000101);
-                            W_scene_msg(c, 0, v69, D(0x86d45c), 0, 1, 1, 0, 13, 0, 1008);
+                            v75 = W_actor_by_handle(100000101);
+                            W_scene_msg(c, 0, v75, D(0x86d45c), 0, 1, 1, 0, 13, 0, 1008);
                             v3 = W_script_wait(c);
                             if ( v3 != 6 )
                             {
-                              v70 = W_actor_by_handle(100000211);
-                              W_scene_face(c, v70, 1);
+                              v76 = W_actor_by_handle(100000211);
+                              W_scene_face(c, v76, 1);
                               v3 = W_script_wait(c);
                               if ( v3 != 6 )
                               {
-                                v71 = W_actor_by_handle(100000211);
-                                W_scene_msg(c, 0, v71, D(0x86d42c), 0, 1, 1, 0, 30, 0, 1009);
+                                v77 = W_actor_by_handle(100000211);
+                                W_scene_msg(c, 0, v77, D(0x86d42c), 0, 1, 1, 0, 30, 0, 1009);
                                 v3 = W_script_wait(c);
                                 if ( v3 != 6 )
                                 {
-                                  v72 = W_actor_by_handle(100000101);
-                                  W_scene_msg(c, 0, v72, D(0x86d424), 0, 1, 1, 0, 3, 0, 1010);
+                                  v78 = W_actor_by_handle(100000101);
+                                  W_scene_msg(c, 0, v78, D(0x86d424), 0, 1, 1, 0, 3, 0, 1010);
                                   v3 = W_script_wait(c);
                                   if ( v3 != 6 )
                                   {
@@ -840,8 +856,8 @@ int32_t chs_4d7d80(wl_char *self)
                                     F32(c, 0x54) = 12800;
                                     F32(c, 0x58) = 400;
                                     F32(c, 0x20) = 3;
-                                    v73 = W_actor_by_handle(100000101);
-                                    W_scene_cast_step(c, v73, 32000, 0, 3, 0, 0);
+                                    v79 = W_actor_by_handle(100000101);
+                                    W_scene_cast_step(c, v79, 32000, 0, 3, 0, 0);
                                     v3 = W_script_wait(c);
                                     if ( v3 != 6 )
                                     {
@@ -850,13 +866,13 @@ int32_t chs_4d7d80(wl_char *self)
                                       v3 = W_script_wait(c);
                                       if ( v3 != 6 )
                                       {
-                                        v74 = W_actor_by_handle(100000101);
-                                        W_scene_msg(c, 0, v74, D(0x86d410), 0, 1, 1, 0, 3, 0, 1011);
+                                        v80 = W_actor_by_handle(100000101);
+                                        W_scene_msg(c, 0, v80, D(0x86d410), 0, 1, 1, 0, 3, 0, 1011);
                                         v3 = W_script_wait(c);
                                         if ( v3 != 6 )
                                         {
-                                          v75 = W_actor_by_handle(100000212);
-                                          W_scene_msg(c, 0, v75, D(0x86d3d4), 0, 1, 1, 0, 30, 0, 1012);
+                                          v81 = W_actor_by_handle(100000212);
+                                          W_scene_msg(c, 0, v81, D(0x86d3d4), 0, 1, 1, 0, 30, 0, 1012);
                                           v3 = W_script_wait(c);
                                           if ( v3 != 6 )
                                           {
@@ -906,8 +922,8 @@ int32_t chs_4d7d80(wl_char *self)
         }
         goto LABEL_137;
       }
-      v25 = v24 - 210;
-      if ( v25 == 0 )
+      v26 = v25 - 210;
+      if ( v26 == 0 )
       {
         if ( W_script_flag(c, 101100113) == 8 )
         {
@@ -923,30 +939,30 @@ int32_t chs_4d7d80(wl_char *self)
           v3 = W_script_wait(c);
           if ( v3 != 6 )
           {
-            v48 = F32(c, 0x0);
+            v53 = F32(c, 0x0);
             F32(c, 0x1c) = 0;
-            F32(v48, 0xd8) = 0;
-            F16(v48, 0xdc) = 0;
-            SETLO(v49, W_bgm_pick(v48));
-            RC_40a5d0((int)((intptr_t)g_eng.sys), v49, 1, 0, 20, 1);
+            F32(v53, 0xd8) = 0;
+            F16(v53, 0xdc) = 0;
+            SETLO(v54, W_bgm_pick(v53));
+            RC_40a5d0((int)((intptr_t)g_eng.sys), v54, 1, 0, 20, 1);
             if ( W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6 )
             {
-              v50 = W_actor_by_handle(100000101);
+              v55 = W_actor_by_handle(100000101);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v50;
+              F32(c, 0x5c) = v55;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
               F32(c, 0x20) = 3;
-              v51 = W_actor_by_handle(100000101);
-              W_scene_cast_to(c, v51, 5, -6000, 0, 3, 500, 1, 0);
+              v56 = W_actor_by_handle(100000101);
+              W_scene_cast_to(c, v56, 5, -6000, 0, 3, 500, 1, 0);
               *(_DWORD *)&GAP(c, 0x300, 636) = 20;
               F32(c, 0x20) = 6;
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                v52 = W_actor_by_handle(100000102);
-                W_scene_cast_to(c, v52, 5, 0, 0, 3, 500, 1, 0);
+                v57 = W_actor_by_handle(100000102);
+                W_scene_cast_to(c, v57, 5, 0, 0, 3, 500, 1, 0);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
@@ -955,28 +971,28 @@ int32_t chs_4d7d80(wl_char *self)
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
-                    v53 = W_actor_by_handle(100000102);
-                    W_scene_msg(c, 0, v53, D(0x86d660), 0, 1, 1, 0, 2, 0, 0);
+                    v58 = W_actor_by_handle(100000102);
+                    W_scene_msg(c, 0, v58, D(0x86d660), 0, 1, 1, 0, 2, 0, 0);
                     v3 = W_script_wait(c);
                     if ( v3 != 6 )
                     {
-                      v54 = W_actor_by_handle(100000101);
-                      W_scene_face(c, v54, 1);
+                      v59 = W_actor_by_handle(100000101);
+                      W_scene_face(c, v59, 1);
                       v3 = W_script_wait(c);
                       if ( v3 != 6 )
                       {
-                        v55 = W_actor_by_handle(100000101);
-                        W_scene_msg(c, 0, v55, D(0x86d60c), 0, 1, 1, 0, 2, 0, 0);
+                        v60 = W_actor_by_handle(100000101);
+                        W_scene_msg(c, 0, v60, D(0x86d60c), 0, 1, 1, 0, 2, 0, 0);
                         v3 = W_script_wait(c);
                         if ( v3 != 6 )
                         {
-                          v56 = W_actor_by_handle(100000102);
-                          W_scene_msg(c, 0, v56, D(0x86d5e0), 0, 1, 1, 0, 3, 0, 0);
+                          v61 = W_actor_by_handle(100000102);
+                          W_scene_msg(c, 0, v61, D(0x86d5e0), 0, 1, 1, 0, 3, 0, 0);
                           v3 = W_script_wait(c);
                           if ( v3 != 6 )
                           {
-                            v57 = W_actor_by_handle(100000101);
-                            W_scene_msg(c, 0, v57, D(0x86d5d0), 0, 1, 1, 0, 3, 0, 0);
+                            v62 = W_actor_by_handle(100000101);
+                            W_scene_msg(c, 0, v62, D(0x86d5d0), 0, 1, 1, 0, 3, 0, 0);
                             v3 = W_script_wait(c);
                             if ( v3 != 6 )
                             {
@@ -998,28 +1014,28 @@ int32_t chs_4d7d80(wl_char *self)
                                 v3 = W_script_wait(c);
                                 if ( v3 != 6 )
                                 {
-                                  (*v238__f) = F32(c, 0x8);
-                                  v58 = W_pslot_by_id((*v238__f), 100000102, 0);
-                                  v59 = (_DWORD *)v58;
-                                  if ( v58 != 0 )
+                                  (*v251__f) = F32(c, 0x8);
+                                  v63 = W_pslot_by_id((*v251__f), 100000102, 0);
+                                  v64 = (_DWORD *)v63;
+                                  if ( v63 != 0 )
                                   {
-                                    (*v234__f) = F32(v58, 2548);
-                                    W_room_member_leave((*v238__f), v58, 1);
-                                    if ( (*v234__f) != 0 )
+                                    (*v247__f) = F32(v63, 2548);
+                                    W_room_member_leave((*v251__f), v63, 1);
+                                    if ( (*v247__f) != 0 )
                                     {
-                                      if ( *v59 != 0 && W_sc_4cc250((*v238__f), 1, (int)v59) == 0 )
+                                      if ( *v64 != 0 && W_sc_4cc250((*v251__f), 1, (int)v64) == 0 )
                                       {
-                                        F32((*v234__f), 0x158a4) = 0;
-                                        F32((*v234__f), 0x200) = 1;
-                                        W_char_ai_reset((*v234__f), 1);
-                                        W_char_ground_probe((*v234__f));
+                                        F32((*v247__f), 0x158a4) = 0;
+                                        F32((*v247__f), 0x200) = 1;
+                                        W_char_ai_reset((*v247__f), 1);
+                                        W_char_ground_probe((*v247__f));
                                       }
-                                      W_sc_5b4330((int)(*v234__f), v60, (int)v59, 100000102);
+                                      W_sc_5b4330((int)(*v247__f), v65, (int)v64, 100000102);
                                     }
-                                    W_room_formation((*v238__f));
+                                    W_room_formation((*v251__f));
                                   }
-                                  v61 = (_DWORD *)W_actor_by_handle(100000102);
-                                  W_char_unload(v61);
+                                  v66 = (_DWORD *)W_actor_by_handle(100000102);
+                                  W_char_unload(/*ecx, edx*/  v66);
                                   F32(c, 0x30) = 1;
                                   F32(c, 0x34) = 2;
                                   F32(c, 0x3c) = 500;
@@ -1052,39 +1068,39 @@ int32_t chs_4d7d80(wl_char *self)
         }
         goto LABEL_137;
       }
-      if ( v25 != 110 )
+      if ( v26 != 110 )
       {
 LABEL_137:
-        v76 = W_script_flag(c, 100100102);
-        if ( v76 == 40 )
+        v82 = W_script_flag(c, 100100102);
+        if ( v82 == 40 )
         {
 LABEL_141:
-          v79 = (_DWORD *)W_actor_by_handle(210110103);
-          W_char_unload(v79);
-          v80 = (_DWORD *)W_actor_by_handle(210110107);
-          W_char_unload(v80);
-          v81 = (_DWORD *)W_actor_by_handle(210110108);
-          W_char_unload(v81);
+          v87 = (_DWORD *)W_actor_by_handle(210110103);
+          W_char_unload(/*ecx, edx*/  v87);
+          v89 = (_DWORD *)W_actor_by_handle(210110107);
+          W_char_unload(/*ecx, edx*/  v89);
+          v91 = (_DWORD *)W_actor_by_handle(210110108);
+          W_char_unload(/*ecx, edx*/  v91);
           return 0;
         }
-        if ( v76 == 50 || v76 == 60 )
+        if ( v82 == 50 || v82 == 60 )
         {
-          v77 = (_DWORD *)W_actor_by_handle(210110105);
-          W_char_unload(v77);
-          v78 = (_DWORD *)W_actor_by_handle(210110106);
-          W_char_unload(v78);
+          v83 = (_DWORD *)W_actor_by_handle(210110105);
+          W_char_unload(/*ecx, edx*/  v83);
+          v85 = (_DWORD *)W_actor_by_handle(210110106);
+          W_char_unload(/*ecx, edx*/  v85);
           goto LABEL_141;
         }
         return v3;
       }
-      v26 = (_DWORD *)W_actor_by_handle(210110105);
-      W_char_unload(v26);
-      v27 = (_DWORD *)W_actor_by_handle(210110106);
-      W_char_unload(v27);
-      v28 = (_DWORD *)W_actor_by_handle(210110107);
-      W_char_unload(v28);
-      v29 = (_DWORD *)W_actor_by_handle(210110108);
-      W_char_unload(v29);
+      v27 = (_DWORD *)W_actor_by_handle(210110105);
+      W_char_unload(/*ecx, edx*/  v27);
+      v29 = (_DWORD *)W_actor_by_handle(210110106);
+      W_char_unload(/*ecx, edx*/  v29);
+      v31 = (_DWORD *)W_actor_by_handle(210110107);
+      W_char_unload(/*ecx, edx*/  v31);
+      v33 = (_DWORD *)W_actor_by_handle(210110108);
+      W_char_unload(/*ecx, edx*/  v33);
       W_script_begin(c);
       F32(c, 0x30) = 1;
       F32(c, 0x34) = 2;
@@ -1097,64 +1113,64 @@ LABEL_141:
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      v30 = F32(c, 0x0);
+      v35 = F32(c, 0x0);
       F32(c, 0x1c) = 0;
-      F32(v30, 0xd8) = 0;
-      F16(v30, 0xdc) = 0;
-      SETLO(v31, W_bgm_pick(v30));
-      RC_40a5d0((int)((intptr_t)g_eng.sys), v31, 1, 0, 20, 1);
+      F32(v35, 0xd8) = 0;
+      F16(v35, 0xdc) = 0;
+      SETLO(v36, W_bgm_pick(v35));
+      RC_40a5d0((int)((intptr_t)g_eng.sys), v36, 1, 0, 20, 1);
       if ( W_scene_party_stance(c, 0, F32(c, 0x8)) != 0 )
       {
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
       }
-      v32 = W_actor_by_handle(100000101);
+      v37 = W_actor_by_handle(100000101);
       F32(c, 0x4c) = 0;
-      F32(c, 0x5c) = v32;
+      F32(c, 0x5c) = v37;
       F32(c, 0x50) = 0;
       F32(c, 0x54) = 0;
       F32(c, 0x58) = 800;
       F32(c, 0x20) = 3;
-      v33 = W_actor_by_handle(100000101);
-      W_scene_cast_to(c, v33, 5, -6000, 0, 1, 500, 1, 0);
+      v38 = W_actor_by_handle(100000101);
+      W_scene_cast_to(c, v38, 5, -6000, 0, 1, 500, 1, 0);
       *(_DWORD *)&GAP(c, 0x300, 636) = 20;
       F32(c, 0x20) = 6;
-      v3 = W_script_wait(c);
-      if ( v3 == 6 )
-        return v3;
-      v34 = W_actor_by_handle(100000102);
-      W_scene_cast_to(c, v34, 5, 0, 0, 3, 500, 1, 0);
-      v3 = W_script_wait(c);
-      if ( v3 == 6 )
-        return v3;
-      *(_DWORD *)&GAP(c, 0x300, 636) = 20;
-      F32(c, 0x20) = 6;
-      v3 = W_script_wait(c);
-      if ( v3 == 6 )
-        return v3;
-      v35 = W_actor_by_handle(100000101);
-      W_scene_msg(c, 0, v35, D(0x86d7d8), 0, 1, 1, 0, 2, 0, 0);
-      v3 = W_script_wait(c);
-      if ( v3 == 6 )
-        return v3;
-      v36 = W_actor_by_handle(100000102);
-      W_scene_msg(c, 0, v36, D(0x86d798), 0, 1, 1, 0, 2, 0, 0);
-      v3 = W_script_wait(c);
-      if ( v3 == 6 )
-        return v3;
-      v37 = W_actor_by_handle(100000101);
-      W_scene_msg(c, 0, v37, D(0x86d760), 0, 1, 1, 0, 13, 0, 0);
-      v3 = W_script_wait(c);
-      if ( v3 == 6 )
-        return v3;
-      v38 = W_actor_by_handle(100000102);
-      W_scene_msg(c, 0, v38, D(0x86d74c), 0, 1, 1, 0, 3, 0, 0);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
       v39 = W_actor_by_handle(100000102);
-      W_scene_msg(c, 0, v39, D(0x86d71c), 0, 1, 1, 0, 2, 0, 0);
+      W_scene_cast_to(c, v39, 5, 0, 0, 3, 500, 1, 0);
+      v3 = W_script_wait(c);
+      if ( v3 == 6 )
+        return v3;
+      *(_DWORD *)&GAP(c, 0x300, 636) = 20;
+      F32(c, 0x20) = 6;
+      v3 = W_script_wait(c);
+      if ( v3 == 6 )
+        return v3;
+      v40 = W_actor_by_handle(100000101);
+      W_scene_msg(c, 0, v40, D(0x86d7d8), 0, 1, 1, 0, 2, 0, 0);
+      v3 = W_script_wait(c);
+      if ( v3 == 6 )
+        return v3;
+      v41 = W_actor_by_handle(100000102);
+      W_scene_msg(c, 0, v41, D(0x86d798), 0, 1, 1, 0, 2, 0, 0);
+      v3 = W_script_wait(c);
+      if ( v3 == 6 )
+        return v3;
+      v42 = W_actor_by_handle(100000101);
+      W_scene_msg(c, 0, v42, D(0x86d760), 0, 1, 1, 0, 13, 0, 0);
+      v3 = W_script_wait(c);
+      if ( v3 == 6 )
+        return v3;
+      v43 = W_actor_by_handle(100000102);
+      W_scene_msg(c, 0, v43, D(0x86d74c), 0, 1, 1, 0, 3, 0, 0);
+      v3 = W_script_wait(c);
+      if ( v3 == 6 )
+        return v3;
+      v44 = W_actor_by_handle(100000102);
+      W_scene_msg(c, 0, v44, D(0x86d71c), 0, 1, 1, 0, 2, 0, 0);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
@@ -1207,9 +1223,9 @@ LABEL_141:
         return v3;
       F32(c, 0x2e4) = 1;
       RC_40a5d0((int)((intptr_t)g_eng.sys), 0, 0, 0, 0, 1);
-      v40 = F32(c, 0x0);
-      F32(v40, 216) = 1;
-      F16(v40, 220) = 0;
+      v45 = F32(c, 0x0);
+      F32(v45, 216) = 1;
+      F16(v45, 220) = 0;
       *(_DWORD *)&GAP(c, 0x300, 636) = 100;
       F32(c, 0x20) = 6;
       v3 = W_script_wait(c);
@@ -1222,44 +1238,44 @@ LABEL_141:
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      v41 = F32(c, 0x8);
+      v46 = F32(c, 0x8);
       F16(c, 0x2f0) = 0;
-      v42 = v41 + 16432;
+      v47 = v46 + 16432;
       for ( (*i__f) = 8; (*i__f) != 0; --(*i__f) )
       {
-        v43 = F32(v42, 0);
-        if ( F32(F32(v42, 0), 2500) == 1 )
+        v48 = F32(v47, 0);
+        if ( F32(F32(v47, 0), 2500) == 1 )
         {
-          if ( F32(v43, 2544) == 100000104 )
+          if ( F32(v48, 2544) == 100000104 )
             goto LABEL_81;
 LABEL_80:
-          W_pslot_heal(v43, 1);
+          W_pslot_heal(v48, 1);
           goto LABEL_81;
         }
-        if ( F32(F32(v42, 0), 2500) == 2 )
+        if ( F32(F32(v47, 0), 2500) == 2 )
           goto LABEL_80;
 LABEL_81:
-        v42 += 4;
+        v47 += 4;
       }
-      (*v237__f) = F32(c, 0x8);
-      v44 = W_pslot_by_id((*v237__f), 100000102, 0);
-      v45 = (_DWORD *)v44;
-      if ( v44 != 0 )
+      (*v250__f) = F32(c, 0x8);
+      v49 = W_pslot_by_id((*v250__f), 100000102, 0);
+      v50 = (_DWORD *)v49;
+      if ( v49 != 0 )
       {
-        (*v233__f) = F32(v44, 2548);
-        W_room_member_leave((*v237__f), v44, 1);
-        if ( (*v233__f) != 0 )
+        (*v246__f) = F32(v49, 2548);
+        W_room_member_leave((*v250__f), v49, 1);
+        if ( (*v246__f) != 0 )
         {
-          if ( *v45 != 0 && W_sc_4cc250((*v237__f), 1, (int)v45) == 0 )
+          if ( *v50 != 0 && W_sc_4cc250((*v250__f), 1, (int)v50) == 0 )
           {
-            F32((*v233__f), 0x158a4) = 0;
-            F32((*v233__f), 0x200) = 1;
-            W_char_ai_reset((*v233__f), 1);
-            W_char_ground_probe((*v233__f));
+            F32((*v246__f), 0x158a4) = 0;
+            F32((*v246__f), 0x200) = 1;
+            W_char_ai_reset((*v246__f), 1);
+            W_char_ground_probe((*v246__f));
           }
-          W_sc_5b4330((int)(*v233__f), v46, (int)v45, 100000102);
+          W_sc_5b4330((int)(*v246__f), v51, (int)v50, 100000102);
         }
-        W_room_formation((*v237__f));
+        W_room_formation((*v250__f));
       }
       W_script_flag_set(c, 100100101, 400, 0);
       W_script_flag_set(c, 100100102, 20, 0);
@@ -1275,10 +1291,10 @@ LABEL_214:
       }
       return result;
     case 0x334C8:
-      v82 = F32(c, 0x14);
-      if ( v82 != 0 )
+      v93 = F32(c, 0x14);
+      if ( v93 != 0 )
       {
-        if ( v82 == 1 && F32(c, 0x10) == 2 && W_script_flag(c, 100100101) == 210 )
+        if ( v93 == 1 && F32(c, 0x10) == 2 && W_script_flag(c, 100100101) == 210 )
         {
           W_script_flag_set(c, 100100102, 50, 0);
           W_script_flag_set(c, 100100101, 220, 0);
@@ -1301,59 +1317,59 @@ LABEL_214:
         v3 = W_script_wait(c);
         if ( v3 != 6 )
         {
-          v83 = F32(c, 0x0);
+          v94 = F32(c, 0x0);
           F32(c, 0x1c) = 0;
-          F32(v83, 0xd8) = 0;
-          F16(v83, 0xdc) = 0;
-          SETLO(v84, W_bgm_pick(v83));
-          RC_40a5d0((int)((intptr_t)g_eng.sys), v84, 1, 0, 20, 1);
+          F32(v94, 0xd8) = 0;
+          F16(v94, 0xdc) = 0;
+          SETLO(v95, W_bgm_pick(v94));
+          RC_40a5d0((int)((intptr_t)g_eng.sys), v95, 1, 0, 20, 1);
           *(_DWORD *)&GAP(c, 0x300, 636) = 50;
           F32(c, 0x20) = 6;
           v3 = W_script_wait(c);
           if ( v3 != 6 )
           {
-            v85 = W_actor_by_handle(100000101);
-            W_scene_msg(c, 0, v85, D(0x86d390), 0, 1, 1, 0, 13, 0, 0);
+            v96 = W_actor_by_handle(100000101);
+            W_scene_msg(c, 0, v96, D(0x86d390), 0, 1, 1, 0, 13, 0, 0);
             v3 = W_script_wait(c);
             if ( v3 != 6 )
             {
-              v86 = W_actor_by_handle(100000101);
-              W_scene_msg(c, 0, v86, D(0x86d35c), 0, 1, 1, 0, 13, 0, 0);
+              v97 = W_actor_by_handle(100000101);
+              W_scene_msg(c, 0, v97, D(0x86d35c), 0, 1, 1, 0, 13, 0, 0);
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                v87 = W_actor_by_handle(100000212);
-                W_scene_msg(c, 0, v87, D(0x86d318), 0, 1, 1, 0, 30, 0, 0);
+                v98 = W_actor_by_handle(100000212);
+                W_scene_msg(c, 0, v98, D(0x86d318), 0, 1, 1, 0, 30, 0, 0);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
-                  v88 = W_actor_by_handle(100000211);
-                  W_scene_msg(c, 0, v88, D(0x86d2d4), 0, 1, 1, 0, 30, 0, 0);
+                  v99 = W_actor_by_handle(100000211);
+                  W_scene_msg(c, 0, v99, D(0x86d2d4), 0, 1, 1, 0, 30, 0, 0);
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
-                    v89 = W_actor_by_handle(100000211);
-                    W_scene_msg(c, 0, v89, D(0x86d294), 0, 1, 1, 0, 30, 0, 0);
+                    v100 = W_actor_by_handle(100000211);
+                    W_scene_msg(c, 0, v100, D(0x86d294), 0, 1, 1, 0, 30, 0, 0);
                     v3 = W_script_wait(c);
                     if ( v3 != 6 )
                     {
-                      v90 = W_actor_by_handle(100000211);
-                      W_scene_msg(c, 0, v90, D(0x86d240), 0, 1, 1, 0, 30, 0, 0);
+                      v101 = W_actor_by_handle(100000211);
+                      W_scene_msg(c, 0, v101, D(0x86d240), 0, 1, 1, 0, 30, 0, 0);
                       v3 = W_script_wait(c);
                       if ( v3 != 6 )
                       {
-                        v91 = W_actor_by_handle(100000101);
-                        W_scene_face(c, v91, 1);
+                        v102 = W_actor_by_handle(100000101);
+                        W_scene_face(c, v102, 1);
                         v3 = W_script_wait(c);
                         if ( v3 != 6 )
                         {
-                          v92 = W_actor_by_handle(100000101);
-                          W_scene_msg(c, 0, v92, D(0x86d22c), 0, 1, 1, 0, 3, 0, 0);
+                          v103 = W_actor_by_handle(100000101);
+                          W_scene_msg(c, 0, v103, D(0x86d22c), 0, 1, 1, 0, 3, 0, 0);
                           v3 = W_script_wait(c);
                           if ( v3 != 6 )
                           {
-                            v93 = W_actor_by_handle(100000212);
-                            W_scene_msg(c, 0, v93, D(0x86d1dc), 0, 1, 1, 0, 30, 0, 0);
+                            v104 = W_actor_by_handle(100000212);
+                            W_scene_msg(c, 0, v104, D(0x86d1dc), 0, 1, 1, 0, 30, 0, 0);
                             v3 = W_script_wait(c);
                             if ( v3 != 6 )
                             {
@@ -1389,21 +1405,21 @@ LABEL_214:
       }
       return v3;
     case 0x334E6:
-      v117 = F32(c, 0x14);
-      if ( v117 == 0 )
+      v128 = F32(c, 0x14);
+      if ( v128 == 0 )
       {
-        v153 = W_script_flag(c, 100100101);
-        if ( v153 > 300 )
+        v164 = W_script_flag(c, 100100101);
+        if ( v164 > 300 )
         {
-          if ( v153 != 310 )
+          if ( v164 != 310 )
             return v3;
         }
-        else if ( v153 != 300 )
+        else if ( v164 != 300 )
         {
-          if ( v153 == 0 || v153 == 200 )
+          if ( v164 == 0 || v164 == 200 )
           {
-            v154 = (_DWORD *)W_actor_by_handle(210150102);
-            W_char_unload(v154);
+            v165 = (_DWORD *)W_actor_by_handle(210150102);
+            W_char_unload(/*ecx, edx*/  v165);
             return 0;
           }
           return v3;
@@ -1411,20 +1427,20 @@ LABEL_214:
         W_scene_spawn_at_door(c, 900000009, 0, 101, 0, 0, 1, 0, 0);
         return 0;
       }
-      if ( v117 != 2 )
+      if ( v128 != 2 )
         return v3;
-      v118 = F32(F32(c, 0x4), 472);
-      if ( v118 == 210150101 )
+      v129 = F32(F32(c, 0x4), 472);
+      if ( v129 == 210150101 )
       {
-        v135 = W_script_flag(c, 100100101);
-        if ( v135 != 0 )
+        v146 = W_script_flag(c, 100100101);
+        if ( v146 != 0 )
         {
-          if ( v135 == 200 )
+          if ( v146 == 200 )
           {
             W_script_begin(c);
-            v136 = W_script_leader(c);
+            v147 = W_script_leader(c);
             F32(c, 0x4c) = 0;
-            F32(c, 0x5c) = v136;
+            F32(c, 0x5c) = v147;
             F32(c, 0x50) = 0;
             F32(c, 0x54) = 0;
             F32(c, 0x58) = 800;
@@ -1437,9 +1453,9 @@ LABEL_214:
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                v137 = W_script_leader(c);
+                v148 = W_script_leader(c);
                 F32(c, 0x4c) = 0;
-                F32(c, 0x5c) = v137;
+                F32(c, 0x5c) = v148;
                 F32(c, 0x50) = 0;
                 F32(c, 0x54) = 0;
                 F32(c, 0x58) = 800;
@@ -1447,13 +1463,13 @@ LABEL_214:
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
-                  v138 = W_actor_by_handle(210150101);
-                  W_scene_msg(c, 0, v138, D(0x86cdf4), 0, 1, 1, 0, 0, 0, 0);
+                  v149 = W_actor_by_handle(210150101);
+                  W_scene_msg(c, 0, v149, D(0x86cdf4), 0, 1, 1, 0, 0, 0, 0);
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
-                    (*v222__f) = W_actor_by_handle(210150101);
-                    W_scene_msg(c, 0, (*v222__f), D(0x86cdc4), 0, 1, 1, 0, 0, 0, 0);
+                    (*v235__f) = W_actor_by_handle(210150101);
+                    W_scene_msg(c, 0, (*v235__f), D(0x86cdc4), 0, 1, 1, 0, 0, 0, 0);
                     goto LABEL_171;
                   }
                 }
@@ -1464,9 +1480,9 @@ LABEL_214:
         else if ( W_script_flag(c, 101210118) != 0 )
         {
           W_script_begin(c);
-          v151 = W_script_leader(c);
+          v162 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v151;
+          F32(c, 0x5c) = v162;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -1479,9 +1495,9 @@ LABEL_214:
             v3 = W_script_wait(c);
             if ( v3 != 6 )
             {
-              v152 = W_script_leader(c);
+              v163 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v152;
+              F32(c, 0x5c) = v163;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -1489,8 +1505,8 @@ LABEL_214:
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                (*v223__f) = W_actor_by_handle(210150101);
-                W_scene_msg(c, 0, (*v223__f), D(0x86cacc), 0, 1, 1, 0, 0, 0, 0);
+                (*v236__f) = W_actor_by_handle(210150101);
+                W_scene_msg(c, 0, (*v236__f), D(0x86cacc), 0, 1, 1, 0, 0, 0, 0);
                 goto LABEL_171;
               }
             }
@@ -1499,9 +1515,9 @@ LABEL_214:
         else
         {
           W_script_begin(c);
-          v139 = W_script_leader(c);
+          v150 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v139;
+          F32(c, 0x5c) = v150;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -1514,9 +1530,9 @@ LABEL_214:
             v3 = W_script_wait(c);
             if ( v3 != 6 )
             {
-              v140 = W_script_leader(c);
+              v151 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v140;
+              F32(c, 0x5c) = v151;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -1524,53 +1540,53 @@ LABEL_214:
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                v141 = W_actor_by_handle(210150101);
-                W_scene_msg(c, 0, v141, D(0x86cd64), 0, 1, 1, 0, 0, 0, 0);
+                v152 = W_actor_by_handle(210150101);
+                W_scene_msg(c, 0, v152, D(0x86cd64), 0, 1, 1, 0, 0, 0, 0);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
-                  v142 = W_actor_by_handle(100000101);
-                  W_scene_msg(c, 0, v142, D(0x86cd08), 0, 1, 1, 0, 2, 0, 0);
+                  v153 = W_actor_by_handle(100000101);
+                  W_scene_msg(c, 0, v153, D(0x86cd08), 0, 1, 1, 0, 2, 0, 0);
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
-                    v143 = W_actor_by_handle(210150101);
-                    W_scene_msg(c, 0, v143, D(0x86ccb0), 0, 1, 1, 0, 0, 0, 0);
+                    v154 = W_actor_by_handle(210150101);
+                    W_scene_msg(c, 0, v154, D(0x86ccb0), 0, 1, 1, 0, 0, 0, 0);
                     v3 = W_script_wait(c);
                     if ( v3 != 6 )
                     {
-                      v144 = W_actor_by_handle(100000101);
-                      W_scene_msg(c, 0, v144, D(0x86cc8c), 0, 1, 1, 0, 2, 0, 0);
+                      v155 = W_actor_by_handle(100000101);
+                      W_scene_msg(c, 0, v155, D(0x86cc8c), 0, 1, 1, 0, 2, 0, 0);
                       v3 = W_script_wait(c);
                       if ( v3 != 6 )
                       {
-                        v145 = W_actor_by_handle(210150101);
-                        W_scene_msg(c, 0, v145, D(0x86cc3c), 0, 1, 1, 0, 0, 0, 0);
+                        v156 = W_actor_by_handle(210150101);
+                        W_scene_msg(c, 0, v156, D(0x86cc3c), 0, 1, 1, 0, 0, 0, 0);
                         v3 = W_script_wait(c);
                         if ( v3 != 6 )
                         {
-                          v146 = W_actor_by_handle(100000101);
-                          W_scene_msg(c, 0, v146, D(0x86cc24), 0, 1, 1, 0, 2, 0, 0);
+                          v157 = W_actor_by_handle(100000101);
+                          W_scene_msg(c, 0, v157, D(0x86cc24), 0, 1, 1, 0, 2, 0, 0);
                           v3 = W_script_wait(c);
                           if ( v3 != 6 )
                           {
-                            v147 = W_actor_by_handle(210150101);
-                            W_scene_msg(c, 0, v147, D(0x86cbcc), 0, 1, 1, 0, 0, 0, 0);
+                            v158 = W_actor_by_handle(210150101);
+                            W_scene_msg(c, 0, v158, D(0x86cbcc), 0, 1, 1, 0, 0, 0, 0);
                             v3 = W_script_wait(c);
                             if ( v3 != 6 )
                             {
-                              v148 = W_actor_by_handle(210150101);
-                              W_scene_msg(c, 0, v148, D(0x86cb80), 0, 1, 1, 0, 0, 0, 0);
+                              v159 = W_actor_by_handle(210150101);
+                              W_scene_msg(c, 0, v159, D(0x86cb80), 0, 1, 1, 0, 0, 0, 0);
                               v3 = W_script_wait(c);
                               if ( v3 != 6 )
                               {
-                                v149 = W_actor_by_handle(210150101);
-                                W_scene_msg(c, 0, v149, D(0x86cb20), 0, 1, 1, 0, 0, 0, 0);
+                                v160 = W_actor_by_handle(210150101);
+                                W_scene_msg(c, 0, v160, D(0x86cb20), 0, 1, 1, 0, 0, 0, 0);
                                 v3 = W_script_wait(c);
                                 if ( v3 != 6 )
                                 {
-                                  v150 = W_actor_by_handle(100000101);
-                                  W_scene_msg(c, 0, v150, D(0x86caf8), 0, 1, 1, 0, 3, 0, 0);
+                                  v161 = W_actor_by_handle(100000101);
+                                  W_scene_msg(c, 0, v161, D(0x86caf8), 0, 1, 1, 0, 3, 0, 0);
                                   v3 = W_script_wait(c);
                                   if ( v3 != 6 )
                                   {
@@ -1594,15 +1610,15 @@ LABEL_214:
       }
       else
       {
-        if ( v118 != 900000009 )
+        if ( v129 != 900000009 )
           return v3;
-        v119 = W_script_flag(c, 100100101) - 300;
-        if ( (v119 == 0 || v119 == 10) && W_sc_402f40(c) == 100000101 )
+        v130 = W_script_flag(c, 100100101) - 300;
+        if ( (v130 == 0 || v130 == 10) && W_sc_402f40(c) == 100000101 )
         {
           W_script_begin(c);
-          v120 = W_script_leader(c);
+          v131 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v120;
+          F32(c, 0x5c) = v131;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -1615,9 +1631,9 @@ LABEL_214:
             v3 = W_script_wait(c);
             if ( v3 != 6 )
             {
-              v121 = W_script_leader(c);
+              v132 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v121;
+              F32(c, 0x5c) = v132;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -1625,37 +1641,37 @@ LABEL_214:
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                v122 = W_actor_by_handle(900000009);
-                W_scene_msg(c, 0, v122, D(0x86cf70), 0, 1, 1, 0, 11, 0, 0);
+                v133 = W_actor_by_handle(900000009);
+                W_scene_msg(c, 0, v133, D(0x86cf70), 0, 1, 1, 0, 11, 0, 0);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
-                  v123 = W_actor_by_handle(100000101);
-                  W_scene_msg(c, 0, v123, D(0x86cf44), 0, 1, 1, 0, 17, 0, 0);
+                  v134 = W_actor_by_handle(100000101);
+                  W_scene_msg(c, 0, v134, D(0x86cf44), 0, 1, 1, 0, 17, 0, 0);
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
-                    v124 = W_actor_by_handle(900000009);
-                    W_scene_msg(c, 0, v124, D(0x86cf08), 0, 1, 1, 0, 30, 0, 0);
+                    v135 = W_actor_by_handle(900000009);
+                    W_scene_msg(c, 0, v135, D(0x86cf08), 0, 1, 1, 0, 30, 0, 0);
                     v3 = W_script_wait(c);
                     if ( v3 != 6 )
                     {
                       F32(c, 0x2e4) = 1;
-                      (*v226__f) = W_actor_by_handle(900000009);
-                      v125 = W_actor_by_handle(210150101);
-                      (*v229__f) = W_sc_401d80(v125, (*v226__f), 0);
-                      v126 = W_actor_by_handle(210150101);
-                      W_scene_face(c, v126, (*v229__f));
+                      (*v239__f) = W_actor_by_handle(900000009);
+                      v136 = W_actor_by_handle(210150101);
+                      (*v242__f) = W_sc_401d80(v136, (*v239__f), 0);
+                      v137 = W_actor_by_handle(210150101);
+                      W_scene_face(c, v137, (*v242__f));
                       v3 = W_script_wait(c);
                       if ( v3 != 6 )
                       {
-                        v127 = W_actor_by_handle(210150101);
-                        W_scene_msg(c, 0, v127, D(0x86cec8), 0, 1, 1, 0, 30, 0, 0);
+                        v138 = W_actor_by_handle(210150101);
+                        W_scene_msg(c, 0, v138, D(0x86cec8), 0, 1, 1, 0, 30, 0, 0);
                         v3 = W_script_wait(c);
                         if ( v3 != 6 )
                         {
-                          (*v220__f) = W_actor_by_handle(900000009);
-                          W_scene_msg(c, 0, (*v220__f), D(0x86ce90), 0, 1, 1, 0, 31, 0, 0);
+                          (*v233__f) = W_actor_by_handle(900000009);
+                          W_scene_msg(c, 0, (*v233__f), D(0x86ce90), 0, 1, 1, 0, 31, 0, 0);
                           goto LABEL_171;
                         }
                       }
@@ -1669,9 +1685,9 @@ LABEL_214:
         else
         {
           W_script_begin(c);
-          v128 = W_script_leader(c);
+          v139 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v128;
+          F32(c, 0x5c) = v139;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -1680,9 +1696,9 @@ LABEL_214:
           v3 = W_script_wait(c);
           if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
           {
-            v129 = W_script_leader(c);
+            v140 = W_script_leader(c);
             F32(c, 0x4c) = 0;
-            F32(c, 0x5c) = v129;
+            F32(c, 0x5c) = v140;
             F32(c, 0x50) = 0;
             F32(c, 0x54) = 0;
             F32(c, 0x58) = 800;
@@ -1690,26 +1706,26 @@ LABEL_214:
             v3 = W_script_wait(c);
             if ( v3 != 6 )
             {
-              (*v227__f) = W_actor_by_handle(900000009);
-              v130 = W_actor_by_handle(210150101);
-              (*v230__f) = W_sc_401d80(v130, (*v227__f), 0);
-              v131 = W_actor_by_handle(210150101);
-              W_scene_face(c, v131, (*v230__f));
-              (*v228__f) = W_actor_by_handle(210150101);
-              v132 = W_actor_by_handle(900000009);
-              (*v231__f) = W_sc_401d80(v132, (*v228__f), 0);
-              v133 = W_actor_by_handle(900000009);
-              W_scene_face(c, v133, (*v231__f));
+              (*v240__f) = W_actor_by_handle(900000009);
+              v141 = W_actor_by_handle(210150101);
+              (*v243__f) = W_sc_401d80(v141, (*v240__f), 0);
+              v142 = W_actor_by_handle(210150101);
+              W_scene_face(c, v142, (*v243__f));
+              (*v241__f) = W_actor_by_handle(210150101);
+              v143 = W_actor_by_handle(900000009);
+              (*v244__f) = W_sc_401d80(v143, (*v241__f), 0);
+              v144 = W_actor_by_handle(900000009);
+              W_scene_face(c, v144, (*v244__f));
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                v134 = W_actor_by_handle(900000009);
-                W_scene_msg(c, 0, v134, D(0x86ce7c), 0, 1, 1, 0, 11, 0, 0);
+                v145 = W_actor_by_handle(900000009);
+                W_scene_msg(c, 0, v145, D(0x86ce7c), 0, 1, 1, 0, 11, 0, 0);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
-                  (*v221__f) = W_actor_by_handle(210150101);
-                  W_scene_msg(c, 0, (*v221__f), D(0x86ce48), 0, 1, 1, 0, 0, 0, 0);
+                  (*v234__f) = W_actor_by_handle(210150101);
+                  W_scene_msg(c, 0, (*v234__f), D(0x86ce48), 0, 1, 1, 0, 0, 0, 0);
                   goto LABEL_171;
                 }
               }
@@ -1719,24 +1735,24 @@ LABEL_214:
       }
       return v3;
     case 0x334F0:
-      v155 = F32(c, 0x14);
-      if ( v155 != 0 )
+      v167 = F32(c, 0x14);
+      if ( v167 != 0 )
       {
-        v156 = v155 - 1;
-        if ( v156 != 0 )
+        v168 = v167 - 1;
+        if ( v168 != 0 )
         {
-          if ( v156 != 1 )
+          if ( v168 != 1 )
             return v3;
           if ( F32(F32(c, 0x4), 472) == 210160101 )
           {
-            v161 = W_script_flag(c, 100100101);
-            if ( v161 != 0 )
+            v173 = W_script_flag(c, 100100101);
+            if ( v173 != 0 )
             {
-              if ( v161 == 200 )
+              if ( v173 == 200 )
               {
                 W_script_begin(c);
-                v162 = W_script_leader(c);
-                W_scene_camera(c, v162, 0, 0, 800);
+                v174 = W_script_leader(c);
+                W_scene_camera(c, v174, 0, 0, 800);
                 W_script_party_cast(c);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -1745,8 +1761,8 @@ LABEL_214:
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
-                    v163 = W_script_leader(c);
-                    W_scene_camera(c, v163, 0, 0, 800);
+                    v175 = W_script_leader(c);
+                    W_scene_camera(c, v175, 0, 0, 800);
                     v3 = W_script_wait(c);
                     if ( v3 != 6 )
                     {
@@ -1775,9 +1791,9 @@ LABEL_214:
             else if ( W_script_flag(c, 101100112) == 5 )
             {
               W_script_begin(c);
-              v166 = W_script_leader(c);
+              v178 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v166;
+              F32(c, 0x5c) = v178;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -1790,9 +1806,9 @@ LABEL_214:
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
-                  v167 = W_script_leader(c);
+                  v179 = W_script_leader(c);
                   F32(c, 0x4c) = 0;
-                  F32(c, 0x5c) = v167;
+                  F32(c, 0x5c) = v179;
                   F32(c, 0x50) = 0;
                   F32(c, 0x54) = 0;
                   F32(c, 0x58) = 800;
@@ -1800,48 +1816,48 @@ LABEL_214:
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
-                    v168 = W_actor_by_handle(210160101);
-                    W_scene_msg(c, 0, v168, D(0x86c590), 0, 1, 1, 0, 0, 0, 1013);
+                    v180 = W_actor_by_handle(210160101);
+                    W_scene_msg(c, 0, v180, D(0x86c590), 0, 1, 1, 0, 0, 0, 1013);
                     v3 = W_script_wait(c);
                     if ( v3 != 6 )
                     {
-                      v169 = W_actor_by_handle(100000101);
-                      W_scene_msg(c, 0, v169, D(0x86c544), 0, 1, 1, 0, 2, 0, 1014);
+                      v181 = W_actor_by_handle(100000101);
+                      W_scene_msg(c, 0, v181, D(0x86c544), 0, 1, 1, 0, 2, 0, 1014);
                       v3 = W_script_wait(c);
                       if ( v3 != 6 )
                       {
-                        v170 = W_actor_by_handle(210160101);
-                        W_scene_msg(c, 0, v170, D(0x86c4f8), 0, 1, 1, 0, 0, 0, 1015);
+                        v182 = W_actor_by_handle(210160101);
+                        W_scene_msg(c, 0, v182, D(0x86c4f8), 0, 1, 1, 0, 0, 0, 1015);
                         v3 = W_script_wait(c);
                         if ( v3 != 6 )
                         {
-                          v171 = W_actor_by_handle(210160101);
-                          W_scene_msg(c, 0, v171, D(0x86c4b4), 0, 1, 1, 0, 0, 0, 1016);
+                          v183 = W_actor_by_handle(210160101);
+                          W_scene_msg(c, 0, v183, D(0x86c4b4), 0, 1, 1, 0, 0, 0, 1016);
                           v3 = W_script_wait(c);
                           if ( v3 != 6 )
                           {
-                            v172 = W_actor_by_handle(100000101);
-                            W_scene_msg(c, 0, v172, D(0x86c478), 0, 1, 1, 0, 2, 0, 1017);
+                            v184 = W_actor_by_handle(100000101);
+                            W_scene_msg(c, 0, v184, D(0x86c478), 0, 1, 1, 0, 2, 0, 1017);
                             v3 = W_script_wait(c);
                             if ( v3 != 6 )
                             {
-                              v173 = W_actor_by_handle(100000101);
-                              W_scene_msg(c, 0, v173, D(0x86c438), 0, 1, 1, 0, 14, 0, 1018);
+                              v185 = W_actor_by_handle(100000101);
+                              W_scene_msg(c, 0, v185, D(0x86c438), 0, 1, 1, 0, 14, 0, 1018);
                               v3 = W_script_wait(c);
                               if ( v3 != 6 )
                               {
-                                v174 = W_actor_by_handle(210160101);
-                                W_scene_msg(c, 0, v174, D(0x86c3f8), 0, 1, 1, 0, 0, 0, 1019);
+                                v186 = W_actor_by_handle(210160101);
+                                W_scene_msg(c, 0, v186, D(0x86c3f8), 0, 1, 1, 0, 0, 0, 1019);
                                 v3 = W_script_wait(c);
                                 if ( v3 != 6 )
                                 {
-                                  v175 = W_actor_by_handle(210160101);
-                                  W_scene_msg(c, 0, v175, D(0x86c3c8), 0, 1, 1, 0, 0, 0, 0);
+                                  v187 = W_actor_by_handle(210160101);
+                                  W_scene_msg(c, 0, v187, D(0x86c3c8), 0, 1, 1, 0, 0, 0, 0);
                                   v3 = W_script_wait(c);
                                   if ( v3 != 6 )
                                   {
-                                    v176 = W_actor_by_handle(210160101);
-                                    W_scene_msg(c, 0, v176, D(0x86c3a0), 0, 1, 1, 0, 0, 0, 1020);
+                                    v188 = W_actor_by_handle(210160101);
+                                    W_scene_msg(c, 0, v188, D(0x86c3a0), 0, 1, 1, 0, 0, 0, 1020);
                                     v3 = W_script_wait(c);
                                     if ( v3 != 6 )
                                     {
@@ -2042,8 +2058,8 @@ LABEL_214:
             else
             {
               W_script_begin(c);
-              v164 = W_script_leader(c);
-              W_scene_camera(c, v164, 0, 0, 800);
+              v176 = W_script_leader(c);
+              W_scene_camera(c, v176, 0, 0, 800);
               W_script_party_cast(c);
               v3 = W_script_wait(c);
               if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -2052,8 +2068,8 @@ LABEL_214:
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
-                  v165 = W_script_leader(c);
-                  W_scene_camera(c, v165, 0, 0, 800);
+                  v177 = W_script_leader(c);
+                  W_scene_camera(c, v177, 0, 0, 800);
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
@@ -2075,8 +2091,8 @@ LABEL_214:
               && W_script_flag(c, 101210124) == 0 )
             {
               W_script_begin(c);
-              v157 = W_script_leader(c);
-              W_scene_camera(c, v157, 0, 0, 800);
+              v169 = W_script_leader(c);
+              W_scene_camera(c, v169, 0, 0, 800);
               W_script_party_cast(c);
               v3 = W_script_wait(c);
               if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -2085,8 +2101,8 @@ LABEL_214:
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
-                  v158 = W_script_leader(c);
-                  W_scene_camera(c, v158, 0, 0, 800);
+                  v170 = W_script_leader(c);
+                  W_scene_camera(c, v170, 0, 0, 800);
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
@@ -2150,8 +2166,8 @@ LABEL_214:
             else if ( W_sc_402f40(c) == 100000101 && W_script_flag(c, 101210123) == 0 )
             {
               W_script_begin(c);
-              v159 = W_script_leader(c);
-              W_scene_camera(c, v159, 0, 0, 800);
+              v171 = W_script_leader(c);
+              W_scene_camera(c, v171, 0, 0, 800);
               W_script_party_cast(c);
               v3 = W_script_wait(c);
               if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -2160,8 +2176,8 @@ LABEL_214:
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
-                  v160 = W_script_leader(c);
-                  W_scene_camera(c, v160, 0, 0, 800);
+                  v172 = W_script_leader(c);
+                  W_scene_camera(c, v172, 0, 0, 800);
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
@@ -2223,9 +2239,9 @@ LABEL_214:
         else if ( W_script_flag(c, 100100101) == 0 && F32(c, 0x10) == 1 && W_script_flag(c, 101100112) == 6 )
         {
           W_script_begin(c);
-          v177 = W_script_leader(c);
+          v189 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v177;
+          F32(c, 0x5c) = v189;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -2238,9 +2254,9 @@ LABEL_214:
             v3 = W_script_wait(c);
             if ( v3 != 6 )
             {
-              v178 = W_script_leader(c);
+              v190 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v178;
+              F32(c, 0x5c) = v190;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -2248,8 +2264,8 @@ LABEL_214:
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                v179 = W_actor_by_handle(100000101);
-                W_scene_msg(c, 0, v179, D(0x86bff8), 0, 1, 1, 0, 9, 0, 1034);
+                v191 = W_actor_by_handle(100000101);
+                W_scene_msg(c, 0, v191, D(0x86bff8), 0, 1, 1, 0, 9, 0, 1034);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
@@ -2280,22 +2296,22 @@ LABEL_214:
       }
       if ( W_script_flag(c, 100100101) != 0 )
         return v3;
-      v180 = (_DWORD *)W_actor_by_handle(210160102);
-      W_char_unload(v180);
+      v192 = (_DWORD *)W_actor_by_handle(210160102);
+      W_char_unload(/*ecx, edx*/  v192);
       return 0;
     case 0x334FF:
-      v181 = F32(c, 0x14);
-      if ( v181 != 0 )
+      v194 = F32(c, 0x14);
+      if ( v194 != 0 )
       {
-        if ( v181 != 2 )
+        if ( v194 != 2 )
           return v3;
         if ( F32(F32(c, 0x4), 472) == 900000013 )
         {
           if ( W_script_flag(c, 101210120) == 0 && W_sc_402f40(c) == 100000101 )
           {
             W_script_begin(c);
-            v184 = W_script_leader(c);
-            W_scene_camera(c, v184, 0, 0, 800);
+            v197 = W_script_leader(c);
+            W_scene_camera(c, v197, 0, 0, 800);
             W_script_party_cast(c);
             v3 = W_script_wait(c);
             if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -2304,8 +2320,8 @@ LABEL_214:
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                v185 = W_script_leader(c);
-                W_scene_camera(c, v185, 0, 0, 800);
+                v198 = W_script_leader(c);
+                W_scene_camera(c, v198, 0, 0, 800);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
@@ -2340,14 +2356,14 @@ LABEL_214:
         else if ( F32(F32(c, 0x4), 472) == 900000020 && W_script_flag(c, 100100101) == 0 )
         {
           W_script_begin(c);
-          v182 = W_script_leader(c);
-          W_scene_camera(c, v182, 0, 0, 800);
+          v195 = W_script_leader(c);
+          W_scene_camera(c, v195, 0, 0, 800);
           W_script_party_cast(c);
           v3 = W_script_wait(c);
           if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
           {
-            v183 = W_script_leader(c);
-            W_scene_camera(c, v183, 0, 0, 800);
+            v196 = W_script_leader(c);
+            W_scene_camera(c, v196, 0, 0, 800);
             v3 = W_script_wait(c);
             if ( v3 != 6 )
             {
@@ -2358,21 +2374,21 @@ LABEL_214:
         }
         return v3;
       }
-      v186 = W_script_flag(c, 100100101);
-      if ( v186 > 300 )
+      v199 = W_script_flag(c, 100100101);
+      if ( v199 > 300 )
       {
-        v187 = v186 - 310;
-        if ( v187 != 0 && v187 != 91 )
+        v200 = v199 - 310;
+        if ( v200 != 0 && v200 != 91 )
           return v3;
       }
-      else if ( v186 != 300 )
+      else if ( v199 != 300 )
       {
-        if ( v186 == 0 )
+        if ( v199 == 0 )
         {
           W_scene_spawn_at_door(c, 900000020, 0, 101, 0, 0, 3, 1, 0);
           return 0;
         }
-        if ( v186 != 210 )
+        if ( v199 != 210 )
           return 0;
       }
       W_scene_spawn_at_door(c, 900000020, 0, 101, 0, 0, 3, 1, 0);
@@ -2386,8 +2402,8 @@ LABEL_214:
         if ( W_script_flag(c, 100100101) == 200 )
         {
           W_script_begin(c);
-          v215 = W_script_leader(c);
-          W_scene_camera(c, v215, 0, 0, 800);
+          v228 = W_script_leader(c);
+          W_scene_camera(c, v228, 0, 0, 800);
           W_script_party_cast(c);
           v3 = W_script_wait(c);
           if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -2396,8 +2412,8 @@ LABEL_214:
             v3 = W_script_wait(c);
             if ( v3 != 6 )
             {
-              v216 = W_script_leader(c);
-              W_scene_camera(c, v216, 0, 0, 800);
+              v229 = W_script_leader(c);
+              W_scene_camera(c, v229, 0, 0, 800);
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
@@ -2415,8 +2431,8 @@ LABEL_214:
         else
         {
           W_script_begin(c);
-          v213 = W_script_leader(c);
-          W_scene_camera(c, v213, 0, 0, 800);
+          v226 = W_script_leader(c);
+          W_scene_camera(c, v226, 0, 0, 800);
           W_script_party_cast(c);
           v3 = W_script_wait(c);
           if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -2425,8 +2441,8 @@ LABEL_214:
             v3 = W_script_wait(c);
             if ( v3 != 6 )
             {
-              v214 = W_script_leader(c);
-              W_scene_camera(c, v214, 0, 0, 800);
+              v227 = W_script_leader(c);
+              W_scene_camera(c, v227, 0, 0, 800);
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
@@ -2450,8 +2466,8 @@ LABEL_214:
       else
       {
         W_script_begin(c);
-        v217 = W_script_leader(c);
-        W_scene_camera(c, v217, 0, 0, 800);
+        v230 = W_script_leader(c);
+        W_scene_camera(c, v230, 0, 0, 800);
         W_script_party_cast(c);
         v3 = W_script_wait(c);
         if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -2460,8 +2476,8 @@ LABEL_214:
           v3 = W_script_wait(c);
           if ( v3 != 6 )
           {
-            v218 = W_script_leader(c);
-            W_scene_camera(c, v218, 0, 0, 800);
+            v231 = W_script_leader(c);
+            W_scene_camera(c, v231, 0, 0, 800);
             v3 = W_script_wait(c);
             if ( v3 != 6 )
             {
@@ -2488,11 +2504,11 @@ LABEL_214:
       }
       return v3;
     case 0x3350E:
-      v188 = F32(c, 0x14);
-      if ( v188 == 0 )
+      v201 = F32(c, 0x14);
+      if ( v201 == 0 )
       {
-        v211 = W_script_flag(c, 100100101);
-        if ( v211 == 210 || v211 == 400 && W_script_flag(c, 101100115) == 3 )
+        v224 = W_script_flag(c, 100100101);
+        if ( v224 == 210 || v224 == 400 && W_script_flag(c, 101100115) == 3 )
         {
           if ( W_pslot_by_id(F32(c, 0x8), 100000102, 0) == 0 )
           {
@@ -2513,9 +2529,9 @@ LABEL_214:
           v3 = W_script_wait(c);
           if ( v3 != 6 )
           {
-            v212 = F32(c, 0x0);
+            v225 = F32(c, 0x0);
             F32(c, 0x1c) = 0;
-            W_room_bgm_restart(v212, 0, 1);
+            W_room_bgm_restart(v225, 0, 1);
             W_scene_msg_rec(c, 0, 100000102, D(0x86bc4c), 0, 1, 1, 0, 2, 0, 0);
             v3 = W_script_wait(c);
             if ( v3 != 6 )
@@ -2528,10 +2544,10 @@ LABEL_214:
         }
         return v3;
       }
-      v189 = v188 - 2;
-      if ( v189 != 0 )
+      v202 = v201 - 2;
+      if ( v202 != 0 )
       {
-        if ( v189 == 1
+        if ( v202 == 1
           && F32(F32(c, 0x4), 472) == 210190501
           && W_script_flag(c, 101210121) == 1
           && W_pslot_by_id(F32(c, 0x8), 100000101, 0) != 0
@@ -2539,14 +2555,14 @@ LABEL_214:
           && W_script_flag(c, 100100101) < 500 )
         {
           W_script_begin(c);
-          v190 = W_script_leader(c);
-          W_scene_camera(c, v190, 0, 0, 800);
+          v203 = W_script_leader(c);
+          W_scene_camera(c, v203, 0, 0, 800);
           W_script_party_cast(c);
           v3 = W_script_wait(c);
           if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
           {
-            v191 = W_script_leader(c);
-            W_scene_camera(c, v191, 0, 0, 800);
+            v204 = W_script_leader(c);
+            W_scene_camera(c, v204, 0, 0, 800);
             v3 = W_script_wait(c);
             if ( v3 != 6 )
             {
@@ -2588,12 +2604,12 @@ LABEL_214:
         }
         return v3;
       }
-      v192 = F32(F32(c, 0x4), 472);
-      if ( v192 == 100000102 )
+      v205 = F32(F32(c, 0x4), 472);
+      if ( v205 == 100000102 )
       {
         W_script_begin(c);
-        v209 = W_script_leader(c);
-        W_scene_camera(c, v209, 0, 0, 800);
+        v222 = W_script_leader(c);
+        W_scene_camera(c, v222, 0, 0, 800);
         W_script_party_cast(c);
         v3 = W_script_wait(c);
         if ( v3 == 6 )
@@ -2608,8 +2624,8 @@ LABEL_214:
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
-        v210 = W_script_leader(c);
-        W_scene_camera(c, v210, 0, 0, 800);
+        v223 = W_script_leader(c);
+        W_scene_camera(c, v223, 0, 0, 800);
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
@@ -2632,21 +2648,21 @@ LABEL_214:
         W_scene_msg_rec(c, 0, 100000102, D(0x86bc78), 0, 1, 1, 0, 3, 0, 0);
         goto LABEL_171;
       }
-      if ( v192 != 210190101 )
+      if ( v205 != 210190101 )
         return v3;
-      v193 = W_script_flag(c, 100100101);
-      if ( v193 > 300 )
+      v206 = W_script_flag(c, 100100101);
+      if ( v206 > 300 )
       {
-        if ( v193 != 310 && (v193 <= 399 || v193 > 401) )
+        if ( v206 != 310 && (v206 <= 399 || v206 > 401) )
           return v3;
       }
       else
       {
-        if ( v193 == 300 )
+        if ( v206 == 300 )
         {
           W_script_begin(c);
-          v195 = W_script_leader(c);
-          W_scene_camera(c, v195, 0, 0, 800);
+          v208 = W_script_leader(c);
+          W_scene_camera(c, v208, 0, 0, 800);
           W_script_party_cast(c);
           v3 = W_script_wait(c);
           if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -2655,8 +2671,8 @@ LABEL_214:
             v3 = W_script_wait(c);
             if ( v3 != 6 )
             {
-              v196 = W_script_leader(c);
-              W_scene_camera(c, v196, 0, 0, 800);
+              v209 = W_script_leader(c);
+              W_scene_camera(c, v209, 0, 0, 800);
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
@@ -2667,10 +2683,10 @@ LABEL_214:
           }
           return v3;
         }
-        if ( v193 != 0 )
+        if ( v206 != 0 )
         {
-          v194 = v193 - 200;
-          if ( v194 != 0 && v194 != 10 )
+          v207 = v206 - 200;
+          if ( v207 != 0 && v207 != 10 )
             return 0;
         }
       }
@@ -2679,8 +2695,8 @@ LABEL_214:
         if ( W_script_flag(c, 101210119) == 0 )
         {
           W_script_begin(c);
-          v197 = W_script_leader(c);
-          W_scene_camera(c, v197, 0, 0, 800);
+          v210 = W_script_leader(c);
+          W_scene_camera(c, v210, 0, 0, 800);
           W_script_party_cast(c);
           v3 = W_script_wait(c);
           if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -2689,17 +2705,17 @@ LABEL_214:
             v3 = W_script_wait(c);
             if ( v3 != 6 )
             {
-              v198 = W_script_leader(c);
-              W_scene_camera(c, v198, 0, 0, 800);
+              v211 = W_script_leader(c);
+              W_scene_camera(c, v211, 0, 0, 800);
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                v199 = W_actor_by_handle(100000102);
-                v200 = W_sc_4a5e40(c, 100000101, v199, 0);
-                W_scene_face_rec(c, 100000101, v200);
-                v201 = W_actor_by_handle(100000101);
-                v202 = W_sc_4a5e40(c, 100000102, v201, 0);
-                W_scene_face_rec(c, 100000102, v202);
+                v212 = W_actor_by_handle(100000102);
+                v213 = W_sc_4a5e40(c, 100000101, v212, 0);
+                W_scene_face_rec(c, 100000101, v213);
+                v214 = W_actor_by_handle(100000101);
+                v215 = W_sc_4a5e40(c, 100000102, v214, 0);
+                W_scene_face_rec(c, 100000102, v215);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
@@ -2707,12 +2723,12 @@ LABEL_214:
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
-                    v203 = W_actor_by_handle(210190101);
-                    v204 = W_sc_4a5e40(c, 100000101, v203, 0);
-                    W_scene_face_rec(c, 100000101, v204);
-                    v205 = W_actor_by_handle(100000101);
-                    v206 = W_sc_4a5e40(c, 210190101, v205, 0);
-                    W_scene_face_rec(c, 210190101, v206);
+                    v216 = W_actor_by_handle(210190101);
+                    v217 = W_sc_4a5e40(c, 100000101, v216, 0);
+                    W_scene_face_rec(c, 100000101, v217);
+                    v218 = W_actor_by_handle(100000101);
+                    v219 = W_sc_4a5e40(c, 210190101, v218, 0);
+                    W_scene_face_rec(c, 210190101, v219);
                     v3 = W_script_wait(c);
                     if ( v3 != 6 )
                     {
@@ -2750,8 +2766,8 @@ LABEL_214:
       else if ( W_script_flag(c, 101210119) == 0 )
       {
         W_script_begin(c);
-        v207 = W_script_leader(c);
-        W_scene_camera(c, v207, 0, 0, 800);
+        v220 = W_script_leader(c);
+        W_scene_camera(c, v220, 0, 0, 800);
         W_script_party_cast(c);
         v3 = W_script_wait(c);
         if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -2760,8 +2776,8 @@ LABEL_214:
           v3 = W_script_wait(c);
           if ( v3 != 6 )
           {
-            v208 = W_script_leader(c);
-            W_scene_camera(c, v208, 0, 0, 800);
+            v221 = W_script_leader(c);
+            W_scene_camera(c, v221, 0, 0, 800);
             v3 = W_script_wait(c);
             if ( v3 != 6 )
             {
@@ -2773,25 +2789,25 @@ LABEL_214:
       }
       return v3;
     case 0x3351D:
-      v103 = F32(c, 0x14);
-      if ( v103 != 0 )
+      v114 = F32(c, 0x14);
+      if ( v114 != 0 )
       {
-        if ( v103 != 2 )
+        if ( v114 != 2 )
           return v3;
         if ( F32(F32(c, 0x4), 472) != 900000008 )
         {
           if ( F32(F32(c, 0x4), 472) != 900000011 )
             return v3;
-          v104 = W_script_flag(c, 100100101);
-          if ( v104 != 0 )
+          v115 = W_script_flag(c, 100100101);
+          if ( v115 != 0 )
           {
-            v105 = v104 - 300;
-            if ( (v105 == 0 || v105 == 10) && W_sc_402f40(c) == 100000101 )
+            v116 = v115 - 300;
+            if ( (v116 == 0 || v116 == 10) && W_sc_402f40(c) == 100000101 )
             {
               W_script_begin(c);
-              v106 = W_script_leader(c);
+              v117 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v106;
+              F32(c, 0x5c) = v117;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -2804,9 +2820,9 @@ LABEL_214:
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
-                  v107 = W_script_leader(c);
+                  v118 = W_script_leader(c);
                   F32(c, 0x4c) = 0;
-                  F32(c, 0x5c) = v107;
+                  F32(c, 0x5c) = v118;
                   F32(c, 0x50) = 0;
                   F32(c, 0x54) = 0;
                   F32(c, 0x58) = 800;
@@ -2814,23 +2830,23 @@ LABEL_214:
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
-                    v108 = W_actor_by_handle(100000101);
-                    W_scene_msg(c, 0, v108, D(0x86d0b8), 0, 1, 1, 0, 10, 0, 0);
+                    v119 = W_actor_by_handle(100000101);
+                    W_scene_msg(c, 0, v119, D(0x86d0b8), 0, 1, 1, 0, 10, 0, 0);
                     v3 = W_script_wait(c);
                     if ( v3 != 6 )
                     {
-                      v109 = W_actor_by_handle(900000011);
-                      W_scene_msg(c, 0, v109, D(0x86d078), 0, 1, 1, 0, 30, 0, 0);
+                      v120 = W_actor_by_handle(900000011);
+                      W_scene_msg(c, 0, v120, D(0x86d078), 0, 1, 1, 0, 30, 0, 0);
                       v3 = W_script_wait(c);
                       if ( v3 != 6 )
                       {
-                        v110 = W_actor_by_handle(900000011);
-                        W_scene_msg(c, 0, v110, D(0x86d03c), 0, 1, 1, 0, 30, 0, 0);
+                        v121 = W_actor_by_handle(900000011);
+                        W_scene_msg(c, 0, v121, D(0x86d03c), 0, 1, 1, 0, 30, 0, 0);
                         v3 = W_script_wait(c);
                         if ( v3 != 6 )
                         {
-                          (*v219__f) = W_actor_by_handle(100000101);
-                          W_scene_msg(c, 0, (*v219__f), D(0x86d02c), 0, 1, 1, 0, 4, 0, 0);
+                          (*v232__f) = W_actor_by_handle(100000101);
+                          W_scene_msg(c, 0, (*v232__f), D(0x86d02c), 0, 1, 1, 0, 4, 0, 0);
                           goto LABEL_171;
                         }
                       }
@@ -2843,9 +2859,9 @@ LABEL_214:
           else
           {
             W_script_begin(c);
-            v111 = W_script_leader(c);
+            v122 = W_script_leader(c);
             F32(c, 0x4c) = 0;
-            F32(c, 0x5c) = v111;
+            F32(c, 0x5c) = v122;
             F32(c, 0x50) = 0;
             F32(c, 0x54) = 0;
             F32(c, 0x58) = 800;
@@ -2854,9 +2870,9 @@ LABEL_214:
             v3 = W_script_wait(c);
             if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
             {
-              v112 = W_script_leader(c);
+              v123 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v112;
+              F32(c, 0x5c) = v123;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -2874,9 +2890,9 @@ LABEL_214:
         if ( W_script_flag(c, 100100101) != 401 )
           return v3;
         W_script_begin(c);
-        v113 = W_script_leader(c);
+        v124 = W_script_leader(c);
         F32(c, 0x4c) = 0;
-        F32(c, 0x5c) = v113;
+        F32(c, 0x5c) = v124;
         F32(c, 0x50) = 0;
         F32(c, 0x54) = 0;
         F32(c, 0x58) = 800;
@@ -2895,9 +2911,9 @@ LABEL_214:
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
-        v114 = W_script_leader(c);
+        v125 = W_script_leader(c);
         F32(c, 0x4c) = 0;
-        F32(c, 0x5c) = v114;
+        F32(c, 0x5c) = v125;
         F32(c, 0x50) = 0;
         F32(c, 0x54) = 0;
         F32(c, 0x58) = 800;
@@ -2905,24 +2921,24 @@ LABEL_214:
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
-        v115 = W_actor_by_handle(900000008);
-        W_scene_msg(c, 0, v115, D(0x86cf90), 0, 1, 1, 0, 11, 0, 0);
+        v126 = W_actor_by_handle(900000008);
+        W_scene_msg(c, 0, v126, D(0x86cf90), 0, 1, 1, 0, 11, 0, 0);
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
         goto LABEL_214;
       }
-      v116 = W_script_flag(c, 100100101);
-      if ( v116 <= 310 )
+      v127 = W_script_flag(c, 100100101);
+      if ( v127 <= 310 )
       {
-        if ( v116 == 310 || v116 == 0 || v116 == 300 )
+        if ( v127 == 310 || v127 == 0 || v127 == 300 )
         {
           W_scene_spawn_at_door(c, 900000011, 0, 102, 0, 0, 1, 0, 0);
           return 0;
         }
         return v3;
       }
-      if ( v116 != 401 )
+      if ( v127 != 401 )
         return v3;
       W_scene_spawn_at_door(c, 900000008, 0, 101, 0, 0, 3, 0, 0);
       return 0;
@@ -2932,9 +2948,9 @@ LABEL_214:
         if ( F32(c, 0x10) == 2 )
         {
           W_script_begin(c);
-          v96 = W_script_leader(c);
+          v107 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v96;
+          F32(c, 0x5c) = v107;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -2943,14 +2959,14 @@ LABEL_214:
           v3 = W_script_wait(c);
           if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
           {
-            v97 = W_actor_by_handle(210210101);
-            W_scene_talk_face(c, 1, v97, 1, 1);
+            v108 = W_actor_by_handle(210210101);
+            W_scene_talk_face(c, 1, v108, 1, 1);
             v3 = W_script_wait(c);
             if ( v3 != 6 )
             {
-              v98 = W_script_leader(c);
+              v109 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v98;
+              F32(c, 0x5c) = v109;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -2958,26 +2974,26 @@ LABEL_214:
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                v99 = W_actor_by_handle(210210101);
-                W_scene_msg(c, 0, v99, D(0x86d170), 0, 1, 1, 0, 0, 0, 0);
+                v110 = W_actor_by_handle(210210101);
+                W_scene_msg(c, 0, v110, D(0x86d170), 0, 1, 1, 0, 0, 0, 0);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
-                  v100 = W_actor_by_handle(100000101);
-                  W_scene_msg(c, 0, v100, D(0x86d160), 0, 1, 1, 0, 1, 0, 0);
+                  v111 = W_actor_by_handle(100000101);
+                  W_scene_msg(c, 0, v111, D(0x86d160), 0, 1, 1, 0, 1, 0, 0);
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
-                    v101 = W_actor_by_handle(210210101);
-                    W_scene_msg(c, 0, v101, D(0x86d0f0), 0, 1, 1, 0, 0, 0, 0);
+                    v112 = W_actor_by_handle(210210101);
+                    W_scene_msg(c, 0, v112, D(0x86d0f0), 0, 1, 1, 0, 0, 0, 0);
                     v3 = W_script_wait(c);
                     if ( v3 != 6 )
                     {
-                      (*v225__f) = 1;
-                      (*v224__f) = D(0x859438);
+                      (*v238__f) = 1;
+                      (*v237__f) = D(0x859438);
 LABEL_183:
-                      v102 = W_actor_by_handle(100000101);
-                      W_scene_msg(c, 0, v102, (*v224__f), 0, 1, 1, 0, (*v225__f), 0, 0);
+                      v113 = W_actor_by_handle(100000101);
+                      W_scene_msg(c, 0, v113, (*v237__f), 0, 1, 1, 0, (*v238__f), 0, 0);
                       v3 = W_script_wait(c);
                       if ( v3 != 6 )
                       {
@@ -2998,9 +3014,9 @@ LABEL_183:
       if ( F32(F32(c, 0x4), 472) != 210210101 )
         return v3;
       W_script_begin(c);
-      v94 = W_script_leader(c);
+      v105 = W_script_leader(c);
       F32(c, 0x4c) = 0;
-      F32(c, 0x5c) = v94;
+      F32(c, 0x5c) = v105;
       F32(c, 0x50) = 0;
       F32(c, 0x54) = 0;
       F32(c, 0x58) = 800;
@@ -3019,9 +3035,9 @@ LABEL_183:
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      v95 = W_script_leader(c);
+      v106 = W_script_leader(c);
       F32(c, 0x4c) = 0;
-      F32(c, 0x5c) = v95;
+      F32(c, 0x5c) = v106;
       F32(c, 0x50) = 0;
       F32(c, 0x54) = 0;
       F32(c, 0x58) = 800;
@@ -6984,8 +7000,8 @@ int32_t chs_4cd6d0(wl_char *self)
     int32_t * v23;
     intptr_t v24;
     int32_t * v25;
+    intptr_t v26;
     intptr_t result;
-    intptr_t v27;
     intptr_t v28;
     intptr_t v29;
     intptr_t v30;
@@ -7004,13 +7020,13 @@ int32_t chs_4cd6d0(wl_char *self)
     intptr_t v43;
     intptr_t v44;
     intptr_t v45;
-    int32_t * v46;
-    intptr_t v47;
+    intptr_t v46;
+    int32_t * v47;
     intptr_t v48;
     intptr_t v49;
     intptr_t v50;
-    intptr_t v51;
-    intptr_t v52;
+    uint32_t v51;
+    uint32_t v52;
     intptr_t v53;
     intptr_t v54;
     intptr_t v55;
@@ -7024,8 +7040,8 @@ int32_t chs_4cd6d0(wl_char *self)
     intptr_t v63;
     intptr_t v64;
     intptr_t v65;
-    int v66;
-    intptr_t v67;
+    intptr_t v66;
+    int v67;
     intptr_t v68;
     intptr_t v69;
     intptr_t v70;
@@ -7064,15 +7080,15 @@ int32_t chs_4cd6d0(wl_char *self)
     intptr_t v103;
     intptr_t v104;
     intptr_t v105;
-    uint16_t * v106;
-    uint16_t v107;
-    intptr_t v108;
+    intptr_t v106;
+    uint16_t * v107;
+    uint16_t v108;
     intptr_t v109;
     intptr_t v110;
-    uint16_t v111;
-    intptr_t v112;
-    intptr_t * v113;
-    intptr_t v114;
+    intptr_t v111;
+    uint16_t v112;
+    intptr_t v113;
+    intptr_t * v114;
     intptr_t v115;
     intptr_t v116;
     intptr_t v117;
@@ -7084,23 +7100,23 @@ int32_t chs_4cd6d0(wl_char *self)
     intptr_t v123;
     intptr_t v124;
     intptr_t v125;
-    intptr_t * v126;
-    intptr_t v127;
+    intptr_t v126;
+    intptr_t * v127;
     intptr_t v128;
     intptr_t v129;
     intptr_t v130;
     intptr_t v131;
     intptr_t v132;
     intptr_t v133;
-    intptr_t * v134;
-    intptr_t v135;
+    intptr_t v134;
+    intptr_t * v135;
     intptr_t v136;
     intptr_t v137;
     intptr_t v138;
     intptr_t v139;
     intptr_t v140;
-    intptr_t * v141;
-    intptr_t v142;
+    intptr_t v141;
+    intptr_t * v142;
     intptr_t v143;
     intptr_t v144;
     intptr_t v145;
@@ -7163,8 +7179,8 @@ int32_t chs_4cd6d0(wl_char *self)
     intptr_t v202;
     intptr_t v203;
     intptr_t v204;
-    int v205;
-    intptr_t v206;
+    intptr_t v205;
+    int v206;
     intptr_t v207;
     intptr_t v208;
     intptr_t v209;
@@ -7183,35 +7199,36 @@ int32_t chs_4cd6d0(wl_char *self)
     intptr_t v222;
     intptr_t v223;
     intptr_t v224;
+    intptr_t v225;
     _Alignas(8) uint8_t frame_[0x50 + 0x10];   /* the stack locals at their ebp offsets */
     memset(frame_, 0, sizeof frame_);
+    intptr_t *const v227__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x50 */
     intptr_t *const v226__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x50 */
-    intptr_t *const v225__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x50 */
+    char * *const v229__f = (char * *)(frame_ + 0x4);   /* ebp-0x4c */
     char * *const v228__f = (char * *)(frame_ + 0x4);   /* ebp-0x4c */
-    char * *const v227__f = (char * *)(frame_ + 0x4);   /* ebp-0x4c */
+    intptr_t *const v231__f = (intptr_t *)(frame_ + 0x18);   /* ebp-0x38 */
     intptr_t *const v230__f = (intptr_t *)(frame_ + 0x18);   /* ebp-0x38 */
-    intptr_t *const v229__f = (intptr_t *)(frame_ + 0x18);   /* ebp-0x38 */
+    intptr_t *const v237__f = (intptr_t *)(frame_ + 0x1c);   /* ebp-0x34 */
     intptr_t *const v236__f = (intptr_t *)(frame_ + 0x1c);   /* ebp-0x34 */
     intptr_t *const v235__f = (intptr_t *)(frame_ + 0x1c);   /* ebp-0x34 */
     intptr_t *const v234__f = (intptr_t *)(frame_ + 0x1c);   /* ebp-0x34 */
     intptr_t *const v233__f = (intptr_t *)(frame_ + 0x1c);   /* ebp-0x34 */
     intptr_t *const v232__f = (intptr_t *)(frame_ + 0x1c);   /* ebp-0x34 */
-    intptr_t *const v231__f = (intptr_t *)(frame_ + 0x1c);   /* ebp-0x34 */
+    intptr_t *const v240__f = (intptr_t *)(frame_ + 0x20);   /* ebp-0x30 */
     intptr_t *const v239__f = (intptr_t *)(frame_ + 0x20);   /* ebp-0x30 */
     intptr_t *const v238__f = (intptr_t *)(frame_ + 0x20);   /* ebp-0x30 */
-    intptr_t *const v237__f = (intptr_t *)(frame_ + 0x20);   /* ebp-0x30 */
+    intptr_t *const v242__f = (intptr_t *)(frame_ + 0x34);   /* ebp-0x1c */
     intptr_t *const v241__f = (intptr_t *)(frame_ + 0x34);   /* ebp-0x1c */
-    intptr_t *const v240__f = (intptr_t *)(frame_ + 0x34);   /* ebp-0x1c */
+    intptr_t *const v247__f = (intptr_t *)(frame_ + 0x38);   /* ebp-0x18 */
     intptr_t *const v246__f = (intptr_t *)(frame_ + 0x38);   /* ebp-0x18 */
     intptr_t *const v245__f = (intptr_t *)(frame_ + 0x38);   /* ebp-0x18 */
     intptr_t *const v244__f = (intptr_t *)(frame_ + 0x38);   /* ebp-0x18 */
     intptr_t *const v243__f = (intptr_t *)(frame_ + 0x38);   /* ebp-0x18 */
-    intptr_t *const v242__f = (intptr_t *)(frame_ + 0x38);   /* ebp-0x18 */
-    intptr_t *const v247__f = (intptr_t *)(frame_ + 0x3c);   /* ebp-0x14 */
-    int32_t * *const v248__f = (int32_t * *)(frame_ + 0x40);   /* ebp-0x10 */
-    intptr_t *const v249__f = (intptr_t *)(frame_ + 0x44);   /* ebp-0xc */
-    intptr_t *const v250__f = (intptr_t *)(frame_ + 0x48);   /* ebp-0x8 */
-    int32_t * *const v251__f = (int32_t * *)(frame_ + 0x4c);   /* ebp-0x4 */
+    intptr_t *const v248__f = (intptr_t *)(frame_ + 0x3c);   /* ebp-0x14 */
+    int32_t * *const v249__f = (int32_t * *)(frame_ + 0x40);   /* ebp-0x10 */
+    intptr_t *const v250__f = (intptr_t *)(frame_ + 0x44);   /* ebp-0xc */
+    intptr_t *const v251__f = (intptr_t *)(frame_ + 0x48);   /* ebp-0x8 */
+    int32_t * *const v252__f = (int32_t * *)(frame_ + 0x4c);   /* ebp-0x4 */
 
   v1 = *(_DWORD **)&GAP(W, 0x1030, 8);
   v3 = 0;
@@ -7234,7 +7251,7 @@ int32_t chs_4cd6d0(wl_char *self)
               if ( W_script_flag(c, 101100113) != 3 )
                 return v3;
               W_script_begin(c);
-              (*v242__f) = 8;
+              (*v243__f) = 8;
               v4 = F32(c, 0x8) + 16432;
               break;
             case 210:
@@ -7258,15 +7275,15 @@ int32_t chs_4cd6d0(wl_char *self)
               v3 = W_script_wait(c);
               if ( v3 == 6 )
                 return v3;
-              v27 = F32(c, 0x0);
+              v28 = F32(c, 0x0);
               F32(c, 0x1c) = 0;
-              F32(v27, 0xd8) = 0;
-              F16(v27, 0xdc) = 0;
-              SETLO(v28, W_bgm_pick(v27));
-              RC_40a5d0((int)((intptr_t)g_eng.sys), v28, 1, 0, 20, 1);
-              v29 = W_script_leader(c);
+              F32(v28, 0xd8) = 0;
+              F16(v28, 0xdc) = 0;
+              SETLO(v29, W_bgm_pick(v28));
+              RC_40a5d0((int)((intptr_t)g_eng.sys), v29, 1, 0, 20, 1);
+              v30 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v29;
+              F32(c, 0x5c) = v30;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -7281,9 +7298,9 @@ int32_t chs_4cd6d0(wl_char *self)
                 if ( v3 == 6 )
                   return v3;
               }
-              v30 = W_script_leader(c);
+              v31 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v30;
+              F32(c, 0x5c) = v31;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -7291,8 +7308,8 @@ int32_t chs_4cd6d0(wl_char *self)
               v3 = W_script_wait(c);
               if ( v3 == 6 )
                 return v3;
-              v31 = W_actor_by_handle(100000101);
-              W_scene_face(c, v31, 1);
+              v32 = W_actor_by_handle(100000101);
+              W_scene_face(c, v32, 1);
               v3 = W_script_wait(c);
               if ( v3 == 6 )
                 return v3;
@@ -7301,9 +7318,9 @@ int32_t chs_4cd6d0(wl_char *self)
               v3 = W_script_wait(c);
               if ( v3 == 6 )
                 return v3;
-              (*v229__f) = 9;
-              (*v227__f) = D(0x8683e0);
-              v32 = W_actor_by_handle(100000101);
+              (*v230__f) = 9;
+              (*v228__f) = D(0x8683e0);
+              v33 = W_actor_by_handle(100000101);
               goto LABEL_163;
             case 400:
               if ( W_script_flag(c, 101100114) != 0 )
@@ -7336,12 +7353,12 @@ int32_t chs_4cd6d0(wl_char *self)
               v3 = W_script_wait(c);
               if ( v3 == 6 )
                 return v3;
-              v33 = F32(c, 0x0);
+              v34 = F32(c, 0x0);
               F32(c, 0x1c) = 0;
-              F32(v33, 0xd8) = 0;
-              F16(v33, 0xdc) = 0;
-              SETLO(v34, W_bgm_pick(v33));
-              RC_40a5d0((int)((intptr_t)g_eng.sys), v34, 1, 0, 20, 1);
+              F32(v34, 0xd8) = 0;
+              F16(v34, 0xdc) = 0;
+              SETLO(v35, W_bgm_pick(v34));
+              RC_40a5d0((int)((intptr_t)g_eng.sys), v35, 1, 0, 20, 1);
               W_script_end(c);
               return v3;
             default:
@@ -7362,9 +7379,9 @@ LABEL_11:
               goto LABEL_11;
 LABEL_12:
             v4 += 4;
-            --(*v242__f);
+            --(*v243__f);
           }
-          while ( (*v242__f) != 0 );
+          while ( (*v243__f) != 0 );
           F32(c, 0x60) = 0;
           F32(c, 0x64) = 0;
           F32(c, 0x68) = 0;
@@ -7504,45 +7521,45 @@ LABEL_12:
             return v3;
           F32(c, 0x1c) = 1;
           W_script_end(c);
-          (*v243__f) = F32(c, 0x8);
-          v22 = W_pslot_by_id((*v243__f), 100000102, 0);
+          (*v244__f) = F32(c, 0x8);
+          v22 = W_pslot_by_id((*v244__f), 100000102, 0);
           v23 = (_DWORD *)v22;
           if ( v22 != 0 )
           {
-            (*v240__f) = F32(v22, 2548);
-            W_room_member_leave((*v243__f), v22, 1);
-            if ( (*v240__f) != 0 )
+            (*v241__f) = F32(v22, 2548);
+            W_room_member_leave((*v244__f), v22, 1);
+            if ( (*v241__f) != 0 )
             {
-              if ( *v23 != 0 && W_sc_4cc250((*v243__f), 1, (int)v23) == 0 )
+              if ( *v23 != 0 && W_sc_4cc250((*v244__f), 1, (int)v23) == 0 )
               {
-                F32((*v240__f), 0x158a4) = 0;
-                F32((*v240__f), 0x200) = 1;
-                W_char_ai_reset((*v240__f), 1);
-                W_char_ground_probe((*v240__f));
+                F32((*v241__f), 0x158a4) = 0;
+                F32((*v241__f), 0x200) = 1;
+                W_char_ai_reset((*v241__f), 1);
+                W_char_ground_probe((*v241__f));
               }
-              W_sc_5b4330((int)(*v240__f), v24, (int)v23, 100000102);
+              W_sc_5b4330((int)(*v241__f), v24, (int)v23, 100000102);
             }
-            W_room_formation((*v243__f));
+            W_room_formation((*v244__f));
           }
           v25 = (_DWORD *)W_actor_by_handle(100000102);
-          W_char_unload(v25);
+          W_char_unload(/*ecx, edx*/  v25);
           W_scene_next_event(c, 230140, 3, 3);
           return 2;
         case 1:
-          v35 = W_script_flag(c, 100100101) - 200;
-          if ( v35 != 0 )
+          v36 = W_script_flag(c, 100100101) - 200;
+          if ( v36 != 0 )
           {
-            v36 = v35 - 10;
-            if ( v36 == 0 )
+            v37 = v36 - 10;
+            if ( v37 == 0 )
             {
               if ( W_script_flag(c, 101100113) != 8 )
                 return v3;
               if ( F32(c, 0x10) != 4 )
                 return v3;
               W_script_begin(c);
-              v39 = W_script_leader(c);
+              v40 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v39;
+              F32(c, 0x5c) = v40;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -7565,9 +7582,9 @@ LABEL_12:
               v3 = W_script_wait(c);
               if ( v3 == 6 )
                 return v3;
-              v40 = W_script_leader(c);
+              v41 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v40;
+              F32(c, 0x5c) = v41;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -7577,15 +7594,15 @@ LABEL_12:
                 return v3;
               if ( W_sc_402f40(c) == 100000101 )
               {
-                v41 = W_actor_by_handle(100000102);
-                W_scene_msg(c, 0, v41, D(0x868374), 0, 1, 1, 0, 4, 0, 0);
+                v42 = W_actor_by_handle(100000102);
+                W_scene_msg(c, 0, v42, D(0x868374), 0, 1, 1, 0, 4, 0, 0);
                 v3 = W_script_wait(c);
                 if ( v3 == 6 )
                   return v3;
                 goto LABEL_74;
               }
-              (*v225__f) = W_actor_by_handle(100000102);
-              W_scene_msg(c, 2u, (*v225__f), D(0x868338), 0, 1, 1, 0, 4, 0, 0);
+              (*v226__f) = W_actor_by_handle(100000102);
+              W_scene_msg(c, 2u, (*v226__f), D(0x868338), 0, 1, 1, 0, 4, 0, 0);
 LABEL_83:
               v3 = W_script_wait(c);
               if ( v3 == 6 )
@@ -7594,28 +7611,11 @@ LABEL_74:
               W_script_end(c);
               return 11;
             }
-            if ( v36 != 190 )
+            if ( v37 != 190 )
               return v3;
             if ( W_script_flag(c, 101100114) >= 3 )
               return v3;
             W_script_begin(c);
-            v37 = W_script_leader(c);
-            F32(c, 0x4c) = 0;
-            F32(c, 0x5c) = v37;
-            F32(c, 0x50) = 0;
-            F32(c, 0x54) = 0;
-            F32(c, 0x58) = 800;
-            F32(c, 0x20) = 3;
-            W_script_party_cast(c);
-            v3 = W_script_wait(c);
-            if ( v3 == 6 )
-              return v3;
-            if ( W_scene_party_stance(c, 0, F32(c, 0x8)) != 0 )
-            {
-              v3 = W_script_wait(c);
-              if ( v3 == 6 )
-                return v3;
-            }
             v38 = W_script_leader(c);
             F32(c, 0x4c) = 0;
             F32(c, 0x5c) = v38;
@@ -7623,20 +7623,37 @@ LABEL_74:
             F32(c, 0x54) = 0;
             F32(c, 0x58) = 800;
             F32(c, 0x20) = 3;
+            W_script_party_cast(c);
             v3 = W_script_wait(c);
             if ( v3 == 6 )
               return v3;
-            (*v230__f) = 4;
-            (*v228__f) = D(0x8683ac);
+            if ( W_scene_party_stance(c, 0, F32(c, 0x8)) != 0 )
+            {
+              v3 = W_script_wait(c);
+              if ( v3 == 6 )
+                return v3;
+            }
+            v39 = W_script_leader(c);
+            F32(c, 0x4c) = 0;
+            F32(c, 0x5c) = v39;
+            F32(c, 0x50) = 0;
+            F32(c, 0x54) = 0;
+            F32(c, 0x58) = 800;
+            F32(c, 0x20) = 3;
+            v3 = W_script_wait(c);
+            if ( v3 == 6 )
+              return v3;
+            (*v231__f) = 4;
+            (*v229__f) = D(0x8683ac);
           }
           else
           {
             if ( F32(c, 0x10) != 1 )
               return v3;
             W_script_begin(c);
-            v42 = W_script_leader(c);
+            v43 = W_script_leader(c);
             F32(c, 0x4c) = 0;
-            F32(c, 0x5c) = v42;
+            F32(c, 0x5c) = v43;
             F32(c, 0x50) = 0;
             F32(c, 0x54) = 0;
             F32(c, 0x58) = 800;
@@ -7651,9 +7668,9 @@ LABEL_74:
               if ( v3 == 6 )
                 return v3;
             }
-            v43 = W_script_leader(c);
+            v44 = W_script_leader(c);
             F32(c, 0x4c) = 0;
-            F32(c, 0x5c) = v43;
+            F32(c, 0x5c) = v44;
             F32(c, 0x50) = 0;
             F32(c, 0x54) = 0;
             F32(c, 0x58) = 800;
@@ -7661,22 +7678,22 @@ LABEL_74:
             v3 = W_script_wait(c);
             if ( v3 == 6 )
               return v3;
-            (*v230__f) = 9;
-            (*v228__f) = D(0x868304);
+            (*v231__f) = 9;
+            (*v229__f) = D(0x868304);
           }
-          (*v226__f) = W_actor_by_handle(100000101);
-          W_scene_msg(c, 0, (*v226__f), (*v228__f), 0, 1, 1, 0, (*v230__f), 0, 0);
+          (*v227__f) = W_actor_by_handle(100000101);
+          W_scene_msg(c, 0, (*v227__f), (*v229__f), 0, 1, 1, 0, (*v231__f), 0, 0);
           goto LABEL_83;
         case 2:
-          v49 = W_script_flag(c, 100100101);
-          if ( v49 == 210 )
+          v50 = W_script_flag(c, 100100101);
+          if ( v50 == 210 )
           {
             if ( F32(F32(c, 0x4), 472) == 100000102 && W_script_flag(c, 101100113) == 7 )
             {
               W_script_begin(c);
-              v147 = W_script_leader(c);
+              v148 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v147;
+              F32(c, 0x5c) = v148;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -7689,9 +7706,9 @@ LABEL_74:
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
-                  v148 = W_script_leader(c);
+                  v149 = W_script_leader(c);
                   F32(c, 0x4c) = 0;
-                  F32(c, 0x5c) = v148;
+                  F32(c, 0x5c) = v149;
                   F32(c, 0x50) = 0;
                   F32(c, 0x54) = 0;
                   F32(c, 0x58) = 800;
@@ -7705,24 +7722,24 @@ LABEL_74:
                     v3 = W_script_wait(c);
                     if ( v3 != 6 )
                     {
-                      v149 = W_actor_by_handle(100000101);
-                      W_scene_msg(c, 0, v149, D(0x867b38), 0, 1, 1, 0, 2, 0, 0);
+                      v150 = W_actor_by_handle(100000101);
+                      W_scene_msg(c, 0, v150, D(0x867b38), 0, 1, 1, 0, 2, 0, 0);
                       v3 = W_script_wait(c);
                       if ( v3 != 6 )
                       {
 LABEL_260:
-                        v150 = W_actor_by_handle(100000102);
-                        W_scene_msg(c, 0, v150, D(0x867b10), 0, 1, 1, 0, 2, 0, 0);
+                        v151 = W_actor_by_handle(100000102);
+                        W_scene_msg(c, 0, v151, D(0x867b10), 0, 1, 1, 0, 2, 0, 0);
                         v3 = W_script_wait(c);
                         if ( v3 != 6 )
                         {
-                          v151 = W_actor_by_handle(100000101);
-                          W_scene_msg(c, 0, v151, D(0x867ae8), 0, 1, 1, 0, 3, 0, 0);
+                          v152 = W_actor_by_handle(100000101);
+                          W_scene_msg(c, 0, v152, D(0x867ae8), 0, 1, 1, 0, 3, 0, 0);
                           v3 = W_script_wait(c);
                           if ( v3 != 6 )
                           {
-                            v152 = W_actor_by_handle(100000102);
-                            W_scene_msg(c, 0, v152, D(0x867acc), 0, 1, 1, 0, 3, 0, 0);
+                            v153 = W_actor_by_handle(100000102);
+                            W_scene_msg(c, 0, v153, D(0x867acc), 0, 1, 1, 0, 3, 0, 0);
                             v3 = W_script_wait(c);
                             if ( v3 != 6 )
                             {
@@ -7742,36 +7759,15 @@ LABEL_260:
           }
           else
           {
-            if ( v49 != 400 )
+            if ( v50 != 400 )
               return v3;
-            v50 = F32(F32(c, 0x4), 472);
-            if ( v50 > 0x35A4E909 )
+            v51 = F32(F32(c, 0x4), 472);
+            if ( v51 > 0x35A4E909 )
             {
-              switch ( v50 )
+              switch ( v51 )
               {
                 case 0x35A4E90Au:
                   W_script_begin(c);
-                  v122 = W_script_leader(c);
-                  F32(c, 0x4c) = 0;
-                  F32(c, 0x5c) = v122;
-                  F32(c, 0x50) = 0;
-                  F32(c, 0x54) = 0;
-                  F32(c, 0x58) = 800;
-                  F32(c, 0x20) = 3;
-                  W_script_party_cast(c);
-                  v3 = W_script_wait(c);
-                  if ( v3 == 6 )
-                    return v3;
-                  if ( W_scene_party_stance(c, 0, F32(c, 0x8)) != 0 )
-                  {
-                    v3 = W_script_wait(c);
-                    if ( v3 == 6 )
-                      return v3;
-                  }
-                  W_scene_talk_face(c, 0, F32(c, 0x4), 1, 1);
-                  v3 = W_script_wait(c);
-                  if ( v3 == 6 )
-                    return v3;
                   v123 = W_script_leader(c);
                   F32(c, 0x4c) = 0;
                   F32(c, 0x5c) = v123;
@@ -7779,59 +7775,6 @@ LABEL_260:
                   F32(c, 0x54) = 0;
                   F32(c, 0x58) = 800;
                   F32(c, 0x20) = 3;
-                  v3 = W_script_wait(c);
-                  if ( v3 == 6 )
-                    return v3;
-                  v124 = W_actor_by_handle(900000010);
-                  W_scene_msg(c, 0, v124, D(0x867dac), 0, 1, 1, 0, 7, 0, 0);
-                  v3 = W_script_wait(c);
-                  if ( v3 == 6 )
-                    return v3;
-                  v125 = F32(c, 0x4);
-                  F32(c, 0x2e4) = 1;
-                  (*v251__f) = F32(v125, 64);
-                  v126 = (intptr_t *)W_vpool_take(SYS32(1292), 0);
-                  if ( v126 != 0 )
-                  {
-                    v127 = F32(v126, 0);
-                    if ( W_sfx_place(
-                           v125,
-                           F32(CFG(), 360) - 500,
-                           0,
-                           0,
-                           (*v251__f),
-                           &(*v250__f),
-                           (int *)&(*v249__f)) != 0 )
-                    {
-                      g_eng.dsb_volume_5bb870(v127, (*v250__f));
-                      g_eng.dsb_pan_5bb880(v127, (int)(*v249__f));
-                      g_eng.dsb_freq_5bb890(v127, 0);
-                      g_eng.dsb_play_5bb8c0(v127);
-                    }
-                  }
-                  *(_DWORD *)&GAP(c, 0x300, 636) = 50;
-                  F32(c, 0x20) = 6;
-                  v3 = W_script_wait(c);
-                  if ( v3 == 6 )
-                    return v3;
-                  v128 = W_actor_by_handle(900000010);
-                  W_scene_msg(c, 0, v128, D(0x867d88), 0, 1, 1, 0, 31, 0, 0);
-                  v3 = W_script_wait(c);
-                  if ( v3 == 6 )
-                    return v3;
-                  (*v229__f) = 11;
-                  (*v227__f) = D(0x867d40);
-                  v32 = W_actor_by_handle(900000010);
-                  goto LABEL_163;
-                case 0x35A4E90Bu:
-                  W_script_begin(c);
-                  v129 = W_script_leader(c);
-                  F32(c, 0x4c) = 0;
-                  F32(c, 0x5c) = v129;
-                  F32(c, 0x50) = 0;
-                  F32(c, 0x54) = 0;
-                  F32(c, 0x58) = 800;
-                  F32(c, 0x20) = 3;
                   W_script_party_cast(c);
                   v3 = W_script_wait(c);
                   if ( v3 == 6 )
@@ -7846,6 +7789,59 @@ LABEL_260:
                   v3 = W_script_wait(c);
                   if ( v3 == 6 )
                     return v3;
+                  v124 = W_script_leader(c);
+                  F32(c, 0x4c) = 0;
+                  F32(c, 0x5c) = v124;
+                  F32(c, 0x50) = 0;
+                  F32(c, 0x54) = 0;
+                  F32(c, 0x58) = 800;
+                  F32(c, 0x20) = 3;
+                  v3 = W_script_wait(c);
+                  if ( v3 == 6 )
+                    return v3;
+                  v125 = W_actor_by_handle(900000010);
+                  W_scene_msg(c, 0, v125, D(0x867dac), 0, 1, 1, 0, 7, 0, 0);
+                  v3 = W_script_wait(c);
+                  if ( v3 == 6 )
+                    return v3;
+                  v126 = F32(c, 0x4);
+                  F32(c, 0x2e4) = 1;
+                  (*v252__f) = F32(v126, 64);
+                  v127 = (intptr_t *)W_vpool_take(SYS32(1292), 0);
+                  if ( v127 != 0 )
+                  {
+                    v128 = F32(v127, 0);
+                    if ( W_sfx_place(
+                           v126,
+                           F32(CFG(), 360) - 500,
+                           0,
+                           0,
+                           (*v252__f),
+                           &(*v251__f),
+                           (int *)&(*v250__f)) != 0 )
+                    {
+                      g_eng.dsb_volume_5bb870(v128, (*v251__f));
+                      g_eng.dsb_pan_5bb880(v128, (int)(*v250__f));
+                      g_eng.dsb_freq_5bb890(v128, 0);
+                      g_eng.dsb_play_5bb8c0(v128);
+                    }
+                  }
+                  *(_DWORD *)&GAP(c, 0x300, 636) = 50;
+                  F32(c, 0x20) = 6;
+                  v3 = W_script_wait(c);
+                  if ( v3 == 6 )
+                    return v3;
+                  v129 = W_actor_by_handle(900000010);
+                  W_scene_msg(c, 0, v129, D(0x867d88), 0, 1, 1, 0, 31, 0, 0);
+                  v3 = W_script_wait(c);
+                  if ( v3 == 6 )
+                    return v3;
+                  (*v230__f) = 11;
+                  (*v228__f) = D(0x867d40);
+                  v33 = W_actor_by_handle(900000010);
+                  goto LABEL_163;
+                case 0x35A4E90Bu:
+                  W_script_begin(c);
                   v130 = W_script_leader(c);
                   F32(c, 0x4c) = 0;
                   F32(c, 0x5c) = v130;
@@ -7853,39 +7849,60 @@ LABEL_260:
                   F32(c, 0x54) = 0;
                   F32(c, 0x58) = 800;
                   F32(c, 0x20) = 3;
+                  W_script_party_cast(c);
                   v3 = W_script_wait(c);
                   if ( v3 == 6 )
                     return v3;
-                  v131 = W_actor_by_handle(900000011);
-                  W_scene_msg(c, 0, v131, D(0x867ce4), 0, 1, 1, 0, 11, 0, 0);
+                  if ( W_scene_party_stance(c, 0, F32(c, 0x8)) != 0 )
+                  {
+                    v3 = W_script_wait(c);
+                    if ( v3 == 6 )
+                      return v3;
+                  }
+                  W_scene_talk_face(c, 0, F32(c, 0x4), 1, 1);
+                  v3 = W_script_wait(c);
+                  if ( v3 == 6 )
+                    return v3;
+                  v131 = W_script_leader(c);
+                  F32(c, 0x4c) = 0;
+                  F32(c, 0x5c) = v131;
+                  F32(c, 0x50) = 0;
+                  F32(c, 0x54) = 0;
+                  F32(c, 0x58) = 800;
+                  F32(c, 0x20) = 3;
                   v3 = W_script_wait(c);
                   if ( v3 == 6 )
                     return v3;
                   v132 = W_actor_by_handle(900000011);
-                  W_scene_msg(c, 0, v132, D(0x867cc0), 0, 1, 1, 0, 7, 0, 0);
+                  W_scene_msg(c, 0, v132, D(0x867ce4), 0, 1, 1, 0, 11, 0, 0);
                   v3 = W_script_wait(c);
                   if ( v3 == 6 )
                     return v3;
-                  v133 = F32(c, 0x4);
+                  v133 = W_actor_by_handle(900000011);
+                  W_scene_msg(c, 0, v133, D(0x867cc0), 0, 1, 1, 0, 7, 0, 0);
+                  v3 = W_script_wait(c);
+                  if ( v3 == 6 )
+                    return v3;
+                  v134 = F32(c, 0x4);
                   F32(c, 0x2e4) = 1;
-                  (*v251__f) = F32(v133, 64);
-                  v134 = (intptr_t *)W_vpool_take(SYS32(1836), 0);
-                  if ( v134 != 0 )
+                  (*v252__f) = F32(v134, 64);
+                  v135 = (intptr_t *)W_vpool_take(SYS32(1836), 0);
+                  if ( v135 != 0 )
                   {
-                    v135 = F32(v134, 0);
+                    v136 = F32(v135, 0);
                     if ( W_sfx_place(
-                           v133,
+                           v134,
                            F32(CFG(), 360) - 500,
                            0,
                            0,
-                           (*v251__f),
-                           &(*v250__f),
-                           (int *)&(*v249__f)) != 0 )
+                           (*v252__f),
+                           &(*v251__f),
+                           (int *)&(*v250__f)) != 0 )
                     {
-                      g_eng.dsb_volume_5bb870(v135, (*v250__f));
-                      g_eng.dsb_pan_5bb880(v135, (int)(*v249__f));
-                      g_eng.dsb_freq_5bb890(v135, 0);
-                      g_eng.dsb_play_5bb8c0(v135);
+                      g_eng.dsb_volume_5bb870(v136, (*v251__f));
+                      g_eng.dsb_pan_5bb880(v136, (int)(*v250__f));
+                      g_eng.dsb_freq_5bb890(v136, 0);
+                      g_eng.dsb_play_5bb8c0(v136);
                     }
                   }
                   *(_DWORD *)&GAP(c, 0x300, 636) = 50;
@@ -7893,38 +7910,17 @@ LABEL_260:
                   v3 = W_script_wait(c);
                   if ( v3 == 6 )
                     return v3;
-                  v136 = W_actor_by_handle(900000011);
-                  W_scene_msg(c, 0, v136, D(0x867c94), 0, 1, 1, 0, 4, 0, 0);
+                  v137 = W_actor_by_handle(900000011);
+                  W_scene_msg(c, 0, v137, D(0x867c94), 0, 1, 1, 0, 4, 0, 0);
                   v3 = W_script_wait(c);
                   if ( v3 == 6 )
                     return v3;
-                  (*v229__f) = 4;
-                  (*v227__f) = D(0x867c48);
-                  v32 = W_actor_by_handle(900000011);
+                  (*v230__f) = 4;
+                  (*v228__f) = D(0x867c48);
+                  v33 = W_actor_by_handle(900000011);
                   goto LABEL_163;
                 case 0x35A4E90Cu:
                   W_script_begin(c);
-                  v120 = W_script_leader(c);
-                  F32(c, 0x4c) = 0;
-                  F32(c, 0x5c) = v120;
-                  F32(c, 0x50) = 0;
-                  F32(c, 0x54) = 0;
-                  F32(c, 0x58) = 800;
-                  F32(c, 0x20) = 3;
-                  W_script_party_cast(c);
-                  v3 = W_script_wait(c);
-                  if ( v3 == 6 )
-                    return v3;
-                  if ( W_scene_party_stance(c, 0, F32(c, 0x8)) != 0 )
-                  {
-                    v3 = W_script_wait(c);
-                    if ( v3 == 6 )
-                      return v3;
-                  }
-                  W_scene_talk_face(c, 0, F32(c, 0x4), 1, 1);
-                  v3 = W_script_wait(c);
-                  if ( v3 == 6 )
-                    return v3;
                   v121 = W_script_leader(c);
                   F32(c, 0x4c) = 0;
                   F32(c, 0x5c) = v121;
@@ -7932,18 +7928,39 @@ LABEL_260:
                   F32(c, 0x54) = 0;
                   F32(c, 0x58) = 800;
                   F32(c, 0x20) = 3;
+                  W_script_party_cast(c);
                   v3 = W_script_wait(c);
                   if ( v3 == 6 )
                     return v3;
-                  (*v229__f) = 11;
-                  (*v227__f) = D(0x867dbc);
-                  v32 = W_actor_by_handle(900000012);
+                  if ( W_scene_party_stance(c, 0, F32(c, 0x8)) != 0 )
+                  {
+                    v3 = W_script_wait(c);
+                    if ( v3 == 6 )
+                      return v3;
+                  }
+                  W_scene_talk_face(c, 0, F32(c, 0x4), 1, 1);
+                  v3 = W_script_wait(c);
+                  if ( v3 == 6 )
+                    return v3;
+                  v122 = W_script_leader(c);
+                  F32(c, 0x4c) = 0;
+                  F32(c, 0x5c) = v122;
+                  F32(c, 0x50) = 0;
+                  F32(c, 0x54) = 0;
+                  F32(c, 0x58) = 800;
+                  F32(c, 0x20) = 3;
+                  v3 = W_script_wait(c);
+                  if ( v3 == 6 )
+                    return v3;
+                  (*v230__f) = 11;
+                  (*v228__f) = D(0x867dbc);
+                  v33 = W_actor_by_handle(900000012);
                   goto LABEL_163;
                 case 0x35A4E90Du:
                   W_script_begin(c);
-                  v137 = W_script_leader(c);
+                  v138 = W_script_leader(c);
                   F32(c, 0x4c) = 0;
-                  F32(c, 0x5c) = v137;
+                  F32(c, 0x5c) = v138;
                   F32(c, 0x50) = 0;
                   F32(c, 0x54) = 0;
                   F32(c, 0x58) = 800;
@@ -7962,9 +7979,9 @@ LABEL_260:
                   v3 = W_script_wait(c);
                   if ( v3 == 6 )
                     return v3;
-                  v138 = W_script_leader(c);
+                  v139 = W_script_leader(c);
                   F32(c, 0x4c) = 0;
-                  F32(c, 0x5c) = v138;
+                  F32(c, 0x5c) = v139;
                   F32(c, 0x50) = 0;
                   F32(c, 0x54) = 0;
                   F32(c, 0x58) = 800;
@@ -7972,31 +7989,31 @@ LABEL_260:
                   v3 = W_script_wait(c);
                   if ( v3 == 6 )
                     return v3;
-                  v139 = W_actor_by_handle(900000013);
-                  W_scene_msg(c, 0, v139, D(0x867c20), 0, 1, 1, 0, 30, 0, 0);
+                  v140 = W_actor_by_handle(900000013);
+                  W_scene_msg(c, 0, v140, D(0x867c20), 0, 1, 1, 0, 30, 0, 0);
                   v3 = W_script_wait(c);
                   if ( v3 == 6 )
                     return v3;
-                  v140 = F32(c, 0x4);
+                  v141 = F32(c, 0x4);
                   F32(c, 0x2e4) = 1;
-                  (*v251__f) = F32(v140, 64);
-                  v141 = (intptr_t *)W_vpool_take(SYS32(1192), 0);
-                  if ( v141 != 0 )
+                  (*v252__f) = F32(v141, 64);
+                  v142 = (intptr_t *)W_vpool_take(SYS32(1192), 0);
+                  if ( v142 != 0 )
                   {
-                    v142 = F32(v141, 0);
+                    v143 = F32(v142, 0);
                     if ( W_sfx_place(
-                           v140,
+                           v141,
                            F32(CFG(), 360) + 1000,
                            0,
                            0,
-                           (*v251__f),
-                           &(*v250__f),
-                           (int *)&(*v249__f)) != 0 )
+                           (*v252__f),
+                           &(*v251__f),
+                           (int *)&(*v250__f)) != 0 )
                     {
-                      g_eng.dsb_volume_5bb870(v142, (*v250__f));
-                      g_eng.dsb_pan_5bb880(v142, (int)(*v249__f));
-                      g_eng.dsb_freq_5bb890(v142, 0);
-                      g_eng.dsb_play_5bb8c0(v142);
+                      g_eng.dsb_volume_5bb870(v143, (*v251__f));
+                      g_eng.dsb_pan_5bb880(v143, (int)(*v250__f));
+                      g_eng.dsb_freq_5bb890(v143, 0);
+                      g_eng.dsb_play_5bb8c0(v143);
                     }
                   }
                   *(_DWORD *)&GAP(c, 0x300, 636) = 80;
@@ -8004,34 +8021,34 @@ LABEL_260:
                   v3 = W_script_wait(c);
                   if ( v3 == 6 )
                     return v3;
-                  v143 = W_actor_by_handle(900000013);
-                  W_scene_msg(c, 0, v143, D(0x867c10), 0, 1, 1, 0, 30, 0, 0);
-                  v3 = W_script_wait(c);
-                  if ( v3 == 6 )
-                    return v3;
                   v144 = W_actor_by_handle(900000013);
-                  W_scene_msg(c, 0, v144, D(0x867bac), 0, 1, 1, 0, 30, 0, 0);
+                  W_scene_msg(c, 0, v144, D(0x867c10), 0, 1, 1, 0, 30, 0, 0);
                   v3 = W_script_wait(c);
                   if ( v3 == 6 )
                     return v3;
                   v145 = W_actor_by_handle(900000013);
-                  W_scene_msg(c, 0, v145, D(0x867b6c), 0, 1, 1, 0, 30, 0, 0);
+                  W_scene_msg(c, 0, v145, D(0x867bac), 0, 1, 1, 0, 30, 0, 0);
                   v3 = W_script_wait(c);
                   if ( v3 == 6 )
                     return v3;
                   v146 = W_actor_by_handle(900000013);
-                  W_scene_face(c, v146, 1);
+                  W_scene_msg(c, 0, v146, D(0x867b6c), 0, 1, 1, 0, 30, 0, 0);
+                  v3 = W_script_wait(c);
+                  if ( v3 == 6 )
+                    return v3;
+                  v147 = W_actor_by_handle(900000013);
+                  W_scene_face(c, v147, 1);
                   goto LABEL_164;
                 default:
                   return v3;
               }
             }
-            if ( v50 == 900000009 )
+            if ( v51 == 900000009 )
             {
               W_script_begin(c);
-              v101 = W_script_leader(c);
+              v102 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v101;
+              F32(c, 0x5c) = v102;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -8046,9 +8063,9 @@ LABEL_260:
                 if ( v3 == 6 )
                   return v3;
               }
-              v102 = W_script_leader(c);
+              v103 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v102;
+              F32(c, 0x5c) = v103;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -8060,65 +8077,65 @@ LABEL_260:
               v3 = W_script_wait(c);
               if ( v3 == 6 )
                 return v3;
-              v103 = W_actor_by_handle(900000009);
-              W_sc_4020a0(c, v103, 0, -4800, 0, 1, 150, 0, 4000);
-              v3 = W_script_wait(c);
-              if ( v3 == 6 )
-                return v3;
               v104 = W_actor_by_handle(900000009);
-              W_scene_msg(c, 0, v104, D(0x867e90), 0, 1, 1, 0, 7, 0, 0);
+              W_sc_4020a0(c, v104, 0, -4800, 0, 1, 150, 0, 4000);
               v3 = W_script_wait(c);
               if ( v3 == 6 )
                 return v3;
-              v105 = F32(c, 0x4);
+              v105 = W_actor_by_handle(900000009);
+              W_scene_msg(c, 0, v105, D(0x867e90), 0, 1, 1, 0, 7, 0, 0);
+              v3 = W_script_wait(c);
+              if ( v3 == 6 )
+                return v3;
+              v106 = F32(c, 0x4);
               F32(c, 0x2e4) = 1;
-              v106 = SYS32(1276);
-              (*v249__f) = v105;
-              (*v248__f) = (_DWORD *)F32(v105, 0x40);
+              v107 = SYS32(1276);
+              (*v250__f) = v106;
+              (*v249__f) = (_DWORD *)F32(v106, 0x40);
               if ( F32(SYS32(1276), 8) != 0
                 && (F32(SYS32(1276), 4) != 0
                  || W_vpool_load(SYS32(1276)) != 0) )
               {
-                v107 = 0;
-                (*v245__f) = 0;
-                if ( *v106 != 0 )
+                v108 = 0;
+                (*v246__f) = 0;
+                if ( *v107 != 0 )
                 {
-                  SETHI(v108, 0);
-                  v109 = *v106;
-                  (*v247__f) = F32(v106, 4 * 1);
+                  SETHI(v109, 0);
+                  v110 = *v107;
+                  (*v248__f) = F32(v107, 4 * 1);
                   while ( 1 )
                   {
-                    SETLO(v108, v106[1]);
-                    v110 = (v108 + v107) % v109;
-                    if ( F32((*v247__f) + 8 * (uint16_t)v110, 4) == 0 )
+                    SETLO(v109, v107[1]);
+                    v111 = (v109 + v108) % v110;
+                    if ( F32((*v248__f) + 8 * (uint16_t)v111, 4) == 0 )
                       break;
-                    v107 = (uint16_t)(*v245__f) + 1;
-                    (*v245__f) = ((uint8_t *)(*v245__f) + 1);
-                    if ( (uint16_t)(*v245__f) >= *v106 )
+                    v108 = (uint16_t)(*v246__f) + 1;
+                    (*v246__f) = ((uint8_t *)(*v246__f) + 1);
+                    if ( (uint16_t)(*v246__f) >= *v107 )
                       goto LABEL_198;
-                    v109 = *v106;
+                    v110 = *v107;
                   }
-                  v111 = v110 + 1;
-                  v112 = 8 * (uint16_t)v110;
-                  v106[1] = v111;
-                  F32(v112 + (*v247__f), 4) = 0;
-                  v113 = (intptr_t *)(F32(v106, 4 * 1) + v112);
-                  if ( v113 != 0 )
+                  v112 = v111 + 1;
+                  v113 = 8 * (uint16_t)v111;
+                  v107[1] = v112;
+                  F32(v113 + (*v248__f), 4) = 0;
+                  v114 = (intptr_t *)(F32(v107, 4 * 1) + v113);
+                  if ( v114 != 0 )
                   {
-                    v114 = F32(v113, 0);
+                    v115 = F32(v114, 0);
                     if ( W_sfx_place(
-                           (*v249__f),
+                           (*v250__f),
                            F32(CFG(), 360) - 500,
                            0,
                            0,
-                           (*v248__f),
-                           &(*v250__f),
-                           (int *)&(*v251__f)) != 0 )
+                           (*v249__f),
+                           &(*v251__f),
+                           (int *)&(*v252__f)) != 0 )
                     {
-                      g_eng.dsb_volume_5bb870(v114, (*v250__f));
-                      g_eng.dsb_pan_5bb880(v114, (int)(*v251__f));
-                      g_eng.dsb_freq_5bb890(v114, 0);
-                      g_eng.dsb_play_5bb8c0(v114);
+                      g_eng.dsb_volume_5bb870(v115, (*v251__f));
+                      g_eng.dsb_pan_5bb880(v115, (int)(*v252__f));
+                      g_eng.dsb_freq_5bb890(v115, 0);
+                      g_eng.dsb_play_5bb8c0(v115);
                     }
                   }
                 }
@@ -8129,8 +8146,8 @@ LABEL_198:
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                v115 = W_actor_by_handle(900000013);
-                W_scene_msg(c, 0, v115, D(0x867e88), 0, 1, 1, 0, 31, 0, 0);
+                v116 = W_actor_by_handle(900000013);
+                W_scene_msg(c, 0, v116, D(0x867e88), 0, 1, 1, 0, 31, 0, 0);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
@@ -8140,25 +8157,25 @@ LABEL_198:
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
-                    v116 = W_actor_by_handle(900000013);
-                    W_scene_face(c, v116, 3);
+                    v117 = W_actor_by_handle(900000013);
+                    W_scene_face(c, v117, 3);
                     v3 = W_script_wait(c);
                     if ( v3 != 6 )
                     {
-                      v117 = W_actor_by_handle(900000013);
-                      W_scene_msg(c, 0, v117, D(0x867e38), 0, 1, 1, 0, 7, 0, 0);
+                      v118 = W_actor_by_handle(900000013);
+                      W_scene_msg(c, 0, v118, D(0x867e38), 0, 1, 1, 0, 7, 0, 0);
                       v3 = W_script_wait(c);
                       if ( v3 != 6 )
                       {
-                        v118 = W_actor_by_handle(900000009);
-                        W_scene_msg(c, 0, v118, D(0x867e14), 0, 1, 1, 0, 30, 0, 0);
+                        v119 = W_actor_by_handle(900000009);
+                        W_scene_msg(c, 0, v119, D(0x867e14), 0, 1, 1, 0, 30, 0, 0);
                         v3 = W_script_wait(c);
                         if ( v3 != 6 )
                         {
-                          v119 = W_actor_by_handle(900000013);
-                          W_scene_face(c, v119, 1);
+                          v120 = W_actor_by_handle(900000013);
+                          W_scene_face(c, v120, 1);
                           v3 = W_script_wait(c);
-                          v66 = v3 == 6;
+                          v67 = v3 == 6;
                           goto LABEL_165;
                         }
                       }
@@ -8168,14 +8185,14 @@ LABEL_198:
               }
               return v3;
             }
-            if ( v50 > 0x35A4E902 )
+            if ( v51 > 0x35A4E902 )
             {
-              if ( v50 == 900000008 )
+              if ( v51 == 900000008 )
               {
                 W_script_begin(c);
-                v97 = W_script_leader(c);
+                v98 = W_script_leader(c);
                 F32(c, 0x4c) = 0;
-                F32(c, 0x5c) = v97;
+                F32(c, 0x5c) = v98;
                 F32(c, 0x50) = 0;
                 F32(c, 0x54) = 0;
                 F32(c, 0x58) = 800;
@@ -8188,9 +8205,9 @@ LABEL_198:
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
-                    v98 = W_script_leader(c);
+                    v99 = W_script_leader(c);
                     F32(c, 0x4c) = 0;
-                    F32(c, 0x5c) = v98;
+                    F32(c, 0x5c) = v99;
                     F32(c, 0x50) = 0;
                     F32(c, 0x54) = 0;
                     F32(c, 0x58) = 800;
@@ -8198,19 +8215,19 @@ LABEL_198:
                     v3 = W_script_wait(c);
                     if ( v3 != 6 )
                     {
-                      v99 = W_actor_by_handle(900000008);
-                      W_scene_msg(c, 0, v99, D(0x867f40), 0, 1, 1, 0, 30, 0, 0);
+                      v100 = W_actor_by_handle(900000008);
+                      W_scene_msg(c, 0, v100, D(0x867f40), 0, 1, 1, 0, 30, 0, 0);
                       v3 = W_script_wait(c);
                       if ( v3 != 6 )
                       {
-                        v100 = W_actor_by_handle(900000008);
-                        W_scene_msg(c, 0, v100, D(0x867efc), 0, 1, 1, 0, 5, 0, 0);
+                        v101 = W_actor_by_handle(900000008);
+                        W_scene_msg(c, 0, v101, D(0x867efc), 0, 1, 1, 0, 5, 0, 0);
                         v3 = W_script_wait(c);
                         if ( v3 != 6 )
                         {
-                          (*v229__f) = 5;
-                          (*v227__f) = D(0x867ea8);
-                          v32 = W_actor_by_handle(900000008);
+                          (*v230__f) = 5;
+                          (*v228__f) = D(0x867ea8);
+                          v33 = W_actor_by_handle(900000008);
                           goto LABEL_163;
                         }
                       }
@@ -8221,17 +8238,17 @@ LABEL_198:
             }
             else
             {
-              if ( v50 != 900000002 )
+              if ( v51 != 900000002 )
               {
-                v51 = v50 - 100000102;
-                if ( v51 != 0 )
+                v52 = v51 - 100000102;
+                if ( v52 != 0 )
                 {
-                  if ( v51 == 1 )
+                  if ( v52 == 1 )
                   {
                     W_script_begin(c);
-                    v52 = W_script_leader(c);
+                    v53 = W_script_leader(c);
                     F32(c, 0x4c) = 0;
-                    F32(c, 0x5c) = v52;
+                    F32(c, 0x5c) = v53;
                     F32(c, 0x50) = 0;
                     F32(c, 0x54) = 0;
                     F32(c, 0x58) = 800;
@@ -8244,9 +8261,9 @@ LABEL_198:
                       v3 = W_script_wait(c);
                       if ( v3 != 6 )
                       {
-                        v53 = W_script_leader(c);
+                        v54 = W_script_leader(c);
                         F32(c, 0x4c) = 0;
-                        F32(c, 0x5c) = v53;
+                        F32(c, 0x5c) = v54;
                         F32(c, 0x50) = 0;
                         F32(c, 0x54) = 0;
                         F32(c, 0x58) = 800;
@@ -8254,13 +8271,13 @@ LABEL_198:
                         v3 = W_script_wait(c);
                         if ( v3 != 6 )
                         {
-                          v54 = W_actor_by_handle(100000101);
-                          W_scene_msg(c, 0, v54, D(0x868294), 0, 1, 1, 0, 2, 0, 0);
+                          v55 = W_actor_by_handle(100000101);
+                          W_scene_msg(c, 0, v55, D(0x868294), 0, 1, 1, 0, 2, 0, 0);
                           v3 = W_script_wait(c);
                           if ( v3 != 6 )
                           {
-                            v55 = W_actor_by_handle(100000103);
-                            W_scene_msg(c, 0, v55, D(0x868250), 0, 1, 1, 0, 19, 0, 0);
+                            v56 = W_actor_by_handle(100000103);
+                            W_scene_msg(c, 0, v56, D(0x868250), 0, 1, 1, 0, 19, 0, 0);
                             v3 = W_script_wait(c);
                             if ( v3 != 6 )
                             {
@@ -8270,11 +8287,11 @@ LABEL_198:
                               v3 = W_script_wait(c);
                               if ( v3 != 6 )
                               {
-                                (*v231__f) = W_actor_by_handle(100000101);
-                                v56 = W_actor_by_handle(100000103);
-                                (*v237__f) = W_sc_401d80(v56, (*v231__f), 1);
+                                (*v232__f) = W_actor_by_handle(100000101);
                                 v57 = W_actor_by_handle(100000103);
-                                W_scene_face(c, v57, (*v237__f));
+                                (*v238__f) = W_sc_401d80(v57, (*v232__f), 1);
+                                v58 = W_actor_by_handle(100000103);
+                                W_scene_face(c, v58, (*v238__f));
                                 v3 = W_script_wait(c);
                                 if ( v3 != 6 )
                                 {
@@ -8283,15 +8300,15 @@ LABEL_198:
                                   v3 = W_script_wait(c);
                                   if ( v3 != 6 )
                                   {
-                                    v58 = W_actor_by_handle(100000103);
-                                    W_scene_msg(c, 0, v58, D(0x868240), 0, 1, 1, 0, 22, 0, 0);
+                                    v59 = W_actor_by_handle(100000103);
+                                    W_scene_msg(c, 0, v59, D(0x868240), 0, 1, 1, 0, 22, 0, 0);
                                     v3 = W_script_wait(c);
                                     if ( v3 != 6 )
                                     {
                                       F32(c, 0x2e4) = 1;
-                                      (*v232__f) = W_actor_by_handle(0);
-                                      v59 = W_actor_by_handle(100000103);
-                                      W_sc_402610(c, v59, 10301, 5, (*v232__f), 1);
+                                      (*v233__f) = W_actor_by_handle(0);
+                                      v60 = W_actor_by_handle(100000103);
+                                      W_sc_402610(c, v60, 10301, 5, (*v233__f), 1);
                                       v3 = W_script_wait(c);
                                       if ( v3 != 6 )
                                       {
@@ -8300,11 +8317,11 @@ LABEL_198:
                                         v3 = W_script_wait(c);
                                         if ( v3 != 6 )
                                         {
-                                          (*v233__f) = W_actor_by_handle(100000101);
-                                          v60 = W_actor_by_handle(100000103);
-                                          (*v238__f) = W_sc_401d80(v60, (*v233__f), 0);
+                                          (*v234__f) = W_actor_by_handle(100000101);
                                           v61 = W_actor_by_handle(100000103);
-                                          W_scene_face(c, v61, (*v238__f));
+                                          (*v239__f) = W_sc_401d80(v61, (*v234__f), 0);
+                                          v62 = W_actor_by_handle(100000103);
+                                          W_scene_face(c, v62, (*v239__f));
                                           v3 = W_script_wait(c);
                                           if ( v3 != 6 )
                                           {
@@ -8313,26 +8330,26 @@ LABEL_198:
                                             v3 = W_script_wait(c);
                                             if ( v3 != 6 )
                                             {
-                                              v62 = W_actor_by_handle(100000103);
-                                              W_scene_msg(c, 0, v62, D(0x868238), 0, 1, 1, 0, 20, 0, 0);
+                                              v63 = W_actor_by_handle(100000103);
+                                              W_scene_msg(c, 0, v63, D(0x868238), 0, 1, 1, 0, 20, 0, 0);
                                               v3 = W_script_wait(c);
                                               if ( v3 != 6 )
                                               {
-                                                v63 = W_actor_by_handle(100000101);
-                                                W_scene_msg(c, 0, v63, D(0x86821c), 0, 1, 1, 0, 13, 0, 0);
+                                                v64 = W_actor_by_handle(100000101);
+                                                W_scene_msg(c, 0, v64, D(0x86821c), 0, 1, 1, 0, 13, 0, 0);
                                                 v3 = W_script_wait(c);
                                                 if ( v3 != 6 )
                                                 {
-                                                  v64 = W_actor_by_handle(100000103);
-                                                  W_scene_msg(c, 0, v64, D(0x868204), 0, 1, 1, 0, 19, 0, 0);
+                                                  v65 = W_actor_by_handle(100000103);
+                                                  W_scene_msg(c, 0, v65, D(0x868204), 0, 1, 1, 0, 19, 0, 0);
                                                   v3 = W_script_wait(c);
                                                   if ( v3 != 6 )
                                                   {
-                                                    v65 = W_actor_by_handle(100000103);
+                                                    v66 = W_actor_by_handle(100000103);
                                                     W_scene_msg(
                                                       c,
                                                       0,
-                                                      v65,
+                                                      v66,
                                                       D(0x8681b8),
                                                       0,
                                                       1,
@@ -8342,7 +8359,7 @@ LABEL_198:
                                                       0,
                                                       0);
                                                     v3 = W_script_wait(c);
-                                                    v66 = v3 == 6;
+                                                    v67 = v3 == 6;
                                                     goto LABEL_165;
                                                   }
                                                 }
@@ -8365,9 +8382,9 @@ LABEL_198:
                 else
                 {
                   W_script_begin(c);
-                  v67 = W_script_leader(c);
+                  v68 = W_script_leader(c);
                   F32(c, 0x4c) = 0;
-                  F32(c, 0x5c) = v67;
+                  F32(c, 0x5c) = v68;
                   F32(c, 0x50) = 0;
                   F32(c, 0x54) = 0;
                   F32(c, 0x58) = 800;
@@ -8376,14 +8393,14 @@ LABEL_198:
                   v3 = W_script_wait(c);
                   if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
                   {
-                    v68 = W_actor_by_handle(100000102);
-                    W_scene_talk_face(c, 0, v68, 0, 1);
+                    v69 = W_actor_by_handle(100000102);
+                    W_scene_talk_face(c, 0, v69, 0, 1);
                     v3 = W_script_wait(c);
                     if ( v3 != 6 )
                     {
-                      v69 = W_script_leader(c);
+                      v70 = W_script_leader(c);
                       F32(c, 0x4c) = 0;
-                      F32(c, 0x5c) = v69;
+                      F32(c, 0x5c) = v70;
                       F32(c, 0x50) = 0;
                       F32(c, 0x54) = 0;
                       F32(c, 0x58) = 800;
@@ -8391,17 +8408,17 @@ LABEL_198:
                       v3 = W_script_wait(c);
                       if ( v3 != 6 )
                       {
-                        v70 = W_actor_by_handle(100000102);
-                        W_sc_41e340(v70, 1);
                         v71 = W_actor_by_handle(100000102);
-                        W_scene_msg(c, 0, v71, D(0x8681a4), 0, 1, 1, 0, 6, 0, 0);
+                        W_sc_41e340(v71, 1);
+                        v72 = W_actor_by_handle(100000102);
+                        W_scene_msg(c, 0, v72, D(0x8681a4), 0, 1, 1, 0, 6, 0, 0);
                         v3 = W_script_wait(c);
                         if ( v3 != 6 )
                         {
                           F32(c, 0x2e4) = 1;
-                          (*v234__f) = W_actor_by_handle(0);
-                          v72 = W_actor_by_handle(100000102);
-                          W_sc_402610(c, v72, 10202, 0, (*v234__f), 1);
+                          (*v235__f) = W_actor_by_handle(0);
+                          v73 = W_actor_by_handle(100000102);
+                          W_sc_402610(c, v73, 10202, 0, (*v235__f), 1);
                           v3 = W_script_wait(c);
                           if ( v3 != 6 )
                           {
@@ -8410,46 +8427,46 @@ LABEL_198:
                             v3 = W_script_wait(c);
                             if ( v3 != 6 )
                             {
-                              v73 = W_actor_by_handle(100000102);
-                              W_scene_msg(c, 0, v73, D(0x86817c), 0, 1, 1, 0, 11, 0, 0);
+                              v74 = W_actor_by_handle(100000102);
+                              W_scene_msg(c, 0, v74, D(0x86817c), 0, 1, 1, 0, 11, 0, 0);
                               v3 = W_script_wait(c);
                               if ( v3 != 6 )
                               {
-                                v74 = W_actor_by_handle(100000102);
-                                W_scene_msg(c, 0, v74, D(0x868160), 0, 1, 1, 0, 6, 0, 0);
+                                v75 = W_actor_by_handle(100000102);
+                                W_scene_msg(c, 0, v75, D(0x868160), 0, 1, 1, 0, 6, 0, 0);
                                 v3 = W_script_wait(c);
                                 if ( v3 != 6 )
                                 {
                                   F32(c, 0x2e4) = 1;
-                                  (*v235__f) = W_actor_by_handle(0);
-                                  v75 = W_actor_by_handle(100000102);
-                                  W_sc_402610(c, v75, 10202, 8, (*v235__f), 1);
+                                  (*v236__f) = W_actor_by_handle(0);
+                                  v76 = W_actor_by_handle(100000102);
+                                  W_sc_402610(c, v76, 10202, 8, (*v236__f), 1);
                                   v3 = W_script_wait(c);
                                   if ( v3 != 6 )
                                   {
-                                    v76 = W_actor_by_handle(900000009);
-                                    W_scene_msg(c, 0, v76, D(0x868144), 0, 1, 1, 0, 31, 0, 0);
+                                    v77 = W_actor_by_handle(900000009);
+                                    W_scene_msg(c, 0, v77, D(0x868144), 0, 1, 1, 0, 31, 0, 0);
                                     v3 = W_script_wait(c);
                                     if ( v3 != 6 )
                                     {
                                       F32(c, 0x2e4) = 1;
-                                      v77 = W_actor_by_handle(900000009);
-                                      W_scene_face(c, v77, 3);
+                                      v78 = W_actor_by_handle(900000009);
+                                      W_scene_face(c, v78, 3);
                                       v3 = W_script_wait(c);
                                       if ( v3 != 6 )
                                       {
-                                        v78 = W_actor_by_handle(900000009);
-                                        W_scene_msg(c, 0, v78, D(0x868124), 0, 1, 1, 0, 7, 0, 0);
+                                        v79 = W_actor_by_handle(900000009);
+                                        W_scene_msg(c, 0, v79, D(0x868124), 0, 1, 1, 0, 7, 0, 0);
                                         v3 = W_script_wait(c);
                                         if ( v3 != 6 )
                                         {
-                                          v79 = W_actor_by_handle(100000102);
-                                          W_scene_msg(c, 0, v79, D(0x868118), 0, 1, 1, 0, 8, 0, 0);
+                                          v80 = W_actor_by_handle(100000102);
+                                          W_scene_msg(c, 0, v80, D(0x868118), 0, 1, 1, 0, 8, 0, 0);
                                           v3 = W_script_wait(c);
                                           if ( v3 != 6 )
                                           {
-                                            v80 = W_actor_by_handle(900000009);
-                                            W_scene_face(c, v80, 1);
+                                            v81 = W_actor_by_handle(900000009);
+                                            W_scene_face(c, v81, 1);
                                             goto LABEL_164;
                                           }
                                         }
@@ -8468,9 +8485,9 @@ LABEL_198:
                 return v3;
               }
               W_script_begin(c);
-              v81 = W_script_leader(c);
+              v82 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v81;
+              F32(c, 0x5c) = v82;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -8489,9 +8506,9 @@ LABEL_198:
               v3 = W_script_wait(c);
               if ( v3 == 6 )
                 return v3;
-              v82 = W_script_leader(c);
+              v83 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v82;
+              F32(c, 0x5c) = v83;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -8501,28 +8518,28 @@ LABEL_198:
                 return v3;
               if ( W_script_flag(c, 101100114) != 0 )
               {
-                v83 = W_actor_by_handle(900000002);
-                W_scene_msg(c, 0, v83, D(0x8680d4), 0, 1, 1, 0, 30, 0, 0);
+                v84 = W_actor_by_handle(900000002);
+                W_scene_msg(c, 0, v84, D(0x8680d4), 0, 1, 1, 0, 30, 0, 0);
                 v3 = W_script_wait(c);
                 if ( v3 == 6 )
                   return v3;
-                (*v244__f) = W_scene_yes_no(c);
-                if ( (*v244__f) == 6 )
+                (*v245__f) = W_scene_yes_no(c);
+                if ( (*v245__f) == 6 )
                   return 6;
                 *(_DWORD *)&GAP(c, 0x300, 636) = 20;
                 F32(c, 0x20) = 6;
                 v3 = W_script_wait(c);
                 if ( v3 == 6 )
                   return v3;
-                (*v229__f) = 30;
-                if ( (*v244__f) != 14 )
+                (*v230__f) = 30;
+                if ( (*v245__f) != 14 )
                 {
-                  (*v227__f) = D(0x867fec);
-                  v32 = W_actor_by_handle(900000002);
+                  (*v228__f) = D(0x867fec);
+                  v33 = W_actor_by_handle(900000002);
                   goto LABEL_163;
                 }
-                v84 = W_actor_by_handle(900000002);
-                W_scene_msg(c, 0, v84, D(0x8680a0), 0, 1, 1, 0, 30, 0, 0);
+                v85 = W_actor_by_handle(900000002);
+                W_scene_msg(c, 0, v85, D(0x8680a0), 0, 1, 1, 0, 30, 0, 0);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
@@ -8532,29 +8549,29 @@ LABEL_198:
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
-                    v85 = W_actor_by_handle(900000002);
-                    W_scene_face(c, v85, 3);
-                    v86 = W_actor_by_handle(900000008);
-                    W_scene_face(c, v86, 1);
-                    v87 = W_actor_by_handle(900000011);
+                    v86 = W_actor_by_handle(900000002);
+                    W_scene_face(c, v86, 3);
+                    v87 = W_actor_by_handle(900000008);
                     W_scene_face(c, v87, 1);
-                    v88 = W_actor_by_handle(900000010);
+                    v88 = W_actor_by_handle(900000011);
                     W_scene_face(c, v88, 1);
-                    v89 = W_actor_by_handle(900000012);
+                    v89 = W_actor_by_handle(900000010);
                     W_scene_face(c, v89, 1);
-                    v90 = W_actor_by_handle(900000013);
+                    v90 = W_actor_by_handle(900000012);
                     W_scene_face(c, v90, 1);
-                    v91 = W_actor_by_handle(900000009);
+                    v91 = W_actor_by_handle(900000013);
                     W_scene_face(c, v91, 1);
-                    v92 = W_actor_by_handle(100000102);
+                    v92 = W_actor_by_handle(900000009);
                     W_scene_face(c, v92, 1);
-                    v93 = W_actor_by_handle(100000103);
+                    v93 = W_actor_by_handle(100000102);
                     W_scene_face(c, v93, 1);
+                    v94 = W_actor_by_handle(100000103);
+                    W_scene_face(c, v94, 1);
                     v3 = W_script_wait(c);
                     if ( v3 != 6 )
                     {
-                      v94 = W_actor_by_handle(900000002);
-                      W_scene_msg(c, 0, v94, D(0x86803c), 0, 1, 1, 0, 30, 0, 0);
+                      v95 = W_actor_by_handle(900000002);
+                      W_scene_msg(c, 0, v95, D(0x86803c), 0, 1, 1, 0, 30, 0, 0);
                       v3 = W_script_wait(c);
                       if ( v3 != 6 )
                       {
@@ -8583,13 +8600,13 @@ LABEL_198:
               }
               else
               {
-                v95 = W_actor_by_handle(900000002);
-                W_scene_msg(c, 0, v95, D(0x867fa8), 0, 1, 1, 0, 11, 0, 0);
+                v96 = W_actor_by_handle(900000002);
+                W_scene_msg(c, 0, v96, D(0x867fa8), 0, 1, 1, 0, 11, 0, 0);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
-                  v96 = W_actor_by_handle(900000002);
-                  W_scene_msg(c, 0, v96, D(0x867f6c), 0, 1, 1, 0, 30, 0, 0);
+                  v97 = W_actor_by_handle(900000002);
+                  W_scene_msg(c, 0, v97, D(0x867f6c), 0, 1, 1, 0, 30, 0, 0);
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
@@ -8610,9 +8627,9 @@ LABEL_198:
           if ( W_script_flag(c, 101100113) != 7 )
             return v3;
           W_script_begin(c);
-          v44 = W_script_leader(c);
+          v45 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v44;
+          F32(c, 0x5c) = v45;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -8627,9 +8644,9 @@ LABEL_198:
             if ( v3 == 6 )
               return v3;
           }
-          v45 = W_script_leader(c);
+          v46 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v45;
+          F32(c, 0x5c) = v46;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -8637,8 +8654,8 @@ LABEL_198:
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
-          v46 = (_DWORD *)W_actor_by_handle(100000102);
-          W_scene_place_at_door(c, v46, 0, 0, 0, 3);
+          v47 = (_DWORD *)W_actor_by_handle(100000102);
+          W_scene_place_at_door(c, v47, 0, 0, 0, 3);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
@@ -8647,8 +8664,8 @@ LABEL_198:
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
-          v47 = W_actor_by_handle(100000102);
-          W_scene_msg(c, 0, v47, D(0x8682fc), 0, 1, 1, 0, 2, 0, 0);
+          v48 = W_actor_by_handle(100000102);
+          W_scene_msg(c, 0, v48, D(0x8682fc), 0, 1, 1, 0, 2, 0, 0);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
@@ -8674,8 +8691,8 @@ LABEL_198:
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
-          v48 = W_actor_by_handle(100000101);
-          W_scene_msg(c, 0, v48, D(0x8682d4), 0, 1, 1, 0, 2, 0, 0);
+          v49 = W_actor_by_handle(100000101);
+          W_scene_msg(c, 0, v49, D(0x8682d4), 0, 1, 1, 0, 2, 0, 0);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
@@ -8684,34 +8701,34 @@ LABEL_198:
           return v3;
       }
     case 0x382ED:
-      v153 = F32(c, 0x14);
-      if ( v153 == 0 )
+      v154 = F32(c, 0x14);
+      if ( v154 == 0 )
       {
-        v204 = W_script_flag(c, 100100101) - 200;
-        if ( v204 != 0 )
-          v205 = v204 == 100;
+        v205 = W_script_flag(c, 100100101) - 200;
+        if ( v205 != 0 )
+          v206 = v205 == 100;
         else
-          v205 = W_script_flag(c, 101100113) == 6;
-        if ( v205 )
+          v206 = W_script_flag(c, 101100113) == 6;
+        if ( v206 )
         {
           W_scene_spawn_at_door(c, 100000102, 0, 1, 12000, 0, 1, 0, 0);
           return 0;
         }
         return v3;
       }
-      if ( v153 != 2 || F32(F32(c, 0x4), 472) != 100000102 )
+      if ( v154 != 2 || F32(F32(c, 0x4), 472) != 100000102 )
         return v3;
-      v154 = W_script_flag(c, 100100101) - 200;
-      if ( v154 == 0 )
+      v155 = W_script_flag(c, 100100101) - 200;
+      if ( v155 == 0 )
       {
         if ( W_script_flag(c, 101100113) != 6 )
           return v3;
         W_script_begin(c);
         if ( W_script_flag(c, 101230103) != 0 )
         {
-          v194 = W_script_leader(c);
+          v195 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v194;
+          F32(c, 0x5c) = v195;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -8720,9 +8737,9 @@ LABEL_198:
           v3 = W_script_wait(c);
           if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
           {
-            v195 = W_script_leader(c);
+            v196 = W_script_leader(c);
             F32(c, 0x4c) = 0;
-            F32(c, 0x5c) = v195;
+            F32(c, 0x5c) = v196;
             F32(c, 0x50) = 0;
             F32(c, 0x54) = 0;
             F32(c, 0x58) = 800;
@@ -8730,21 +8747,21 @@ LABEL_198:
             v3 = W_script_wait(c);
             if ( v3 != 6 )
             {
-              (*v236__f) = W_actor_by_handle(230125101);
-              v196 = W_actor_by_handle(100000102);
-              (*v239__f) = W_sc_401d80(v196, (*v236__f), 0);
+              (*v237__f) = W_actor_by_handle(230125101);
               v197 = W_actor_by_handle(100000102);
-              W_scene_face(c, v197, (*v239__f));
+              (*v240__f) = W_sc_401d80(v197, (*v237__f), 0);
+              v198 = W_actor_by_handle(100000102);
+              W_scene_face(c, v198, (*v240__f));
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                v198 = W_actor_by_handle(100000102);
-                W_scene_msg(c, 0, v198, D(0x8673d0), 0, 1, 1, 0, 11, 0, 0);
+                v199 = W_actor_by_handle(100000102);
+                W_scene_msg(c, 0, v199, D(0x8673d0), 0, 1, 1, 0, 11, 0, 0);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
-                  v199 = W_actor_by_handle(230125101);
-                  W_scene_msg(c, 0, v199, D(0x85a574), 0, 1, 0, D(0x85a584), 0, 0, 0);
+                  v200 = W_actor_by_handle(230125101);
+                  W_scene_msg(c, 0, v200, D(0x85a574), 0, 1, 0, D(0x85a584), 0, 0, 0);
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
@@ -8758,9 +8775,9 @@ LABEL_198:
         }
         else
         {
-          v200 = W_script_leader(c);
+          v201 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v200;
+          F32(c, 0x5c) = v201;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -8773,9 +8790,9 @@ LABEL_198:
             v3 = W_script_wait(c);
             if ( v3 != 6 )
             {
-              v201 = W_script_leader(c);
+              v202 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v201;
+              F32(c, 0x5c) = v202;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -8783,13 +8800,13 @@ LABEL_198:
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                v202 = W_actor_by_handle(100000102);
-                W_scene_msg(c, 0, v202, D(0x867abc), 0, 1, 1, 0, 2, 0, 0);
+                v203 = W_actor_by_handle(100000102);
+                W_scene_msg(c, 0, v203, D(0x867abc), 0, 1, 1, 0, 2, 0, 0);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
-                  v203 = W_actor_by_handle(100000102);
-                  W_scene_msg(c, 0, v203, D(0x867388), 0, 1, 1, 0, 3, 0, 0);
+                  v204 = W_actor_by_handle(100000102);
+                  W_scene_msg(c, 0, v204, D(0x867388), 0, 1, 1, 0, 3, 0, 0);
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
@@ -8804,12 +8821,12 @@ LABEL_198:
         }
         return v3;
       }
-      if ( v154 != 100 )
+      if ( v155 != 100 )
         return v3;
       W_script_begin(c);
-      v155 = W_script_leader(c);
+      v156 = W_script_leader(c);
       F32(c, 0x4c) = 0;
-      F32(c, 0x5c) = v155;
+      F32(c, 0x5c) = v156;
       F32(c, 0x50) = 0;
       F32(c, 0x54) = 0;
       F32(c, 0x58) = 800;
@@ -8828,9 +8845,9 @@ LABEL_198:
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      v156 = W_script_leader(c);
+      v157 = W_script_leader(c);
       F32(c, 0x4c) = 0;
-      F32(c, 0x5c) = v156;
+      F32(c, 0x5c) = v157;
       F32(c, 0x50) = 0;
       F32(c, 0x54) = 0;
       F32(c, 0x58) = 800;
@@ -8839,9 +8856,9 @@ LABEL_198:
       if ( v3 == 6 )
         return v3;
       RC_40a5d0((int)((intptr_t)g_eng.sys), 0, 0, 0, 0, 1);
-      v157 = F32(c, 0x0);
-      F32(v157, 216) = 1;
-      F16(v157, 220) = 0;
+      v158 = F32(c, 0x0);
+      F32(v158, 216) = 1;
+      F16(v158, 220) = 0;
       *(_DWORD *)&GAP(c, 0x300, 636) = 100;
       F32(c, 0x20) = 6;
       v3 = W_script_wait(c);
@@ -8865,202 +8882,202 @@ LABEL_283:
           g_eng.log_fail_406440((const char *)D(0x8a9530), (SYS32(0x2884) + 0x2c), D(0x8a9b6c));
         }
       }
-      v158 = F32(c, 0x0);
-      F32(v158, 216) = 1;
-      F16(v158, 220) = 14;
-      v159 = W_actor_by_handle(100000102);
-      W_scene_msg(c, 0, v159, D(0x867abc), 0, 1, 1, 0, 2, 0, 0);
+      v159 = F32(c, 0x0);
+      F32(v159, 216) = 1;
+      F16(v159, 220) = 14;
+      v160 = W_actor_by_handle(100000102);
+      W_scene_msg(c, 0, v160, D(0x867abc), 0, 1, 1, 0, 2, 0, 0);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      v160 = W_actor_by_handle(100000101);
-      W_scene_msg(c, 0, v160, D(0x867a84), 0, 1, 1, 0, 10, 0, 0);
-      v3 = W_script_wait(c);
-      if ( v3 == 6 )
-        return v3;
-      v161 = W_actor_by_handle(100000102);
-      W_scene_msg(c, 0, v161, D(0x867a24), 0, 1, 1, 0, 2, 0, 0);
+      v161 = W_actor_by_handle(100000101);
+      W_scene_msg(c, 0, v161, D(0x867a84), 0, 1, 1, 0, 10, 0, 0);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
       v162 = W_actor_by_handle(100000102);
-      W_scene_msg(c, 0, v162, D(0x8679ec), 0, 1, 1, 0, 2, 0, 0);
+      W_scene_msg(c, 0, v162, D(0x867a24), 0, 1, 1, 0, 2, 0, 0);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      v163 = W_actor_by_handle(100000101);
-      W_scene_msg(c, 0, v163, D(0x8679c8), 0, 1, 1, 0, 2, 0, 0);
+      v163 = W_actor_by_handle(100000102);
+      W_scene_msg(c, 0, v163, D(0x8679ec), 0, 1, 1, 0, 2, 0, 0);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      v164 = W_actor_by_handle(100000102);
-      W_scene_msg(c, 0, v164, D(0x85a8dc), 0, 1, 1, 0, 2, 0, 0);
+      v164 = W_actor_by_handle(100000101);
+      W_scene_msg(c, 0, v164, D(0x8679c8), 0, 1, 1, 0, 2, 0, 0);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
       v165 = W_actor_by_handle(100000102);
-      W_scene_msg(c, 0, v165, D(0x867994), 0, 1, 1, 0, 9, 0, 0);
+      W_scene_msg(c, 0, v165, D(0x85a8dc), 0, 1, 1, 0, 2, 0, 0);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      v166 = W_actor_by_handle(100000101);
-      W_scene_msg(c, 0, v166, D(0x867950), 0, 1, 1, 0, 2, 0, 0);
+      v166 = W_actor_by_handle(100000102);
+      W_scene_msg(c, 0, v166, D(0x867994), 0, 1, 1, 0, 9, 0, 0);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
       v167 = W_actor_by_handle(100000101);
-      W_scene_msg(c, 0, v167, D(0x867904), 0, 1, 1, 0, 2, 0, 0);
+      W_scene_msg(c, 0, v167, D(0x867950), 0, 1, 1, 0, 2, 0, 0);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      v168 = W_actor_by_handle(100000102);
-      W_scene_msg(c, 0, v168, D(0x8678d4), 0, 1, 1, 0, 11, 0, 0);
+      v168 = W_actor_by_handle(100000101);
+      W_scene_msg(c, 0, v168, D(0x867904), 0, 1, 1, 0, 2, 0, 0);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      v169 = W_actor_by_handle(100000101);
-      W_scene_msg(c, 0, v169, D(0x867890), 0, 1, 1, 0, 3, 0, 0);
+      v169 = W_actor_by_handle(100000102);
+      W_scene_msg(c, 0, v169, D(0x8678d4), 0, 1, 1, 0, 11, 0, 0);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      v170 = W_actor_by_handle(100000102);
-      W_scene_msg(c, 0, v170, D(0x867830), 0, 1, 1, 0, 24, 0, 0);
+      v170 = W_actor_by_handle(100000101);
+      W_scene_msg(c, 0, v170, D(0x867890), 0, 1, 1, 0, 3, 0, 0);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      v171 = W_actor_by_handle(100000101);
-      W_scene_msg(c, 0, v171, D(0x8677cc), 0, 1, 1, 0, 14, 0, 0);
+      v171 = W_actor_by_handle(100000102);
+      W_scene_msg(c, 0, v171, D(0x867830), 0, 1, 1, 0, 24, 0, 0);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      v172 = W_actor_by_handle(100000102);
-      W_scene_msg(c, 0, v172, D(0x867794), 0, 1, 1, 0, 2, 0, 0);
+      v172 = W_actor_by_handle(100000101);
+      W_scene_msg(c, 0, v172, D(0x8677cc), 0, 1, 1, 0, 14, 0, 0);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      v173 = W_actor_by_handle(100000101);
-      W_scene_msg(c, 0, v173, D(0x86775c), 0, 1, 1, 0, 13, 0, 0);
+      v173 = W_actor_by_handle(100000102);
+      W_scene_msg(c, 0, v173, D(0x867794), 0, 1, 1, 0, 2, 0, 0);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      v174 = F32(c, 0x0);
+      v174 = W_actor_by_handle(100000101);
+      W_scene_msg(c, 0, v174, D(0x86775c), 0, 1, 1, 0, 13, 0, 0);
+      v3 = W_script_wait(c);
+      if ( v3 == 6 )
+        return v3;
+      v175 = F32(c, 0x0);
       F32(c, 0x2e4) = 1;
-      v175 = 0;
-      F32(v174, 216) = 0;
-      F16(v174, 220) = 0;
-      (*v241__f) = 0;
-      (*v246__f) = 0;
-      v176 = *(_DWORD *)&GAP(W, 0x1030, 8);
-      switch ( F32(v176, 272) )
+      v176 = 0;
+      F32(v175, 216) = 0;
+      F16(v175, 220) = 0;
+      (*v242__f) = 0;
+      (*v247__f) = 0;
+      v177 = *(_DWORD *)&GAP(W, 0x1030, 8);
+      switch ( F32(v177, 272) )
       {
         case 1:
         case 8:
-          v175 = 1;
-          (*v241__f) = 2;
-          (*v246__f) = 1;
+          v176 = 1;
+          (*v242__f) = 2;
+          (*v247__f) = 1;
           break;
         case 2:
           goto LABEL_308;
         case 3:
-          v175 = 2;
+          v176 = 2;
           break;
         case 4:
         case 9:
         case 0xA:
-          v175 = 7;
-          (*v241__f) = 1;
+          v176 = 7;
+          (*v242__f) = 1;
           break;
         case 5:
         case 6:
         case 7:
-          v175 = 37;
-          (*v241__f) = 1;
+          v176 = 37;
+          (*v242__f) = 1;
           break;
         case 0xB:
         case 0xC:
-          v175 = 8;
-          (*v241__f) = 1;
+          v176 = 8;
+          (*v242__f) = 1;
           break;
         case 0xD:
         case 0xE:
-          if ( F32(v174, 212) != 61 )
+          if ( F32(v175, 212) != 61 )
           {
-            v175 = 33;
-            (*v241__f) = 2;
+            v176 = 33;
+            (*v242__f) = 2;
           }
           break;
         case 0xF:
         case 0x10:
-          v175 = 39;
-          (*v241__f) = 1;
+          v176 = 39;
+          (*v242__f) = 1;
           break;
         case 0x11:
-          v175 = 36;
+          v176 = 36;
           break;
         case 0x12:
         case 0x13:
-          v177 = F32(v174, 212);
-          v175 = 0;
-          if ( v177 == 50 || v177 == 60 )
+          v178 = F32(v175, 212);
+          v176 = 0;
+          if ( v178 == 50 || v178 == 60 )
 LABEL_308:
-            v175 = 34;
+            v176 = 34;
           break;
         default:
           break;
       }
-      SETLO(v176, F16(v176, 324));
-      if ( (uint16_t)v176 != 0 )
-        v175 = v176;
-      if ( (*v246__f) != 0 )
+      SETLO(v177, F16(v177, 324));
+      if ( (uint16_t)v177 != 0 )
+        v176 = v177;
+      if ( (*v247__f) != 0 )
       {
-        v178 = F32(W, 0x2784);
-        if ( v178 != 0 )
+        v179 = F32(W, 0x2784);
+        if ( v179 != 0 )
         {
-          v179 = F32(v178, (2051) * 4);
-          if ( v179 != 0 && F32(*(_DWORD *)&v179, 2544) == 100000103 )
-            v175 = 9;
-          if ( W_room_party_count(v178, 1, 1) >= 4 )
-            v175 = 10;
+          v180 = F32(v179, (2051) * 4);
+          if ( v180 != 0 && F32(*(_DWORD *)&v180, 2544) == 100000103 )
+            v176 = 9;
+          if ( W_room_party_count(v179, 1, 1) >= 4 )
+            v176 = 10;
         }
       }
-      if ( (*v241__f) == 1 )
+      if ( (*v242__f) == 1 )
       {
-        v180 = F32(v174, 212);
-        if ( v180 == 40 )
+        v181 = F32(v175, 212);
+        if ( v181 == 40 )
         {
-          v175 = 46;
+          v176 = 46;
           goto LABEL_330;
         }
       }
       else
       {
-        if ( (*v241__f) != 2 )
+        if ( (*v242__f) != 2 )
           goto LABEL_330;
-        v180 = F32(v174, 212);
-        if ( v180 == 40 )
+        v181 = F32(v175, 212);
+        if ( v181 == 40 )
         {
-          v175 = 45;
+          v176 = 45;
           goto LABEL_330;
         }
       }
-      if ( v180 == 50 || v180 == 60 )
-        v175 = 43;
+      if ( v181 == 50 || v181 == 60 )
+        v176 = 43;
 LABEL_330:
       switch ( F32(W, 0x2770) )
       {
         case 1:
-          v175 = 40;
+          v176 = 40;
           break;
         case 2:
-          v175 = 41;
+          v176 = 41;
           break;
         case 3:
-          v175 = 42;
+          v176 = 42;
           break;
         default:
           break;
       }
-      RC_40a5d0((int)((intptr_t)g_eng.sys), v175, 1, 1, 20, 1);
+      RC_40a5d0((int)((intptr_t)g_eng.sys), v176, 1, 1, 20, 1);
       *(_DWORD *)&GAP(c, 0x300, 636) = 50;
       F32(c, 0x20) = 6;
       v3 = W_script_wait(c);
@@ -9068,75 +9085,75 @@ LABEL_330:
       {
         while ( 1 )
         {
-          v181 = W_actor_by_handle(100000101);
-          W_scene_msg(c, 0, v181, D(0x867724), 0, 1, 1, 0, 9, 0, 0);
-          v3 = W_script_wait(c);
-          if ( v3 == 6 )
-            break;
           v182 = W_actor_by_handle(100000101);
-          W_scene_msg(c, 0, v182, D(0x8676d0), 0, 1, 1, 0, 9, 0, 0);
+          W_scene_msg(c, 0, v182, D(0x867724), 0, 1, 1, 0, 9, 0, 0);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             break;
           v183 = W_actor_by_handle(100000101);
-          W_scene_msg(c, 0, v183, D(0x867694), 0, 1, 1, 0, 1, 0, 0);
+          W_scene_msg(c, 0, v183, D(0x8676d0), 0, 1, 1, 0, 9, 0, 0);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             break;
-          v184 = W_actor_by_handle(100000102);
-          W_scene_msg(c, 0, v184, D(0x867638), 0, 1, 1, 0, 2, 0, 0);
+          v184 = W_actor_by_handle(100000101);
+          W_scene_msg(c, 0, v184, D(0x867694), 0, 1, 1, 0, 1, 0, 0);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             break;
           v185 = W_actor_by_handle(100000102);
-          W_scene_msg(c, 0, v185, D(0x867608), 0, 1, 1, 0, 2, 0, 0);
+          W_scene_msg(c, 0, v185, D(0x867638), 0, 1, 1, 0, 2, 0, 0);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             break;
           v186 = W_actor_by_handle(100000102);
-          W_scene_msg(c, 0, v186, D(0x8675b8), 0, 1, 1, 0, 2, 0, 0);
+          W_scene_msg(c, 0, v186, D(0x867608), 0, 1, 1, 0, 2, 0, 0);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             break;
           v187 = W_actor_by_handle(100000102);
-          W_scene_msg(c, 0, v187, D(0x86758c), 0, 1, 1, 0, 2, 0, 0);
+          W_scene_msg(c, 0, v187, D(0x8675b8), 0, 1, 1, 0, 2, 0, 0);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             break;
           v188 = W_actor_by_handle(100000102);
-          W_scene_msg(c, 0, v188, D(0x867538), 0, 1, 1, 0, 2, 0, 0);
+          W_scene_msg(c, 0, v188, D(0x86758c), 0, 1, 1, 0, 2, 0, 0);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             break;
           v189 = W_actor_by_handle(100000102);
-          W_scene_msg(c, 0, v189, D(0x8674f0), 0, 1, 1, 0, 9, 0, 0);
+          W_scene_msg(c, 0, v189, D(0x867538), 0, 1, 1, 0, 2, 0, 0);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             break;
           v190 = W_actor_by_handle(100000102);
-          W_scene_msg(c, 0, v190, D(0x86748c), 0, 1, 1, 0, 2, 0, 0);
+          W_scene_msg(c, 0, v190, D(0x8674f0), 0, 1, 1, 0, 9, 0, 0);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             break;
           v191 = W_actor_by_handle(100000102);
-          W_scene_msg(c, 0, v191, D(0x867430), 0, 1, 1, 0, 2, 0, 0);
+          W_scene_msg(c, 0, v191, D(0x86748c), 0, 1, 1, 0, 2, 0, 0);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             break;
           v192 = W_actor_by_handle(100000102);
-          W_scene_msg(c, 0, v192, D(0x8673fc), 0, 1, 1, 0, 9, 0, 0);
+          W_scene_msg(c, 0, v192, D(0x867430), 0, 1, 1, 0, 2, 0, 0);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             break;
-          v193 = W_scene_yes_no(c);
-          if ( v193 == 6 )
+          v193 = W_actor_by_handle(100000102);
+          W_scene_msg(c, 0, v193, D(0x8673fc), 0, 1, 1, 0, 9, 0, 0);
+          v3 = W_script_wait(c);
+          if ( v3 == 6 )
+            break;
+          v194 = W_scene_yes_no(c);
+          if ( v194 == 6 )
             return 6;
           *(_DWORD *)&GAP(c, 0x300, 636) = 20;
           F32(c, 0x20) = 6;
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             break;
-          if ( v193 == 14 )
+          if ( v194 == 14 )
           {
             RC_41d4a0(c, 100000102, 0);
             W_script_flag_set(c, 100100101, 310, 0);
@@ -9147,8 +9164,8 @@ LABEL_330:
       }
       return v3;
     case 0x382F2:
-      v206 = F32(c, 0x14);
-      if ( v206 == 0 )
+      v207 = F32(c, 0x14);
+      if ( v207 == 0 )
       {
         switch ( W_script_flag(c, 100100101) )
         {
@@ -9177,12 +9194,12 @@ LABEL_406:
         }
         return result;
       }
-      if ( v206 == 2 && F32(F32(c, 0x4), 472) == 900000004 && W_sc_402f40(c) == 100000101 )
+      if ( v207 == 2 && F32(F32(c, 0x4), 472) == 900000004 && W_sc_402f40(c) == 100000101 )
       {
         W_script_begin(c);
-        v207 = W_script_leader(c);
+        v208 = W_script_leader(c);
         F32(c, 0x4c) = 0;
-        F32(c, 0x5c) = v207;
+        F32(c, 0x5c) = v208;
         F32(c, 0x50) = 0;
         F32(c, 0x54) = 0;
         F32(c, 0x58) = 800;
@@ -9195,9 +9212,9 @@ LABEL_406:
           v3 = W_script_wait(c);
           if ( v3 != 6 )
           {
-            v208 = W_script_leader(c);
+            v209 = W_script_leader(c);
             F32(c, 0x4c) = 0;
-            F32(c, 0x5c) = v208;
+            F32(c, 0x5c) = v209;
             F32(c, 0x50) = 0;
             F32(c, 0x54) = 0;
             F32(c, 0x58) = 800;
@@ -9205,92 +9222,92 @@ LABEL_406:
             v3 = W_script_wait(c);
             if ( v3 != 6 )
             {
-              v209 = W_script_flag(c, 100100101);
-              if ( v209 == 200 )
+              v210 = W_script_flag(c, 100100101);
+              if ( v210 == 200 )
               {
                 if ( W_script_flag(c, 101230108) == 0 )
                 {
-                  v211 = W_actor_by_handle(900000004);
-                  W_scene_msg(c, 0, v211, D(0x867308), 0, 1, 1, 0, 0, 0, 0);
-                  v3 = W_script_wait(c);
-                  if ( v3 == 6 )
-                    return v3;
-                  v212 = W_actor_by_handle(100000101);
-                  W_scene_msg(c, 0, v212, D(0x8672c0), 0, 1, 1, 0, 1, 0, 0);
+                  v212 = W_actor_by_handle(900000004);
+                  W_scene_msg(c, 0, v212, D(0x867308), 0, 1, 1, 0, 0, 0, 0);
                   v3 = W_script_wait(c);
                   if ( v3 == 6 )
                     return v3;
                   v213 = W_actor_by_handle(100000101);
-                  W_scene_msg(c, 0, v213, D(0x867278), 0, 1, 1, 0, 3, 0, 0);
+                  W_scene_msg(c, 0, v213, D(0x8672c0), 0, 1, 1, 0, 1, 0, 0);
                   v3 = W_script_wait(c);
                   if ( v3 == 6 )
                     return v3;
-                  v214 = W_actor_by_handle(900000004);
-                  W_scene_msg(c, 0, v214, D(0x867258), 0, 1, 1, 0, 0, 0, 0);
+                  v214 = W_actor_by_handle(100000101);
+                  W_scene_msg(c, 0, v214, D(0x867278), 0, 1, 1, 0, 3, 0, 0);
                   v3 = W_script_wait(c);
                   if ( v3 == 6 )
                     return v3;
                   v215 = W_actor_by_handle(900000004);
-                  W_scene_msg(c, 0, v215, D(0x86721c), 0, 1, 1, 0, 0, 0, 0);
+                  W_scene_msg(c, 0, v215, D(0x867258), 0, 1, 1, 0, 0, 0, 0);
                   v3 = W_script_wait(c);
                   if ( v3 == 6 )
                     return v3;
                   v216 = W_actor_by_handle(900000004);
-                  W_scene_msg(c, 0, v216, D(0x8671d0), 0, 1, 1, 0, 0, 0, 0);
+                  W_scene_msg(c, 0, v216, D(0x86721c), 0, 1, 1, 0, 0, 0, 0);
                   v3 = W_script_wait(c);
                   if ( v3 == 6 )
                     return v3;
-                  v217 = W_actor_by_handle(100000101);
-                  W_scene_msg(c, 0, v217, D(0x867190), 0, 1, 1, 0, 11, 0, 0);
+                  v217 = W_actor_by_handle(900000004);
+                  W_scene_msg(c, 0, v217, D(0x8671d0), 0, 1, 1, 0, 0, 0, 0);
                   v3 = W_script_wait(c);
                   if ( v3 == 6 )
                     return v3;
-                  v218 = W_actor_by_handle(900000004);
-                  W_scene_msg(c, 0, v218, D(0x867158), 0, 1, 1, 0, 0, 0, 0);
+                  v218 = W_actor_by_handle(100000101);
+                  W_scene_msg(c, 0, v218, D(0x867190), 0, 1, 1, 0, 11, 0, 0);
                   v3 = W_script_wait(c);
                   if ( v3 == 6 )
                     return v3;
                   v219 = W_actor_by_handle(900000004);
-                  W_scene_msg(c, 0, v219, D(0x8670ec), 0, 1, 1, 0, 0, 0, 0);
+                  W_scene_msg(c, 0, v219, D(0x867158), 0, 1, 1, 0, 0, 0, 0);
                   v3 = W_script_wait(c);
                   if ( v3 == 6 )
                     return v3;
                   v220 = W_actor_by_handle(900000004);
-                  W_scene_msg(c, 0, v220, D(0x8670a8), 0, 1, 1, 0, 0, 0, 0);
+                  W_scene_msg(c, 0, v220, D(0x8670ec), 0, 1, 1, 0, 0, 0, 0);
                   v3 = W_script_wait(c);
                   if ( v3 == 6 )
                     return v3;
-                  v221 = W_actor_by_handle(100000101);
-                  W_scene_msg(c, 0, v221, D(0x867064), 0, 1, 1, 0, 2, 0, 0);
+                  v221 = W_actor_by_handle(900000004);
+                  W_scene_msg(c, 0, v221, D(0x8670a8), 0, 1, 1, 0, 0, 0, 0);
                   v3 = W_script_wait(c);
                   if ( v3 == 6 )
                     return v3;
-                  v222 = W_actor_by_handle(900000004);
-                  W_scene_msg(c, 0, v222, D(0x86700c), 0, 1, 1, 0, 0, 0, 0);
+                  v222 = W_actor_by_handle(100000101);
+                  W_scene_msg(c, 0, v222, D(0x867064), 0, 1, 1, 0, 2, 0, 0);
+                  v3 = W_script_wait(c);
+                  if ( v3 == 6 )
+                    return v3;
+                  v223 = W_actor_by_handle(900000004);
+                  W_scene_msg(c, 0, v223, D(0x86700c), 0, 1, 1, 0, 0, 0, 0);
                   v3 = W_script_wait(c);
                   if ( v3 == 6 )
                     return v3;
                   W_script_flag_set(c, 101230108, 1, 0);
                 }
               }
-              else if ( v209 == 400 )
+              else if ( v210 == 400 )
               {
-                v210 = W_actor_by_handle(900000004);
-                W_scene_msg(c, 0, v210, D(0x86733c), 0, 1, 1, 0, 0, 0, 0);
+                v211 = W_actor_by_handle(900000004);
+                W_scene_msg(c, 0, v211, D(0x86733c), 0, 1, 1, 0, 0, 0, 0);
                 v3 = W_script_wait(c);
                 if ( v3 == 6 )
                   return v3;
               }
-              (*v229__f) = 0;
-              (*v227__f) = D(0x866fb0);
-              v32 = W_actor_by_handle(900000004);
+              (*v230__f) = 0;
+              (*v228__f) = D(0x866fb0);
+              v33 = W_actor_by_handle(900000004);
 LABEL_163:
-              W_scene_msg(c, 0, v32, (*v227__f), 0, 1, 1, 0, (*v229__f), 0, 0);
+              W_scene_msg(c, 0, v33, (*v228__f), 0, 1, 1, 0, (*v230__f), 0, 0);
 LABEL_164:
               v3 = W_script_wait(c);
-              v66 = v3 == 6;
+              v67 = v3 == 6;
 LABEL_165:
-              if ( !v66 )
+              if ( !v67 )
               {
                 W_script_end(c);
                 return v3;
@@ -9303,16 +9320,16 @@ LABEL_165:
     case 0x38306:
       if ( F32(c, 0x14) == 0 )
       {
-        v223 = W_script_flag(c, 100100101);
-        if ( v223 == 200 || v223 == 400 )
+        v224 = W_script_flag(c, 100100101);
+        if ( v224 == 200 || v224 == 400 )
         {
           W_scene_spawn_at_door(c, 900000014, 0, 113, 0, 0, 3, 1, 0);
           W_scene_spawn_at_door(c, 900000024, 0, 112, 8000, 0, 1, 1, 0);
           W_scene_spawn_at_door(c, 900000025, 0, 112, -8000, 0, 3, 0, 0);
           W_scene_spawn_at_door(c, 900000020, 0, 111, 0, 0, 1, 1, 0);
           W_scene_spawn_at_door(c, 900000027, 0, 211, 0, 0, 1, 0, 0);
-          v224 = W_actor_by_handle(900000027);
-          W_sc_41efe0(v224, 7);
+          v225 = W_actor_by_handle(900000027);
+          W_sc_41efe0(v225, 7);
         }
         W_scene_spawn_at_door(c, 900000003, 0, 201, -4000, 0, 1, 0, 0);
       }
@@ -9330,8 +9347,8 @@ int32_t chs_4d13a0(wl_char *self)
     intptr_t v3;
     intptr_t v4;
     intptr_t v5;
-    intptr_t v6;
-    intptr_t v7;
+    uint32_t v6;
+    uint32_t v7;
     intptr_t v8;
     intptr_t v9;
     intptr_t v10;
@@ -9356,7 +9373,7 @@ int32_t chs_4d13a0(wl_char *self)
     intptr_t v29;
     intptr_t v30;
     intptr_t v31;
-    intptr_t v32;
+    uint32_t v32;
     intptr_t v33;
     intptr_t v34;
     intptr_t v35;
@@ -12449,9 +12466,9 @@ int32_t chs_4c6b40(wl_char *self)
     intptr_t c = (intptr_t)self;
     uint32_t * v1;
     intptr_t v3;
-    intptr_t v4;
-    intptr_t v5;
-    intptr_t v6;
+    uint32_t v4;
+    uint32_t v5;
+    uint32_t v6;
     int v7;
     intptr_t v8;
     intptr_t v9;
@@ -12534,10 +12551,10 @@ int32_t chs_4c6b40(wl_char *self)
     intptr_t v86;
     intptr_t v87;
     int32_t * v88;
-    int32_t * v89;
+    intptr_t v89;
     int32_t * v90;
     intptr_t v91;
-    intptr_t v92;
+    int32_t * v92;
     intptr_t v93;
     intptr_t v94;
     intptr_t v95;
@@ -12552,7 +12569,7 @@ int32_t chs_4c6b40(wl_char *self)
     intptr_t v104;
     intptr_t v105;
     intptr_t v106;
-    intptr_t v107;
+    uint32_t v107;
     intptr_t v108;
     intptr_t v109;
     intptr_t v110;
@@ -12597,8 +12614,8 @@ int32_t chs_4c6b40(wl_char *self)
     intptr_t v149;
     intptr_t v150;
     intptr_t v151;
-    intptr_t v152;
-    intptr_t v153;
+    uint32_t v152;
+    uint32_t v153;
     intptr_t v154;
     intptr_t v155;
     intptr_t v156;
@@ -12614,14 +12631,17 @@ int32_t chs_4c6b40(wl_char *self)
     intptr_t v166;
     intptr_t v167;
     intptr_t v168;
+    intptr_t v169;
+    intptr_t v170;
+    intptr_t v171;
     _Alignas(8) uint8_t frame_[0x38 + 0x10];   /* the stack locals at their ebp offsets */
     memset(frame_, 0, sizeof frame_);
-    char * *const v170__f = (char * *)(frame_ + 0x0);   /* ebp-0x38 */
-    char * *const v169__f = (char * *)(frame_ + 0x0);   /* ebp-0x38 */
-    intptr_t *const v172__f = (intptr_t *)(frame_ + 0x14);   /* ebp-0x24 */
-    intptr_t *const v171__f = (intptr_t *)(frame_ + 0x14);   /* ebp-0x24 */
-    intptr_t *const v173__f = (intptr_t *)(frame_ + 0x30);   /* ebp-0x8 */
-    intptr_t *const v174__f = (intptr_t *)(frame_ + 0x34);   /* ebp-0x4 */
+    char * *const v173__f = (char * *)(frame_ + 0x0);   /* ebp-0x38 */
+    char * *const v172__f = (char * *)(frame_ + 0x0);   /* ebp-0x38 */
+    intptr_t *const v175__f = (intptr_t *)(frame_ + 0x14);   /* ebp-0x24 */
+    intptr_t *const v174__f = (intptr_t *)(frame_ + 0x14);   /* ebp-0x24 */
+    intptr_t *const v176__f = (intptr_t *)(frame_ + 0x30);   /* ebp-0x8 */
+    intptr_t *const v177__f = (intptr_t *)(frame_ + 0x34);   /* ebp-0x4 */
 
   v1 = *(unsigned int **)&GAP(W, 0x1030, 8);
   v3 = 0;
@@ -12632,8 +12652,8 @@ int32_t chs_4c6b40(wl_char *self)
   {
     if ( v4 == 245110 )
     {
-      v141 = F32(c, 0x14);
-      if ( v141 == 0 )
+      v144 = F32(c, 0x14);
+      if ( v144 == 0 )
       {
         if ( W_script_flag(c, 100100101) == 401 && W_script_flag(c, 101245101) == 0 )
         {
@@ -12644,9 +12664,9 @@ int32_t chs_4c6b40(wl_char *self)
           v3 = W_script_wait(c);
           if ( v3 != 6 )
           {
-            v148 = F32(c, 0x0);
+            v151 = F32(c, 0x0);
             F32(c, 0x1c) = 0;
-            W_room_bgm_restart(v148, 0, 1);
+            W_room_bgm_restart(v151, 0, 1);
             W_scene_pause(c, 100);
             v3 = W_script_wait(c);
             if ( v3 != 6 )
@@ -12669,15 +12689,15 @@ int32_t chs_4c6b40(wl_char *self)
         }
         return v3;
       }
-      if ( v141 != 2 )
+      if ( v144 != 2 )
         return v3;
       if ( W_script_flag(c, 100100101) != 401 )
         return v3;
       if ( F32(F32(c, 0x4), 472) != 245110501 )
         return v3;
       W_script_begin(c);
-      v142 = W_script_leader(c);
-      W_scene_camera(c, v142, 0, 0, 800);
+      v145 = W_script_leader(c);
+      W_scene_camera(c, v145, 0, 0, 800);
       W_script_party_cast(c);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
@@ -12692,8 +12712,8 @@ int32_t chs_4c6b40(wl_char *self)
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      v143 = W_script_leader(c);
-      W_scene_camera(c, v143, 0, 0, 800);
+      v146 = W_script_leader(c);
+      W_scene_camera(c, v146, 0, 0, 800);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
@@ -12706,12 +12726,12 @@ int32_t chs_4c6b40(wl_char *self)
       if ( v3 == 6 )
         return v3;
       W_scene_mark(c);
-      v144 = W_actor_by_handle(100000102);
-      v145 = W_sc_4a5e40(c, 100000101, v144, 0);
-      W_scene_face_rec(c, 100000101, v145);
-      v146 = W_actor_by_handle(100000101);
-      v147 = W_sc_4a5e40(c, 100000102, v146, 0);
-      W_scene_face_rec(c, 100000102, v147);
+      v147 = W_actor_by_handle(100000102);
+      v148 = W_sc_4a5e40(c, 100000101, v147, 0);
+      W_scene_face_rec(c, 100000101, v148);
+      v149 = W_actor_by_handle(100000101);
+      v150 = W_sc_4a5e40(c, 100000102, v149, 0);
+      W_scene_face_rec(c, 100000102, v150);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
@@ -13003,15 +13023,15 @@ LABEL_250:
           case 1:
             if ( W_script_flag(c, 100100101) != 310 )
               return v3;
-            v129 = W_script_flag(c, 101240104) - 1;
-            if ( v129 != 0 )
+            v132 = W_script_flag(c, 101240104) - 1;
+            if ( v132 != 0 )
             {
-              if ( v129 == 1 )
+              if ( v132 == 1 )
               {
                 W_script_begin(c);
-                v130 = W_script_leader(c);
+                v133 = W_script_leader(c);
                 F32(c, 0x4c) = 0;
-                F32(c, 0x5c) = v130;
+                F32(c, 0x5c) = v133;
                 F32(c, 0x50) = 0;
                 F32(c, 0x54) = 0;
                 F32(c, 0x58) = 800;
@@ -13020,9 +13040,9 @@ LABEL_250:
                 v3 = W_script_wait(c);
                 if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
                 {
-                  v131 = W_script_leader(c);
+                  v134 = W_script_leader(c);
                   F32(c, 0x4c) = 0;
-                  F32(c, 0x5c) = v131;
+                  F32(c, 0x5c) = v134;
                   F32(c, 0x50) = 0;
                   F32(c, 0x54) = 0;
                   F32(c, 0x58) = 800;
@@ -13030,11 +13050,11 @@ LABEL_250:
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
-                    (*v172__f) = 11;
-                    (*v170__f) = D(0x865c5c);
-                    v132 = W_actor_by_handle(100000101);
+                    (*v175__f) = 11;
+                    (*v173__f) = D(0x865c5c);
+                    v135 = W_actor_by_handle(100000101);
 LABEL_249:
-                    W_scene_msg(c, 0, v132, (*v170__f), 0, 1, 1, 0, (*v172__f), 0, 0);
+                    W_scene_msg(c, 0, v135, (*v173__f), 0, 1, 1, 0, (*v175__f), 0, 0);
                     goto LABEL_250;
                   }
                 }
@@ -13043,9 +13063,9 @@ LABEL_249:
             else if ( F32(c, 0x10) == 2 )
             {
               W_script_begin(c);
-              v133 = W_script_leader(c);
+              v136 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v133;
+              F32(c, 0x5c) = v136;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -13054,9 +13074,9 @@ LABEL_249:
               v3 = W_script_wait(c);
               if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
               {
-                v134 = W_script_leader(c);
+                v137 = W_script_leader(c);
                 F32(c, 0x4c) = 0;
-                F32(c, 0x5c) = v134;
+                F32(c, 0x5c) = v137;
                 F32(c, 0x50) = 0;
                 F32(c, 0x54) = 0;
                 F32(c, 0x58) = 800;
@@ -13064,9 +13084,9 @@ LABEL_249:
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
-                  (*v172__f) = 9;
-                  (*v170__f) = D(0x865c30);
-                  v132 = W_actor_by_handle(100000102);
+                  (*v175__f) = 9;
+                  (*v173__f) = D(0x865c30);
+                  v135 = W_actor_by_handle(100000102);
                   goto LABEL_249;
                 }
               }
@@ -13078,9 +13098,9 @@ LABEL_249:
               && W_script_flag(c, 101240104) == 2 )
             {
               W_script_begin(c);
-              v122 = W_script_leader(c);
+              v125 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v122;
+              F32(c, 0x5c) = v125;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -13093,9 +13113,9 @@ LABEL_249:
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
-                  v123 = W_script_leader(c);
+                  v126 = W_script_leader(c);
                   F32(c, 0x4c) = 0;
-                  F32(c, 0x5c) = v123;
+                  F32(c, 0x5c) = v126;
                   F32(c, 0x50) = 0;
                   F32(c, 0x54) = 0;
                   F32(c, 0x58) = 800;
@@ -13103,28 +13123,28 @@ LABEL_249:
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
-                    v124 = W_actor_by_handle(100000101);
-                    W_scene_msg(c, 0, v124, D(0x865d78), 0, 1, 1, 0, 10, 0, 0);
+                    v127 = W_actor_by_handle(100000101);
+                    W_scene_msg(c, 0, v127, D(0x865d78), 0, 1, 1, 0, 10, 0, 0);
                     v3 = W_script_wait(c);
                     if ( v3 != 6 )
                     {
-                      v125 = W_actor_by_handle(100000102);
-                      W_scene_msg(c, 0, v125, D(0x865d3c), 0, 1, 1, 0, 17, 0, 0);
+                      v128 = W_actor_by_handle(100000102);
+                      W_scene_msg(c, 0, v128, D(0x865d3c), 0, 1, 1, 0, 17, 0, 0);
                       v3 = W_script_wait(c);
                       if ( v3 != 6 )
                       {
-                        v126 = W_actor_by_handle(100000101);
-                        W_scene_msg(c, 0, v126, D(0x865cf4), 0, 1, 1, 0, 17, 0, 0);
+                        v129 = W_actor_by_handle(100000101);
+                        W_scene_msg(c, 0, v129, D(0x865cf4), 0, 1, 1, 0, 17, 0, 0);
                         v3 = W_script_wait(c);
                         if ( v3 != 6 )
                         {
-                          v127 = W_actor_by_handle(100000102);
-                          W_scene_msg(c, 0, v127, D(0x865cb0), 0, 1, 1, 0, 13, 0, 0);
+                          v130 = W_actor_by_handle(100000102);
+                          W_scene_msg(c, 0, v130, D(0x865cb0), 0, 1, 1, 0, 13, 0, 0);
                           v3 = W_script_wait(c);
                           if ( v3 != 6 )
                           {
-                            v128 = W_actor_by_handle(100000101);
-                            W_scene_msg(c, 0, v128, D(0x865c88), 0, 1, 1, 0, 13, 0, 0);
+                            v131 = W_actor_by_handle(100000101);
+                            W_scene_msg(c, 0, v131, D(0x865c88), 0, 1, 1, 0, 13, 0, 0);
                             v3 = W_script_wait(c);
                             if ( v3 != 6 )
                             {
@@ -13143,12 +13163,43 @@ LABEL_249:
             }
             else
             {
-              v98 = W_script_flag(c, 100100101) - 320;
-              if ( v98 != 0 )
+              v101 = W_script_flag(c, 100100101) - 320;
+              if ( v101 != 0 )
               {
-                if ( v98 != 81 )
+                if ( v101 != 81 )
                   return v3;
                 if ( F32(F32(c, 0x4), 472) == 900000009 )
+                {
+                  W_script_begin(c);
+                  v105 = W_script_leader(c);
+                  F32(c, 0x4c) = 0;
+                  F32(c, 0x5c) = v105;
+                  F32(c, 0x50) = 0;
+                  F32(c, 0x54) = 0;
+                  F32(c, 0x58) = 800;
+                  F32(c, 0x20) = 3;
+                  W_script_party_cast(c);
+                  v3 = W_script_wait(c);
+                  if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
+                  {
+                    v106 = W_script_leader(c);
+                    F32(c, 0x4c) = 0;
+                    F32(c, 0x5c) = v106;
+                    F32(c, 0x50) = 0;
+                    F32(c, 0x54) = 0;
+                    F32(c, 0x58) = 800;
+                    F32(c, 0x20) = 3;
+                    v3 = W_script_wait(c);
+                    if ( v3 != 6 )
+                    {
+                      (*v174__f) = 11;
+                      (*v172__f) = D(0x866038);
+                      v104 = W_actor_by_handle(900000009);
+                      goto LABEL_214;
+                    }
+                  }
+                }
+                else if ( F32(F32(c, 0x4), 472) == 900000010 )
                 {
                   W_script_begin(c);
                   v102 = W_script_leader(c);
@@ -13172,58 +13223,27 @@ LABEL_249:
                     v3 = W_script_wait(c);
                     if ( v3 != 6 )
                     {
-                      (*v171__f) = 11;
-                      (*v169__f) = D(0x866038);
-                      v101 = W_actor_by_handle(900000009);
-                      goto LABEL_214;
-                    }
-                  }
-                }
-                else if ( F32(F32(c, 0x4), 472) == 900000010 )
-                {
-                  W_script_begin(c);
-                  v99 = W_script_leader(c);
-                  F32(c, 0x4c) = 0;
-                  F32(c, 0x5c) = v99;
-                  F32(c, 0x50) = 0;
-                  F32(c, 0x54) = 0;
-                  F32(c, 0x58) = 800;
-                  F32(c, 0x20) = 3;
-                  W_script_party_cast(c);
-                  v3 = W_script_wait(c);
-                  if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
-                  {
-                    v100 = W_script_leader(c);
-                    F32(c, 0x4c) = 0;
-                    F32(c, 0x5c) = v100;
-                    F32(c, 0x50) = 0;
-                    F32(c, 0x54) = 0;
-                    F32(c, 0x58) = 800;
-                    F32(c, 0x20) = 3;
-                    v3 = W_script_wait(c);
-                    if ( v3 != 6 )
-                    {
-                      (*v171__f) = 7;
-                      (*v169__f) = D(0x866054);
-                      v101 = W_actor_by_handle(900000010);
+                      (*v174__f) = 7;
+                      (*v172__f) = D(0x866054);
+                      v104 = W_actor_by_handle(900000010);
 LABEL_214:
-                      W_scene_msg(c, 0, v101, (*v169__f), 0, 1, 1, 0, (*v171__f), 0, 0);
+                      W_scene_msg(c, 0, v104, (*v172__f), 0, 1, 1, 0, (*v174__f), 0, 0);
                       goto LABEL_215;
                     }
                   }
                 }
               }
               else if ( W_script_flag(c, 101240105) != 0
-                     || (v104 = F32(F32(c, 0x4), 472)) < 0x35A4E908
-                     || v104 > 0x35A4E90A )
+                     || (v107 = F32(F32(c, 0x4), 472)) < 0x35A4E908
+                     || v107 > 0x35A4E90A )
               {
                 switch ( F32(F32(c, 0x4), 472) )
                 {
                   case 0x35A4E908:
                     W_script_begin(c);
-                    v119 = W_script_leader(c);
+                    v122 = W_script_leader(c);
                     F32(c, 0x4c) = 0;
-                    F32(c, 0x5c) = v119;
+                    F32(c, 0x5c) = v122;
                     F32(c, 0x50) = 0;
                     F32(c, 0x54) = 0;
                     F32(c, 0x58) = 800;
@@ -13236,9 +13256,9 @@ LABEL_214:
                       v3 = W_script_wait(c);
                       if ( v3 != 6 )
                       {
-                        v120 = W_script_leader(c);
+                        v123 = W_script_leader(c);
                         F32(c, 0x4c) = 0;
-                        F32(c, 0x5c) = v120;
+                        F32(c, 0x5c) = v123;
                         F32(c, 0x50) = 0;
                         F32(c, 0x54) = 0;
                         F32(c, 0x58) = 800;
@@ -13246,14 +13266,14 @@ LABEL_214:
                         v3 = W_script_wait(c);
                         if ( v3 != 6 )
                         {
-                          v121 = W_actor_by_handle(900000008);
-                          W_scene_msg(c, 0, v121, D(0x865dd4), 0, 1, 1, 0, 10, 0, 0);
+                          v124 = W_actor_by_handle(900000008);
+                          W_scene_msg(c, 0, v124, D(0x865dd4), 0, 1, 1, 0, 10, 0, 0);
                           v3 = W_script_wait(c);
                           if ( v3 != 6 )
                           {
-                            (*v171__f) = 11;
-                            (*v169__f) = D(0x865da4);
-                            v101 = W_actor_by_handle(900000008);
+                            (*v174__f) = 11;
+                            (*v172__f) = D(0x865da4);
+                            v104 = W_actor_by_handle(900000008);
                             goto LABEL_214;
                           }
                         }
@@ -13261,6 +13281,53 @@ LABEL_214:
                     }
                     break;
                   case 0x35A4E909:
+                    W_script_begin(c);
+                    v118 = W_script_leader(c);
+                    F32(c, 0x4c) = 0;
+                    F32(c, 0x5c) = v118;
+                    F32(c, 0x50) = 0;
+                    F32(c, 0x54) = 0;
+                    F32(c, 0x58) = 800;
+                    F32(c, 0x20) = 3;
+                    W_script_party_cast(c);
+                    v3 = W_script_wait(c);
+                    if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
+                    {
+                      W_scene_talk_face(c, 1, F32(c, 0x4), 1, 1);
+                      v3 = W_script_wait(c);
+                      if ( v3 != 6 )
+                      {
+                        v119 = W_script_leader(c);
+                        F32(c, 0x4c) = 0;
+                        F32(c, 0x5c) = v119;
+                        F32(c, 0x50) = 0;
+                        F32(c, 0x54) = 0;
+                        F32(c, 0x58) = 800;
+                        F32(c, 0x20) = 3;
+                        v3 = W_script_wait(c);
+                        if ( v3 != 6 )
+                        {
+                          v120 = W_actor_by_handle(900000009);
+                          W_scene_msg(c, 0, v120, D(0x865e4c), 0, 1, 1, 0, 30, 0, 0);
+                          v3 = W_script_wait(c);
+                          if ( v3 != 6 )
+                          {
+                            v121 = W_actor_by_handle(100000101);
+                            W_scene_msg(c, 0, v121, D(0x865e20), 0, 1, 1, 0, 16, 0, 0);
+                            v3 = W_script_wait(c);
+                            if ( v3 != 6 )
+                            {
+                              (*v174__f) = 4;
+                              (*v172__f) = D(0x865e0c);
+                              v104 = W_actor_by_handle(100000102);
+                              goto LABEL_214;
+                            }
+                          }
+                        }
+                      }
+                    }
+                    break;
+                  case 0x35A4E90A:
                     W_script_begin(c);
                     v115 = W_script_leader(c);
                     F32(c, 0x4c) = 0;
@@ -13273,7 +13340,7 @@ LABEL_214:
                     v3 = W_script_wait(c);
                     if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
                     {
-                      W_scene_talk_face(c, 1, F32(c, 0x4), 1, 1);
+                      W_scene_talk_face(c, 0, F32(c, 0x4), 1, 1);
                       v3 = W_script_wait(c);
                       if ( v3 != 6 )
                       {
@@ -13287,61 +13354,14 @@ LABEL_214:
                         v3 = W_script_wait(c);
                         if ( v3 != 6 )
                         {
-                          v117 = W_actor_by_handle(900000009);
-                          W_scene_msg(c, 0, v117, D(0x865e4c), 0, 1, 1, 0, 30, 0, 0);
+                          v117 = W_actor_by_handle(900000010);
+                          W_scene_msg(c, 0, v117, D(0x865edc), 0, 1, 1, 0, 10, 0, 0);
                           v3 = W_script_wait(c);
                           if ( v3 != 6 )
                           {
-                            v118 = W_actor_by_handle(100000101);
-                            W_scene_msg(c, 0, v118, D(0x865e20), 0, 1, 1, 0, 16, 0, 0);
-                            v3 = W_script_wait(c);
-                            if ( v3 != 6 )
-                            {
-                              (*v171__f) = 4;
-                              (*v169__f) = D(0x865e0c);
-                              v101 = W_actor_by_handle(100000102);
-                              goto LABEL_214;
-                            }
-                          }
-                        }
-                      }
-                    }
-                    break;
-                  case 0x35A4E90A:
-                    W_script_begin(c);
-                    v112 = W_script_leader(c);
-                    F32(c, 0x4c) = 0;
-                    F32(c, 0x5c) = v112;
-                    F32(c, 0x50) = 0;
-                    F32(c, 0x54) = 0;
-                    F32(c, 0x58) = 800;
-                    F32(c, 0x20) = 3;
-                    W_script_party_cast(c);
-                    v3 = W_script_wait(c);
-                    if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
-                    {
-                      W_scene_talk_face(c, 0, F32(c, 0x4), 1, 1);
-                      v3 = W_script_wait(c);
-                      if ( v3 != 6 )
-                      {
-                        v113 = W_script_leader(c);
-                        F32(c, 0x4c) = 0;
-                        F32(c, 0x5c) = v113;
-                        F32(c, 0x50) = 0;
-                        F32(c, 0x54) = 0;
-                        F32(c, 0x58) = 800;
-                        F32(c, 0x20) = 3;
-                        v3 = W_script_wait(c);
-                        if ( v3 != 6 )
-                        {
-                          v114 = W_actor_by_handle(900000010);
-                          W_scene_msg(c, 0, v114, D(0x865edc), 0, 1, 1, 0, 10, 0, 0);
-                          v3 = W_script_wait(c);
-                          if ( v3 != 6 )
-                          {
-                            (*v171__f) = 30;
-                            (*v169__f) = D(0x865e94);
-                            v101 = W_actor_by_handle(900000010);
+                            (*v174__f) = 30;
+                            (*v172__f) = D(0x865e94);
+                            v104 = W_actor_by_handle(900000010);
                             goto LABEL_214;
                           }
                         }
@@ -13355,9 +13375,9 @@ LABEL_214:
               else
               {
                 W_script_begin(c);
-                v105 = W_script_leader(c);
+                v108 = W_script_leader(c);
                 F32(c, 0x4c) = 0;
-                F32(c, 0x5c) = v105;
+                F32(c, 0x5c) = v108;
                 F32(c, 0x50) = 0;
                 F32(c, 0x54) = 0;
                 F32(c, 0x58) = 800;
@@ -13366,9 +13386,9 @@ LABEL_214:
                 v3 = W_script_wait(c);
                 if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
                 {
-                  v106 = W_script_leader(c);
+                  v109 = W_script_leader(c);
                   F32(c, 0x4c) = 0;
-                  F32(c, 0x5c) = v106;
+                  F32(c, 0x5c) = v109;
                   F32(c, 0x50) = 0;
                   F32(c, 0x54) = 0;
                   F32(c, 0x58) = 800;
@@ -13384,18 +13404,18 @@ LABEL_214:
                       v3 = W_script_wait(c);
                       if ( v3 != 6 )
                       {
-                        v107 = W_actor_by_handle(100000101);
-                        W_scene_msg(c, 0, v107, D(0x866024), 0, 1, 1, 0, 17, 0, 0);
+                        v110 = W_actor_by_handle(100000101);
+                        W_scene_msg(c, 0, v110, D(0x866024), 0, 1, 1, 0, 17, 0, 0);
                         v3 = W_script_wait(c);
                         if ( v3 != 6 )
                         {
-                          v108 = W_actor_by_handle(900000009);
-                          W_scene_msg(c, 0, v108, D(0x865fd4), 0, 1, 1, 0, 10, 0, 0);
+                          v111 = W_actor_by_handle(900000009);
+                          W_scene_msg(c, 0, v111, D(0x865fd4), 0, 1, 1, 0, 10, 0, 0);
                           v3 = W_script_wait(c);
                           if ( v3 != 6 )
                           {
-                            v109 = W_actor_by_handle(100000101);
-                            W_scene_msg(c, 0, v109, D(0x865f94), 0, 1, 1, 0, 3, 0, 0);
+                            v112 = W_actor_by_handle(100000101);
+                            W_scene_msg(c, 0, v112, D(0x865f94), 0, 1, 1, 0, 3, 0, 0);
                             v3 = W_script_wait(c);
                             if ( v3 != 6 )
                             {
@@ -13405,13 +13425,13 @@ LABEL_214:
                               v3 = W_script_wait(c);
                               if ( v3 != 6 )
                               {
-                                v110 = W_actor_by_handle(900000009);
-                                W_scene_msg(c, 0, v110, D(0x865f58), 0, 1, 1, 0, 10, 0, 0);
+                                v113 = W_actor_by_handle(900000009);
+                                W_scene_msg(c, 0, v113, D(0x865f58), 0, 1, 1, 0, 10, 0, 0);
                                 v3 = W_script_wait(c);
                                 if ( v3 != 6 )
                                 {
-                                  v111 = W_actor_by_handle(100000101);
-                                  W_scene_msg(c, 0, v111, D(0x865f10), 0, 1, 1, 0, 1, 0, 0);
+                                  v114 = W_actor_by_handle(100000101);
+                                  W_scene_msg(c, 0, v114, D(0x865f10), 0, 1, 1, 0, 1, 0, 0);
                                   v3 = W_script_wait(c);
                                   if ( v3 != 6 )
                                   {
@@ -13921,11 +13941,11 @@ LABEL_214:
                                                                       {
                                                                         F32(c, 0x1c) = 1;
                                                                         v88 = (_DWORD *)W_actor_by_handle(900000009);
-                                                                        W_char_unload(v88);
-                                                                        v89 = (_DWORD *)W_actor_by_handle(900000010);
-                                                                        W_char_unload(v89);
-                                                                        v90 = (_DWORD *)W_actor_by_handle(900000008);
-                                                                        W_char_unload(v90);
+                                                                        W_char_unload(/*ecx, edx*/  v88);
+                                                                        v90 = (_DWORD *)W_actor_by_handle(900000010);
+                                                                        W_char_unload(/*ecx, edx*/  v90);
+                                                                        v92 = (_DWORD *)W_actor_by_handle(900000008);
+                                                                        W_char_unload(/*ecx, edx*/  v92);
                                                                         *(_DWORD *)&GAP(c, 0x300, 636) = 50;
                                                                         F32(c, 0x20) = 6;
                                                                         v3 = W_script_wait(c);
@@ -13943,10 +13963,10 @@ LABEL_214:
                                                                           if ( v3 != 6 )
                                                                           {
                                                                             F32(c, 0x1c) = 0;
-                                                                            v91 = W_actor_by_handle(100000101);
+                                                                            v94 = W_actor_by_handle(100000101);
                                                                             W_scene_cast_to(
                                                                               c,
-                                                                              v91,
+                                                                              v94,
                                                                               1,
                                                                               6000,
                                                                               0,
@@ -13957,11 +13977,11 @@ LABEL_214:
                                                                             v3 = W_script_wait(c);
                                                                             if ( v3 != 6 )
                                                                             {
-                                                                              v92 = W_actor_by_handle(100000101);
+                                                                              v95 = W_actor_by_handle(100000101);
                                                                               W_scene_msg(
                                                                                 c,
                                                                                 0,
-                                                                                v92,
+                                                                                v95,
                                                                                 D(0x866180),
                                                                                 0,
                                                                                 1,
@@ -13973,11 +13993,11 @@ LABEL_214:
                                                                               v3 = W_script_wait(c);
                                                                               if ( v3 != 6 )
                                                                               {
-                                                                                v93 = W_actor_by_handle(100000101);
+                                                                                v96 = W_actor_by_handle(100000101);
                                                                                 W_scene_msg(
                                                                                   c,
                                                                                   0,
-                                                                                  v93,
+                                                                                  v96,
                                                                                   D(0x866138),
                                                                                   0,
                                                                                   1,
@@ -13995,8 +14015,8 @@ LABEL_214:
                                                                                   v3 = W_script_wait(c);
                                                                                   if ( v3 != 6 )
                                                                                   {
-                                                                                    v94 = W_actor_by_handle(100000101);
-                                                                                    W_scene_face(c, v94, 1);
+                                                                                    v97 = W_actor_by_handle(100000101);
+                                                                                    W_scene_face(c, v97, 1);
                                                                                     v3 = W_script_wait(c);
                                                                                     if ( v3 != 6 )
                                                                                     {
@@ -14005,11 +14025,11 @@ LABEL_214:
                                                                                       v3 = W_script_wait(c);
                                                                                       if ( v3 != 6 )
                                                                                       {
-                                                                                        v95 = W_actor_by_handle(100000101);
+                                                                                        v98 = W_actor_by_handle(100000101);
                                                                                         W_scene_msg(
                                                                                           c,
                                                                                           0,
-                                                                                          v95,
+                                                                                          v98,
                                                                                           D(0x866100),
                                                                                           0,
                                                                                           1,
@@ -14021,11 +14041,11 @@ LABEL_214:
                                                                                         v3 = W_script_wait(c);
                                                                                         if ( v3 != 6 )
                                                                                         {
-                                                                                          v96 = W_actor_by_handle(100000101);
+                                                                                          v99 = W_actor_by_handle(100000101);
                                                                                           W_scene_msg(
                                                                                             c,
                                                                                             0,
-                                                                                            v96,
+                                                                                            v99,
                                                                                             D(0x8660c4),
                                                                                             0,
                                                                                             1,
@@ -14037,11 +14057,11 @@ LABEL_214:
                                                                                           v3 = W_script_wait(c);
                                                                                           if ( v3 != 6 )
                                                                                           {
-                                                                                            v97 = W_actor_by_handle(100000101);
+                                                                                            v100 = W_actor_by_handle(100000101);
                                                                                             W_scene_msg(
                                                                                               c,
                                                                                               0,
-                                                                                              v97,
+                                                                                              v100,
                                                                                               D(0x866090),
                                                                                               0,
                                                                                               1,
@@ -14205,25 +14225,25 @@ LABEL_214:
             if ( v3 == 6 )
               return v3;
             *(_DWORD *)&GAP(W, 0x1030, 4) = 1;
-            (*v174__f) = F32(c, 0x8);
-            v36 = W_pslot_by_id((*v174__f), 100000102, 0);
+            (*v177__f) = F32(c, 0x8);
+            v36 = W_pslot_by_id((*v177__f), 100000102, 0);
             v37 = (_DWORD *)v36;
             if ( v36 != 0 )
             {
-              (*v173__f) = F32(v36, 2548);
-              W_room_member_leave((*v174__f), v36, 1);
-              if ( (*v173__f) != 0 )
+              (*v176__f) = F32(v36, 2548);
+              W_room_member_leave((*v177__f), v36, 1);
+              if ( (*v176__f) != 0 )
               {
-                if ( *v37 != 0 && W_sc_4cc250((*v174__f), 1, (int)v37) == 0 )
+                if ( *v37 != 0 && W_sc_4cc250((*v177__f), 1, (int)v37) == 0 )
                 {
-                  F32((*v173__f), 0x158a4) = 0;
-                  F32((*v173__f), 0x200) = 1;
-                  W_char_ai_reset((*v173__f), 1);
-                  W_char_ground_probe((*v173__f));
+                  F32((*v176__f), 0x158a4) = 0;
+                  F32((*v176__f), 0x200) = 1;
+                  W_char_ai_reset((*v176__f), 1);
+                  W_char_ground_probe((*v176__f));
                 }
-                W_sc_5b4330((int)(*v173__f), v38, (int)v37, 100000102);
+                W_sc_5b4330((int)(*v176__f), v38, (int)v37, 100000102);
               }
-              W_room_formation((*v174__f));
+              W_room_formation((*v177__f));
             }
             W_script_end(c);
             W_script_flag_set(c, 101240104, 2, 0);
@@ -14233,13 +14253,13 @@ LABEL_214:
         }
         return v3;
       }
-      v135 = F32(c, 0x14);
-      if ( v135 == 0 )
+      v138 = F32(c, 0x14);
+      if ( v138 == 0 )
       {
-        v138 = W_script_flag(c, 100100101) - 200;
-        if ( v138 != 0 )
+        v141 = W_script_flag(c, 100100101) - 200;
+        if ( v141 != 0 )
         {
-          if ( v138 == 110 && W_script_flag(c, 101240102) == 0 )
+          if ( v141 == 110 && W_script_flag(c, 101240102) == 0 )
           {
             W_sc_41ece0(c, 1, 0, 0, 1, 4200, 1);
             W_scene_place_rec(c, 100000101, 0, 0, 0, 3);
@@ -14249,9 +14269,9 @@ LABEL_214:
             v3 = W_script_wait(c);
             if ( v3 != 6 )
             {
-              v139 = F32(c, 0x0);
+              v142 = F32(c, 0x0);
               F32(c, 0x1c) = 0;
-              W_room_bgm_restart(v139, 0, 1);
+              W_room_bgm_restart(v142, 0, 1);
               W_scene_msg_rec(c, 0, 100000102, D(0x865b9c), 0, 1, 1, 0, 11, 0, 0);
               v3 = W_script_wait(c);
               if ( v3 != 6 )
@@ -14282,9 +14302,9 @@ LABEL_214:
           v3 = W_script_wait(c);
           if ( v3 != 6 )
           {
-            v140 = F32(c, 0x0);
+            v143 = F32(c, 0x0);
             F32(c, 0x1c) = 0;
-            W_room_bgm_restart(v140, 0, 1);
+            W_room_bgm_restart(v143, 0, 1);
             W_scene_area_title(c, 200);
             v3 = W_script_wait(c);
             if ( v3 != 6 )
@@ -14312,15 +14332,15 @@ LABEL_214:
         }
         return v3;
       }
-      if ( v135 != 2 )
+      if ( v138 != 2 )
         return v3;
       if ( F32(F32(c, 0x4), 472) != 240110501 )
         return v3;
       if ( W_sc_402f40(c) != 100000101 )
         return v3;
       W_script_begin(c);
-      v136 = W_script_leader(c);
-      W_scene_camera(c, v136, 0, 0, 800);
+      v139 = W_script_leader(c);
+      W_scene_camera(c, v139, 0, 0, 800);
       W_script_party_cast(c);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
@@ -14335,8 +14355,8 @@ LABEL_214:
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      v137 = W_script_leader(c);
-      W_scene_camera(c, v137, 0, 0, 800);
+      v140 = W_script_leader(c);
+      W_scene_camera(c, v140, 0, 0, 800);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
@@ -14349,8 +14369,8 @@ LABEL_215:
     W_script_end(c);
     return v3;
   }
-  v149 = v4 - 245170;
-  if ( v149 == 0 )
+  v152 = v4 - 245170;
+  if ( v152 == 0 )
   {
     if ( F32(c, 0x14) == 0 && W_script_flag(c, 101245102) == 0 )
     {
@@ -14368,8 +14388,8 @@ LABEL_215:
         v3 = W_script_wait(c);
         if ( v3 != 6 )
         {
-          v168 = W_actor_by_handle(100000101);
-          W_scene_camera(c, v168, 0, 0, 800);
+          v171 = W_actor_by_handle(100000101);
+          W_scene_camera(c, v171, 0, 0, 800);
           v3 = W_script_wait(c);
           if ( v3 != 6 )
           {
@@ -14441,8 +14461,8 @@ LABEL_215:
     }
     return v3;
   }
-  v150 = v149 - 20;
-  if ( v150 == 0 )
+  v153 = v152 - 20;
+  if ( v153 == 0 )
   {
     switch ( F32(c, 0x14) )
     {
@@ -14457,9 +14477,9 @@ LABEL_215:
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
-        v161 = F32(c, 0x0);
+        v164 = F32(c, 0x0);
         F32(c, 0x1c) = 0;
-        W_room_bgm_restart(v161, 0, 1);
+        W_room_bgm_restart(v164, 0, 1);
         W_script_end(c);
         return v3;
       case 1:
@@ -14470,8 +14490,8 @@ LABEL_215:
         if ( F32(c, 0x10) != 1 )
           return v3;
         W_script_begin(c);
-        v162 = W_script_leader(c);
-        W_scene_camera(c, v162, 0, 0, 800);
+        v165 = W_script_leader(c);
+        W_scene_camera(c, v165, 0, 0, 800);
         W_script_party_cast(c);
         v3 = W_script_wait(c);
         if ( v3 == 6 )
@@ -14490,8 +14510,8 @@ LABEL_215:
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
-        v163 = W_script_leader(c);
-        W_scene_camera(c, v163, 0, 0, 800);
+        v166 = W_script_leader(c);
+        W_scene_camera(c, v166, 0, 0, 800);
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
@@ -14505,8 +14525,8 @@ LABEL_215:
         W_script_begin(c);
         RC_4cc0e0((int)((intptr_t)g_eng.sys), 1);
         W_sc_4cca50(F32(c, 0x0), 1, 0);
-        v166 = W_script_leader(c);
-        W_scene_camera(c, v166, 0, 0, 800);
+        v169 = W_script_leader(c);
+        W_scene_camera(c, v169, 0, 0, 800);
         W_script_party_cast(c);
         v3 = W_script_wait(c);
         if ( v3 == 6 )
@@ -14521,8 +14541,8 @@ LABEL_215:
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
-        v167 = W_script_leader(c);
-        W_scene_camera(c, v167, 0, 0, 800);
+        v170 = W_script_leader(c);
+        W_scene_camera(c, v170, 0, 0, 800);
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
@@ -14611,8 +14631,8 @@ LABEL_215:
         W_script_begin(c);
         RC_4cc0e0((int)((intptr_t)g_eng.sys), 1);
         W_sc_4cca50(F32(c, 0x0), 1, 0);
-        v164 = W_script_leader(c);
-        W_scene_camera(c, v164, 0, 0, 800);
+        v167 = W_script_leader(c);
+        W_scene_camera(c, v167, 0, 0, 800);
         W_script_party_cast(c);
         v3 = W_script_wait(c);
         if ( v3 == 6 )
@@ -14623,8 +14643,8 @@ LABEL_215:
           if ( v3 == 6 )
             return v3;
         }
-        v165 = W_script_leader(c);
-        W_scene_camera(c, v165, 0, 0, 800);
+        v168 = W_script_leader(c);
+        W_scene_camera(c, v168, 0, 0, 800);
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
@@ -14783,7 +14803,7 @@ LABEL_215:
         return v3;
     }
   }
-  if ( v150 != 10 )
+  if ( v153 != 10 )
     return v3;
   switch ( F32(c, 0x14) )
   {
@@ -14810,8 +14830,8 @@ LABEL_215:
       if ( (uint16_t)W_room_item_count(F32(c, 0x8), 801020, 0, 0) == 0 )
       {
         W_script_begin(c);
-        v159 = W_script_leader(c);
-        W_scene_camera(c, v159, 0, 0, 800);
+        v162 = W_script_leader(c);
+        W_scene_camera(c, v162, 0, 0, 800);
         W_script_party_cast(c);
         v3 = W_script_wait(c);
         if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -14824,8 +14844,8 @@ LABEL_215:
             v3 = W_script_wait(c);
             if ( v3 != 6 )
             {
-              v160 = W_script_leader(c);
-              W_scene_camera(c, v160, 0, 0, 800);
+              v163 = W_script_leader(c);
+              W_scene_camera(c, v163, 0, 0, 800);
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
@@ -14908,8 +14928,8 @@ LABEL_215:
       if ( W_script_flag(c, 100100101) != 401 )
         return v3;
       W_script_begin(c);
-      v151 = W_script_leader(c);
-      W_scene_camera(c, v151, 0, 0, 800);
+      v154 = W_script_leader(c);
+      W_scene_camera(c, v154, 0, 0, 800);
       W_script_party_cast(c);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
@@ -14924,8 +14944,8 @@ LABEL_215:
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      v152 = W_script_leader(c);
-      W_scene_camera(c, v152, 0, 0, 800);
+      v155 = W_script_leader(c);
+      W_scene_camera(c, v155, 0, 0, 800);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
@@ -14947,8 +14967,8 @@ LABEL_215:
       if ( (uint16_t)W_room_item_count(F32(c, 0x8), 801020, 0, 0) != 0 )
         return v3;
       W_script_begin(c);
-      v153 = W_script_leader(c);
-      W_scene_camera(c, v153, 0, 0, 800);
+      v156 = W_script_leader(c);
+      W_scene_camera(c, v156, 0, 0, 800);
       W_script_party_cast(c);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
@@ -14959,8 +14979,8 @@ LABEL_215:
         if ( v3 == 6 )
           return v3;
       }
-      v154 = W_script_leader(c);
-      W_scene_camera(c, v154, 0, 0, 800);
+      v157 = W_script_leader(c);
+      W_scene_camera(c, v157, 0, 0, 800);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
@@ -14992,8 +15012,8 @@ LABEL_215:
       if ( v3 == 6 )
         return v3;
       W_scene_mark(c);
-      v155 = W_actor_by_handle(100000101);
-      W_scene_cast_step(c, v155, 10000, 0, 1, 500, 1);
+      v158 = W_actor_by_handle(100000101);
+      W_scene_cast_step(c, v158, 10000, 0, 1, 500, 1);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
@@ -15006,8 +15026,8 @@ LABEL_215:
       if ( v3 == 6 )
         return v3;
       W_scene_mark(c);
-      v156 = W_actor_by_handle(100000102);
-      W_scene_cast_step(c, v156, 10000, 0, 1, 500, 1);
+      v159 = W_actor_by_handle(100000102);
+      W_scene_cast_step(c, v159, 10000, 0, 1, 500, 1);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
@@ -15032,8 +15052,8 @@ LABEL_215:
       if ( v3 == 6 )
         return v3;
       W_scene_mark(c);
-      v157 = W_actor_by_handle(100000101);
-      W_scene_cast_step(c, v157, 3200, 0, 1, 500, 1);
+      v160 = W_actor_by_handle(100000101);
+      W_scene_cast_step(c, v160, 3200, 0, 1, 500, 1);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
@@ -15316,8 +15336,8 @@ LABEL_215:
       if ( v3 == 6 )
         return v3;
       F32(c, 0x1c) = 0;
-      v158 = W_actor_by_handle(100000102);
-      W_scene_cast_step(c, v158, 3200, 0, 1, 500, 1);
+      v161 = W_actor_by_handle(100000102);
+      W_scene_cast_step(c, v161, 3200, 0, 1, 500, 1);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
@@ -15568,7 +15588,7 @@ int32_t chs_49d930(wl_char *self)
 {
     intptr_t c = (intptr_t)self;
     intptr_t v2;
-    intptr_t v3;
+    uint32_t v3;
     intptr_t v4;
     intptr_t v5;
     intptr_t v6;
@@ -15995,7 +16015,7 @@ int32_t chs_4a0c90(wl_char *self)
     intptr_t v3;
     int32_t * v4;
     intptr_t v5;
-    intptr_t v6;
+    uint32_t v6;
     intptr_t v7;
     intptr_t v8;
     intptr_t v9;
@@ -16052,7 +16072,7 @@ int32_t chs_4a0c90(wl_char *self)
     intptr_t v60;
     intptr_t v61;
     intptr_t v62;
-    intptr_t v64;
+    intptr_t v63;
     intptr_t v65;
     intptr_t v66;
     intptr_t v67;
@@ -16064,7 +16084,7 @@ int32_t chs_4a0c90(wl_char *self)
     intptr_t v73;
     intptr_t v74;
     intptr_t v75;
-    intptr_t v76;
+    uint32_t v76;
     intptr_t v77;
     intptr_t v78;
     intptr_t v79;
@@ -16080,29 +16100,29 @@ int32_t chs_4a0c90(wl_char *self)
     intptr_t v89;
     intptr_t v90;
     intptr_t v91;
-    int v92;
-    intptr_t v93;
+    intptr_t v92;
+    int v93;
     intptr_t v94;
-    uint16_t v95;
-    intptr_t v96;
+    intptr_t v95;
+    uint16_t v96;
     intptr_t v97;
+    intptr_t v98;
     uint16_t j;
-    intptr_t v99;
     intptr_t v100;
     intptr_t v101;
+    intptr_t v102;
     uint16_t k;
-    intptr_t v103;
     intptr_t v104;
     intptr_t v105;
     intptr_t v106;
-    intptr_t v107;
-    intptr_t v108;
+    uint32_t v107;
+    uint32_t v108;
     intptr_t v109;
     intptr_t v110;
-    uint16_t v111;
-    intptr_t v112;
-    uint16_t v113;
-    intptr_t v114;
+    intptr_t v111;
+    uint16_t v112;
+    intptr_t v113;
+    uint16_t v114;
     intptr_t v115;
     intptr_t v116;
     intptr_t v117;
@@ -16111,11 +16131,11 @@ int32_t chs_4a0c90(wl_char *self)
     intptr_t v120;
     intptr_t v121;
     intptr_t v122;
-    uint16_t v123;
-    intptr_t v124;
+    intptr_t v123;
+    uint16_t v124;
     intptr_t v125;
+    intptr_t v126;
     uint16_t i;
-    intptr_t v127;
     intptr_t v128;
     intptr_t v129;
     intptr_t v130;
@@ -16125,7 +16145,7 @@ int32_t chs_4a0c90(wl_char *self)
     intptr_t v134;
     intptr_t v135;
     intptr_t v136;
-    char * v137;
+    intptr_t v137;
     char * v138;
     char * v139;
     char * v140;
@@ -16136,11 +16156,11 @@ int32_t chs_4a0c90(wl_char *self)
     char * v145;
     char * v146;
     char * v147;
-    intptr_t v148;
+    char * v148;
     intptr_t v149;
     intptr_t v150;
     intptr_t v151;
-    intptr_t v152;
+    uint32_t v152;
     intptr_t v153;
     intptr_t v154;
     intptr_t v155;
@@ -16160,8 +16180,8 @@ int32_t chs_4a0c90(wl_char *self)
     intptr_t v169;
     intptr_t v170;
     intptr_t v171;
-    intptr_t v172;
-    intptr_t v173;
+    uint32_t v172;
+    uint32_t v173;
     intptr_t v174;
     intptr_t v175;
     intptr_t v176;
@@ -16179,17 +16199,18 @@ int32_t chs_4a0c90(wl_char *self)
     intptr_t v188;
     intptr_t v189;
     intptr_t v190;
+    intptr_t v191;
     _Alignas(8) uint8_t frame_[0x630 + 0x10];   /* the stack locals at their ebp offsets */
     memset(frame_, 0, sizeof frame_);
-    intptr_t *v198 = (intptr_t *)(frame_ + 0x30);   /* [256] at ebp-0x600 */
+    intptr_t *v199 = (intptr_t *)(frame_ + 0x30);   /* [256] at ebp-0x600 */
     char *Buffer = (char *)(frame_ + 0x430);   /* [512] at ebp-0x200 */
-    char * *const v191__f = (char * *)(frame_ + 0x0);   /* ebp-0x630 */
-    intptr_t *const v192__f = (intptr_t *)(frame_ + 0x14);   /* ebp-0x61c */
+    char * *const v192__f = (char * *)(frame_ + 0x0);   /* ebp-0x630 */
+    intptr_t *const v193__f = (intptr_t *)(frame_ + 0x14);   /* ebp-0x61c */
+    intptr_t *const v195__f = (intptr_t *)(frame_ + 0x18);   /* ebp-0x618 */
     intptr_t *const v194__f = (intptr_t *)(frame_ + 0x18);   /* ebp-0x618 */
-    intptr_t *const v193__f = (intptr_t *)(frame_ + 0x18);   /* ebp-0x618 */
+    intptr_t *const v198__f = (intptr_t *)(frame_ + 0x1c);   /* ebp-0x614 */
     intptr_t *const v197__f = (intptr_t *)(frame_ + 0x1c);   /* ebp-0x614 */
     intptr_t *const v196__f = (intptr_t *)(frame_ + 0x1c);   /* ebp-0x614 */
-    intptr_t *const v195__f = (intptr_t *)(frame_ + 0x1c);   /* ebp-0x614 */
 
   v1 = *(_DWORD **)&GAP(W, 0x1030, 8);
   v3 = 0;
@@ -16198,23 +16219,23 @@ int32_t chs_4a0c90(wl_char *self)
   if ( *v1 == 210210 && F32(c, 0x14) == 0 && W_script_flag(c, 100210112) != 0 )
   {
     v4 = (_DWORD *)W_actor_by_handle(210210101);
-    W_char_unload(v4);
+    W_char_unload(/*ecx, edx*/  v4);
   }
   if ( F32(c, 0x14) != 2 )
     return v3;
-  v5 = F32(F32(c, 0x4), 472);
-  if ( v5 <= 0xC8654B5 )
+  v6 = F32(F32(c, 0x4), 472);
+  if ( v6 <= 0xC8654B5 )
   {
-    if ( v5 != 210130101 )
+    if ( v6 != 210130101 )
     {
-      switch ( v5 )
+      switch ( v6 )
       {
         case 0xC860695u:
           if ( W_script_flag(c, 100100101) == 1610 )
           {
             W_script_begin(c);
-            v6 = W_script_leader(c);
-            W_scene_camera(c, v6, 0, 0, 800);
+            v7 = W_script_leader(c);
+            W_scene_camera(c, v7, 0, 0, 800);
             W_script_party_cast(c);
             v3 = W_script_wait(c);
             if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -16223,8 +16244,8 @@ int32_t chs_4a0c90(wl_char *self)
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                v7 = W_script_leader(c);
-                W_scene_camera(c, v7, 0, 0, 800);
+                v8 = W_script_leader(c);
+                W_scene_camera(c, v8, 0, 0, 800);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
@@ -16247,8 +16268,8 @@ int32_t chs_4a0c90(wl_char *self)
           else if ( W_script_flag(c, 100100101) < 1000 )
           {
             W_script_begin(c);
-            v10 = W_script_leader(c);
-            W_scene_camera(c, v10, 0, 0, 800);
+            v11 = W_script_leader(c);
+            W_scene_camera(c, v11, 0, 0, 800);
             W_script_party_cast(c);
             v3 = W_script_wait(c);
             if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -16257,8 +16278,8 @@ int32_t chs_4a0c90(wl_char *self)
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                v11 = W_script_leader(c);
-                W_scene_camera(c, v11, 0, 0, 800);
+                v12 = W_script_leader(c);
+                W_scene_camera(c, v12, 0, 0, 800);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
@@ -16303,8 +16324,8 @@ int32_t chs_4a0c90(wl_char *self)
           else
           {
             W_script_begin(c);
-            v8 = W_script_leader(c);
-            W_scene_camera(c, v8, 0, 0, 800);
+            v9 = W_script_leader(c);
+            W_scene_camera(c, v9, 0, 0, 800);
             W_script_party_cast(c);
             v3 = W_script_wait(c);
             if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -16313,8 +16334,8 @@ int32_t chs_4a0c90(wl_char *self)
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                v9 = W_script_leader(c);
-                W_scene_camera(c, v9, 0, 0, 800);
+                v10 = W_script_leader(c);
+                W_scene_camera(c, v10, 0, 0, 800);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
@@ -16345,8 +16366,8 @@ int32_t chs_4a0c90(wl_char *self)
           if ( W_script_flag(c, 100100101) == 1600 && W_script_flag(c, 102100110) >= 100 )
           {
             W_script_begin(c);
-            v12 = W_script_leader(c);
-            W_scene_camera(c, v12, 0, 0, 800);
+            v13 = W_script_leader(c);
+            W_scene_camera(c, v13, 0, 0, 800);
             W_script_party_cast(c);
             v3 = W_script_wait(c);
             if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -16355,8 +16376,8 @@ int32_t chs_4a0c90(wl_char *self)
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                v13 = W_script_leader(c);
-                W_scene_camera(c, v13, 0, 0, 800);
+                v14 = W_script_leader(c);
+                W_scene_camera(c, v14, 0, 0, 800);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
@@ -16369,8 +16390,8 @@ int32_t chs_4a0c90(wl_char *self)
           else if ( W_script_flag(c, 100100101) == 1600 )
           {
             W_script_begin(c);
-            v14 = W_script_leader(c);
-            W_scene_camera(c, v14, 0, 0, 800);
+            v15 = W_script_leader(c);
+            W_scene_camera(c, v15, 0, 0, 800);
             W_script_party_cast(c);
             v3 = W_script_wait(c);
             if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -16379,8 +16400,8 @@ int32_t chs_4a0c90(wl_char *self)
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                v15 = W_script_leader(c);
-                W_scene_camera(c, v15, 0, 0, 800);
+                v16 = W_script_leader(c);
+                W_scene_camera(c, v16, 0, 0, 800);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
@@ -16398,8 +16419,8 @@ int32_t chs_4a0c90(wl_char *self)
           else if ( W_script_flag(c, 100100101) < 1000 )
           {
             W_script_begin(c);
-            v18 = W_script_leader(c);
-            W_scene_camera(c, v18, 0, 0, 800);
+            v19 = W_script_leader(c);
+            W_scene_camera(c, v19, 0, 0, 800);
             W_script_party_cast(c);
             v3 = W_script_wait(c);
             if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -16408,8 +16429,8 @@ int32_t chs_4a0c90(wl_char *self)
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                v19 = W_script_leader(c);
-                W_scene_camera(c, v19, 0, 0, 800);
+                v20 = W_script_leader(c);
+                W_scene_camera(c, v20, 0, 0, 800);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
@@ -16432,8 +16453,8 @@ int32_t chs_4a0c90(wl_char *self)
           else
           {
             W_script_begin(c);
-            v16 = W_script_leader(c);
-            W_scene_camera(c, v16, 0, 0, 800);
+            v17 = W_script_leader(c);
+            W_scene_camera(c, v17, 0, 0, 800);
             W_script_party_cast(c);
             v3 = W_script_wait(c);
             if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -16442,8 +16463,8 @@ int32_t chs_4a0c90(wl_char *self)
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                v17 = W_script_leader(c);
-                W_scene_camera(c, v17, 0, 0, 800);
+                v18 = W_script_leader(c);
+                W_scene_camera(c, v18, 0, 0, 800);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
@@ -16475,8 +16496,8 @@ int32_t chs_4a0c90(wl_char *self)
             if ( W_script_flag(c, 100100101) >= 300 )
             {
               W_script_begin(c);
-              v24 = W_script_leader(c);
-              W_scene_camera(c, v24, 0, 0, 800);
+              v25 = W_script_leader(c);
+              W_scene_camera(c, v25, 0, 0, 800);
               W_script_party_cast(c);
               v3 = W_script_wait(c);
               if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -16485,8 +16506,8 @@ int32_t chs_4a0c90(wl_char *self)
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
-                  v25 = W_script_leader(c);
-                  W_scene_camera(c, v25, 0, 0, 800);
+                  v26 = W_script_leader(c);
+                  W_scene_camera(c, v26, 0, 0, 800);
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
@@ -16499,8 +16520,8 @@ int32_t chs_4a0c90(wl_char *self)
             else
             {
               W_script_begin(c);
-              v22 = W_script_leader(c);
-              W_scene_camera(c, v22, 0, 0, 800);
+              v23 = W_script_leader(c);
+              W_scene_camera(c, v23, 0, 0, 800);
               W_script_party_cast(c);
               v3 = W_script_wait(c);
               if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -16509,8 +16530,8 @@ int32_t chs_4a0c90(wl_char *self)
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
-                  v23 = W_script_leader(c);
-                  W_scene_camera(c, v23, 0, 0, 800);
+                  v24 = W_script_leader(c);
+                  W_scene_camera(c, v24, 0, 0, 800);
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
@@ -16529,8 +16550,8 @@ int32_t chs_4a0c90(wl_char *self)
           else
           {
             W_script_begin(c);
-            v20 = W_script_leader(c);
-            W_scene_camera(c, v20, 0, 0, 800);
+            v21 = W_script_leader(c);
+            W_scene_camera(c, v21, 0, 0, 800);
             W_script_party_cast(c);
             v3 = W_script_wait(c);
             if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -16539,8 +16560,8 @@ int32_t chs_4a0c90(wl_char *self)
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                v21 = W_script_leader(c);
-                W_scene_camera(c, v21, 0, 0, 800);
+                v22 = W_script_leader(c);
+                W_scene_camera(c, v22, 0, 0, 800);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
@@ -16560,8 +16581,8 @@ int32_t chs_4a0c90(wl_char *self)
           if ( W_script_flag(c, 100100101) < 1000 )
           {
             W_script_begin(c);
-            v28 = W_script_leader(c);
-            W_scene_camera(c, v28, 0, 0, 800);
+            v29 = W_script_leader(c);
+            W_scene_camera(c, v29, 0, 0, 800);
             W_script_party_cast(c);
             v3 = W_script_wait(c);
             if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -16570,8 +16591,8 @@ int32_t chs_4a0c90(wl_char *self)
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                v29 = W_script_leader(c);
-                W_scene_camera(c, v29, 0, 0, 800);
+                v30 = W_script_leader(c);
+                W_scene_camera(c, v30, 0, 0, 800);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
@@ -16584,8 +16605,8 @@ int32_t chs_4a0c90(wl_char *self)
           else
           {
             W_script_begin(c);
-            v26 = W_script_leader(c);
-            W_scene_camera(c, v26, 0, 0, 800);
+            v27 = W_script_leader(c);
+            W_scene_camera(c, v27, 0, 0, 800);
             W_script_party_cast(c);
             v3 = W_script_wait(c);
             if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -16594,8 +16615,8 @@ int32_t chs_4a0c90(wl_char *self)
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                v27 = W_script_leader(c);
-                W_scene_camera(c, v27, 0, 0, 800);
+                v28 = W_script_leader(c);
+                W_scene_camera(c, v28, 0, 0, 800);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
@@ -16617,8 +16638,8 @@ int32_t chs_4a0c90(wl_char *self)
             if ( W_script_flag(c, 100100101) < 400 )
             {
               W_script_begin(c);
-              v34 = W_script_leader(c);
-              W_scene_camera(c, v34, 0, 0, 800);
+              v35 = W_script_leader(c);
+              W_scene_camera(c, v35, 0, 0, 800);
               W_script_party_cast(c);
               v3 = W_script_wait(c);
               if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -16627,8 +16648,8 @@ int32_t chs_4a0c90(wl_char *self)
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
-                  v35 = W_script_leader(c);
-                  W_scene_camera(c, v35, 0, 0, 800);
+                  v36 = W_script_leader(c);
+                  W_scene_camera(c, v36, 0, 0, 800);
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
@@ -16646,8 +16667,8 @@ int32_t chs_4a0c90(wl_char *self)
             else
             {
               W_script_begin(c);
-              v32 = W_script_leader(c);
-              W_scene_camera(c, v32, 0, 0, 800);
+              v33 = W_script_leader(c);
+              W_scene_camera(c, v33, 0, 0, 800);
               W_script_party_cast(c);
               v3 = W_script_wait(c);
               if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -16656,8 +16677,8 @@ int32_t chs_4a0c90(wl_char *self)
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
-                  v33 = W_script_leader(c);
-                  W_scene_camera(c, v33, 0, 0, 800);
+                  v34 = W_script_leader(c);
+                  W_scene_camera(c, v34, 0, 0, 800);
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
@@ -16671,8 +16692,8 @@ int32_t chs_4a0c90(wl_char *self)
           else
           {
             W_script_begin(c);
-            v30 = W_script_leader(c);
-            W_scene_camera(c, v30, 0, 0, 800);
+            v31 = W_script_leader(c);
+            W_scene_camera(c, v31, 0, 0, 800);
             W_script_party_cast(c);
             v3 = W_script_wait(c);
             if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -16681,8 +16702,8 @@ int32_t chs_4a0c90(wl_char *self)
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                v31 = W_script_leader(c);
-                W_scene_camera(c, v31, 0, 0, 800);
+                v32 = W_script_leader(c);
+                W_scene_camera(c, v32, 0, 0, 800);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
@@ -16695,8 +16716,8 @@ int32_t chs_4a0c90(wl_char *self)
           return v3;
         case 0xC86069Au:
           W_script_begin(c);
-          v36 = W_script_leader(c);
-          W_scene_camera(c, v36, 0, 0, 800);
+          v37 = W_script_leader(c);
+          W_scene_camera(c, v37, 0, 0, 800);
           W_script_party_cast(c);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
@@ -16711,17 +16732,17 @@ int32_t chs_4a0c90(wl_char *self)
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
-          v37 = W_script_leader(c);
-          W_scene_camera(c, v37, 0, 0, 800);
+          v38 = W_script_leader(c);
+          W_scene_camera(c, v38, 0, 0, 800);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
-          v38 = W_actor_by_handle(210110106);
-          v39 = W_sc_4a5e40(c, 210110105, v38, 0);
-          W_scene_face_rec(c, 210110105, v39);
-          v40 = W_actor_by_handle(210110105);
-          v41 = W_sc_4a5e40(c, 210110106, v40, 0);
-          W_scene_face_rec(c, 210110106, v41);
+          v39 = W_actor_by_handle(210110106);
+          v40 = W_sc_4a5e40(c, 210110105, v39, 0);
+          W_scene_face_rec(c, 210110105, v40);
+          v41 = W_actor_by_handle(210110105);
+          v42 = W_sc_4a5e40(c, 210110106, v41, 0);
+          W_scene_face_rec(c, 210110106, v42);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
@@ -16755,8 +16776,8 @@ int32_t chs_4a0c90(wl_char *self)
           goto LABEL_625;
         case 0xC86069Bu:
           W_script_begin(c);
-          v42 = W_script_leader(c);
-          W_scene_camera(c, v42, 0, 0, 800);
+          v43 = W_script_leader(c);
+          W_scene_camera(c, v43, 0, 0, 800);
           W_script_party_cast(c);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
@@ -16771,8 +16792,8 @@ int32_t chs_4a0c90(wl_char *self)
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
-          v43 = W_script_leader(c);
-          W_scene_camera(c, v43, 0, 0, 800);
+          v44 = W_script_leader(c);
+          W_scene_camera(c, v44, 0, 0, 800);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
@@ -16784,14 +16805,14 @@ int32_t chs_4a0c90(wl_char *self)
             if ( W_sc_4a5ea0(c) || W_sc_4a5ec0(c) )
             {
               W_script_begin(c);
-              v54 = W_script_leader(c);
-              W_scene_camera(c, v54, 0, 0, 800);
+              v55 = W_script_leader(c);
+              W_scene_camera(c, v55, 0, 0, 800);
               W_script_party_cast(c);
               v3 = W_script_wait(c);
               if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
               {
-                v55 = W_script_leader(c);
-                W_scene_camera(c, v55, 0, 0, 800);
+                v56 = W_script_leader(c);
+                W_scene_camera(c, v56, 0, 0, 800);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
@@ -16803,8 +16824,8 @@ int32_t chs_4a0c90(wl_char *self)
             else
             {
               W_script_begin(c);
-              v46 = W_script_leader(c);
-              W_scene_camera(c, v46, 0, 0, 800);
+              v47 = W_script_leader(c);
+              W_scene_camera(c, v47, 0, 0, 800);
               W_script_party_cast(c);
               v3 = W_script_wait(c);
               if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -16813,15 +16834,15 @@ int32_t chs_4a0c90(wl_char *self)
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
-                  v47 = W_script_leader(c);
-                  W_scene_camera(c, v47, 0, 0, 800);
+                  v48 = W_script_leader(c);
+                  W_scene_camera(c, v48, 0, 0, 800);
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
-                    v48 = W_sc_402f40(c);
-                    v49 = W_actor_by_handle(v48);
-                    v50 = W_sc_401d80(F32(c, 0x4), v49, 1);
-                    W_scene_face(c, F32(c, 0x4), v50);
+                    v49 = W_sc_402f40(c);
+                    v50 = W_actor_by_handle(v49);
+                    v51 = W_sc_401d80(F32(c, 0x4), v50, 1);
+                    W_scene_face(c, F32(c, 0x4), v51);
                     v3 = W_script_wait(c);
                     if ( v3 != 6 )
                     {
@@ -16832,10 +16853,10 @@ int32_t chs_4a0c90(wl_char *self)
                         if ( W_sc_402f40(c) != 100000101 )
                           goto LABEL_637;
                         W_scene_mark(c);
-                        v51 = W_sc_402f40(c);
-                        v52 = W_actor_by_handle(v51);
-                        v53 = W_sc_401d80(F32(c, 0x4), v52, 0);
-                        W_scene_face(c, F32(c, 0x4), v53);
+                        v52 = W_sc_402f40(c);
+                        v53 = W_actor_by_handle(v52);
+                        v54 = W_sc_401d80(F32(c, 0x4), v53, 0);
+                        W_scene_face(c, F32(c, 0x4), v54);
                         v3 = W_script_wait(c);
                         if ( v3 != 6 )
                         {
@@ -16852,8 +16873,8 @@ int32_t chs_4a0c90(wl_char *self)
           else
           {
             W_script_begin(c);
-            v44 = W_script_leader(c);
-            W_scene_camera(c, v44, 0, 0, 800);
+            v45 = W_script_leader(c);
+            W_scene_camera(c, v45, 0, 0, 800);
             W_script_party_cast(c);
             v3 = W_script_wait(c);
             if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -16862,8 +16883,8 @@ int32_t chs_4a0c90(wl_char *self)
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                v45 = W_script_leader(c);
-                W_scene_camera(c, v45, 0, 0, 800);
+                v46 = W_script_leader(c);
+                W_scene_camera(c, v46, 0, 0, 800);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
@@ -16888,8 +16909,8 @@ int32_t chs_4a0c90(wl_char *self)
           if ( W_script_flag(c, 100100101) < 1000 )
           {
             W_script_begin(c);
-            v58 = W_script_leader(c);
-            W_scene_camera(c, v58, 0, 0, 800);
+            v59 = W_script_leader(c);
+            W_scene_camera(c, v59, 0, 0, 800);
             W_script_party_cast(c);
             v3 = W_script_wait(c);
             if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -16898,8 +16919,8 @@ int32_t chs_4a0c90(wl_char *self)
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                v59 = W_script_leader(c);
-                W_scene_camera(c, v59, 0, 0, 800);
+                v60 = W_script_leader(c);
+                W_scene_camera(c, v60, 0, 0, 800);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
@@ -16916,8 +16937,8 @@ int32_t chs_4a0c90(wl_char *self)
             return v3;
           }
           W_script_begin(c);
-          v56 = W_script_leader(c);
-          W_scene_camera(c, v56, 0, 0, 800);
+          v57 = W_script_leader(c);
+          W_scene_camera(c, v57, 0, 0, 800);
           W_script_party_cast(c);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
@@ -16932,8 +16953,8 @@ int32_t chs_4a0c90(wl_char *self)
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
-          v57 = W_script_leader(c);
-          W_scene_camera(c, v57, 0, 0, 800);
+          v58 = W_script_leader(c);
+          W_scene_camera(c, v58, 0, 0, 800);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
@@ -16956,8 +16977,8 @@ int32_t chs_4a0c90(wl_char *self)
           goto LABEL_625;
         case 0xC86069Eu:
           W_script_begin(c);
-          v60 = W_script_leader(c);
-          W_scene_camera(c, v60, 0, 0, 800);
+          v61 = W_script_leader(c);
+          W_scene_camera(c, v61, 0, 0, 800);
           W_script_party_cast(c);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
@@ -16972,8 +16993,8 @@ int32_t chs_4a0c90(wl_char *self)
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
-          v61 = W_script_leader(c);
-          W_scene_camera(c, v61, 0, 0, 800);
+          v62 = W_script_leader(c);
+          W_scene_camera(c, v62, 0, 0, 800);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
@@ -17013,16 +17034,16 @@ int32_t chs_4a0c90(wl_char *self)
           if ( v3 == 6 )
             return v3;
           W_script_end(c);
-          (*v195__f) = 4000 * W_room_party_count(F32(c, 0x8), 1, 0) + 1600;
-          v62 = W_script_leader(c);
-          W_char_follow_set(F32(c, 0x4), 14, v62, 0, (*v195__f));
+          (*v196__f) = 4000 * W_room_party_count(F32(c, 0x8), 1, 0) + 1600;
+          v63 = W_script_leader(c);
+          W_char_follow_set(F32(c, 0x4), 14, v63, 0, (*v196__f));
           return v3;
         case 0xC86069Fu:
           if ( W_script_flag(c, 100100101) != 0 )
           {
             W_script_begin(c);
-            v64 = W_script_leader(c);
-            W_scene_camera(c, v64, 0, 0, 800);
+            v65 = W_script_leader(c);
+            W_scene_camera(c, v65, 0, 0, 800);
             W_script_party_cast(c);
             v3 = W_script_wait(c);
             if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -17031,20 +17052,20 @@ int32_t chs_4a0c90(wl_char *self)
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                v65 = W_script_leader(c);
-                W_scene_camera(c, v65, 0, 0, 800);
+                v66 = W_script_leader(c);
+                W_scene_camera(c, v66, 0, 0, 800);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
                   if ( W_script_flag(c, 100100101) < 310 )
                     W_script_flag_set(c, 100210113, 0, 0);
-                  v66 = W_script_flag(c, 100210113);
-                  if ( v66 != 0 )
+                  v67 = W_script_flag(c, 100210113);
+                  if ( v67 != 0 )
                   {
-                    v67 = v66 - 1;
-                    if ( v67 != 0 )
+                    v68 = v67 - 1;
+                    if ( v68 != 0 )
                     {
-                      if ( v67 != 1 )
+                      if ( v68 != 1 )
                         goto LABEL_234;
                       W_scene_msg(c, 0, F32(c, 0x4), D(0x858490), 0, 1, 1, 0, 0, 0, 0);
                       v3 = W_script_wait(c);
@@ -17065,8 +17086,8 @@ int32_t chs_4a0c90(wl_char *self)
 LABEL_234:
                               if ( W_script_flag(c, 100210113) < 2 )
                               {
-                                v68 = W_script_flag(c, 100210113);
-                                W_script_flag_set(c, 100210113, v68 + 1, 0);
+                                v69 = W_script_flag(c, 100210113);
+                                W_script_flag_set(c, 100210113, v69 + 1, 0);
                               }
                               else
                               {
@@ -17125,8 +17146,8 @@ LABEL_234:
           else
           {
             W_script_begin(c);
-            v69 = W_script_leader(c);
-            W_scene_camera(c, v69, 0, 0, 800);
+            v70 = W_script_leader(c);
+            W_scene_camera(c, v70, 0, 0, 800);
             W_script_party_cast(c);
             v3 = W_script_wait(c);
             if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -17135,8 +17156,8 @@ LABEL_234:
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                v70 = W_script_leader(c);
-                W_scene_camera(c, v70, 0, 0, 800);
+                v71 = W_script_leader(c);
+                W_scene_camera(c, v71, 0, 0, 800);
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
@@ -17165,8 +17186,8 @@ LABEL_234:
     if ( W_script_flag(c, 100100101) < 1100 )
     {
       W_script_begin(c);
-      v73 = W_script_leader(c);
-      W_scene_camera(c, v73, 0, 0, 800);
+      v74 = W_script_leader(c);
+      W_scene_camera(c, v74, 0, 0, 800);
       W_script_party_cast(c);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
@@ -17181,8 +17202,8 @@ LABEL_234:
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      v74 = W_script_leader(c);
-      W_scene_camera(c, v74, 0, 0, 800);
+      v75 = W_script_leader(c);
+      W_scene_camera(c, v75, 0, 0, 800);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
@@ -17195,8 +17216,8 @@ LABEL_234:
     else
     {
       W_script_begin(c);
-      v71 = W_script_leader(c);
-      W_scene_camera(c, v71, 0, 0, 800);
+      v72 = W_script_leader(c);
+      W_scene_camera(c, v72, 0, 0, 800);
       W_script_party_cast(c);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
@@ -17211,8 +17232,8 @@ LABEL_234:
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      v72 = W_script_leader(c);
-      W_scene_camera(c, v72, 0, 0, 800);
+      v73 = W_script_leader(c);
+      W_scene_camera(c, v73, 0, 0, 800);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
@@ -17220,20 +17241,20 @@ LABEL_234:
     }
     goto LABEL_625;
   }
-  if ( v5 > 0xC87060F )
+  if ( v6 > 0xC87060F )
   {
-    if ( v5 > 0x35A4E908 )
+    if ( v6 > 0x35A4E908 )
     {
-      v171 = v5 - 900000011;
-      if ( v171 == 0 )
+      v172 = v6 - 900000011;
+      if ( v172 == 0 )
       {
-        v184 = W_sc_402f40(c) - 100000101;
-        if ( v184 == 0 )
+        v185 = W_sc_402f40(c) - 100000101;
+        if ( v185 == 0 )
         {
           W_script_begin(c);
-          v189 = W_script_leader(c);
+          v190 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v189;
+          F32(c, 0x5c) = v190;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -17252,8 +17273,8 @@ LABEL_234:
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
-          v190 = W_script_leader(c);
-          W_scene_camera(c, v190, 0, 0, 800);
+          v191 = W_script_leader(c);
+          W_scene_camera(c, v191, 0, 0, 800);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
@@ -17275,11 +17296,11 @@ LABEL_234:
             return v3;
           goto LABEL_637;
         }
-        if ( v184 != 2 )
+        if ( v185 != 2 )
         {
           W_script_begin(c);
-          v185 = W_script_leader(c);
-          W_scene_camera(c, v185, 0, 0, 800);
+          v186 = W_script_leader(c);
+          W_scene_camera(c, v186, 0, 0, 800);
           W_script_party_cast(c);
           v3 = W_script_wait(c);
           if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -17288,8 +17309,8 @@ LABEL_234:
             v3 = W_script_wait(c);
             if ( v3 != 6 )
             {
-              v186 = W_script_leader(c);
-              W_scene_camera(c, v186, 0, 0, 800);
+              v187 = W_script_leader(c);
+              W_scene_camera(c, v187, 0, 0, 800);
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
@@ -17317,8 +17338,8 @@ LABEL_617:
           return v3;
         }
         W_script_begin(c);
-        v187 = W_script_leader(c);
-        W_scene_camera(c, v187, 0, 0, 800);
+        v188 = W_script_leader(c);
+        W_scene_camera(c, v188, 0, 0, 800);
         W_script_party_cast(c);
         v3 = W_script_wait(c);
         if ( v3 != 6 && (W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6) )
@@ -17327,8 +17348,8 @@ LABEL_617:
           v3 = W_script_wait(c);
           if ( v3 != 6 )
           {
-            v188 = W_script_leader(c);
-            W_scene_camera(c, v188, 0, 0, 800);
+            v189 = W_script_leader(c);
+            W_scene_camera(c, v189, 0, 0, 800);
             v3 = W_script_wait(c);
             if ( v3 != 6 )
             {
@@ -17344,35 +17365,14 @@ LABEL_617:
         }
         return v3;
       }
-      v172 = v171 - 2;
-      if ( v172 != 0 )
+      v173 = v172 - 2;
+      if ( v173 != 0 )
       {
-        if ( v172 != 7 )
+        if ( v173 != 7 )
           return v3;
         if ( W_script_flag(c, 100100101) < 1000 )
         {
           W_script_begin(c);
-          v175 = W_script_leader(c);
-          F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v175;
-          F32(c, 0x50) = 0;
-          F32(c, 0x54) = 0;
-          F32(c, 0x58) = 800;
-          F32(c, 0x20) = 3;
-          W_script_party_cast(c);
-          v3 = W_script_wait(c);
-          if ( v3 == 6 )
-            return v3;
-          if ( W_scene_party_stance(c, 0, F32(c, 0x8)) != 0 )
-          {
-            v3 = W_script_wait(c);
-            if ( v3 == 6 )
-              return v3;
-          }
-          W_scene_talk_face(c, 0, F32(c, 0x4), 1, 1);
-          v3 = W_script_wait(c);
-          if ( v3 == 6 )
-            return v3;
           v176 = W_script_leader(c);
           F32(c, 0x4c) = 0;
           F32(c, 0x5c) = v176;
@@ -17380,23 +17380,6 @@ LABEL_617:
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
           F32(c, 0x20) = 3;
-          v3 = W_script_wait(c);
-          if ( v3 == 6 )
-            return v3;
-          (*v192__f) = 0;
-          (*v191__f) = D(0x8564b0);
-          v120 = W_actor_by_handle(900000020);
-        }
-        else
-        {
-          W_script_begin(c);
-          v173 = W_script_leader(c);
-          F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v173;
-          F32(c, 0x50) = 0;
-          F32(c, 0x54) = 0;
-          F32(c, 0x58) = 800;
-          F32(c, 0x20) = 3;
           W_script_party_cast(c);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
@@ -17411,6 +17394,23 @@ LABEL_617:
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
+          v177 = W_script_leader(c);
+          F32(c, 0x4c) = 0;
+          F32(c, 0x5c) = v177;
+          F32(c, 0x50) = 0;
+          F32(c, 0x54) = 0;
+          F32(c, 0x58) = 800;
+          F32(c, 0x20) = 3;
+          v3 = W_script_wait(c);
+          if ( v3 == 6 )
+            return v3;
+          (*v193__f) = 0;
+          (*v192__f) = D(0x8564b0);
+          v121 = W_actor_by_handle(900000020);
+        }
+        else
+        {
+          W_script_begin(c);
           v174 = W_script_leader(c);
           F32(c, 0x4c) = 0;
           F32(c, 0x5c) = v174;
@@ -17418,12 +17418,33 @@ LABEL_617:
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
           F32(c, 0x20) = 3;
+          W_script_party_cast(c);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
-          (*v192__f) = 0;
-          (*v191__f) = D(0x856500);
-          v120 = W_actor_by_handle(900000020);
+          if ( W_scene_party_stance(c, 0, F32(c, 0x8)) != 0 )
+          {
+            v3 = W_script_wait(c);
+            if ( v3 == 6 )
+              return v3;
+          }
+          W_scene_talk_face(c, 0, F32(c, 0x4), 1, 1);
+          v3 = W_script_wait(c);
+          if ( v3 == 6 )
+            return v3;
+          v175 = W_script_leader(c);
+          F32(c, 0x4c) = 0;
+          F32(c, 0x5c) = v175;
+          F32(c, 0x50) = 0;
+          F32(c, 0x54) = 0;
+          F32(c, 0x58) = 800;
+          F32(c, 0x20) = 3;
+          v3 = W_script_wait(c);
+          if ( v3 == 6 )
+            return v3;
+          (*v193__f) = 0;
+          (*v192__f) = D(0x856500);
+          v121 = W_actor_by_handle(900000020);
         }
       }
       else
@@ -17431,9 +17452,9 @@ LABEL_617:
         if ( W_script_flag(c, 100100101) < 1000 )
         {
           W_script_begin(c);
-          v180 = W_script_leader(c);
+          v181 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v180;
+          F32(c, 0x5c) = v181;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -17452,9 +17473,9 @@ LABEL_617:
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
-          v181 = W_script_leader(c);
+          v182 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v181;
+          F32(c, 0x5c) = v182;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -17462,21 +17483,21 @@ LABEL_617:
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
-          v182 = W_actor_by_handle(900000013);
-          W_scene_msg(c, 0, v182, D(0x8563e4), 0, 1, 1, 0, 30, 0, 0);
+          v183 = W_actor_by_handle(900000013);
+          W_scene_msg(c, 0, v183, D(0x8563e4), 0, 1, 1, 0, 30, 0, 0);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
           if ( W_sc_402f40(c) != 100000101 )
             goto LABEL_637;
-          v183 = W_actor_by_handle(100000101);
-          W_scene_msg(c, 2u, v183, D(0x8563b0), 0, 1, 1, 0, 4, 0, 0);
+          v184 = W_actor_by_handle(100000101);
+          W_scene_msg(c, 2u, v184, D(0x8563b0), 0, 1, 1, 0, 4, 0, 0);
           goto LABEL_625;
         }
         W_script_begin(c);
-        v177 = W_script_leader(c);
+        v178 = W_script_leader(c);
         F32(c, 0x4c) = 0;
-        F32(c, 0x5c) = v177;
+        F32(c, 0x5c) = v178;
         F32(c, 0x50) = 0;
         F32(c, 0x54) = 0;
         F32(c, 0x58) = 800;
@@ -17495,9 +17516,9 @@ LABEL_617:
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
-        v178 = W_script_leader(c);
+        v179 = W_script_leader(c);
         F32(c, 0x4c) = 0;
-        F32(c, 0x5c) = v178;
+        F32(c, 0x5c) = v179;
         F32(c, 0x50) = 0;
         F32(c, 0x54) = 0;
         F32(c, 0x58) = 800;
@@ -17505,21 +17526,21 @@ LABEL_617:
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
-        v179 = W_actor_by_handle(900000013);
-        W_scene_msg(c, 0, v179, D(0x856464), 0, 1, 1, 0, 5, 0, 0);
+        v180 = W_actor_by_handle(900000013);
+        W_scene_msg(c, 0, v180, D(0x856464), 0, 1, 1, 0, 5, 0, 0);
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
-        (*v192__f) = 5;
-        (*v191__f) = D(0x85641c);
-        v120 = W_actor_by_handle(900000013);
+        (*v193__f) = 5;
+        (*v192__f) = D(0x85641c);
+        v121 = W_actor_by_handle(900000013);
       }
     }
-    else if ( v5 == 900000008 )
+    else if ( v6 == 900000008 )
     {
-      v168 = W_script_leader(c);
+      v169 = W_script_leader(c);
       F32(c, 0x4c) = 0;
-      F32(c, 0x5c) = v168;
+      F32(c, 0x5c) = v169;
       F32(c, 0x50) = 0;
       F32(c, 0x54) = 0;
       F32(c, 0x58) = 800;
@@ -17538,9 +17559,9 @@ LABEL_617:
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      v169 = W_script_leader(c);
+      v170 = W_script_leader(c);
       F32(c, 0x4c) = 0;
-      F32(c, 0x5c) = v169;
+      F32(c, 0x5c) = v170;
       F32(c, 0x50) = 0;
       F32(c, 0x54) = 0;
       F32(c, 0x58) = 800;
@@ -17548,28 +17569,28 @@ LABEL_617:
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      v170 = W_actor_by_handle(900000008);
-      W_scene_msg(c, 0, v170, D(0x856584), 0, 1, 1, 0, 11, 0, 0);
+      v171 = W_actor_by_handle(900000008);
+      W_scene_msg(c, 0, v171, D(0x856584), 0, 1, 1, 0, 11, 0, 0);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      (*v192__f) = 11;
-      (*v191__f) = D(0x856528);
-      v120 = W_actor_by_handle(900000008);
+      (*v193__f) = 11;
+      (*v192__f) = D(0x856528);
+      v121 = W_actor_by_handle(900000008);
     }
     else
     {
-      if ( v5 > 0xC873F15 )
+      if ( v6 > 0xC873F15 )
       {
-        if ( v5 != 210205101 )
+        if ( v6 != 210205101 )
           return v3;
-        v163 = W_script_flag(c, 100100101);
-        if ( v163 == 0 || v163 == 210 )
+        v164 = W_script_flag(c, 100100101);
+        if ( v164 == 0 || v164 == 210 )
         {
           W_script_begin(c);
-          v166 = W_script_leader(c);
+          v167 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v166;
+          F32(c, 0x5c) = v167;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -17588,9 +17609,9 @@ LABEL_617:
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
-          v167 = W_script_leader(c);
+          v168 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v167;
+          F32(c, 0x5c) = v168;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -17603,9 +17624,9 @@ LABEL_617:
         else
         {
           W_script_begin(c);
-          v164 = W_script_leader(c);
+          v165 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v164;
+          F32(c, 0x5c) = v165;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -17624,9 +17645,9 @@ LABEL_617:
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
-          v165 = W_script_leader(c);
+          v166 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v165;
+          F32(c, 0x5c) = v166;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -17638,16 +17659,16 @@ LABEL_617:
         }
         goto LABEL_625;
       }
-      if ( v5 != 210190101 )
+      if ( v6 != 210190101 )
       {
-        v151 = v5 - 210180101;
-        if ( v151 != 0 )
+        v152 = v6 - 210180101;
+        if ( v152 != 0 )
         {
-          if ( v151 != 1 )
+          if ( v152 != 1 )
             return v3;
           W_script_begin(c);
-          v152 = W_script_leader(c);
-          W_scene_camera(c, v152, 0, 0, 800);
+          v153 = W_script_leader(c);
+          W_scene_camera(c, v153, 0, 0, 800);
           W_script_party_cast(c);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
@@ -17658,8 +17679,8 @@ LABEL_617:
             if ( v3 == 6 )
               return v3;
           }
-          v153 = W_script_leader(c);
-          W_scene_camera(c, v153, 0, 0, 800);
+          v154 = W_script_leader(c);
+          W_scene_camera(c, v154, 0, 0, 800);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
@@ -17677,8 +17698,8 @@ LABEL_617:
         else
         {
           W_script_begin(c);
-          v154 = W_script_leader(c);
-          W_scene_camera(c, v154, 0, 0, 800);
+          v155 = W_script_leader(c);
+          W_scene_camera(c, v155, 0, 0, 800);
           W_script_party_cast(c);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
@@ -17693,8 +17714,8 @@ LABEL_617:
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
-          v155 = W_script_leader(c);
-          W_scene_camera(c, v155, 0, 0, 800);
+          v156 = W_script_leader(c);
+          W_scene_camera(c, v156, 0, 0, 800);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
@@ -17702,33 +17723,12 @@ LABEL_617:
         }
         goto LABEL_625;
       }
-      v156 = W_sc_402f40(c) - 100000101;
-      if ( v156 != 0 )
+      v157 = W_sc_402f40(c) - 100000101;
+      if ( v157 != 0 )
       {
-        if ( v156 == 1 )
+        if ( v157 == 1 )
         {
           W_script_begin(c);
-          v159 = W_script_leader(c);
-          F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v159;
-          F32(c, 0x50) = 0;
-          F32(c, 0x54) = 0;
-          F32(c, 0x58) = 800;
-          F32(c, 0x20) = 3;
-          W_script_party_cast(c);
-          v3 = W_script_wait(c);
-          if ( v3 == 6 )
-            return v3;
-          if ( W_scene_party_stance(c, 0, F32(c, 0x8)) != 0 )
-          {
-            v3 = W_script_wait(c);
-            if ( v3 == 6 )
-              return v3;
-          }
-          W_scene_talk_face(c, 0, F32(c, 0x4), 1, 1);
-          v3 = W_script_wait(c);
-          if ( v3 == 6 )
-            return v3;
           v160 = W_script_leader(c);
           F32(c, 0x4c) = 0;
           F32(c, 0x5c) = v160;
@@ -17736,19 +17736,40 @@ LABEL_617:
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
           F32(c, 0x20) = 3;
+          W_script_party_cast(c);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
-          (*v192__f) = 0;
-          (*v191__f) = D(0x8566d4);
-          v120 = W_actor_by_handle(210190101);
+          if ( W_scene_party_stance(c, 0, F32(c, 0x8)) != 0 )
+          {
+            v3 = W_script_wait(c);
+            if ( v3 == 6 )
+              return v3;
+          }
+          W_scene_talk_face(c, 0, F32(c, 0x4), 1, 1);
+          v3 = W_script_wait(c);
+          if ( v3 == 6 )
+            return v3;
+          v161 = W_script_leader(c);
+          F32(c, 0x4c) = 0;
+          F32(c, 0x5c) = v161;
+          F32(c, 0x50) = 0;
+          F32(c, 0x54) = 0;
+          F32(c, 0x58) = 800;
+          F32(c, 0x20) = 3;
+          v3 = W_script_wait(c);
+          if ( v3 == 6 )
+            return v3;
+          (*v193__f) = 0;
+          (*v192__f) = D(0x8566d4);
+          v121 = W_actor_by_handle(210190101);
         }
         else
         {
           W_script_begin(c);
-          v157 = W_script_leader(c);
+          v158 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v157;
+          F32(c, 0x5c) = v158;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -17767,9 +17788,9 @@ LABEL_617:
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
-          v158 = W_script_leader(c);
+          v159 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v158;
+          F32(c, 0x5c) = v159;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -17777,17 +17798,17 @@ LABEL_617:
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
-          (*v192__f) = 0;
-          (*v191__f) = D(0x8566e8);
-          v120 = W_actor_by_handle(210190101);
+          (*v193__f) = 0;
+          (*v192__f) = D(0x8566e8);
+          v121 = W_actor_by_handle(210190101);
         }
       }
       else
       {
         W_script_begin(c);
-        v161 = W_script_leader(c);
+        v162 = W_script_leader(c);
         F32(c, 0x4c) = 0;
-        F32(c, 0x5c) = v161;
+        F32(c, 0x5c) = v162;
         F32(c, 0x50) = 0;
         F32(c, 0x54) = 0;
         F32(c, 0x58) = 800;
@@ -17806,9 +17827,9 @@ LABEL_617:
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
-        v162 = W_script_leader(c);
+        v163 = W_script_leader(c);
         F32(c, 0x4c) = 0;
-        F32(c, 0x5c) = v162;
+        F32(c, 0x5c) = v163;
         F32(c, 0x50) = 0;
         F32(c, 0x54) = 0;
         F32(c, 0x58) = 800;
@@ -17816,19 +17837,19 @@ LABEL_617:
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
-        (*v192__f) = 0;
-        (*v191__f) = D(0x856698);
-        v120 = W_actor_by_handle(210190101);
+        (*v193__f) = 0;
+        (*v192__f) = D(0x856698);
+        v121 = W_actor_by_handle(210190101);
       }
     }
     goto LABEL_392;
   }
-  if ( v5 == 210175503 )
+  if ( v6 == 210175503 )
   {
     W_script_begin(c);
-    v148 = W_script_leader(c);
+    v149 = W_script_leader(c);
     F32(c, 0x4c) = 0;
-    F32(c, 0x5c) = v148;
+    F32(c, 0x5c) = v149;
     F32(c, 0x50) = 0;
     F32(c, 0x54) = 0;
     F32(c, 0x58) = 800;
@@ -17847,9 +17868,9 @@ LABEL_617:
     v3 = W_script_wait(c);
     if ( v3 == 6 )
       return v3;
-    v149 = W_script_leader(c);
+    v150 = W_script_leader(c);
     F32(c, 0x4c) = 0;
-    F32(c, 0x5c) = v149;
+    F32(c, 0x5c) = v150;
     F32(c, 0x50) = 0;
     F32(c, 0x54) = 0;
     F32(c, 0x58) = 800;
@@ -17863,15 +17884,15 @@ LABEL_617:
     v3 = W_script_wait(c);
     if ( v3 == 6 )
       return v3;
-    v150 = W_scene_yes_no(c);
-    if ( v150 == 6 )
+    v151 = W_scene_yes_no(c);
+    if ( v151 == 6 )
       return 6;
     *(_DWORD *)&GAP(c, 0x300, 636) = 20;
     F32(c, 0x20) = 6;
     v3 = W_script_wait(c);
     if ( v3 == 6 )
       return v3;
-    if ( v150 != 14 )
+    if ( v151 != 14 )
       goto LABEL_637;
     F32(c, 0x2e4) = 1;
     *(_DWORD *)&GAP(c, 0x300, 636) = 10;
@@ -17883,18 +17904,18 @@ LABEL_617:
       return 6;
     goto LABEL_327;
   }
-  if ( v5 > 0xC86C9E5 )
+  if ( v6 > 0xC86C9E5 )
   {
-    v106 = v5 - 210160102;
-    if ( v106 != 0 )
+    v107 = v6 - 210160102;
+    if ( v107 != 0 )
     {
-      v107 = v106 - 9999;
-      if ( v107 == 0 )
+      v108 = v107 - 9999;
+      if ( v108 == 0 )
       {
         W_script_begin(c);
-        v121 = W_script_leader(c);
+        v122 = W_script_leader(c);
         F32(c, 0x4c) = 0;
-        F32(c, 0x5c) = v121;
+        F32(c, 0x5c) = v122;
         F32(c, 0x50) = 0;
         F32(c, 0x54) = 0;
         F32(c, 0x58) = 800;
@@ -17907,9 +17928,9 @@ LABEL_617:
           v3 = W_script_wait(c);
           if ( v3 != 6 )
           {
-            v122 = W_script_leader(c);
+            v123 = W_script_leader(c);
             F32(c, 0x4c) = 0;
-            F32(c, 0x5c) = v122;
+            F32(c, 0x5c) = v123;
             F32(c, 0x50) = 0;
             F32(c, 0x54) = 0;
             F32(c, 0x58) = 800;
@@ -17917,33 +17938,33 @@ LABEL_617:
             v3 = W_script_wait(c);
             if ( v3 != 6 )
             {
-              v123 = 0;
-              v198[0] = 0;
+              v124 = 0;
+              v199[0] = 0;
               do
               {
-                if ( v123 >= 0xFFu )
+                if ( v124 >= 0xFFu )
                   break;
-                v124 = v123++;
-                v198[v124] = ((int32_t *)D(0x6e7cc4))[v124];
+                v125 = v124++;
+                v199[v125] = ((int32_t *)D(0x6e7cc4))[v125];
               }
-              while ( ((int32_t *)D(0x6e7cc4))[v123] != 0 );
-              v198[v123] = 0;
+              while ( ((int32_t *)D(0x6e7cc4))[v124] != 0 );
+              v199[v124] = 0;
               if ( W_script_flag(c, 100100101) >= 1610 )
               {
-                v125 = 0;
-                for ( i = 0; v198[i] != 0; ++i )
+                v126 = 0;
+                for ( i = 0; v199[i] != 0; ++i )
                   ;
                 do
                 {
                   if ( i >= 0xFFu )
                     break;
-                  v127 = (uint16_t)v125;
-                  v128 = i++;
-                  ++v125;
-                  v198[v128] = ((int32_t *)D(0x6e7cec))[v127];
+                  v128 = (uint16_t)v126;
+                  v129 = i++;
+                  ++v126;
+                  v199[v129] = ((int32_t *)D(0x6e7cec))[v128];
                 }
-                while ( ((int32_t *)D(0x6e7cec))[(uint16_t)v125] != 0 );
-                v198[i] = 0;
+                while ( ((int32_t *)D(0x6e7cec))[(uint16_t)v126] != 0 );
+                v199[i] = 0;
                 if ( W_script_flag(c, 100210114) < 10 )
                 {
                   W_scene_msg(c, 0, F32(c, 0x4), D(0x857790), 0, 1, 1, 0, 0, 0, 0);
@@ -17974,12 +17995,12 @@ LABEL_617:
 LABEL_414:
                   while ( 1 )
                   {
-                    v129 = W_shop_run(c, (int)v198, 0, 0);
-                    if ( v129 == 11 )
+                    v130 = W_shop_run(c, (int)v199, 0, 0);
+                    if ( v130 == 11 )
                       break;
-                    if ( v129 == 6 )
+                    if ( v130 == 6 )
                       return 6;
-                    if ( v129 != 12
+                    if ( v130 != 12
                       || D(0x857668) == 0
                       || (W_scene_msg(c, 0, F32(c, 0x4), D(0x857668), 0, 1, 1, 0, 0, 0, 0),
                           (v3 = W_script_wait(c)) != 6) )
@@ -18004,12 +18025,12 @@ LABEL_414:
         }
         return v3;
       }
-      if ( v107 != 1 )
+      if ( v108 != 1 )
         return v3;
       W_script_begin(c);
-      v108 = W_script_leader(c);
+      v109 = W_script_leader(c);
       F32(c, 0x4c) = 0;
-      F32(c, 0x5c) = v108;
+      F32(c, 0x5c) = v109;
       F32(c, 0x50) = 0;
       F32(c, 0x54) = 0;
       F32(c, 0x58) = 800;
@@ -18028,9 +18049,9 @@ LABEL_414:
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      v109 = W_script_leader(c);
+      v110 = W_script_leader(c);
       F32(c, 0x4c) = 0;
-      F32(c, 0x5c) = v109;
+      F32(c, 0x5c) = v110;
       F32(c, 0x50) = 0;
       F32(c, 0x54) = 0;
       F32(c, 0x58) = 800;
@@ -18046,59 +18067,59 @@ LABEL_414:
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      v110 = F32(c, 0x8);
-      v111 = 0;
+      v111 = F32(c, 0x8);
+      v112 = 0;
       while ( 1 )
       {
-        v112 = F32(v110 + 4 * v111, 16432);
-        if ( F32(v112, 2544) == 100000101 )
+        v113 = F32(v111 + 4 * v112, 16432);
+        if ( F32(v113, 2544) == 100000101 )
           break;
-        if ( ++v111 >= 8u )
+        if ( ++v112 >= 8u )
           goto LABEL_617;
       }
-      if ( F32(v112, 2500) != 1 || v112 == 0 )
+      if ( F32(v113, 2500) != 1 || v113 == 0 )
         goto LABEL_637;
-      v113 = 0;
+      v114 = 0;
       while ( 1 )
       {
-        v114 = F32(v110 + 4 * v113, 16432);
-        if ( F32(v114, 2544) == 100000102 )
+        v115 = F32(v111 + 4 * v114, 16432);
+        if ( F32(v115, 2544) == 100000102 )
           break;
-        if ( ++v113 >= 8u )
+        if ( ++v114 >= 8u )
           goto LABEL_617;
       }
-      if ( F32(v114, 2500) != 1 || v114 == 0 )
+      if ( F32(v115, 2500) != 1 || v115 == 0 )
         goto LABEL_637;
-      v115 = W_actor_by_handle(100000101);
-      W_scene_msg(c, 0, v115, D(0x8577e4), 0, 1, 1, 0, 2, 0, 0);
-      v3 = W_script_wait(c);
-      if ( v3 == 6 )
-        return v3;
-      (*v193__f) = W_actor_by_handle(100000102);
       v116 = W_actor_by_handle(100000101);
-      (*v196__f) = W_sc_401d80(v116, (*v193__f), 0);
-      v117 = W_actor_by_handle(100000101);
-      W_scene_face(c, v117, (*v196__f));
-      (*v194__f) = W_actor_by_handle(100000101);
-      v118 = W_actor_by_handle(100000102);
-      (*v197__f) = W_sc_401d80(v118, (*v194__f), 0);
-      v119 = W_actor_by_handle(100000102);
-      W_scene_face(c, v119, (*v197__f));
+      W_scene_msg(c, 0, v116, D(0x8577e4), 0, 1, 1, 0, 2, 0, 0);
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      (*v192__f) = 10;
-      (*v191__f) = D(0x8577b4);
+      (*v194__f) = W_actor_by_handle(100000102);
+      v117 = W_actor_by_handle(100000101);
+      (*v197__f) = W_sc_401d80(v117, (*v194__f), 0);
+      v118 = W_actor_by_handle(100000101);
+      W_scene_face(c, v118, (*v197__f));
+      (*v195__f) = W_actor_by_handle(100000101);
+      v119 = W_actor_by_handle(100000102);
+      (*v198__f) = W_sc_401d80(v119, (*v195__f), 0);
+      v120 = W_actor_by_handle(100000102);
+      W_scene_face(c, v120, (*v198__f));
+      v3 = W_script_wait(c);
+      if ( v3 == 6 )
+        return v3;
+      (*v193__f) = 10;
+      (*v192__f) = D(0x8577b4);
     }
     else
     {
-      v130 = W_sc_402f40(c) - 100000101;
-      if ( v130 == 0 )
+      v131 = W_sc_402f40(c) - 100000101;
+      if ( v131 == 0 )
       {
         W_script_begin(c);
-        v135 = W_script_leader(c);
+        v136 = W_script_leader(c);
         F32(c, 0x4c) = 0;
-        F32(c, 0x5c) = v135;
+        F32(c, 0x5c) = v136;
         F32(c, 0x50) = 0;
         F32(c, 0x54) = 0;
         F32(c, 0x58) = 800;
@@ -18113,9 +18134,9 @@ LABEL_414:
           if ( v3 == 6 )
             return v3;
         }
-        v136 = W_script_leader(c);
+        v137 = W_script_leader(c);
         F32(c, 0x4c) = 0;
-        F32(c, 0x5c) = v136;
+        F32(c, 0x5c) = v137;
         F32(c, 0x50) = 0;
         F32(c, 0x54) = 0;
         F32(c, 0x58) = 800;
@@ -18158,56 +18179,56 @@ LABEL_414:
           F32(c, 0x20) = 5;
           if ( W_script_flag(c, 100100101) < 400 )
           {
-            v140 = (uint8_t *)c + 88 * F16(c, 0x584);
-            F32(v140, 4 * 381) = 1;
-            F32(v140, 4 * 380) = 0;
-            strcpy(v140 + 1440, D(0x857508));
-            v141 = (uint8_t *)c + 88 * (uint16_t)++F16(c, 0x584);
-            F32(v141, 4 * 381) = 2;
+            v141 = (uint8_t *)c + 88 * F16(c, 0x584);
+            F32(v141, 4 * 381) = 1;
             F32(v141, 4 * 380) = 0;
-            strcpy(v141 + 1440, D(0x857500));
+            strcpy(v141 + 1440, D(0x857508));
             v142 = (uint8_t *)c + 88 * (uint16_t)++F16(c, 0x584);
-            F32(v142, 4 * 381) = 3;
+            F32(v142, 4 * 381) = 2;
             F32(v142, 4 * 380) = 0;
-            strcpy(v142 + 1440, D(0x8574f4));
+            strcpy(v142 + 1440, D(0x857500));
             v143 = (uint8_t *)c + 88 * (uint16_t)++F16(c, 0x584);
-            F32(v143, 4 * 381) = 4;
+            F32(v143, 4 * 381) = 3;
             F32(v143, 4 * 380) = 0;
-            strcpy(v143 + 1440, D(0x8574e4));
+            strcpy(v143 + 1440, D(0x8574f4));
             v144 = (uint8_t *)c + 88 * (uint16_t)++F16(c, 0x584);
-            F32(v144, 4 * 381) = 5;
+            F32(v144, 4 * 381) = 4;
             F32(v144, 4 * 380) = 0;
-            strcpy(v144 + 1440, D(0x8574d8));
+            strcpy(v144 + 1440, D(0x8574e4));
             v145 = (uint8_t *)c + 88 * (uint16_t)++F16(c, 0x584);
-            F32(v145, 4 * 381) = 6;
+            F32(v145, 4 * 381) = 5;
             F32(v145, 4 * 380) = 0;
-            strcpy(v145 + 1440, D(0x8574c0));
+            strcpy(v145 + 1440, D(0x8574d8));
             v146 = (uint8_t *)c + 88 * (uint16_t)++F16(c, 0x584);
-            F32(v146, 4 * 381) = 7;
+            F32(v146, 4 * 381) = 6;
             F32(v146, 4 * 380) = 0;
-            strcpy(v146 + 1440, D(0x8574ac));
+            strcpy(v146 + 1440, D(0x8574c0));
+            v147 = (uint8_t *)c + 88 * (uint16_t)++F16(c, 0x584);
+            F32(v147, 4 * 381) = 7;
+            F32(v147, 4 * 380) = 0;
+            strcpy(v147 + 1440, D(0x8574ac));
             ++F16(c, 0x584);
-            v138 = D(0x8574a0);
-            v139 = (uint8_t *)c + 88 * F16(c, 0x584);
-            F32(v139, 4 * 381) = 8;
+            v139 = D(0x8574a0);
+            v140 = (uint8_t *)c + 88 * F16(c, 0x584);
+            F32(v140, 4 * 381) = 8;
           }
           else
           {
-            v137 = (uint8_t *)c + 88 * F16(c, 0x584);
-            F32(v137, 4 * 381) = 9;
-            F32(v137, 4 * 380) = 0;
-            strcpy(v137 + 1440, D(0x857518));
+            v138 = (uint8_t *)c + 88 * F16(c, 0x584);
+            F32(v138, 4 * 381) = 9;
+            F32(v138, 4 * 380) = 0;
+            strcpy(v138 + 1440, D(0x857518));
             ++F16(c, 0x584);
-            v138 = D(0x857510);
-            v139 = (uint8_t *)c + 88 * F16(c, 0x584);
-            F32(v139, 4 * 381) = 10;
+            v139 = D(0x857510);
+            v140 = (uint8_t *)c + 88 * F16(c, 0x584);
+            F32(v140, 4 * 381) = 10;
           }
-          F32(v139, 4 * 380) = 0;
-          strcpy(v139 + 1440, v138);
-          v147 = (uint8_t *)c + 88 * (uint16_t)++F16(c, 0x584);
-          F32(v147, 4 * 381) = 0;
-          F32(v147, 4 * 380) = 0;
-          strcpy(v147 + 1440, D(0x857494));
+          F32(v140, 4 * 380) = 0;
+          strcpy(v140 + 1440, v139);
+          v148 = (uint8_t *)c + 88 * (uint16_t)++F16(c, 0x584);
+          F32(v148, 4 * 381) = 0;
+          F32(v148, 4 * 380) = 0;
+          strcpy(v148 + 1440, D(0x857494));
           ++F16(c, 0x584);
           v3 = W_script_wait(c);
           if ( v3 != 6 )
@@ -18387,12 +18408,12 @@ LABEL_459:
           return v3;
         }
       }
-      if ( v130 != 1 )
+      if ( v131 != 1 )
       {
         W_script_begin(c);
-        v131 = W_script_leader(c);
+        v132 = W_script_leader(c);
         F32(c, 0x4c) = 0;
-        F32(c, 0x5c) = v131;
+        F32(c, 0x5c) = v132;
         F32(c, 0x50) = 0;
         F32(c, 0x54) = 0;
         F32(c, 0x58) = 800;
@@ -18411,9 +18432,9 @@ LABEL_459:
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
-        v132 = W_script_leader(c);
+        v133 = W_script_leader(c);
         F32(c, 0x4c) = 0;
-        F32(c, 0x5c) = v132;
+        F32(c, 0x5c) = v133;
         F32(c, 0x50) = 0;
         F32(c, 0x54) = 0;
         F32(c, 0x58) = 800;
@@ -18425,9 +18446,9 @@ LABEL_459:
         goto LABEL_625;
       }
       W_script_begin(c);
-      v133 = W_script_leader(c);
+      v134 = W_script_leader(c);
       F32(c, 0x4c) = 0;
-      F32(c, 0x5c) = v133;
+      F32(c, 0x5c) = v134;
       F32(c, 0x50) = 0;
       F32(c, 0x54) = 0;
       F32(c, 0x58) = 800;
@@ -18446,9 +18467,9 @@ LABEL_459:
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      v134 = W_script_leader(c);
+      v135 = W_script_leader(c);
       F32(c, 0x4c) = 0;
-      F32(c, 0x5c) = v134;
+      F32(c, 0x5c) = v135;
       F32(c, 0x50) = 0;
       F32(c, 0x54) = 0;
       F32(c, 0x58) = 800;
@@ -18460,31 +18481,31 @@ LABEL_459:
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      (*v192__f) = 24;
-      (*v191__f) = D(0x85759c);
+      (*v193__f) = 24;
+      (*v192__f) = D(0x85759c);
     }
-    v120 = W_actor_by_handle(100000102);
+    v121 = W_actor_by_handle(100000102);
 LABEL_392:
-    W_scene_msg(c, 0, v120, (*v191__f), 0, 1, 1, 0, (*v192__f), 0, 0);
+    W_scene_msg(c, 0, v121, (*v192__f), 0, 1, 1, 0, (*v193__f), 0, 0);
     goto LABEL_625;
   }
-  if ( v5 != 210160101 )
+  if ( v6 != 210160101 )
   {
-    if ( v5 <= 0xC86A2D7 )
+    if ( v6 <= 0xC86A2D7 )
     {
-      if ( v5 != 210150103 )
+      if ( v6 != 210150103 )
       {
-        v75 = v5 - 210150101;
-        if ( v75 != 0 )
+        v76 = v6 - 210150101;
+        if ( v76 != 0 )
         {
-          if ( v75 != 1 )
+          if ( v76 != 1 )
             return v3;
           if ( W_script_flag(c, 100100101) < 1000 )
           {
             W_script_begin(c);
-            v78 = W_script_leader(c);
+            v79 = W_script_leader(c);
             F32(c, 0x4c) = 0;
-            F32(c, 0x5c) = v78;
+            F32(c, 0x5c) = v79;
             F32(c, 0x50) = 0;
             F32(c, 0x54) = 0;
             F32(c, 0x58) = 800;
@@ -18503,9 +18524,9 @@ LABEL_392:
             v3 = W_script_wait(c);
             if ( v3 == 6 )
               return v3;
-            v79 = W_script_leader(c);
+            v80 = W_script_leader(c);
             F32(c, 0x4c) = 0;
-            F32(c, 0x5c) = v79;
+            F32(c, 0x5c) = v80;
             F32(c, 0x50) = 0;
             F32(c, 0x54) = 0;
             F32(c, 0x58) = 800;
@@ -18518,9 +18539,9 @@ LABEL_392:
           else
           {
             W_script_begin(c);
-            v76 = W_script_leader(c);
+            v77 = W_script_leader(c);
             F32(c, 0x4c) = 0;
-            F32(c, 0x5c) = v76;
+            F32(c, 0x5c) = v77;
             F32(c, 0x50) = 0;
             F32(c, 0x54) = 0;
             F32(c, 0x58) = 800;
@@ -18539,9 +18560,9 @@ LABEL_392:
             v3 = W_script_wait(c);
             if ( v3 == 6 )
               return v3;
-            v77 = W_script_leader(c);
+            v78 = W_script_leader(c);
             F32(c, 0x4c) = 0;
-            F32(c, 0x5c) = v77;
+            F32(c, 0x5c) = v78;
             F32(c, 0x50) = 0;
             F32(c, 0x54) = 0;
             F32(c, 0x58) = 800;
@@ -18574,9 +18595,9 @@ LABEL_392:
           goto LABEL_625;
         }
         W_script_begin(c);
-        v80 = W_script_leader(c);
+        v81 = W_script_leader(c);
         F32(c, 0x4c) = 0;
-        F32(c, 0x5c) = v80;
+        F32(c, 0x5c) = v81;
         F32(c, 0x50) = 0;
         F32(c, 0x54) = 0;
         F32(c, 0x58) = 800;
@@ -18595,9 +18616,9 @@ LABEL_392:
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
-        v81 = W_script_leader(c);
+        v82 = W_script_leader(c);
         F32(c, 0x4c) = 0;
-        F32(c, 0x5c) = v81;
+        F32(c, 0x5c) = v82;
         F32(c, 0x50) = 0;
         F32(c, 0x54) = 0;
         F32(c, 0x58) = 800;
@@ -18616,8 +18637,8 @@ LABEL_392:
           if ( v3 == 6 )
             return v3;
         }
-        v82 = W_actor_by_handle(210150101);
-        W_scene_msg(c, 0, v82, D(0x857c7c), 0, 1, 1, 0, 0, 0, 0);
+        v83 = W_actor_by_handle(210150101);
+        W_scene_msg(c, 0, v83, D(0x857c7c), 0, 1, 1, 0, 0, 0, 0);
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
@@ -18640,9 +18661,9 @@ LABEL_637:
       if ( W_script_flag(c, 100100101) < 310 && W_sc_402f40(c) == 100000101 )
       {
         W_script_begin(c);
-        v83 = W_script_leader(c);
+        v84 = W_script_leader(c);
         F32(c, 0x4c) = 0;
-        F32(c, 0x5c) = v83;
+        F32(c, 0x5c) = v84;
         F32(c, 0x50) = 0;
         F32(c, 0x54) = 0;
         F32(c, 0x58) = 800;
@@ -18661,9 +18682,9 @@ LABEL_637:
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
-        v84 = W_script_leader(c);
+        v85 = W_script_leader(c);
         F32(c, 0x4c) = 0;
-        F32(c, 0x5c) = v84;
+        F32(c, 0x5c) = v85;
         F32(c, 0x50) = 0;
         F32(c, 0x54) = 0;
         F32(c, 0x58) = 800;
@@ -18671,8 +18692,8 @@ LABEL_637:
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
-        v85 = W_actor_by_handle(100000101);
-        W_scene_msg(c, 0, v85, D(0x857b74), 0, 1, 1, 0, 2, 0, 0);
+        v86 = W_actor_by_handle(100000101);
+        W_scene_msg(c, 0, v86, D(0x857b74), 0, 1, 1, 0, 2, 0, 0);
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
@@ -18680,8 +18701,8 @@ LABEL_637:
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
-        v86 = W_actor_by_handle(100000101);
-        W_scene_msg(c, 0, v86, D(0x857b10), 0, 1, 1, 0, 25, 0, 0);
+        v87 = W_actor_by_handle(100000101);
+        W_scene_msg(c, 0, v87, D(0x857b10), 0, 1, 1, 0, 25, 0, 0);
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
@@ -18690,9 +18711,9 @@ LABEL_637:
       else
       {
         W_script_begin(c);
-        v87 = W_script_leader(c);
+        v88 = W_script_leader(c);
         F32(c, 0x4c) = 0;
-        F32(c, 0x5c) = v87;
+        F32(c, 0x5c) = v88;
         F32(c, 0x50) = 0;
         F32(c, 0x54) = 0;
         F32(c, 0x58) = 800;
@@ -18711,9 +18732,9 @@ LABEL_637:
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
-        v88 = W_script_leader(c);
+        v89 = W_script_leader(c);
         F32(c, 0x4c) = 0;
-        F32(c, 0x5c) = v88;
+        F32(c, 0x5c) = v89;
         F32(c, 0x50) = 0;
         F32(c, 0x54) = 0;
         F32(c, 0x58) = 800;
@@ -18725,21 +18746,21 @@ LABEL_637:
       }
 LABEL_625:
       v3 = W_script_wait(c);
-      v92 = v3 == 6;
+      v93 = v3 == 6;
 LABEL_626:
-      if ( !v92 )
+      if ( !v93 )
       {
         W_script_end(c);
         return v3;
       }
       return v3;
     }
-    if ( v5 != 210155501 )
+    if ( v6 != 210155501 )
       return v3;
     W_script_begin(c);
-    v89 = W_script_leader(c);
+    v90 = W_script_leader(c);
     F32(c, 0x4c) = 0;
-    F32(c, 0x5c) = v89;
+    F32(c, 0x5c) = v90;
     F32(c, 0x50) = 0;
     F32(c, 0x54) = 0;
     F32(c, 0x58) = 800;
@@ -18758,9 +18779,9 @@ LABEL_626:
     v3 = W_script_wait(c);
     if ( v3 == 6 )
       return v3;
-    v90 = W_script_leader(c);
+    v91 = W_script_leader(c);
     F32(c, 0x4c) = 0;
-    F32(c, 0x5c) = v90;
+    F32(c, 0x5c) = v91;
     F32(c, 0x50) = 0;
     F32(c, 0x54) = 0;
     F32(c, 0x58) = 800;
@@ -18774,15 +18795,15 @@ LABEL_626:
     v3 = W_script_wait(c);
     if ( v3 == 6 )
       return v3;
-    v91 = W_scene_yes_no(c);
-    if ( v91 == 6 )
+    v92 = W_scene_yes_no(c);
+    if ( v92 == 6 )
       return 6;
     *(_DWORD *)&GAP(c, 0x300, 636) = 20;
     F32(c, 0x20) = 6;
     v3 = W_script_wait(c);
     if ( v3 == 6 )
       return v3;
-    if ( v91 != 14 )
+    if ( v92 != 14 )
       goto LABEL_637;
     F32(c, 0x2e4) = 1;
     *(_DWORD *)&GAP(c, 0x300, 636) = 10;
@@ -18796,13 +18817,13 @@ LABEL_327:
     *(_DWORD *)&GAP(c, 0x300, 636) = 10;
     F32(c, 0x20) = 6;
     v3 = W_script_wait(c);
-    v92 = v3 == 6;
+    v93 = v3 == 6;
     goto LABEL_626;
   }
   W_script_begin(c);
-  v93 = W_script_leader(c);
+  v94 = W_script_leader(c);
   F32(c, 0x4c) = 0;
-  F32(c, 0x5c) = v93;
+  F32(c, 0x5c) = v94;
   F32(c, 0x50) = 0;
   F32(c, 0x54) = 0;
   F32(c, 0x58) = 800;
@@ -18815,9 +18836,9 @@ LABEL_327:
     v3 = W_script_wait(c);
     if ( v3 != 6 )
     {
-      v94 = W_script_leader(c);
+      v95 = W_script_leader(c);
       F32(c, 0x4c) = 0;
-      F32(c, 0x5c) = v94;
+      F32(c, 0x5c) = v95;
       F32(c, 0x50) = 0;
       F32(c, 0x54) = 0;
       F32(c, 0x58) = 800;
@@ -18825,33 +18846,33 @@ LABEL_327:
       v3 = W_script_wait(c);
       if ( v3 != 6 )
       {
-        v95 = 0;
-        v198[0] = 0;
+        v96 = 0;
+        v199[0] = 0;
         do
         {
-          if ( v95 >= 0xFFu )
+          if ( v96 >= 0xFFu )
             break;
-          v96 = v95++;
-          v198[v96] = ((int32_t *)D(0x6e79ec))[v96];
+          v97 = v96++;
+          v199[v97] = ((int32_t *)D(0x6e79ec))[v97];
         }
-        while ( ((int32_t *)D(0x6e79ec))[v95] != 0 );
-        v198[v95] = 0;
+        while ( ((int32_t *)D(0x6e79ec))[v96] != 0 );
+        v199[v96] = 0;
         if ( W_script_flag(c, 100100101) >= 1000 )
         {
-          v97 = 0;
-          for ( j = 0; v198[j] != 0; ++j )
+          v98 = 0;
+          for ( j = 0; v199[j] != 0; ++j )
             ;
           do
           {
             if ( j >= 0xFFu )
               break;
-            v99 = (uint16_t)v97;
-            v100 = j++;
-            ++v97;
-            v198[v100] = ((int32_t *)D(0x6e7a00))[v99];
+            v100 = (uint16_t)v98;
+            v101 = j++;
+            ++v98;
+            v199[v101] = ((int32_t *)D(0x6e7a00))[v100];
           }
-          while ( ((int32_t *)D(0x6e7a00))[(uint16_t)v97] != 0 );
-          v198[j] = 0;
+          while ( ((int32_t *)D(0x6e7a00))[(uint16_t)v98] != 0 );
+          v199[j] = 0;
           if ( W_script_flag(c, 100210111) < 10 )
           {
             W_scene_msg(c, 0, F32(c, 0x4), D(0x857a10), 0, 1, 1, 0, 0, 0, 0);
@@ -18872,20 +18893,20 @@ LABEL_327:
         {
           if ( W_script_flag(c, 100100101) >= 1610 )
           {
-            v101 = 0;
-            for ( k = 0; v198[k] != 0; ++k )
+            v102 = 0;
+            for ( k = 0; v199[k] != 0; ++k )
               ;
             do
             {
               if ( k >= 0xFFu )
                 break;
-              v103 = (uint16_t)v101;
-              v104 = k++;
-              ++v101;
-              v198[v104] = ((int32_t *)D(0x6e7a10))[v103];
+              v104 = (uint16_t)v102;
+              v105 = k++;
+              ++v102;
+              v199[v105] = ((int32_t *)D(0x6e7a10))[v104];
             }
-            while ( ((int32_t *)D(0x6e7a10))[(uint16_t)v101] != 0 );
-            v198[k] = 0;
+            while ( ((int32_t *)D(0x6e7a10))[(uint16_t)v102] != 0 );
+            v199[k] = 0;
             if ( W_script_flag(c, 100210111) < 20 )
             {
               W_scene_msg(c, 0, F32(c, 0x4), D(0x857918), 0, 1, 1, 0, 0, 0, 0);
@@ -18905,12 +18926,12 @@ LABEL_327:
 LABEL_356:
             while ( 1 )
             {
-              v105 = W_shop_run(c, (int)v198, 0, 0);
-              if ( v105 == 11 )
+              v106 = W_shop_run(c, (int)v199, 0, 0);
+              if ( v106 == 11 )
                 break;
-              if ( v105 == 6 )
+              if ( v106 == 6 )
                 return 6;
-              if ( v105 != 12
+              if ( v106 != 12
                 || D(0x8578cc) == 0
                 || (W_scene_msg(c, 0, F32(c, 0x4), D(0x8578cc), 0, 1, 1, 0, 0, 0, 0), (v3 = W_script_wait(c)) != 6) )
               {
@@ -18942,9 +18963,9 @@ int32_t chs_49f7c0(wl_char *self)
     int32_t * v1;
     intptr_t v3;
     intptr_t v4;
-    intptr_t v5;
-    intptr_t v6;
-    intptr_t v7;
+    uint32_t v5;
+    uint32_t v6;
+    uint32_t v7;
     intptr_t v8;
     intptr_t v9;
     intptr_t v10;
@@ -18988,8 +19009,8 @@ int32_t chs_49f7c0(wl_char *self)
     intptr_t v48;
     intptr_t v49;
     intptr_t v50;
-    intptr_t v51;
-    intptr_t v52;
+    uint32_t v51;
+    uint32_t v52;
     intptr_t v53;
     intptr_t v54;
     intptr_t v55;
@@ -19978,9 +19999,9 @@ int32_t chs_4a6b80(wl_char *self)
     intptr_t v137;
     intptr_t v138;
     intptr_t v139;
-    intptr_t v140;
-    intptr_t v141;
-    intptr_t v142;
+    uint32_t v140;
+    uint32_t v141;
+    uint32_t v142;
     intptr_t v143;
     intptr_t v144;
     intptr_t v145;
@@ -19990,8 +20011,8 @@ int32_t chs_4a6b80(wl_char *self)
     intptr_t v149;
     intptr_t v150;
     intptr_t v151;
-    intptr_t v152;
-    intptr_t v153;
+    uint32_t v152;
+    uint32_t v153;
     intptr_t v154;
     intptr_t v155;
     intptr_t v156;
@@ -20017,7 +20038,7 @@ int32_t chs_4a6b80(wl_char *self)
     uint16_t v176;
     intptr_t v177;
     intptr_t v178;
-    intptr_t v179;
+    uint32_t v179;
     intptr_t v180;
     intptr_t v181;
     intptr_t v182;
@@ -20034,7 +20055,7 @@ int32_t chs_4a6b80(wl_char *self)
     intptr_t v193;
     intptr_t v194;
     intptr_t v195;
-    intptr_t v196;
+    uint32_t v196;
     intptr_t v197;
     intptr_t v198;
     intptr_t v199;
@@ -20052,8 +20073,8 @@ int32_t chs_4a6b80(wl_char *self)
     intptr_t v211;
     intptr_t v212;
     intptr_t v213;
-    intptr_t v214;
-    intptr_t v215;
+    uint32_t v214;
+    uint32_t v215;
     intptr_t v216;
     intptr_t v217;
     intptr_t v218;
@@ -22924,9 +22945,9 @@ int32_t chs_4ac6d0(wl_char *self)
     intptr_t c = (intptr_t)self;
     int32_t * v1;
     intptr_t v3;
-    intptr_t v4;
-    intptr_t v5;
-    intptr_t v6;
+    uint32_t v4;
+    uint32_t v5;
+    uint32_t v6;
     intptr_t v7;
     intptr_t v8;
     intptr_t v9;
@@ -22944,12 +22965,12 @@ int32_t chs_4ac6d0(wl_char *self)
     intptr_t v21;
     intptr_t v22;
     int v24;
-    intptr_t v25;
+    uint32_t v25;
     intptr_t v26;
     intptr_t v27;
     intptr_t v28;
     intptr_t v29;
-    intptr_t v30;
+    uint32_t v30;
     intptr_t v31;
     intptr_t v32;
     intptr_t v33;
@@ -24277,14 +24298,14 @@ int32_t chs_4a5fa0(wl_char *self)
     intptr_t v2;
     intptr_t v3;
     intptr_t v4;
-    intptr_t v5;
-    intptr_t v6;
+    uint32_t v5;
+    uint32_t v6;
     char * v7;
     uint32_t * v8;
     intptr_t result;
     intptr_t v10;
-    intptr_t v11;
-    intptr_t v12;
+    uint32_t v11;
+    uint32_t v12;
     char * v13;
     intptr_t v14;
     intptr_t v15;
@@ -24509,19 +24530,19 @@ int32_t chs_4ae150(wl_char *self)
     intptr_t v4;
     intptr_t v5;
     intptr_t v6;
-    intptr_t v7;
+    uint32_t v7;
     intptr_t v8;
     intptr_t v9;
     intptr_t v10;
     intptr_t v12;
-    intptr_t v13;
-    intptr_t v14;
+    uint32_t v13;
+    uint32_t v14;
     char * v15;
     uint32_t * v16;
     intptr_t v17;
     intptr_t v18;
-    intptr_t v19;
-    intptr_t v20;
+    uint32_t v19;
+    uint32_t v20;
     int32_t * v21;
     int32_t * v22;
     intptr_t v23;
@@ -24530,11 +24551,12 @@ int32_t chs_4ae150(wl_char *self)
     int v26;
     intptr_t v27;
     intptr_t v28;
-    intptr_t v29;
-    intptr_t v30;
+    uint32_t v29;
+    uint32_t v30;
     char * v31;
     uint32_t * v32;
     intptr_t v33;
+    intptr_t v34;
 
   v1 = *(_DWORD **)&GAP(W, 0x1030, 8);
   v3 = 0;
@@ -24546,7 +24568,7 @@ int32_t chs_4ae150(wl_char *self)
     if ( *v1 == 250135 && (F32(c, 0x10) == 3 || W_script_flag(c, 100100101) >= 1100) )
     {
       v33 = W_actor_by_handle(250135502);
-      W_sc_41eb30(v33);
+      W_sc_41eb30((int)c, v34, v33);
     }
     return v3;
   }
@@ -24701,9 +24723,9 @@ int32_t chs_4ae420(wl_char *self)
     intptr_t v4;
     intptr_t v5;
     int32_t * v6;
-    int32_t * v7;
+    intptr_t v7;
+    int32_t * v8;
     intptr_t v9;
-    intptr_t v10;
     intptr_t v11;
     intptr_t v12;
     intptr_t v13;
@@ -24733,7 +24755,7 @@ int32_t chs_4ae420(wl_char *self)
     intptr_t v37;
     intptr_t v38;
     intptr_t v39;
-    intptr_t v40;
+    uint32_t v40;
     intptr_t v41;
     intptr_t v42;
     intptr_t v43;
@@ -24759,7 +24781,7 @@ int32_t chs_4ae420(wl_char *self)
     intptr_t v63;
     intptr_t v64;
     intptr_t v65;
-    intptr_t v66;
+    uint32_t v66;
     intptr_t v67;
     intptr_t v68;
     intptr_t v69;
@@ -24768,12 +24790,12 @@ int32_t chs_4ae420(wl_char *self)
     intptr_t v72;
     intptr_t v73;
     intptr_t v74;
-    uint16_t v75;
+    intptr_t v75;
     intptr_t v76;
-    intptr_t v77;
-    uint16_t i;
+    uint16_t v77;
+    intptr_t v78;
     intptr_t v79;
-    intptr_t v80;
+    uint16_t i;
     intptr_t v81;
     intptr_t v82;
     intptr_t v83;
@@ -24784,13 +24806,15 @@ int32_t chs_4ae420(wl_char *self)
     intptr_t v88;
     intptr_t v89;
     intptr_t v90;
+    intptr_t v91;
+    intptr_t v92;
     _Alignas(8) uint8_t frame_[0x634 + 0x10];   /* the stack locals at their ebp offsets */
     memset(frame_, 0, sizeof frame_);
     char *Buffer = (char *)(frame_ + 0x34);   /* [512] at ebp-0x600 */
-    intptr_t *v95 = (intptr_t *)(frame_ + 0x234);   /* [256] at ebp-0x400 */
-    intptr_t *const v91__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x634 */
-    intptr_t *const v92__f = (intptr_t *)(frame_ + 0x1c);   /* ebp-0x618 */
-    intptr_t *const v93__f = (intptr_t *)(frame_ + 0x20);   /* ebp-0x614 */
+    intptr_t *v97 = (intptr_t *)(frame_ + 0x234);   /* [256] at ebp-0x400 */
+    intptr_t *const v93__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x634 */
+    intptr_t *const v94__f = (intptr_t *)(frame_ + 0x1c);   /* ebp-0x618 */
+    intptr_t *const v95__f = (intptr_t *)(frame_ + 0x20);   /* ebp-0x614 */
 
   v1 = *(_DWORD **)&GAP(W, 0x1030, 8);
   v3 = 0;
@@ -24804,33 +24828,33 @@ int32_t chs_4ae420(wl_char *self)
       {
         if ( W_script_flag(c, 100260101) != 0 )
         {
-          v21 = W_actor_by_handle(260130501);
-          W_sc_49cf80((int)c, v22, v21, 0);
-          v23 = W_actor_by_handle(260130502);
+          v23 = W_actor_by_handle(260130501);
           W_sc_49cf80((int)c, v24, v23, 0);
-          v25 = W_actor_by_handle(260130503);
+          v25 = W_actor_by_handle(260130502);
           W_sc_49cf80((int)c, v26, v25, 0);
-          v27 = W_actor_by_handle(260130504);
+          v27 = W_actor_by_handle(260130503);
           W_sc_49cf80((int)c, v28, v27, 0);
-          v29 = W_actor_by_handle(260130505);
+          v29 = W_actor_by_handle(260130504);
           W_sc_49cf80((int)c, v30, v29, 0);
-          v31 = W_actor_by_handle(260130510);
-          W_sc_49cf80((int)c, v32, v31, 1);
+          v31 = W_actor_by_handle(260130505);
+          W_sc_49cf80((int)c, v32, v31, 0);
+          v33 = W_actor_by_handle(260130510);
+          W_sc_49cf80((int)c, v34, v33, 1);
         }
         else
         {
-          v9 = W_actor_by_handle(260130501);
-          W_sc_49cf80((int)c, v10, v9, 1);
-          v11 = W_actor_by_handle(260130502);
+          v11 = W_actor_by_handle(260130501);
           W_sc_49cf80((int)c, v12, v11, 1);
-          v13 = W_actor_by_handle(260130503);
+          v13 = W_actor_by_handle(260130502);
           W_sc_49cf80((int)c, v14, v13, 1);
-          v15 = W_actor_by_handle(260130504);
+          v15 = W_actor_by_handle(260130503);
           W_sc_49cf80((int)c, v16, v15, 1);
-          v17 = W_actor_by_handle(260130505);
+          v17 = W_actor_by_handle(260130504);
           W_sc_49cf80((int)c, v18, v17, 1);
-          v19 = W_actor_by_handle(260130510);
-          W_sc_49cf80((int)c, v20, v19, 0);
+          v19 = W_actor_by_handle(260130505);
+          W_sc_49cf80((int)c, v20, v19, 1);
+          v21 = W_actor_by_handle(260130510);
+          W_sc_49cf80((int)c, v22, v21, 0);
         }
         return 0;
       }
@@ -24840,9 +24864,9 @@ int32_t chs_4ae420(wl_char *self)
         if ( v5 == 40 || v5 == 50 || v5 == 60 )
         {
           v6 = (_DWORD *)W_actor_by_handle(230230101);
-          W_char_unload(v6);
-          v7 = (_DWORD *)W_actor_by_handle(230230102);
-          W_char_unload(v7);
+          W_char_unload(/*ecx, edx*/  v6);
+          v8 = (_DWORD *)W_actor_by_handle(230230102);
+          W_char_unload(/*ecx, edx*/  v8);
           return 0;
         }
       }
@@ -24855,9 +24879,9 @@ int32_t chs_4ae420(wl_char *self)
       if ( W_script_flag(c, 100260103) != 0 )
         return v3;
       W_script_begin(c);
-      v33 = W_script_leader(c);
+      v35 = W_script_leader(c);
       F32(c, 0x4c) = 0;
-      F32(c, 0x5c) = v33;
+      F32(c, 0x5c) = v35;
       F32(c, 0x50) = 0;
       F32(c, 0x54) = 0;
       F32(c, 0x58) = 800;
@@ -24872,9 +24896,9 @@ int32_t chs_4ae420(wl_char *self)
         if ( v3 == 6 )
           return v3;
       }
-      v34 = W_script_leader(c);
+      v36 = W_script_leader(c);
       F32(c, 0x4c) = 0;
-      F32(c, 0x5c) = v34;
+      F32(c, 0x5c) = v36;
       F32(c, 0x50) = 0;
       F32(c, 0x54) = 0;
       F32(c, 0x58) = 800;
@@ -24889,19 +24913,19 @@ int32_t chs_4ae420(wl_char *self)
       W_script_end(c);
       return 11;
     case 2:
-      v38 = F32(F32(c, 0x4), 472);
-      if ( v38 > 0xFCD9205 )
+      v40 = F32(F32(c, 0x4), 472);
+      if ( v40 > 0xFCD9205 )
       {
-        if ( v38 > 0xFCE192E )
+        if ( v40 > 0xFCE192E )
         {
-          if ( v38 > 0xFCEA1E5 )
+          if ( v40 > 0xFCEA1E5 )
           {
-            if ( v38 != 265200501 )
+            if ( v40 != 265200501 )
               return v3;
             W_script_begin(c);
-            v89 = W_script_leader(c);
+            v91 = W_script_leader(c);
             F32(c, 0x4c) = 0;
-            F32(c, 0x5c) = v89;
+            F32(c, 0x5c) = v91;
             F32(c, 0x50) = 0;
             F32(c, 0x54) = 0;
             F32(c, 0x58) = 800;
@@ -24920,9 +24944,9 @@ int32_t chs_4ae420(wl_char *self)
             v3 = W_script_wait(c);
             if ( v3 == 6 )
               return v3;
-            v90 = W_script_leader(c);
+            v92 = W_script_leader(c);
             F32(c, 0x4c) = 0;
-            F32(c, 0x5c) = v90;
+            F32(c, 0x5c) = v92;
             F32(c, 0x50) = 0;
             F32(c, 0x54) = 0;
             F32(c, 0x58) = 800;
@@ -24938,12 +24962,12 @@ int32_t chs_4ae420(wl_char *self)
           }
           else
           {
-            if ( v38 == 265200101 )
+            if ( v40 == 265200101 )
             {
               W_script_begin(c);
-              v87 = W_script_leader(c);
+              v89 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v87;
+              F32(c, 0x5c) = v89;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -24962,9 +24986,9 @@ int32_t chs_4ae420(wl_char *self)
               v3 = W_script_wait(c);
               if ( v3 == 6 )
                 return v3;
-              v88 = W_script_leader(c);
+              v90 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v88;
+              F32(c, 0x5c) = v90;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -24979,12 +25003,12 @@ int32_t chs_4ae420(wl_char *self)
               W_scene_msg(c, 0, F32(c, 0x4), D(0x85c070), 0, 1, 1, 0, 0, 0, 0);
               goto LABEL_206;
             }
-            if ( v38 == 265166101 )
+            if ( v40 == 265166101 )
             {
               W_script_begin(c);
-              v85 = W_script_leader(c);
+              v87 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v85;
+              F32(c, 0x5c) = v87;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -24997,9 +25021,9 @@ int32_t chs_4ae420(wl_char *self)
                 v3 = W_script_wait(c);
                 if ( v3 != 6 )
                 {
-                  v86 = W_script_leader(c);
+                  v88 = W_script_leader(c);
                   F32(c, 0x4c) = 0;
-                  F32(c, 0x5c) = v86;
+                  F32(c, 0x5c) = v88;
                   F32(c, 0x50) = 0;
                   F32(c, 0x54) = 0;
                   F32(c, 0x58) = 800;
@@ -25021,12 +25045,12 @@ int32_t chs_4ae420(wl_char *self)
               }
               return v3;
             }
-            if ( v38 != 265166501 )
+            if ( v40 != 265166501 )
               return v3;
             W_script_begin(c);
-            v82 = W_script_leader(c);
+            v84 = W_script_leader(c);
             F32(c, 0x4c) = 0;
-            F32(c, 0x5c) = v82;
+            F32(c, 0x5c) = v84;
             F32(c, 0x50) = 0;
             F32(c, 0x54) = 0;
             F32(c, 0x58) = 800;
@@ -25045,9 +25069,9 @@ int32_t chs_4ae420(wl_char *self)
             v3 = W_script_wait(c);
             if ( v3 == 6 )
               return v3;
-            v83 = W_script_leader(c);
+            v85 = W_script_leader(c);
             F32(c, 0x4c) = 0;
-            F32(c, 0x5c) = v83;
+            F32(c, 0x5c) = v85;
             F32(c, 0x50) = 0;
             F32(c, 0x54) = 0;
             F32(c, 0x58) = 800;
@@ -25061,15 +25085,15 @@ int32_t chs_4ae420(wl_char *self)
             v3 = W_script_wait(c);
             if ( v3 == 6 )
               return v3;
-            v84 = W_scene_yes_no(c);
-            if ( v84 == 6 )
+            v86 = W_scene_yes_no(c);
+            if ( v86 == 6 )
               return 6;
             *(_DWORD *)&GAP(c, 0x300, 636) = 20;
             F32(c, 0x20) = 6;
             v3 = W_script_wait(c);
             if ( v3 == 6 )
               return v3;
-            if ( v84 == 14 )
+            if ( v86 == 14 )
             {
               F32(c, 0x2e4) = 1;
               *(_DWORD *)&GAP(c, 0x300, 636) = 10;
@@ -25088,8 +25112,224 @@ int32_t chs_4ae420(wl_char *self)
             }
           }
         }
-        else if ( v38 == 265165102 )
+        else if ( v40 == 265165102 )
         {
+          W_script_begin(c);
+          v75 = W_script_leader(c);
+          F32(c, 0x4c) = 0;
+          F32(c, 0x5c) = v75;
+          F32(c, 0x50) = 0;
+          F32(c, 0x54) = 0;
+          F32(c, 0x58) = 800;
+          F32(c, 0x20) = 3;
+          W_script_party_cast(c);
+          v3 = W_script_wait(c);
+          if ( v3 == 6 )
+            return v3;
+          if ( W_scene_party_stance(c, 0, F32(c, 0x8)) != 0 )
+          {
+            v3 = W_script_wait(c);
+            if ( v3 == 6 )
+              return v3;
+          }
+          W_scene_talk_face(c, 0, F32(c, 0x4), 1, 1);
+          v3 = W_script_wait(c);
+          if ( v3 == 6 )
+            return v3;
+          v76 = W_script_leader(c);
+          F32(c, 0x4c) = 0;
+          F32(c, 0x5c) = v76;
+          F32(c, 0x50) = 0;
+          F32(c, 0x54) = 0;
+          F32(c, 0x58) = 800;
+          F32(c, 0x20) = 3;
+          v3 = W_script_wait(c);
+          if ( v3 == 6 )
+            return v3;
+          v77 = 0;
+          v97[0] = 0;
+          do
+          {
+            if ( v77 >= 0xFFu )
+              break;
+            v78 = v77++;
+            v97[v78] = ((int32_t *)D(0x6e7d50))[v78];
+          }
+          while ( ((int32_t *)D(0x6e7d50))[v77] != 0 );
+          v97[v77] = 0;
+          if ( W_script_flag(c, 100100101) >= 1500 )
+          {
+            v79 = 0;
+            for ( i = 0; v97[i] != 0; ++i )
+              ;
+            do
+            {
+              if ( i >= 0xFFu )
+                break;
+              v81 = (uint16_t)v79;
+              v82 = i++;
+              ++v79;
+              v97[v82] = ((int32_t *)D(0x6e7d64))[v81];
+            }
+            while ( ((int32_t *)D(0x6e7d64))[(uint16_t)v79] != 0 );
+            v97[i] = 0;
+          }
+          if ( D(0x85c1e8) != 0 )
+          {
+            W_scene_msg(c, 0, F32(c, 0x4), D(0x85c1e8), 0, 1, 1, 0, 0, 0, 0);
+            v3 = W_script_wait(c);
+            if ( v3 == 6 )
+              return v3;
+          }
+          while ( 1 )
+          {
+            v83 = W_shop_run(c, (int)v97, 0, 0);
+            if ( v83 == 11 )
+              break;
+            if ( v83 == 6 )
+              return 6;
+            if ( v83 != 12
+              || D(0x85c1d4) == 0
+              || (W_scene_msg(c, 0, F32(c, 0x4), D(0x85c1d4), 0, 1, 1, 0, 0, 0, 0),
+                  (v3 = W_script_wait(c)) != 6) )
+            {
+              if ( D(0x85c1c0) == 0 )
+                continue;
+              W_scene_msg(c, 0, F32(c, 0x4), D(0x85c1c0), 0, 1, 1, 0, 0, 0, 0);
+              v3 = W_script_wait(c);
+              if ( v3 != 6 )
+                continue;
+            }
+            return v3;
+          }
+          if ( D(0x85789c) != 0 )
+          {
+            W_scene_msg(c, 0, F32(c, 0x4), D(0x85789c), 0, 1, 1, 0, 0, 0, 0);
+            goto LABEL_206;
+          }
+        }
+        else
+        {
+          if ( v40 <= 0xFCE05A7 )
+          {
+            if ( v40 == 265160103 )
+            {
+              W_script_begin(c);
+              v71 = W_script_leader(c);
+              F32(c, 0x4c) = 0;
+              F32(c, 0x5c) = v71;
+              F32(c, 0x50) = 0;
+              F32(c, 0x54) = 0;
+              F32(c, 0x58) = 800;
+              F32(c, 0x20) = 3;
+              W_script_party_cast(c);
+              v3 = W_script_wait(c);
+              if ( v3 == 6 )
+                return v3;
+              if ( W_scene_party_stance(c, 0, F32(c, 0x8)) != 0 )
+              {
+                v3 = W_script_wait(c);
+                if ( v3 == 6 )
+                  return v3;
+              }
+              W_scene_talk_face(c, 0, F32(c, 0x4), 1, 1);
+              v3 = W_script_wait(c);
+              if ( v3 == 6 )
+                return v3;
+              v72 = W_script_leader(c);
+              F32(c, 0x4c) = 0;
+              F32(c, 0x5c) = v72;
+              F32(c, 0x50) = 0;
+              F32(c, 0x54) = 0;
+              F32(c, 0x58) = 800;
+              F32(c, 0x20) = 3;
+              v3 = W_script_wait(c);
+              if ( v3 == 6 )
+                return v3;
+              W_scene_msg(c, 0, F32(c, 0x4), D(0x85a574), 0, 1, 1, 0, 0, 0, 0);
+            }
+            else
+            {
+              v66 = v40 - 265160101;
+              if ( v66 != 0 )
+              {
+                if ( v66 != 1 )
+                  return v3;
+                W_script_begin(c);
+                v67 = W_script_leader(c);
+                F32(c, 0x4c) = 0;
+                F32(c, 0x5c) = v67;
+                F32(c, 0x50) = 0;
+                F32(c, 0x54) = 0;
+                F32(c, 0x58) = 800;
+                F32(c, 0x20) = 3;
+                W_script_party_cast(c);
+                v3 = W_script_wait(c);
+                if ( v3 == 6 )
+                  return v3;
+                if ( W_scene_party_stance(c, 0, F32(c, 0x8)) != 0 )
+                {
+                  v3 = W_script_wait(c);
+                  if ( v3 == 6 )
+                    return v3;
+                }
+                W_scene_talk_face(c, 0, F32(c, 0x4), 0, 1);
+                v3 = W_script_wait(c);
+                if ( v3 == 6 )
+                  return v3;
+                v68 = W_script_leader(c);
+                F32(c, 0x4c) = 0;
+                F32(c, 0x5c) = v68;
+                F32(c, 0x50) = 0;
+                F32(c, 0x54) = 0;
+                F32(c, 0x58) = 800;
+                F32(c, 0x20) = 3;
+                v3 = W_script_wait(c);
+                if ( v3 == 6 )
+                  return v3;
+                W_scene_msg(c, 0, F32(c, 0x4), D(0x85c398), 0, 1, 1, 0, 0, 0, 0);
+              }
+              else
+              {
+                W_script_begin(c);
+                v69 = W_script_leader(c);
+                F32(c, 0x4c) = 0;
+                F32(c, 0x5c) = v69;
+                F32(c, 0x50) = 0;
+                F32(c, 0x54) = 0;
+                F32(c, 0x58) = 800;
+                F32(c, 0x20) = 3;
+                W_script_party_cast(c);
+                v3 = W_script_wait(c);
+                if ( v3 == 6 )
+                  return v3;
+                if ( W_scene_party_stance(c, 0, F32(c, 0x8)) != 0 )
+                {
+                  v3 = W_script_wait(c);
+                  if ( v3 == 6 )
+                    return v3;
+                }
+                W_scene_talk_face(c, 0, F32(c, 0x4), 1, 1);
+                v3 = W_script_wait(c);
+                if ( v3 == 6 )
+                  return v3;
+                v70 = W_script_leader(c);
+                F32(c, 0x4c) = 0;
+                F32(c, 0x5c) = v70;
+                F32(c, 0x50) = 0;
+                F32(c, 0x54) = 0;
+                F32(c, 0x58) = 800;
+                F32(c, 0x20) = 3;
+                v3 = W_script_wait(c);
+                if ( v3 == 6 )
+                  return v3;
+                W_scene_msg(c, 0, F32(c, 0x4), D(0x85c33c), 0, 1, 1, 0, 0, 0, 0);
+              }
+            }
+            goto LABEL_206;
+          }
+          if ( v40 != 265165101 )
+            return v3;
           W_script_begin(c);
           v73 = W_script_leader(c);
           F32(c, 0x4c) = 0;
@@ -25122,222 +25362,6 @@ int32_t chs_4ae420(wl_char *self)
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
-          v75 = 0;
-          v95[0] = 0;
-          do
-          {
-            if ( v75 >= 0xFFu )
-              break;
-            v76 = v75++;
-            v95[v76] = ((int32_t *)D(0x6e7d50))[v76];
-          }
-          while ( ((int32_t *)D(0x6e7d50))[v75] != 0 );
-          v95[v75] = 0;
-          if ( W_script_flag(c, 100100101) >= 1500 )
-          {
-            v77 = 0;
-            for ( i = 0; v95[i] != 0; ++i )
-              ;
-            do
-            {
-              if ( i >= 0xFFu )
-                break;
-              v79 = (uint16_t)v77;
-              v80 = i++;
-              ++v77;
-              v95[v80] = ((int32_t *)D(0x6e7d64))[v79];
-            }
-            while ( ((int32_t *)D(0x6e7d64))[(uint16_t)v77] != 0 );
-            v95[i] = 0;
-          }
-          if ( D(0x85c1e8) != 0 )
-          {
-            W_scene_msg(c, 0, F32(c, 0x4), D(0x85c1e8), 0, 1, 1, 0, 0, 0, 0);
-            v3 = W_script_wait(c);
-            if ( v3 == 6 )
-              return v3;
-          }
-          while ( 1 )
-          {
-            v81 = W_shop_run(c, (int)v95, 0, 0);
-            if ( v81 == 11 )
-              break;
-            if ( v81 == 6 )
-              return 6;
-            if ( v81 != 12
-              || D(0x85c1d4) == 0
-              || (W_scene_msg(c, 0, F32(c, 0x4), D(0x85c1d4), 0, 1, 1, 0, 0, 0, 0),
-                  (v3 = W_script_wait(c)) != 6) )
-            {
-              if ( D(0x85c1c0) == 0 )
-                continue;
-              W_scene_msg(c, 0, F32(c, 0x4), D(0x85c1c0), 0, 1, 1, 0, 0, 0, 0);
-              v3 = W_script_wait(c);
-              if ( v3 != 6 )
-                continue;
-            }
-            return v3;
-          }
-          if ( D(0x85789c) != 0 )
-          {
-            W_scene_msg(c, 0, F32(c, 0x4), D(0x85789c), 0, 1, 1, 0, 0, 0, 0);
-            goto LABEL_206;
-          }
-        }
-        else
-        {
-          if ( v38 <= 0xFCE05A7 )
-          {
-            if ( v38 == 265160103 )
-            {
-              W_script_begin(c);
-              v69 = W_script_leader(c);
-              F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v69;
-              F32(c, 0x50) = 0;
-              F32(c, 0x54) = 0;
-              F32(c, 0x58) = 800;
-              F32(c, 0x20) = 3;
-              W_script_party_cast(c);
-              v3 = W_script_wait(c);
-              if ( v3 == 6 )
-                return v3;
-              if ( W_scene_party_stance(c, 0, F32(c, 0x8)) != 0 )
-              {
-                v3 = W_script_wait(c);
-                if ( v3 == 6 )
-                  return v3;
-              }
-              W_scene_talk_face(c, 0, F32(c, 0x4), 1, 1);
-              v3 = W_script_wait(c);
-              if ( v3 == 6 )
-                return v3;
-              v70 = W_script_leader(c);
-              F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v70;
-              F32(c, 0x50) = 0;
-              F32(c, 0x54) = 0;
-              F32(c, 0x58) = 800;
-              F32(c, 0x20) = 3;
-              v3 = W_script_wait(c);
-              if ( v3 == 6 )
-                return v3;
-              W_scene_msg(c, 0, F32(c, 0x4), D(0x85a574), 0, 1, 1, 0, 0, 0, 0);
-            }
-            else
-            {
-              v64 = v38 - 265160101;
-              if ( v64 != 0 )
-              {
-                if ( v64 != 1 )
-                  return v3;
-                W_script_begin(c);
-                v65 = W_script_leader(c);
-                F32(c, 0x4c) = 0;
-                F32(c, 0x5c) = v65;
-                F32(c, 0x50) = 0;
-                F32(c, 0x54) = 0;
-                F32(c, 0x58) = 800;
-                F32(c, 0x20) = 3;
-                W_script_party_cast(c);
-                v3 = W_script_wait(c);
-                if ( v3 == 6 )
-                  return v3;
-                if ( W_scene_party_stance(c, 0, F32(c, 0x8)) != 0 )
-                {
-                  v3 = W_script_wait(c);
-                  if ( v3 == 6 )
-                    return v3;
-                }
-                W_scene_talk_face(c, 0, F32(c, 0x4), 0, 1);
-                v3 = W_script_wait(c);
-                if ( v3 == 6 )
-                  return v3;
-                v66 = W_script_leader(c);
-                F32(c, 0x4c) = 0;
-                F32(c, 0x5c) = v66;
-                F32(c, 0x50) = 0;
-                F32(c, 0x54) = 0;
-                F32(c, 0x58) = 800;
-                F32(c, 0x20) = 3;
-                v3 = W_script_wait(c);
-                if ( v3 == 6 )
-                  return v3;
-                W_scene_msg(c, 0, F32(c, 0x4), D(0x85c398), 0, 1, 1, 0, 0, 0, 0);
-              }
-              else
-              {
-                W_script_begin(c);
-                v67 = W_script_leader(c);
-                F32(c, 0x4c) = 0;
-                F32(c, 0x5c) = v67;
-                F32(c, 0x50) = 0;
-                F32(c, 0x54) = 0;
-                F32(c, 0x58) = 800;
-                F32(c, 0x20) = 3;
-                W_script_party_cast(c);
-                v3 = W_script_wait(c);
-                if ( v3 == 6 )
-                  return v3;
-                if ( W_scene_party_stance(c, 0, F32(c, 0x8)) != 0 )
-                {
-                  v3 = W_script_wait(c);
-                  if ( v3 == 6 )
-                    return v3;
-                }
-                W_scene_talk_face(c, 0, F32(c, 0x4), 1, 1);
-                v3 = W_script_wait(c);
-                if ( v3 == 6 )
-                  return v3;
-                v68 = W_script_leader(c);
-                F32(c, 0x4c) = 0;
-                F32(c, 0x5c) = v68;
-                F32(c, 0x50) = 0;
-                F32(c, 0x54) = 0;
-                F32(c, 0x58) = 800;
-                F32(c, 0x20) = 3;
-                v3 = W_script_wait(c);
-                if ( v3 == 6 )
-                  return v3;
-                W_scene_msg(c, 0, F32(c, 0x4), D(0x85c33c), 0, 1, 1, 0, 0, 0, 0);
-              }
-            }
-            goto LABEL_206;
-          }
-          if ( v38 != 265165101 )
-            return v3;
-          W_script_begin(c);
-          v71 = W_script_leader(c);
-          F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v71;
-          F32(c, 0x50) = 0;
-          F32(c, 0x54) = 0;
-          F32(c, 0x58) = 800;
-          F32(c, 0x20) = 3;
-          W_script_party_cast(c);
-          v3 = W_script_wait(c);
-          if ( v3 == 6 )
-            return v3;
-          if ( W_scene_party_stance(c, 0, F32(c, 0x8)) != 0 )
-          {
-            v3 = W_script_wait(c);
-            if ( v3 == 6 )
-              return v3;
-          }
-          W_scene_talk_face(c, 0, F32(c, 0x4), 1, 1);
-          v3 = W_script_wait(c);
-          if ( v3 == 6 )
-            return v3;
-          v72 = W_script_leader(c);
-          F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v72;
-          F32(c, 0x50) = 0;
-          F32(c, 0x54) = 0;
-          F32(c, 0x58) = 800;
-          F32(c, 0x20) = 3;
-          v3 = W_script_wait(c);
-          if ( v3 == 6 )
-            return v3;
           if ( RC_41c390(
                  c,
                  7,
@@ -25354,12 +25378,12 @@ int32_t chs_4ae420(wl_char *self)
         W_script_end(c);
         return v3;
       }
-      if ( v38 == 265130501 )
+      if ( v40 == 265130501 )
       {
         W_script_begin(c);
-        v62 = W_script_leader(c);
+        v64 = W_script_leader(c);
         F32(c, 0x4c) = 0;
-        F32(c, 0x5c) = v62;
+        F32(c, 0x5c) = v64;
         F32(c, 0x50) = 0;
         F32(c, 0x54) = 0;
         F32(c, 0x58) = 800;
@@ -25378,9 +25402,9 @@ int32_t chs_4ae420(wl_char *self)
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
-        v63 = W_script_leader(c);
+        v65 = W_script_leader(c);
         F32(c, 0x4c) = 0;
-        F32(c, 0x5c) = v63;
+        F32(c, 0x5c) = v65;
         F32(c, 0x50) = 0;
         F32(c, 0x54) = 0;
         F32(c, 0x58) = 800;
@@ -25392,55 +25416,20 @@ int32_t chs_4ae420(wl_char *self)
 LABEL_53:
         W_scene_msg(c, 3u, 0, Buffer, 0, 1, 0, 0, 0, 0, 0);
 LABEL_206:
-        v59 = W_script_wait(c);
+        v61 = W_script_wait(c);
 LABEL_207:
-        v3 = v59;
-        if ( v59 == 6 )
+        v3 = v61;
+        if ( v61 == 6 )
           return v3;
 LABEL_190:
         W_script_end(c);
         return v3;
       }
-      if ( v38 > 0xF82A655 )
+      if ( v40 > 0xF82A655 )
       {
-        switch ( v38 )
+        switch ( v40 )
         {
           case 0xF82CBD5u:
-            W_script_begin(c);
-            v53 = W_script_leader(c);
-            F32(c, 0x4c) = 0;
-            F32(c, 0x5c) = v53;
-            F32(c, 0x50) = 0;
-            F32(c, 0x54) = 0;
-            F32(c, 0x58) = 800;
-            F32(c, 0x20) = 3;
-            W_script_party_cast(c);
-            v3 = W_script_wait(c);
-            if ( v3 == 6 )
-              return v3;
-            if ( W_scene_party_stance(c, 0, F32(c, 0x8)) != 0 )
-            {
-              v3 = W_script_wait(c);
-              if ( v3 == 6 )
-                return v3;
-            }
-            W_scene_talk_face(c, 0, F32(c, 0x4), 1, 1);
-            v3 = W_script_wait(c);
-            if ( v3 == 6 )
-              return v3;
-            v54 = W_script_leader(c);
-            F32(c, 0x4c) = 0;
-            F32(c, 0x5c) = v54;
-            F32(c, 0x50) = 0;
-            F32(c, 0x54) = 0;
-            F32(c, 0x58) = 800;
-            F32(c, 0x20) = 3;
-            v3 = W_script_wait(c);
-            if ( v3 == 6 )
-              return v3;
-            W_scene_msg(c, 0, F32(c, 0x4), D(0x85c55c), 0, 1, 1, 0, 0, 0, 0);
-            goto LABEL_206;
-          case 0xF82CBD6u:
             W_script_begin(c);
             v55 = W_script_leader(c);
             F32(c, 0x4c) = 0;
@@ -25473,9 +25462,9 @@ LABEL_190:
             v3 = W_script_wait(c);
             if ( v3 == 6 )
               return v3;
-            W_scene_msg(c, 0, F32(c, 0x4), D(0x85c53c), 0, 1, 1, 0, 0, 0, 0);
+            W_scene_msg(c, 0, F32(c, 0x4), D(0x85c55c), 0, 1, 1, 0, 0, 0, 0);
             goto LABEL_206;
-          case 0xF82CBD7u:
+          case 0xF82CBD6u:
             W_script_begin(c);
             v57 = W_script_leader(c);
             F32(c, 0x4c) = 0;
@@ -25508,23 +25497,13 @@ LABEL_190:
             v3 = W_script_wait(c);
             if ( v3 == 6 )
               return v3;
-            v59 = RC_41c390(
-                    c,
-                    30,
-                    101,
-                    2,
-                    F32(c, 0x4),
-                    D(0x85c468),
-                    (int)D(0x85c50c),
-                    (int)D(0x85c4c0),
-                    (int)D(0x85c4ec),
-                    (int)D(0x85c50c));
-            goto LABEL_207;
-          case 0xF82CBD8u:
+            W_scene_msg(c, 0, F32(c, 0x4), D(0x85c53c), 0, 1, 1, 0, 0, 0, 0);
+            goto LABEL_206;
+          case 0xF82CBD7u:
             W_script_begin(c);
-            v60 = W_script_leader(c);
+            v59 = W_script_leader(c);
             F32(c, 0x4c) = 0;
-            F32(c, 0x5c) = v60;
+            F32(c, 0x5c) = v59;
             F32(c, 0x50) = 0;
             F32(c, 0x54) = 0;
             F32(c, 0x58) = 800;
@@ -25543,9 +25522,54 @@ LABEL_190:
             v3 = W_script_wait(c);
             if ( v3 == 6 )
               return v3;
-            v61 = W_script_leader(c);
+            v60 = W_script_leader(c);
             F32(c, 0x4c) = 0;
-            F32(c, 0x5c) = v61;
+            F32(c, 0x5c) = v60;
+            F32(c, 0x50) = 0;
+            F32(c, 0x54) = 0;
+            F32(c, 0x58) = 800;
+            F32(c, 0x20) = 3;
+            v3 = W_script_wait(c);
+            if ( v3 == 6 )
+              return v3;
+            v61 = RC_41c390(
+                    c,
+                    30,
+                    101,
+                    2,
+                    F32(c, 0x4),
+                    D(0x85c468),
+                    (int)D(0x85c50c),
+                    (int)D(0x85c4c0),
+                    (int)D(0x85c4ec),
+                    (int)D(0x85c50c));
+            goto LABEL_207;
+          case 0xF82CBD8u:
+            W_script_begin(c);
+            v62 = W_script_leader(c);
+            F32(c, 0x4c) = 0;
+            F32(c, 0x5c) = v62;
+            F32(c, 0x50) = 0;
+            F32(c, 0x54) = 0;
+            F32(c, 0x58) = 800;
+            F32(c, 0x20) = 3;
+            W_script_party_cast(c);
+            v3 = W_script_wait(c);
+            if ( v3 == 6 )
+              return v3;
+            if ( W_scene_party_stance(c, 0, F32(c, 0x8)) != 0 )
+            {
+              v3 = W_script_wait(c);
+              if ( v3 == 6 )
+                return v3;
+            }
+            W_scene_talk_face(c, 0, F32(c, 0x4), 1, 1);
+            v3 = W_script_wait(c);
+            if ( v3 == 6 )
+              return v3;
+            v63 = W_script_leader(c);
+            F32(c, 0x4c) = 0;
+            F32(c, 0x5c) = v63;
             F32(c, 0x50) = 0;
             F32(c, 0x54) = 0;
             F32(c, 0x58) = 800;
@@ -25563,8 +25587,86 @@ LABEL_190:
             return v3;
         }
       }
-      if ( v38 == 260220501 )
+      if ( v40 == 260220501 )
       {
+        W_script_begin(c);
+        v53 = W_script_leader(c);
+        F32(c, 0x4c) = 0;
+        F32(c, 0x5c) = v53;
+        F32(c, 0x50) = 0;
+        F32(c, 0x54) = 0;
+        F32(c, 0x58) = 800;
+        F32(c, 0x20) = 3;
+        W_script_party_cast(c);
+        v3 = W_script_wait(c);
+        if ( v3 == 6 )
+          return v3;
+        if ( W_scene_party_stance(c, 0, F32(c, 0x8)) != 0 )
+        {
+          v3 = W_script_wait(c);
+          if ( v3 == 6 )
+            return v3;
+        }
+        W_scene_talk_face(c, 0, F32(c, 0x4), 0, 0);
+        v3 = W_script_wait(c);
+        if ( v3 == 6 )
+          return v3;
+        v54 = W_script_leader(c);
+        F32(c, 0x4c) = 0;
+        F32(c, 0x5c) = v54;
+        F32(c, 0x50) = 0;
+        F32(c, 0x54) = 0;
+        F32(c, 0x58) = 800;
+        F32(c, 0x20) = 3;
+        v3 = W_script_wait(c);
+        if ( v3 == 6 )
+          return v3;
+        g_eng.h5bf3ee(Buffer, D(0x85c76c), D(0x85c5bc), D(0x85c5d0));
+        W_scene_msg(c, 3u, 0, Buffer, 0, 1, 0, 0, 0, 0, 0);
+        goto LABEL_206;
+      }
+      if ( v40 > 0xF814536 )
+      {
+        if ( v40 != 260150501 )
+        {
+          if ( v40 != 260190501 )
+            return v3;
+          W_script_begin(c);
+          v49 = W_script_leader(c);
+          F32(c, 0x4c) = 0;
+          F32(c, 0x5c) = v49;
+          F32(c, 0x50) = 0;
+          F32(c, 0x54) = 0;
+          F32(c, 0x58) = 800;
+          F32(c, 0x20) = 3;
+          W_script_party_cast(c);
+          v3 = W_script_wait(c);
+          if ( v3 == 6 )
+            return v3;
+          if ( W_scene_party_stance(c, 0, F32(c, 0x8)) != 0 )
+          {
+            v3 = W_script_wait(c);
+            if ( v3 == 6 )
+              return v3;
+          }
+          W_scene_talk_face(c, 0, F32(c, 0x4), 0, 0);
+          v3 = W_script_wait(c);
+          if ( v3 == 6 )
+            return v3;
+          v50 = W_script_leader(c);
+          F32(c, 0x4c) = 0;
+          F32(c, 0x5c) = v50;
+          F32(c, 0x50) = 0;
+          F32(c, 0x54) = 0;
+          F32(c, 0x58) = 800;
+          F32(c, 0x20) = 3;
+          v3 = W_script_wait(c);
+          if ( v3 == 6 )
+            return v3;
+          g_eng.h5bf3ee(Buffer, D(0x85c618), D(0x85c630), D(0x85c658), D(0x85c680));
+          W_scene_msg(c, 3u, 0, Buffer, 0, 1, 0, 0, 0, 0, 0);
+          goto LABEL_206;
+        }
         W_script_begin(c);
         v51 = W_script_leader(c);
         F32(c, 0x4c) = 0;
@@ -25597,16 +25699,12 @@ LABEL_190:
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
-        g_eng.h5bf3ee(Buffer, D(0x85c76c), D(0x85c5bc), D(0x85c5d0));
-        W_scene_msg(c, 3u, 0, Buffer, 0, 1, 0, 0, 0, 0, 0);
-        goto LABEL_206;
+        g_eng.h5bf3ee(Buffer, D(0x85c618), D(0x85c5e0), D(0x85c77c), D(0x85c5f0));
+        goto LABEL_53;
       }
-      if ( v38 > 0xF814536 )
+      switch ( v40 )
       {
-        if ( v38 != 260150501 )
-        {
-          if ( v38 != 260190501 )
-            return v3;
+        case 0xF814536u:
           W_script_begin(c);
           v47 = W_script_leader(c);
           F32(c, 0x4c) = 0;
@@ -25625,7 +25723,7 @@ LABEL_190:
             if ( v3 == 6 )
               return v3;
           }
-          W_scene_talk_face(c, 0, F32(c, 0x4), 0, 0);
+          W_scene_talk_face(c, 0, F32(c, 0x4), 1, 1);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
@@ -25639,48 +25737,12 @@ LABEL_190:
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
-          g_eng.h5bf3ee(Buffer, D(0x85c618), D(0x85c630), D(0x85c658), D(0x85c680));
-          W_scene_msg(c, 3u, 0, Buffer, 0, 1, 0, 0, 0, 0, 0);
+          if ( W_script_flag(c, 100260101) != 0 )
+            W_scene_msg(c, 0, F32(c, 0x4), D(0x85c690), 0, 1, 1, 0, 0, 0, 0);
+          else
+            W_scene_msg(c, 0, F32(c, 0x4), D(0x85c704), 0, 1, 1, 0, 0, 0, 0);
           goto LABEL_206;
-        }
-        W_script_begin(c);
-        v49 = W_script_leader(c);
-        F32(c, 0x4c) = 0;
-        F32(c, 0x5c) = v49;
-        F32(c, 0x50) = 0;
-        F32(c, 0x54) = 0;
-        F32(c, 0x58) = 800;
-        F32(c, 0x20) = 3;
-        W_script_party_cast(c);
-        v3 = W_script_wait(c);
-        if ( v3 == 6 )
-          return v3;
-        if ( W_scene_party_stance(c, 0, F32(c, 0x8)) != 0 )
-        {
-          v3 = W_script_wait(c);
-          if ( v3 == 6 )
-            return v3;
-        }
-        W_scene_talk_face(c, 0, F32(c, 0x4), 0, 0);
-        v3 = W_script_wait(c);
-        if ( v3 == 6 )
-          return v3;
-        v50 = W_script_leader(c);
-        F32(c, 0x4c) = 0;
-        F32(c, 0x5c) = v50;
-        F32(c, 0x50) = 0;
-        F32(c, 0x54) = 0;
-        F32(c, 0x58) = 800;
-        F32(c, 0x20) = 3;
-        v3 = W_script_wait(c);
-        if ( v3 == 6 )
-          return v3;
-        g_eng.h5bf3ee(Buffer, D(0x85c618), D(0x85c5e0), D(0x85c77c), D(0x85c5f0));
-        goto LABEL_53;
-      }
-      switch ( v38 )
-      {
-        case 0xF814536u:
+        case 0xF80F8A5u:
           W_script_begin(c);
           v45 = W_script_leader(c);
           F32(c, 0x4c) = 0;
@@ -25699,7 +25761,7 @@ LABEL_190:
             if ( v3 == 6 )
               return v3;
           }
-          W_scene_talk_face(c, 0, F32(c, 0x4), 1, 1);
+          W_scene_talk_face(c, 0, F32(c, 0x4), 0, 0);
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
@@ -25713,51 +25775,13 @@ LABEL_190:
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
-          if ( W_script_flag(c, 100260101) != 0 )
-            W_scene_msg(c, 0, F32(c, 0x4), D(0x85c690), 0, 1, 1, 0, 0, 0, 0);
-          else
-            W_scene_msg(c, 0, F32(c, 0x4), D(0x85c704), 0, 1, 1, 0, 0, 0, 0);
-          goto LABEL_206;
-        case 0xF80F8A5u:
-          W_script_begin(c);
-          v43 = W_script_leader(c);
-          F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v43;
-          F32(c, 0x50) = 0;
-          F32(c, 0x54) = 0;
-          F32(c, 0x58) = 800;
-          F32(c, 0x20) = 3;
-          W_script_party_cast(c);
-          v3 = W_script_wait(c);
-          if ( v3 == 6 )
-            return v3;
-          if ( W_scene_party_stance(c, 0, F32(c, 0x8)) != 0 )
-          {
-            v3 = W_script_wait(c);
-            if ( v3 == 6 )
-              return v3;
-          }
-          W_scene_talk_face(c, 0, F32(c, 0x4), 0, 0);
-          v3 = W_script_wait(c);
-          if ( v3 == 6 )
-            return v3;
-          v44 = W_script_leader(c);
-          F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v44;
-          F32(c, 0x50) = 0;
-          F32(c, 0x54) = 0;
-          F32(c, 0x58) = 800;
-          F32(c, 0x20) = 3;
-          v3 = W_script_wait(c);
-          if ( v3 == 6 )
-            return v3;
           g_eng.h5bf3ee(Buffer, D(0x85c76c), D(0x85c77c), D(0x85c790));
           goto LABEL_53;
         case 0xF814535u:
           W_script_begin(c);
-          v39 = W_script_leader(c);
+          v41 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v39;
+          F32(c, 0x5c) = v41;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -25770,9 +25794,9 @@ LABEL_190:
             v3 = W_script_wait(c);
             if ( v3 != 6 )
             {
-              v40 = W_script_leader(c);
+              v42 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v40;
+              F32(c, 0x5c) = v42;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -25780,8 +25804,8 @@ LABEL_190:
               v3 = W_script_wait(c);
               if ( v3 != 6 )
               {
-                v41 = W_script_flag(c, 100260102);
-                if ( v41 == 0 )
+                v43 = W_script_flag(c, 100260102);
+                if ( v43 == 0 )
                 {
                   W_scene_msg(c, 0, F32(c, 0x4), D(0x85c7a4), 0, 1, 1, 0, 0, 0, 0);
                   v3 = W_script_wait(c);
@@ -25789,15 +25813,15 @@ LABEL_190:
                     return v3;
                   goto LABEL_44;
                 }
-                if ( v41 != 1
+                if ( v43 != 1
                   || (W_scene_msg(c, 0, F32(c, 0x4), D(0x85c7e4), 0, 1, 1, 0, 0, 0, 0),
                       (v3 = W_script_wait(c)) != 6) )
                 {
 LABEL_44:
                   if ( W_script_flag(c, 100260102) < 1 )
                   {
-                    v42 = W_script_flag(c, 100260102);
-                    W_script_flag_set(c, 100260102, v42 + 1, 0);
+                    v44 = W_script_flag(c, 100260102);
+                    W_script_flag_set(c, 100260102, v44 + 1, 0);
                   }
                   else
                   {
@@ -25821,17 +25845,17 @@ LABEL_198:
       if ( W_actor_by_handle(260230103) == 0 )
         return v3;
       W_script_begin(c);
-      v35 = W_sc_402f40(c);
-      (*v92__f) = W_actor_by_handle(v35);
-      v36 = W_actor_by_handle(260230103);
-      (*v93__f) = W_sc_401d80(v36, (*v92__f), 0);
-      v37 = W_actor_by_handle(260230103);
-      W_scene_face(c, v37, (*v93__f));
+      v37 = W_sc_402f40(c);
+      (*v94__f) = W_actor_by_handle(v37);
+      v38 = W_actor_by_handle(260230103);
+      (*v95__f) = W_sc_401d80(v38, (*v94__f), 0);
+      v39 = W_actor_by_handle(260230103);
+      W_scene_face(c, v39, (*v95__f));
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      (*v91__f) = W_actor_by_handle(260230103);
-      W_scene_msg(c, 0, (*v91__f), D(0x85c830), 0, 1, 1, 0, 0, 0, 0);
+      (*v93__f) = W_actor_by_handle(260230103);
+      W_scene_msg(c, 0, (*v93__f), D(0x85c830), 0, 1, 1, 0, 0, 0, 0);
       goto LABEL_206;
     default:
       return v3;
@@ -25846,7 +25870,7 @@ int32_t chs_4afdb0(wl_char *self)
     intptr_t v3;
     intptr_t v4;
     intptr_t v5;
-    intptr_t v6;
+    uint32_t v6;
     intptr_t v7;
     intptr_t v8;
     intptr_t v9;
@@ -25948,8 +25972,8 @@ int32_t chs_4afdb0(wl_char *self)
     intptr_t v105;
     uint16_t v106;
     intptr_t v107;
-    intptr_t v108;
-    intptr_t v109;
+    uint32_t v108;
+    uint32_t v109;
     intptr_t v110;
     intptr_t v111;
     uint16_t v112;
@@ -26008,23 +26032,31 @@ int32_t chs_4afdb0(wl_char *self)
     intptr_t v165;
     intptr_t v166;
     int32_t * v167;
-    int32_t * v168;
+    intptr_t v168;
     int32_t * v169;
-    int32_t * v170;
+    intptr_t v170;
     int32_t * v171;
-    int32_t * v172;
+    intptr_t v172;
     int32_t * v173;
-    int32_t * v174;
+    intptr_t v174;
+    int32_t * v175;
+    intptr_t v176;
+    int32_t * v177;
+    intptr_t v178;
+    int32_t * v179;
+    intptr_t v180;
+    int32_t * v181;
+    intptr_t v182;
     _Alignas(8) uint8_t frame_[0x230 + 0x10];   /* the stack locals at their ebp offsets */
     memset(frame_, 0, sizeof frame_);
     char *Buffer = (char *)(frame_ + 0x30);   /* [512] at ebp-0x200 */
-    char * *const v175__f = (char * *)(frame_ + 0x0);   /* ebp-0x230 */
-    intptr_t *const v176__f = (intptr_t *)(frame_ + 0x14);   /* ebp-0x21c */
-    intptr_t *const v178__f = (intptr_t *)(frame_ + 0x18);   /* ebp-0x218 */
-    intptr_t *const v177__f = (intptr_t *)(frame_ + 0x18);   /* ebp-0x218 */
-    intptr_t *const v181__f = (intptr_t *)(frame_ + 0x1c);   /* ebp-0x214 */
-    intptr_t *const v180__f = (intptr_t *)(frame_ + 0x1c);   /* ebp-0x214 */
-    intptr_t *const v179__f = (intptr_t *)(frame_ + 0x1c);   /* ebp-0x214 */
+    char * *const v183__f = (char * *)(frame_ + 0x0);   /* ebp-0x230 */
+    intptr_t *const v184__f = (intptr_t *)(frame_ + 0x14);   /* ebp-0x21c */
+    intptr_t *const v186__f = (intptr_t *)(frame_ + 0x18);   /* ebp-0x218 */
+    intptr_t *const v185__f = (intptr_t *)(frame_ + 0x18);   /* ebp-0x218 */
+    intptr_t *const v189__f = (intptr_t *)(frame_ + 0x1c);   /* ebp-0x214 */
+    intptr_t *const v188__f = (intptr_t *)(frame_ + 0x1c);   /* ebp-0x214 */
+    intptr_t *const v187__f = (intptr_t *)(frame_ + 0x1c);   /* ebp-0x214 */
 
   v2 = 0;
   v3 = 0;
@@ -26087,8 +26119,8 @@ int32_t chs_4afdb0(wl_char *self)
                         v3 = W_script_wait(c);
                         if ( v3 != 6 )
                         {
-                          (*v176__f) = 10;
-                          (*v175__f) = D(0x85dec8);
+                          (*v184__f) = 10;
+                          (*v183__f) = D(0x85dec8);
                           goto LABEL_21;
                         }
                       }
@@ -26268,8 +26300,8 @@ int32_t chs_4afdb0(wl_char *self)
               }
               if ( F32(v31, 2500) == 1 && v31 != 0 )
               {
-                (*v176__f) = 11;
-                (*v175__f) = D(0x85db10);
+                (*v184__f) = 11;
+                (*v183__f) = D(0x85db10);
                 v10 = W_actor_by_handle(100000101);
                 goto LABEL_22;
               }
@@ -26353,8 +26385,8 @@ int32_t chs_4afdb0(wl_char *self)
                     v3 = W_script_wait(c);
                     if ( v3 != 6 )
                     {
-                      (*v176__f) = 21;
-                      (*v175__f) = D(0x85dc70);
+                      (*v184__f) = 21;
+                      (*v183__f) = D(0x85dc70);
                       goto LABEL_21;
                     }
                   }
@@ -26393,16 +26425,16 @@ int32_t chs_4afdb0(wl_char *self)
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
-                    (*v177__f) = W_actor_by_handle(270150101);
+                    (*v185__f) = W_actor_by_handle(270150101);
                     v35 = W_actor_by_handle(270110103);
-                    (*v179__f) = W_sc_401d80(v35, (*v177__f), 0);
+                    (*v187__f) = W_sc_401d80(v35, (*v185__f), 0);
                     v36 = W_actor_by_handle(270110103);
-                    W_scene_face(c, v36, (*v179__f));
-                    (*v178__f) = W_actor_by_handle(270110103);
+                    W_scene_face(c, v36, (*v187__f));
+                    (*v186__f) = W_actor_by_handle(270110103);
                     v37 = W_actor_by_handle(270150101);
-                    (*v180__f) = W_sc_401d80(v37, (*v178__f), 0);
+                    (*v188__f) = W_sc_401d80(v37, (*v186__f), 0);
                     v38 = W_actor_by_handle(270150101);
-                    W_scene_face(c, v38, (*v180__f));
+                    W_scene_face(c, v38, (*v188__f));
                     v3 = W_script_wait(c);
                     if ( v3 != 6 )
                     {
@@ -26411,8 +26443,8 @@ int32_t chs_4afdb0(wl_char *self)
                       v3 = W_script_wait(c);
                       if ( v3 != 6 )
                       {
-                        (*v176__f) = 0;
-                        (*v175__f) = D(0x85dac0);
+                        (*v184__f) = 0;
+                        (*v183__f) = D(0x85dac0);
                         v10 = W_actor_by_handle(270150101);
                         goto LABEL_22;
                       }
@@ -26501,8 +26533,8 @@ int32_t chs_4afdb0(wl_char *self)
               return v3;
             if ( W_sc_402f40(c) != 100000103 )
               goto LABEL_25;
-            (*v176__f) = 8;
-            (*v175__f) = D(0x85da20);
+            (*v184__f) = 8;
+            (*v183__f) = D(0x85da20);
             goto LABEL_21;
           case 0x10198D99u:
             W_script_begin(c);
@@ -26603,8 +26635,8 @@ int32_t chs_4afdb0(wl_char *self)
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
-                    (*v176__f) = 0;
-                    (*v175__f) = D(0x85d9d4);
+                    (*v184__f) = 0;
+                    (*v183__f) = D(0x85d9d4);
                     v10 = W_actor_by_handle(270110107);
                     goto LABEL_22;
                   }
@@ -26645,8 +26677,8 @@ int32_t chs_4afdb0(wl_char *self)
                     v3 = W_script_wait(c);
                     if ( v3 != 6 )
                     {
-                      (*v176__f) = 0;
-                      (*v175__f) = D(0x85d954);
+                      (*v184__f) = 0;
+                      (*v183__f) = D(0x85d954);
                       v10 = W_actor_by_handle(270110107);
                       goto LABEL_22;
                     }
@@ -26723,8 +26755,8 @@ LABEL_153:
             }
             if ( F32(v60, 2500) == 1 && v60 != 0 )
             {
-              (*v176__f) = 9;
-              (*v175__f) = D(0x85d8e0);
+              (*v184__f) = 9;
+              (*v183__f) = D(0x85d8e0);
               v10 = W_actor_by_handle(100000101);
               goto LABEL_22;
             }
@@ -26758,8 +26790,8 @@ LABEL_153:
                   v3 = W_script_wait(c);
                   if ( v3 != 6 )
                   {
-                    (*v176__f) = 0;
-                    (*v175__f) = D(0x85d8a4);
+                    (*v184__f) = 0;
+                    (*v183__f) = D(0x85d8a4);
                     v10 = W_actor_by_handle(270110108);
                     goto LABEL_22;
                   }
@@ -26801,8 +26833,8 @@ LABEL_153:
                       v3 = W_script_wait(c);
                       if ( v3 != 6 )
                       {
-                        (*v176__f) = 0;
-                        (*v175__f) = D(0x85d6e4);
+                        (*v184__f) = 0;
+                        (*v183__f) = D(0x85d6e4);
                         v10 = W_actor_by_handle(270110108);
                         goto LABEL_22;
                       }
@@ -26859,8 +26891,8 @@ LABEL_175:
                             v3 = W_script_wait(c);
                             if ( v3 != 6 )
                             {
-                              (*v176__f) = 0;
-                              (*v175__f) = D(0x85d768);
+                              (*v184__f) = 0;
+                              (*v183__f) = D(0x85d768);
                               v10 = W_actor_by_handle(270110108);
                               goto LABEL_22;
                             }
@@ -27208,8 +27240,8 @@ LABEL_260:
           }
           if ( F32(v97, 2500) == 1 && v97 != 0 )
           {
-            (*v176__f) = 4;
-            (*v175__f) = D(0x85d358);
+            (*v184__f) = 4;
+            (*v183__f) = D(0x85d358);
             v10 = W_actor_by_handle(100000103);
             goto LABEL_22;
           }
@@ -27338,8 +27370,8 @@ LABEL_260:
       }
       if ( F32(v107, 2500) != 1 || v107 == 0 )
         goto LABEL_25;
-      (*v176__f) = 3;
-      (*v175__f) = D(0x85d254);
+      (*v184__f) = 3;
+      (*v183__f) = D(0x85d254);
       v10 = W_actor_by_handle(100000104);
       goto LABEL_22;
     }
@@ -27563,8 +27595,8 @@ LABEL_260:
           }
           if ( F32(v113, 2500) != 1 || v113 == 0 )
             goto LABEL_25;
-          (*v176__f) = 4;
-          (*v175__f) = D(0x85d110);
+          (*v184__f) = 4;
+          (*v183__f) = D(0x85d110);
           v10 = W_actor_by_handle(100000103);
         }
         else if ( W_script_flag(c, 100100101) >= 1140 )
@@ -27601,8 +27633,8 @@ LABEL_260:
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
-          (*v176__f) = 0;
-          (*v175__f) = D(0x85cf74);
+          (*v184__f) = 0;
+          (*v183__f) = D(0x85cf74);
           v10 = W_actor_by_handle(270120102);
         }
         else
@@ -27639,8 +27671,8 @@ LABEL_260:
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
-          (*v176__f) = 0;
-          (*v175__f) = D(0x85cfa0);
+          (*v184__f) = 0;
+          (*v183__f) = D(0x85cfa0);
           v10 = W_actor_by_handle(270120102);
         }
         goto LABEL_22;
@@ -27730,8 +27762,8 @@ LABEL_260:
           return v3;
         if ( W_sc_402f40(c) != 100000103 )
           goto LABEL_25;
-        (*v176__f) = 24;
-        (*v175__f) = D(0x85a8b4);
+        (*v184__f) = 24;
+        (*v183__f) = D(0x85a8b4);
 LABEL_21:
         v10 = W_actor_by_handle(100000103);
         goto LABEL_22;
@@ -27776,8 +27808,8 @@ LABEL_21:
             v3 = W_script_wait(c);
             if ( v3 == 6 )
               return v3;
-            (*v176__f) = 0;
-            (*v175__f) = D(0x85cd24);
+            (*v184__f) = 0;
+            (*v183__f) = D(0x85cd24);
             v10 = W_actor_by_handle(270170101);
           }
           else
@@ -27814,8 +27846,8 @@ LABEL_21:
             v3 = W_script_wait(c);
             if ( v3 == 6 )
               return v3;
-            (*v176__f) = 0;
-            (*v175__f) = D(0x85cd70);
+            (*v184__f) = 0;
+            (*v183__f) = D(0x85cd70);
             v10 = W_actor_by_handle(270170101);
           }
         }
@@ -27880,12 +27912,12 @@ LABEL_21:
           }
           if ( F32(v127, 2500) != 1 || v127 == 0 )
             goto LABEL_25;
-          (*v176__f) = 6;
-          (*v175__f) = D(0x85cd8c);
+          (*v184__f) = 6;
+          (*v183__f) = D(0x85cd8c);
           v10 = W_actor_by_handle(100000103);
         }
 LABEL_22:
-        W_scene_msg(c, 0, v10, (*v175__f), 0, 1, 1, 0, (*v176__f), 0, 0);
+        W_scene_msg(c, 0, v10, (*v183__f), 0, 1, 1, 0, (*v184__f), 0, 0);
 LABEL_23:
         v3 = W_script_wait(c);
         v11 = v3 == 6;
@@ -28336,32 +28368,32 @@ LABEL_448:
       {
         v165 = W_actor_by_handle(270110511);
         RC_49d330(v165, 0);
-        (*v181__f) = 0;
+        (*v189__f) = 0;
       }
       else
       {
         v164 = W_actor_by_handle(270110511);
         RC_49d330(v164, 1);
-        (*v181__f) = 1;
+        (*v189__f) = 1;
       }
       v166 = W_actor_by_handle(270110512);
-      RC_49d330(v166, (*v181__f));
+      RC_49d330(v166, (*v189__f));
       if ( v2 == 0 )
         return v3;
       v167 = (_DWORD *)W_actor_by_handle(270110101);
-      W_char_unload(v167);
-      v168 = (_DWORD *)W_actor_by_handle(270110103);
-      W_char_unload(v168);
-      v169 = (_DWORD *)W_actor_by_handle(270110104);
-      W_char_unload(v169);
-      v170 = (_DWORD *)W_actor_by_handle(270110105);
-      W_char_unload(v170);
-      v171 = (_DWORD *)W_actor_by_handle(270110106);
-      W_char_unload(v171);
-      v172 = (_DWORD *)W_actor_by_handle(270110107);
-      W_char_unload(v172);
-      v173 = (_DWORD *)W_actor_by_handle(270110108);
-      W_char_unload(v173);
+      W_char_unload(/*ecx, edx*/  v167);
+      v169 = (_DWORD *)W_actor_by_handle(270110103);
+      W_char_unload(/*ecx, edx*/  v169);
+      v171 = (_DWORD *)W_actor_by_handle(270110104);
+      W_char_unload(/*ecx, edx*/  v171);
+      v173 = (_DWORD *)W_actor_by_handle(270110105);
+      W_char_unload(/*ecx, edx*/  v173);
+      v175 = (_DWORD *)W_actor_by_handle(270110106);
+      W_char_unload(/*ecx, edx*/  v175);
+      v177 = (_DWORD *)W_actor_by_handle(270110107);
+      W_char_unload(/*ecx, edx*/  v177);
+      v179 = (_DWORD *)W_actor_by_handle(270110108);
+      W_char_unload(/*ecx, edx*/  v179);
       W_sc_439510(c, 270110501);
       W_sc_439510(c, 270110502);
       result = 0;
@@ -28369,8 +28401,8 @@ LABEL_448:
     case 0x41F46:
       if ( v2 == 0 )
         return v3;
-      v174 = (_DWORD *)W_actor_by_handle(270150101);
-      W_char_unload(v174);
+      v181 = (_DWORD *)W_actor_by_handle(270150101);
+      W_char_unload(/*ecx, edx*/  v181);
       W_scene_spawn_at_door(c, 270110107, 0, 101, 0, 0, 1, 1, 0);
       W_scene_spawn_at_door(c, 270110108, 0, 102, 0, 0, 3, 0, 0);
       result = 0;
@@ -28402,9 +28434,9 @@ int32_t chs_4b3b20(wl_char *self)
 {
     intptr_t c = (intptr_t)self;
     int32_t * v2;
-    intptr_t v3;
+    uint32_t v3;
     intptr_t v4;
-    intptr_t v5;
+    uint32_t v5;
     int32_t * v6;
     intptr_t v7;
     int32_t * v8;
@@ -28489,15 +28521,15 @@ int32_t chs_4b3c70(wl_char *self)
     int32_t * v1;
     intptr_t v3;
     intptr_t v4;
-    intptr_t v5;
+    uint32_t v5;
     intptr_t v6;
     intptr_t v7;
     intptr_t v8;
     intptr_t v9;
     intptr_t v10;
     intptr_t v12;
-    intptr_t v13;
-    intptr_t v14;
+    uint32_t v13;
+    uint32_t v14;
     int32_t * v15;
     int32_t * v16;
     intptr_t v17;
@@ -28505,9 +28537,9 @@ int32_t chs_4b3c70(wl_char *self)
     intptr_t v19;
     int v20;
     intptr_t v21;
-    intptr_t v22;
+    uint32_t v22;
     intptr_t v23;
-    intptr_t v24;
+    uint32_t v24;
     char * v25;
     uint32_t * v26;
     _Alignas(8) uint8_t frame_[0x4 + 0x10];   /* the stack locals at their ebp offsets */
@@ -28653,7 +28685,7 @@ int32_t chs_4b4d40(wl_char *self)
     intptr_t v3;
     intptr_t v4;
     intptr_t v5;
-    intptr_t v6;
+    uint32_t v6;
     intptr_t v7;
     intptr_t v8;
     int v9;
@@ -28715,8 +28747,8 @@ int32_t chs_4b4d40(wl_char *self)
     intptr_t v65;
     intptr_t v66;
     intptr_t v67;
-    intptr_t v68;
-    intptr_t v69;
+    uint32_t v68;
+    uint32_t v69;
     intptr_t v70;
     intptr_t v71;
     intptr_t v72;
@@ -28728,7 +28760,7 @@ int32_t chs_4b4d40(wl_char *self)
     intptr_t v78;
     intptr_t v79;
     intptr_t v80;
-    intptr_t v81;
+    uint32_t v81;
     intptr_t v82;
     intptr_t v83;
     intptr_t v84;
@@ -28795,7 +28827,7 @@ int32_t chs_4b4d40(wl_char *self)
     intptr_t v145;
     intptr_t v146;
     intptr_t v147;
-    intptr_t v148;
+    uint32_t v148;
     intptr_t v149;
     intptr_t v150;
     intptr_t v151;
@@ -28804,8 +28836,8 @@ int32_t chs_4b4d40(wl_char *self)
     intptr_t v154;
     intptr_t v155;
     intptr_t v156;
-    intptr_t v157;
-    intptr_t v158;
+    uint32_t v157;
+    uint32_t v158;
     intptr_t v159;
     intptr_t v160;
     intptr_t v161;
@@ -28884,7 +28916,7 @@ int32_t chs_4b4d40(wl_char *self)
     intptr_t v234;
     intptr_t v235;
     intptr_t v236;
-    intptr_t v237;
+    uint32_t v237;
     intptr_t v238;
     intptr_t v239;
     intptr_t v240;
@@ -28895,18 +28927,18 @@ int32_t chs_4b4d40(wl_char *self)
     intptr_t v245;
     intptr_t v246;
     int32_t * v247;
-    int32_t * v248;
+    intptr_t v248;
     int32_t * v249;
-    int32_t * v250;
+    intptr_t v250;
     int32_t * v251;
-    int32_t * v252;
+    intptr_t v252;
     int32_t * v253;
-    int32_t * v254;
+    intptr_t v254;
     int32_t * v255;
-    int32_t * v256;
+    intptr_t v256;
     int32_t * v257;
-    int32_t * v258;
-    intptr_t v259;
+    intptr_t v258;
+    int32_t * v259;
     intptr_t v260;
     int32_t * v261;
     intptr_t v262;
@@ -28915,36 +28947,65 @@ int32_t chs_4b4d40(wl_char *self)
     int32_t * v265;
     intptr_t v266;
     int32_t * v267;
-    int32_t * v268;
-    intptr_t v269;
-    int32_t * v270;
-    int32_t * v271;
+    intptr_t v268;
+    int32_t * v269;
+    intptr_t v270;
+    intptr_t v271;
     int32_t * v272;
-    int32_t * v273;
+    intptr_t v273;
     int32_t * v274;
-    int32_t * v275;
+    intptr_t v275;
     int32_t * v276;
-    int32_t * v277;
+    intptr_t v277;
     int32_t * v278;
     int32_t * v279;
-    int32_t * v280;
+    intptr_t v280;
     int32_t * v281;
     int32_t * v282;
-    int32_t * v283;
+    intptr_t v283;
     int32_t * v284;
-    int32_t * v285;
+    intptr_t v285;
     int32_t * v286;
-    int32_t * v287;
-    intptr_t v288;
+    intptr_t v287;
+    int32_t * v288;
     intptr_t v289;
     int32_t * v290;
+    intptr_t v291;
+    int32_t * v292;
+    intptr_t v293;
+    int32_t * v294;
+    intptr_t v295;
+    int32_t * v296;
+    intptr_t v297;
+    int32_t * v298;
+    intptr_t v299;
+    int32_t * v300;
+    intptr_t v301;
+    int32_t * v302;
+    intptr_t v303;
+    int32_t * v304;
+    intptr_t v305;
+    int32_t * v306;
+    intptr_t v307;
+    int32_t * v308;
+    intptr_t v309;
+    int32_t * v310;
+    intptr_t v311;
+    int32_t * v312;
+    intptr_t v313;
+    int32_t * v314;
+    intptr_t v315;
+    intptr_t v316;
+    intptr_t v317;
+    intptr_t v318;
+    int32_t * v319;
     _Alignas(8) uint8_t frame_[0x618 + 0x10];   /* the stack locals at their ebp offsets */
     memset(frame_, 0, sizeof frame_);
     char *Buffer = (char *)(frame_ + 0x18);   /* [512] at ebp-0x600 */
-    intptr_t *v295 = (intptr_t *)(frame_ + 0x218);   /* [256] at ebp-0x400 */
-    intptr_t *const v293__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x618 */
-    intptr_t *const v292__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x618 */
-    intptr_t *const v291__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x618 */
+    intptr_t *v324 = (intptr_t *)(frame_ + 0x218);   /* [256] at ebp-0x400 */
+    intptr_t *const v322__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x618 */
+    intptr_t *const v321__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x618 */
+    intptr_t *const v320__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x618 */
 
   v2 = 0;
   if ( F32(*(_DWORD *)&GAP(W, 0x1030, 8), 4) != 300 )
@@ -28959,121 +29020,121 @@ int32_t chs_4b4d40(wl_char *self)
       {
         case 0x4944E:
           v247 = (_DWORD *)W_actor_by_handle(300110102);
-          W_char_unload(v247);
-          v248 = (_DWORD *)W_actor_by_handle(300110103);
-          W_char_unload(v248);
-          v249 = (_DWORD *)W_actor_by_handle(300110106);
-          W_char_unload(v249);
-          v250 = (_DWORD *)W_actor_by_handle(300110108);
-          W_char_unload(v250);
-          v251 = (_DWORD *)W_actor_by_handle(300110111);
-          W_char_unload(v251);
-          v252 = (_DWORD *)W_actor_by_handle(300110113);
-          W_char_unload(v252);
+          W_char_unload(/*ecx, edx*/  v247);
+          v249 = (_DWORD *)W_actor_by_handle(300110103);
+          W_char_unload(/*ecx, edx*/  v249);
+          v251 = (_DWORD *)W_actor_by_handle(300110106);
+          W_char_unload(/*ecx, edx*/  v251);
+          v253 = (_DWORD *)W_actor_by_handle(300110108);
+          W_char_unload(/*ecx, edx*/  v253);
+          v255 = (_DWORD *)W_actor_by_handle(300110111);
+          W_char_unload(/*ecx, edx*/  v255);
+          v257 = (_DWORD *)W_actor_by_handle(300110113);
+          W_char_unload(/*ecx, edx*/  v257);
           break;
         case 0x49458:
-          v253 = (_DWORD *)W_actor_by_handle(300120102);
-          W_char_unload(v253);
-          v254 = (_DWORD *)W_actor_by_handle(300120108);
-          W_char_unload(v254);
-          v255 = (_DWORD *)W_actor_by_handle(300120109);
-          W_char_unload(v255);
+          v259 = (_DWORD *)W_actor_by_handle(300120102);
+          W_char_unload(/*ecx, edx*/  v259);
+          v261 = (_DWORD *)W_actor_by_handle(300120108);
+          W_char_unload(/*ecx, edx*/  v261);
+          v263 = (_DWORD *)W_actor_by_handle(300120109);
+          W_char_unload(/*ecx, edx*/  v263);
           break;
         case 0x49462:
-          v256 = (_DWORD *)W_actor_by_handle(300130101);
-          W_char_unload(v256);
-          v257 = (_DWORD *)W_actor_by_handle(300130102);
-          W_char_unload(v257);
+          v265 = (_DWORD *)W_actor_by_handle(300130101);
+          W_char_unload(/*ecx, edx*/  v265);
+          v267 = (_DWORD *)W_actor_by_handle(300130102);
+          W_char_unload(/*ecx, edx*/  v267);
           break;
         case 0x494B2:
-          v258 = (_DWORD *)W_actor_by_handle(300210101);
-          W_scene_place_at_door(c, v258, 101, 0, 0, 1);
-          v259 = W_actor_by_handle(300210101);
+          v269 = (_DWORD *)W_actor_by_handle(300210101);
+          W_scene_place_at_door(c, v269, 101, 0, 0, 1);
+          v270 = W_actor_by_handle(300210101);
           goto LABEL_945;
         case 0x494BC:
           W_scene_spawn_at_door(c, 300220111, 50212, 301, 2400, -2800, 1, 0, 1);
-          v260 = W_actor_by_handle(300220111);
-          W_sc_41f050(v260, 123);
+          v271 = W_actor_by_handle(300220111);
+          W_sc_41f050(v271, 123);
           W_scene_spawn_at_door(c, 300220112, 50241, 302, 0, 0, 1, 0, 3);
           break;
         case 0x494CB:
-          v261 = (_DWORD *)W_actor_by_handle(300235101);
-          W_scene_place_at_door(c, v261, 101, 0, 0, 1);
+          v272 = (_DWORD *)W_actor_by_handle(300235101);
+          W_scene_place_at_door(c, v272, 101, 0, 0, 1);
           W_scene_spawn_at_door(c, 300235111, 50210, 201, 2400, -2800, 1, 0, 1);
-          v262 = W_actor_by_handle(300235111);
-          W_sc_41f050(v262, 123);
+          v273 = W_actor_by_handle(300235111);
+          W_sc_41f050(v273, 123);
           W_scene_spawn_at_door(c, 300235112, 50240, 202, 0, 0, 1, 0, 0);
           W_scene_spawn_at_door(c, 300235113, 50350, 202, 4000, 0, 1, 0, 0);
           break;
         case 0x494EE:
-          v263 = (_DWORD *)W_actor_by_handle(300270101);
-          W_scene_place_at_door(c, v263, 202, 0, 0, 3);
-          v264 = W_actor_by_handle(300270101);
-          W_sc_41efe0(v264, 13);
-          v265 = (_DWORD *)W_actor_by_handle(300270103);
-          W_scene_place_at_door(c, v265, 201, 2400, -2800, 1);
-          v266 = W_actor_by_handle(300270103);
-          W_sc_41f050(v266, 123);
+          v274 = (_DWORD *)W_actor_by_handle(300270101);
+          W_scene_place_at_door(c, v274, 202, 0, 0, 3);
+          v275 = W_actor_by_handle(300270101);
+          W_sc_41efe0(v275, 13);
+          v276 = (_DWORD *)W_actor_by_handle(300270103);
+          W_scene_place_at_door(c, v276, 201, 2400, -2800, 1);
+          v277 = W_actor_by_handle(300270103);
+          W_sc_41f050(v277, 123);
           break;
         case 0x49502:
-          v267 = (_DWORD *)W_actor_by_handle(300290101);
-          W_scene_place_at_door(c, v267, 101, 0, 0, 1);
-          v268 = (_DWORD *)W_actor_by_handle(300290102);
-          W_scene_place_at_door(c, v268, 102, 0, 0, 3);
-          v259 = W_actor_by_handle(300290102);
+          v278 = (_DWORD *)W_actor_by_handle(300290101);
+          W_scene_place_at_door(c, v278, 101, 0, 0, 1);
+          v279 = (_DWORD *)W_actor_by_handle(300290102);
+          W_scene_place_at_door(c, v279, 102, 0, 0, 3);
+          v270 = W_actor_by_handle(300290102);
 LABEL_945:
-          W_sc_41efe0(v259, 13);
+          W_sc_41efe0(v270, 13);
           break;
         default:
           break;
       }
     }
-    if ( W_script_flag(c, 100100102) == 40 || (v269 = W_script_flag(c, 100100102)) == 50 || v269 == 60 )
+    if ( W_script_flag(c, 100100102) == 40 || (v280 = W_script_flag(c, 100100102)) == 50 || v280 == 60 )
     {
-      v270 = *(_DWORD **)&GAP(W, 0x1030, 8);
-      switch ( *v270 )
+      v281 = *(_DWORD **)&GAP(W, 0x1030, 8);
+      switch ( *v281 )
       {
         case 0x4944E:
-          v284 = (_DWORD *)W_actor_by_handle(300110104);
-          W_char_unload(v284);
-          v285 = (_DWORD *)W_actor_by_handle(300110105);
-          W_char_unload(v285);
-          v286 = (_DWORD *)W_actor_by_handle(300110109);
-          W_char_unload(v286);
-          v287 = (_DWORD *)W_actor_by_handle(300110110);
-          W_char_unload(v287);
-          v288 = W_actor_by_handle(300110501);
-          W_sc_41eb30(v288);
+          v308 = (_DWORD *)W_actor_by_handle(300110104);
+          W_char_unload(/*ecx, edx*/  v308);
+          v310 = (_DWORD *)W_actor_by_handle(300110105);
+          W_char_unload(/*ecx, edx*/  v310);
+          v312 = (_DWORD *)W_actor_by_handle(300110109);
+          W_char_unload(/*ecx, edx*/  v312);
+          v314 = (_DWORD *)W_actor_by_handle(300110110);
+          W_char_unload(/*ecx, edx*/  v314);
+          v316 = W_actor_by_handle(300110501);
+          W_sc_41eb30((int)c, v317, v316);
           break;
         case 0x49458:
-          v275 = (_DWORD *)W_actor_by_handle(300120103);
-          W_char_unload(v275);
-          v276 = (_DWORD *)W_actor_by_handle(300120104);
-          W_char_unload(v276);
-          v277 = (_DWORD *)W_actor_by_handle(300120105);
-          W_char_unload(v277);
-          v278 = (_DWORD *)W_actor_by_handle(300120106);
-          W_char_unload(v278);
-          v279 = (_DWORD *)W_actor_by_handle(300120107);
-          W_char_unload(v279);
-          v280 = (_DWORD *)W_actor_by_handle(300120110);
-          W_char_unload(v280);
-          v281 = (_DWORD *)W_actor_by_handle(300120111);
-          W_char_unload(v281);
-          v282 = (_DWORD *)W_actor_by_handle(300120112);
-          W_char_unload(v282);
-          v283 = (_DWORD *)W_actor_by_handle(300120113);
-          W_char_unload(v283);
+          v290 = (_DWORD *)W_actor_by_handle(300120103);
+          W_char_unload(/*ecx, edx*/  v290);
+          v292 = (_DWORD *)W_actor_by_handle(300120104);
+          W_char_unload(/*ecx, edx*/  v292);
+          v294 = (_DWORD *)W_actor_by_handle(300120105);
+          W_char_unload(/*ecx, edx*/  v294);
+          v296 = (_DWORD *)W_actor_by_handle(300120106);
+          W_char_unload(/*ecx, edx*/  v296);
+          v298 = (_DWORD *)W_actor_by_handle(300120107);
+          W_char_unload(/*ecx, edx*/  v298);
+          v300 = (_DWORD *)W_actor_by_handle(300120110);
+          W_char_unload(/*ecx, edx*/  v300);
+          v302 = (_DWORD *)W_actor_by_handle(300120111);
+          W_char_unload(/*ecx, edx*/  v302);
+          v304 = (_DWORD *)W_actor_by_handle(300120112);
+          W_char_unload(/*ecx, edx*/  v304);
+          v306 = (_DWORD *)W_actor_by_handle(300120113);
+          W_char_unload(/*ecx, edx*/  v306);
           break;
         case 0x494B2:
-          v271 = (_DWORD *)W_actor_by_handle(300210102);
-          W_char_unload(v271);
-          v272 = (_DWORD *)W_actor_by_handle(300210103);
-          W_char_unload(v272);
-          v273 = (_DWORD *)W_actor_by_handle(300210104);
-          W_char_unload(v273);
-          v274 = (_DWORD *)W_actor_by_handle(300210105);
-          W_char_unload(v274);
+          v282 = (_DWORD *)W_actor_by_handle(300210102);
+          W_char_unload(/*ecx, edx*/  v282);
+          v284 = (_DWORD *)W_actor_by_handle(300210103);
+          W_char_unload(/*ecx, edx*/  v284);
+          v286 = (_DWORD *)W_actor_by_handle(300210104);
+          W_char_unload(/*ecx, edx*/  v286);
+          v288 = (_DWORD *)W_actor_by_handle(300210105);
+          W_char_unload(/*ecx, edx*/  v288);
           break;
         default:
           break;
@@ -29081,11 +29142,11 @@ LABEL_945:
     }
     if ( **(_DWORD **)&GAP(W, 0x1030, 8) == 300220 )
     {
-      v289 = W_script_flag(c, 100100101) - 1410;
-      if ( v289 == 0 || v289 == 10 )
+      v318 = W_script_flag(c, 100100101) - 1410;
+      if ( v318 == 0 || v318 == 10 )
       {
-        v290 = (_DWORD *)W_actor_by_handle(300220102);
-        W_scene_place_at_door(c, v290, 101, 0, 0, 1);
+        v319 = (_DWORD *)W_actor_by_handle(300220102);
+        W_scene_place_at_door(c, v319, 101, 0, 0, 1);
       }
     }
     return v2;
@@ -29230,8 +29291,8 @@ LABEL_931:
         }
         if ( W_script_flag(c, 100300103) < 2 )
         {
-          (*v291__f) = W_script_flag(c, 100300103) + 1;
-          W_script_flag_set(c, 100300103, (*v291__f), 0);
+          (*v320__f) = W_script_flag(c, 100300103) + 1;
+          W_script_flag_set(c, 100300103, (*v320__f), 0);
         }
         else
         {
@@ -29280,8 +29341,8 @@ LABEL_931:
 LABEL_42:
             if ( W_script_flag(c, 100300104) < 1 )
             {
-              (*v292__f) = W_script_flag(c, 100300104) + 1;
-              W_script_flag_set(c, 100300104, (*v292__f), 0);
+              (*v321__f) = W_script_flag(c, 100300104) + 1;
+              W_script_flag_set(c, 100300104, (*v321__f), 0);
             }
             else
             {
@@ -29759,9 +29820,9 @@ LABEL_42:
           v2 = W_script_wait(c);
           if ( v2 == 6 )
             return v2;
-          (*v293__f) = W_actor_by_handle(300120106);
+          (*v322__f) = W_actor_by_handle(300120106);
           v46 = W_actor_by_handle(300120105);
-          v47 = W_sc_401d80(v46, (*v293__f), 0);
+          v47 = W_sc_401d80(v46, (*v322__f), 0);
           W_scene_face_rec(c, 300120105, v47);
           v48 = W_actor_by_handle(300120105);
           v49 = W_sc_4a5e40(c, 300120106, v48, 0);
@@ -31047,10 +31108,10 @@ LABEL_14:
       v2 = W_script_wait(c);
       if ( v2 == 6 )
         return v2;
-      v295[0] = 0;
-      W_sc_4bbe80(v295, F32(D(0x6e7df4), 0));
+      v324[0] = 0;
+      W_sc_4bbe80(v324, F32(D(0x6e7df4), 0));
       if ( W_script_flag(c, 100100101) >= 1410 )
-        W_sc_4bbe80(v295, F32(D(0x6e7e18), 0));
+        W_sc_4bbe80(v324, F32(D(0x6e7e18), 0));
       if ( D(0x85f754) != 0 )
       {
         W_scene_msg(c, 0, F32(c, 0x4), D(0x85f754), 0, 1, 1, 0, 0, 0, 0);
@@ -31060,7 +31121,7 @@ LABEL_14:
       }
       while ( 1 )
       {
-        v183 = W_shop_run(c, (int)v295, 0, 0);
+        v183 = W_shop_run(c, (int)v324, 0, 0);
         if ( v183 == 11 )
           break;
         if ( v183 == 6 )
@@ -31191,10 +31252,10 @@ LABEL_14:
       v2 = W_script_wait(c);
       if ( v2 == 6 )
         return v2;
-      v295[0] = 0;
-      W_sc_4bbe80(v295, F32(D(0x6e7e2c), 0));
+      v324[0] = 0;
+      W_sc_4bbe80(v324, F32(D(0x6e7e2c), 0));
       if ( W_script_flag(c, 100100101) >= 1410 )
-        W_sc_4bbe80(v295, F32(D(0x6e7e80), 0));
+        W_sc_4bbe80(v324, F32(D(0x6e7e80), 0));
       if ( D(0x85f538) != 0 )
       {
         W_scene_msg(c, 0, F32(c, 0x4), D(0x85f538), 0, 1, 1, 0, 0, 0, 0);
@@ -31204,7 +31265,7 @@ LABEL_14:
       }
       while ( 1 )
       {
-        v192 = W_shop_run(c, (int)v295, 0, 0);
+        v192 = W_shop_run(c, (int)v324, 0, 0);
         if ( v192 == 11 )
           break;
         if ( v192 == 6 )
@@ -31281,10 +31342,10 @@ LABEL_14:
       v2 = W_script_wait(c);
       if ( v2 == 6 )
         return v2;
-      v295[0] = 0;
-      W_sc_4bbe80(v295, F32(D(0x6e7dc4), 0));
+      v324[0] = 0;
+      W_sc_4bbe80(v324, F32(D(0x6e7dc4), 0));
       if ( W_script_flag(c, 100100101) >= 1410 )
-        W_sc_4bbe80(v295, F32(D(0x6e7dcc), 0));
+        W_sc_4bbe80(v324, F32(D(0x6e7dcc), 0));
       if ( D(0x85f1d8) != 0 )
       {
         W_scene_msg(c, 0, F32(c, 0x4), D(0x85f1d8), 0, 1, 1, 0, 0, 0, 0);
@@ -31294,7 +31355,7 @@ LABEL_14:
       }
       while ( 1 )
       {
-        v201 = W_shop_run(c, (int)v295, 0, 0);
+        v201 = W_shop_run(c, (int)v324, 0, 0);
         if ( v201 == 11 )
           break;
         if ( v201 == 6 )
@@ -31783,19 +31844,19 @@ LABEL_902:
       v2 = W_script_wait(c);
       if ( v2 == 6 )
         return v2;
-      v295[0] = 0;
-      W_sc_4bbe80(v295, F32(D(0x6e7d80), 0));
+      v324[0] = 0;
+      W_sc_4bbe80(v324, F32(D(0x6e7d80), 0));
       if ( W_script_flag(c, 100100101) >= 1410 )
-        W_sc_4bbe80(v295, F32(D(0x6e7da0), 0));
+        W_sc_4bbe80(v324, F32(D(0x6e7da0), 0));
       if ( W_sc_4a5ea0(c) )
-        W_sc_4bbe80(v295, F32(D(0x6e7dbc), 0));
+        W_sc_4bbe80(v324, F32(D(0x6e7dbc), 0));
       W_scene_msg(c, 0, F32(c, 0x4), D(0x8608bc), 0, 1, 1, 0, 0, 0, 0);
       v2 = W_script_wait(c);
       if ( v2 == 6 )
         return v2;
       while ( 1 )
       {
-        v92 = W_shop_run(c, (int)v295, 0, 0);
+        v92 = W_shop_run(c, (int)v324, 0, 0);
         if ( v92 == 11 )
           break;
         if ( v92 == 6 )
@@ -32620,12 +32681,12 @@ int32_t chs_4bbef0(wl_char *self)
     intptr_t v2;
     intptr_t v3;
     int32_t * v4;
-    int32_t * v5;
+    intptr_t v5;
     int32_t * v6;
-    int32_t * v7;
-    intptr_t v8;
+    intptr_t v7;
+    int32_t * v8;
     intptr_t v9;
-    intptr_t v10;
+    int32_t * v10;
     intptr_t v11;
     intptr_t v12;
     intptr_t v13;
@@ -32644,40 +32705,44 @@ int32_t chs_4bbef0(wl_char *self)
     intptr_t v26;
     intptr_t v27;
     intptr_t v28;
-    intptr_t v29;
+    uint32_t v29;
     intptr_t v30;
     intptr_t v31;
     intptr_t v32;
     intptr_t v33;
     intptr_t v34;
-    uint16_t v35;
+    intptr_t v35;
     intptr_t v36;
     intptr_t v37;
     intptr_t v38;
-    intptr_t v39;
-    uint16_t v40;
+    uint16_t v39;
+    intptr_t v40;
     intptr_t v41;
     intptr_t v42;
-    uint16_t v43;
-    intptr_t v44;
+    intptr_t v43;
+    uint16_t v44;
     intptr_t v45;
-    uint16_t v46;
-    intptr_t v47;
+    intptr_t v46;
+    uint16_t v47;
     intptr_t v48;
     intptr_t v49;
-    intptr_t v50;
+    uint16_t v50;
     intptr_t v51;
     intptr_t v52;
-    intptr_t v53;
+    uint32_t v53;
+    uint32_t v54;
     intptr_t v55;
     intptr_t v56;
     intptr_t v57;
-    intptr_t v58;
     intptr_t v59;
+    intptr_t v60;
+    intptr_t v61;
+    intptr_t v62;
+    intptr_t v63;
     _Alignas(8) uint8_t frame_[0x234 + 0x10];   /* the stack locals at their ebp offsets */
     memset(frame_, 0, sizeof frame_);
     char *Buffer = (char *)(frame_ + 0x34);   /* [512] at ebp-0x200 */
-    intptr_t *const v60__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x234 */
+    intptr_t *const v64__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x234 */
 
   v2 = 0;
   if ( F32(*(_DWORD *)&GAP(W, 0x1030, 8), 4) == 310 )
@@ -32691,13 +32756,13 @@ int32_t chs_4bbef0(wl_char *self)
         {
           case 0x4BB68:
             v4 = (_DWORD *)W_actor_by_handle(310100101);
-            W_char_unload(v4);
-            v5 = (_DWORD *)W_actor_by_handle(310100102);
-            W_char_unload(v5);
+            W_char_unload(/*ecx, edx*/  v4);
+            v6 = (_DWORD *)W_actor_by_handle(310100102);
+            W_char_unload(/*ecx, edx*/  v6);
             break;
           case 0x4BB72:
-            v6 = (_DWORD *)W_actor_by_handle(310100104);
-            W_char_unload(v6);
+            v8 = (_DWORD *)W_actor_by_handle(310100104);
+            W_char_unload(/*ecx, edx*/  v8);
             break;
           case 0x4BB7C:
             W_scene_spawn_at_door(c, 310100104, 0, 201, 0, 0, 3, 0, 0);
@@ -32705,8 +32770,8 @@ int32_t chs_4bbef0(wl_char *self)
             W_scene_spawn_at_door(c, 310100103, 0, 203, 0, 0, 1, 0, 0);
             break;
           case 0x4BB86:
-            v7 = (_DWORD *)W_actor_by_handle(310100103);
-            W_char_unload(v7);
+            v10 = (_DWORD *)W_actor_by_handle(310100103);
+            W_char_unload(/*ecx, edx*/  v10);
             W_scene_spawn_at_door(c, 310100101, 0, 201, 0, 0, 3, 0, 0);
             break;
           case 0x4BB9A:
@@ -32723,9 +32788,9 @@ int32_t chs_4bbef0(wl_char *self)
       {
         case 0x127BC085:
           W_script_begin(c);
-          v8 = W_script_leader(c);
+          v12 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v8;
+          F32(c, 0x5c) = v12;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -32744,9 +32809,9 @@ int32_t chs_4bbef0(wl_char *self)
           v2 = W_script_wait(c);
           if ( v2 == 6 )
             return v2;
-          v9 = W_script_leader(c);
+          v13 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v9;
+          F32(c, 0x5c) = v13;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -32774,9 +32839,9 @@ int32_t chs_4bbef0(wl_char *self)
           goto LABEL_155;
         case 0x127BC086:
           W_script_begin(c);
-          v10 = W_script_leader(c);
+          v14 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v10;
+          F32(c, 0x5c) = v14;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -32795,9 +32860,9 @@ int32_t chs_4bbef0(wl_char *self)
           v2 = W_script_wait(c);
           if ( v2 == 6 )
             return v2;
-          v11 = W_script_leader(c);
+          v15 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v11;
+          F32(c, 0x5c) = v15;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -32813,14 +32878,14 @@ int32_t chs_4bbef0(wl_char *self)
           v2 = W_script_wait(c);
           if ( v2 == 6 )
             return v2;
-          v12 = W_actor_by_handle(100000103);
-          W_scene_msg(c, 0, v12, D(0x862108), 0, 1, 1, 0, 15, 0, 0);
+          v16 = W_actor_by_handle(100000103);
+          W_scene_msg(c, 0, v16, D(0x862108), 0, 1, 1, 0, 15, 0, 0);
           goto LABEL_155;
         case 0x127BC088:
           W_script_begin(c);
-          v13 = W_script_leader(c);
+          v17 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v13;
+          F32(c, 0x5c) = v17;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -32839,9 +32904,9 @@ int32_t chs_4bbef0(wl_char *self)
           v2 = W_script_wait(c);
           if ( v2 == 6 )
             return v2;
-          v14 = W_script_leader(c);
+          v18 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v14;
+          F32(c, 0x5c) = v18;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -32855,8 +32920,8 @@ int32_t chs_4bbef0(wl_char *self)
             v2 = W_script_wait(c);
             if ( v2 != 6 )
             {
-              v17 = W_actor_by_handle(100000103);
-              W_scene_msg(c, 0, v17, D(0x861f20), 0, 1, 1, 0, 22, 0, 0);
+              v21 = W_actor_by_handle(100000103);
+              W_scene_msg(c, 0, v21, D(0x861f20), 0, 1, 1, 0, 22, 0, 0);
               v2 = W_script_wait(c);
               if ( v2 != 6 )
               {
@@ -32864,8 +32929,8 @@ int32_t chs_4bbef0(wl_char *self)
                 v2 = W_script_wait(c);
                 if ( v2 != 6 )
                 {
-                  v18 = W_actor_by_handle(100000103);
-                  W_scene_msg(c, 0, v18, D(0x861ed8), 0, 1, 1, 0, 22, 0, 0);
+                  v22 = W_actor_by_handle(100000103);
+                  W_scene_msg(c, 0, v22, D(0x861ed8), 0, 1, 1, 0, 22, 0, 0);
                   goto LABEL_155;
                 }
               }
@@ -32877,8 +32942,8 @@ int32_t chs_4bbef0(wl_char *self)
             v2 = W_script_wait(c);
             if ( v2 != 6 )
             {
-              v15 = W_actor_by_handle(100000103);
-              W_scene_msg(c, 0, v15, D(0x8620b0), 0, 1, 1, 0, 4, 0, 0);
+              v19 = W_actor_by_handle(100000103);
+              W_scene_msg(c, 0, v19, D(0x8620b0), 0, 1, 1, 0, 4, 0, 0);
               v2 = W_script_wait(c);
               if ( v2 != 6 )
               {
@@ -32886,8 +32951,8 @@ int32_t chs_4bbef0(wl_char *self)
                 v2 = W_script_wait(c);
                 if ( v2 != 6 )
                 {
-                  v16 = W_actor_by_handle(100000103);
-                  W_scene_msg(c, 0, v16, D(0x862020), 0, 1, 1, 0, 4, 0, 0);
+                  v20 = W_actor_by_handle(100000103);
+                  W_scene_msg(c, 0, v20, D(0x862020), 0, 1, 1, 0, 4, 0, 0);
                   v2 = W_script_wait(c);
                   if ( v2 != 6 )
                   {
@@ -32895,8 +32960,8 @@ int32_t chs_4bbef0(wl_char *self)
                     v2 = W_script_wait(c);
                     if ( v2 != 6 )
                     {
-                      (*v60__f) = W_actor_by_handle(100000103);
-                      W_scene_msg(c, 2u, (*v60__f), D(0x861fbc), 0, 1, 1, 0, 21, 0, 0);
+                      (*v64__f) = W_actor_by_handle(100000103);
+                      W_scene_msg(c, 2u, (*v64__f), D(0x861fbc), 0, 1, 1, 0, 21, 0, 0);
                       goto LABEL_155;
                     }
                   }
@@ -32907,9 +32972,9 @@ int32_t chs_4bbef0(wl_char *self)
           break;
         case 0x127BC089:
           W_script_begin(c);
-          v19 = W_script_leader(c);
+          v23 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v19;
+          F32(c, 0x5c) = v23;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -32928,9 +32993,9 @@ int32_t chs_4bbef0(wl_char *self)
           v2 = W_script_wait(c);
           if ( v2 == 6 )
             return v2;
-          v20 = W_script_leader(c);
+          v24 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v20;
+          F32(c, 0x5c) = v24;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -32942,9 +33007,9 @@ int32_t chs_4bbef0(wl_char *self)
           goto LABEL_155;
         case 0x127BC08A:
           W_script_begin(c);
-          v21 = W_script_leader(c);
+          v25 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v21;
+          F32(c, 0x5c) = v25;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -32963,9 +33028,9 @@ int32_t chs_4bbef0(wl_char *self)
           v2 = W_script_wait(c);
           if ( v2 == 6 )
             return v2;
-          v22 = W_script_leader(c);
+          v26 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v22;
+          F32(c, 0x5c) = v26;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -32977,8 +33042,8 @@ int32_t chs_4bbef0(wl_char *self)
           v2 = W_script_wait(c);
           if ( v2 == 6 )
             return v2;
-          v23 = W_actor_by_handle(100000103);
-          W_scene_msg(c, 0, v23, D(0x861e08), 0, 1, 1, 0, 21, 0, 0);
+          v27 = W_actor_by_handle(100000103);
+          W_scene_msg(c, 0, v27, D(0x861e08), 0, 1, 1, 0, 21, 0, 0);
           v2 = W_script_wait(c);
           if ( v2 == 6 )
             return v2;
@@ -32986,8 +33051,8 @@ int32_t chs_4bbef0(wl_char *self)
           v2 = W_script_wait(c);
           if ( v2 == 6 )
             return v2;
-          v24 = W_actor_by_handle(100000103);
-          W_scene_msg(c, 0, v24, D(0x861d78), 0, 1, 1, 0, 4, 0, 0);
+          v28 = W_actor_by_handle(100000103);
+          W_scene_msg(c, 0, v28, D(0x861d78), 0, 1, 1, 0, 4, 0, 0);
           goto LABEL_155;
         default:
           goto LABEL_63;
@@ -32997,19 +33062,19 @@ int32_t chs_4bbef0(wl_char *self)
 LABEL_63:
     if ( F32(c, 0x14) == 2 )
     {
-      v25 = F32(F32(c, 0x4), 472);
-      if ( v25 > 0x127BC088 )
+      v29 = F32(F32(c, 0x4), 472);
+      if ( v29 > 0x127BC088 )
       {
-        v49 = v25 - 310100105;
-        if ( v49 != 0 )
+        v53 = v29 - 310100105;
+        if ( v53 != 0 )
         {
-          v50 = v49 - 1;
-          if ( v50 == 0 )
+          v54 = v53 - 1;
+          if ( v54 == 0 )
           {
             W_script_begin(c);
-            v55 = W_script_leader(c);
+            v59 = W_script_leader(c);
             F32(c, 0x4c) = 0;
-            F32(c, 0x5c) = v55;
+            F32(c, 0x5c) = v59;
             F32(c, 0x50) = 0;
             F32(c, 0x54) = 0;
             F32(c, 0x58) = 800;
@@ -33028,9 +33093,9 @@ LABEL_63:
             v2 = W_script_wait(c);
             if ( v2 == 6 )
               return v2;
-            v56 = W_script_leader(c);
+            v60 = W_script_leader(c);
             F32(c, 0x4c) = 0;
-            F32(c, 0x5c) = v56;
+            F32(c, 0x5c) = v60;
             F32(c, 0x50) = 0;
             F32(c, 0x54) = 0;
             F32(c, 0x58) = 800;
@@ -33041,12 +33106,12 @@ LABEL_63:
             W_scene_msg(c, 0, F32(c, 0x4), D(0x861b18), 0, 1, 1, 0, 0, 0, 0);
             goto LABEL_155;
           }
-          if ( v50 != 50396 )
+          if ( v54 != 50396 )
             return v2;
           W_script_begin(c);
-          v51 = W_script_leader(c);
+          v55 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v51;
+          F32(c, 0x5c) = v55;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -33065,9 +33130,9 @@ LABEL_63:
           v2 = W_script_wait(c);
           if ( v2 == 6 )
             return v2;
-          v52 = W_script_leader(c);
+          v56 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v52;
+          F32(c, 0x5c) = v56;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -33081,15 +33146,15 @@ LABEL_63:
           v2 = W_script_wait(c);
           if ( v2 == 6 )
             return v2;
-          v53 = W_scene_yes_no(c);
-          if ( v53 == 6 )
+          v57 = W_scene_yes_no(c);
+          if ( v57 == 6 )
             return 6;
           *(_DWORD *)&GAP(c, 0x300, 636) = 20;
           F32(c, 0x20) = 6;
           v2 = W_script_wait(c);
           if ( v2 == 6 )
             return v2;
-          if ( v53 == 14 )
+          if ( v57 == 14 )
           {
             F32(c, 0x2e4) = 1;
             *(_DWORD *)&GAP(c, 0x300, 636) = 10;
@@ -33114,9 +33179,9 @@ LABEL_63:
         else
         {
           W_script_begin(c);
-          v57 = W_script_leader(c);
+          v61 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v57;
+          F32(c, 0x5c) = v61;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -33135,9 +33200,9 @@ LABEL_63:
           v2 = W_script_wait(c);
           if ( v2 == 6 )
             return v2;
-          v58 = W_script_leader(c);
+          v62 = W_script_leader(c);
           F32(c, 0x4c) = 0;
-          F32(c, 0x5c) = v58;
+          F32(c, 0x5c) = v62;
           F32(c, 0x50) = 0;
           F32(c, 0x54) = 0;
           F32(c, 0x58) = 800;
@@ -33151,20 +33216,20 @@ LABEL_63:
             return v2;
           if ( W_sc_402f40(c) == 100000101 )
           {
-            v59 = W_actor_by_handle(100000101);
-            W_scene_msg(c, 0, v59, D(0x861a9c), 0, 1, 1, 0, 2, 0, 0);
+            v63 = W_actor_by_handle(100000101);
+            W_scene_msg(c, 0, v63, D(0x861a9c), 0, 1, 1, 0, 2, 0, 0);
             v2 = W_script_wait(c);
             if ( v2 == 6 )
               return v2;
           }
         }
       }
-      else if ( v25 == 310100104 )
+      else if ( v29 == 310100104 )
       {
         W_script_begin(c);
-        v38 = W_script_leader(c);
+        v42 = W_script_leader(c);
         F32(c, 0x4c) = 0;
-        F32(c, 0x5c) = v38;
+        F32(c, 0x5c) = v42;
         F32(c, 0x50) = 0;
         F32(c, 0x54) = 0;
         F32(c, 0x58) = 800;
@@ -33183,9 +33248,9 @@ LABEL_63:
         v2 = W_script_wait(c);
         if ( v2 == 6 )
           return v2;
-        v39 = W_script_leader(c);
+        v43 = W_script_leader(c);
         F32(c, 0x4c) = 0;
-        F32(c, 0x5c) = v39;
+        F32(c, 0x5c) = v43;
         F32(c, 0x50) = 0;
         F32(c, 0x54) = 0;
         F32(c, 0x58) = 800;
@@ -33201,51 +33266,51 @@ LABEL_63:
         v2 = W_script_wait(c);
         if ( v2 == 6 )
           return v2;
-        v40 = 0;
+        v44 = 0;
         while ( 1 )
         {
-          v41 = F32(F32(c, 0x8) + 4 * v40, 16432);
-          if ( F32(v41, 2544) == 100000101 )
+          v45 = F32(F32(c, 0x8) + 4 * v44, 16432);
+          if ( F32(v45, 2544) == 100000101 )
             break;
-          if ( ++v40 >= 8u )
+          if ( ++v44 >= 8u )
             goto LABEL_156;
         }
-        if ( F32(v41, 2500) == 1 && v41 != 0 )
+        if ( F32(v45, 2500) == 1 && v45 != 0 )
         {
-          v42 = W_actor_by_handle(100000101);
-          W_scene_msg(c, 0, v42, D(0x861bdc), 0, 1, 1, 0, 3, 0, 0);
+          v46 = W_actor_by_handle(100000101);
+          W_scene_msg(c, 0, v46, D(0x861bdc), 0, 1, 1, 0, 3, 0, 0);
           v2 = W_script_wait(c);
           if ( v2 == 6 )
             return v2;
-          v43 = 0;
+          v47 = 0;
           while ( 1 )
           {
-            v44 = F32(F32(c, 0x8) + 4 * v43, 16432);
-            if ( F32(v44, 2544) == 100000104 )
+            v48 = F32(F32(c, 0x8) + 4 * v47, 16432);
+            if ( F32(v48, 2544) == 100000104 )
               break;
-            if ( ++v43 >= 8u )
+            if ( ++v47 >= 8u )
               goto LABEL_156;
           }
-          if ( F32(v44, 2500) == 1 && v44 != 0 )
+          if ( F32(v48, 2500) == 1 && v48 != 0 )
           {
-            v45 = W_actor_by_handle(100000104);
-            W_scene_msg(c, 0, v45, D(0x861b94), 0, 1, 1, 0, 4, 0, 0);
+            v49 = W_actor_by_handle(100000104);
+            W_scene_msg(c, 0, v49, D(0x861b94), 0, 1, 1, 0, 4, 0, 0);
             v2 = W_script_wait(c);
             if ( v2 == 6 )
               return v2;
-            v46 = 0;
+            v50 = 0;
             while ( 1 )
             {
-              v47 = F32(F32(c, 0x8) + 4 * v46, 16432);
-              if ( F32(v47, 2544) == 100000103 )
+              v51 = F32(F32(c, 0x8) + 4 * v50, 16432);
+              if ( F32(v51, 2544) == 100000103 )
                 break;
-              if ( ++v46 >= 8u )
+              if ( ++v50 >= 8u )
                 goto LABEL_156;
             }
-            if ( F32(v47, 2500) == 1 && v47 != 0 )
+            if ( F32(v51, 2500) == 1 && v51 != 0 )
             {
-              v48 = W_actor_by_handle(100000103);
-              W_scene_msg(c, 0, v48, D(0x861b50), 0, 1, 1, 0, 4, 0, 0);
+              v52 = W_actor_by_handle(100000103);
+              W_scene_msg(c, 0, v52, D(0x861b50), 0, 1, 1, 0, 4, 0, 0);
 LABEL_155:
               v2 = W_script_wait(c);
               if ( v2 != 6 )
@@ -33261,15 +33326,15 @@ LABEL_156:
       }
       else
       {
-        if ( v25 <= 0x127BC086 )
+        if ( v29 <= 0x127BC086 )
         {
-          switch ( v25 )
+          switch ( v29 )
           {
             case 0x127BC086u:
               W_script_begin(c);
-              v31 = W_script_leader(c);
+              v35 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v31;
+              F32(c, 0x5c) = v35;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -33288,9 +33353,9 @@ LABEL_156:
               v2 = W_script_wait(c);
               if ( v2 == 6 )
                 return v2;
-              v32 = W_script_leader(c);
+              v36 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v32;
+              F32(c, 0x5c) = v36;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -33301,13 +33366,13 @@ LABEL_156:
               W_scene_msg(c, 0, F32(c, 0x4), D(0x861d0c), 0, 1, 1, 0, 0, 0, 0);
               break;
             case 0x11E39F35u:
-              v28 = W_script_flag(c, 100100102);
-              if ( v28 != 50 && v28 != 60 )
+              v32 = W_script_flag(c, 100100102);
+              if ( v32 != 50 && v32 != 60 )
                 return v2;
               W_script_begin(c);
-              v29 = W_script_leader(c);
+              v33 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v29;
+              F32(c, 0x5c) = v33;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -33326,9 +33391,9 @@ LABEL_156:
               v2 = W_script_wait(c);
               if ( v2 == 6 )
                 return v2;
-              v30 = W_script_leader(c);
+              v34 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v30;
+              F32(c, 0x5c) = v34;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -33340,9 +33405,9 @@ LABEL_156:
               break;
             case 0x127BC085u:
               W_script_begin(c);
-              v26 = W_script_leader(c);
+              v30 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v26;
+              F32(c, 0x5c) = v30;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -33361,9 +33426,9 @@ LABEL_156:
               v2 = W_script_wait(c);
               if ( v2 == 6 )
                 return v2;
-              v27 = W_script_leader(c);
+              v31 = W_script_leader(c);
               F32(c, 0x4c) = 0;
-              F32(c, 0x5c) = v27;
+              F32(c, 0x5c) = v31;
               F32(c, 0x50) = 0;
               F32(c, 0x54) = 0;
               F32(c, 0x58) = 800;
@@ -33379,9 +33444,9 @@ LABEL_156:
           goto LABEL_155;
         }
         W_script_begin(c);
-        v33 = W_script_leader(c);
+        v37 = W_script_leader(c);
         F32(c, 0x4c) = 0;
-        F32(c, 0x5c) = v33;
+        F32(c, 0x5c) = v37;
         F32(c, 0x50) = 0;
         F32(c, 0x54) = 0;
         F32(c, 0x58) = 800;
@@ -33400,9 +33465,9 @@ LABEL_156:
         v2 = W_script_wait(c);
         if ( v2 == 6 )
           return v2;
-        v34 = W_script_leader(c);
+        v38 = W_script_leader(c);
         F32(c, 0x4c) = 0;
-        F32(c, 0x5c) = v34;
+        F32(c, 0x5c) = v38;
         F32(c, 0x50) = 0;
         F32(c, 0x54) = 0;
         F32(c, 0x58) = 800;
@@ -33414,19 +33479,19 @@ LABEL_156:
         v2 = W_script_wait(c);
         if ( v2 == 6 )
           return v2;
-        v35 = 0;
+        v39 = 0;
         while ( 1 )
         {
-          v36 = F32(F32(c, 0x8) + 4 * v35, 16432);
-          if ( F32(v36, 2544) == 100000102 )
+          v40 = F32(F32(c, 0x8) + 4 * v39, 16432);
+          if ( F32(v40, 2544) == 100000102 )
             break;
-          if ( ++v35 >= 8u )
+          if ( ++v39 >= 8u )
             goto LABEL_156;
         }
-        if ( F32(v36, 2500) == 1 && v36 != 0 )
+        if ( F32(v40, 2500) == 1 && v40 != 0 )
         {
-          v37 = W_actor_by_handle(100000102);
-          W_scene_msg(c, 0, v37, D(0x861ca0), 0, 1, 1, 0, 15, 0, 0);
+          v41 = W_actor_by_handle(100000102);
+          W_scene_msg(c, 0, v41, D(0x861ca0), 0, 1, 1, 0, 15, 0, 0);
           goto LABEL_155;
         }
       }
@@ -33442,7 +33507,7 @@ int32_t chs_4bd2e0(wl_char *self)
     intptr_t c = (intptr_t)self;
     int32_t * v1;
     intptr_t v3;
-    intptr_t v4;
+    uint32_t v4;
     intptr_t v5;
     intptr_t v6;
     intptr_t v7;
@@ -33634,9 +33699,9 @@ int32_t chs_4bd6b0(wl_char *self)
     intptr_t c = (intptr_t)self;
     int32_t * v2;
     intptr_t v3;
-    intptr_t v4;
+    uint32_t v4;
     intptr_t v5;
-    intptr_t v6;
+    uint32_t v6;
     int32_t * v7;
     intptr_t v8;
     int32_t * v9;
@@ -34054,8 +34119,8 @@ int32_t chs_4bdbe0(wl_char *self)
     intptr_t v2;
     intptr_t v3;
     intptr_t v4;
-    intptr_t v5;
-    intptr_t v6;
+    uint32_t v5;
+    uint32_t v6;
     int32_t * v7;
     int32_t * v8;
     intptr_t v9;
@@ -34275,7 +34340,7 @@ int32_t chs_4be220(wl_char *self)
 {
     intptr_t c = (intptr_t)self;
     intptr_t v2;
-    intptr_t v3;
+    uint32_t v3;
     intptr_t v4;
     intptr_t v5;
     int v6;
@@ -34318,7 +34383,7 @@ int32_t chs_4be220(wl_char *self)
     intptr_t v43;
     intptr_t v44;
     intptr_t v45;
-    intptr_t v46;
+    uint32_t v46;
     intptr_t v47;
     intptr_t v48;
     intptr_t v49;
@@ -34331,8 +34396,8 @@ int32_t chs_4be220(wl_char *self)
     intptr_t v56;
     intptr_t v57;
     intptr_t v58;
-    intptr_t v59;
-    intptr_t v60;
+    uint32_t v59;
+    uint32_t v60;
     intptr_t v61;
     intptr_t v62;
     intptr_t v63;
@@ -34359,7 +34424,7 @@ int32_t chs_4be220(wl_char *self)
     intptr_t v84;
     uint16_t v85;
     intptr_t v86;
-    intptr_t v87;
+    uint32_t v87;
     intptr_t v88;
     intptr_t v89;
     intptr_t v90;
@@ -34374,8 +34439,8 @@ int32_t chs_4be220(wl_char *self)
     intptr_t v99;
     intptr_t v100;
     intptr_t v101;
-    intptr_t v102;
-    intptr_t v103;
+    uint32_t v102;
+    uint32_t v103;
     intptr_t v104;
     intptr_t v105;
     intptr_t v106;
@@ -34393,8 +34458,8 @@ int32_t chs_4be220(wl_char *self)
     intptr_t v118;
     intptr_t v119;
     intptr_t v120;
-    intptr_t v121;
-    intptr_t v122;
+    uint32_t v121;
+    uint32_t v122;
     intptr_t v123;
     intptr_t v124;
     intptr_t v125;
@@ -36695,8 +36760,8 @@ int32_t chs_4c1a30(wl_char *self)
     intptr_t c = (intptr_t)self;
     intptr_t v2;
     intptr_t v3;
-    intptr_t v4;
-    intptr_t v5;
+    uint32_t v4;
+    uint32_t v5;
     char * v6;
     uint32_t * v7;
     intptr_t v9;
@@ -36786,7 +36851,7 @@ int32_t chs_4c1c20(wl_char *self)
 {
     intptr_t c = (intptr_t)self;
     intptr_t v2;
-    intptr_t v3;
+    uint32_t v3;
     intptr_t v4;
     intptr_t v5;
     intptr_t v6;
@@ -37117,16 +37182,16 @@ int32_t chs_4c2310(wl_char *self)
     intptr_t c = (intptr_t)self;
     intptr_t v2;
     intptr_t v3;
-    intptr_t v4;
+    uint32_t v4;
     intptr_t v5;
-    intptr_t v6;
-    intptr_t v7;
+    uint32_t v6;
+    uint32_t v7;
     int32_t * v8;
     intptr_t v9;
     intptr_t v10;
-    intptr_t v11;
+    uint32_t v11;
     intptr_t v12;
-    intptr_t v13;
+    uint32_t v13;
     int32_t * v14;
     intptr_t v15;
     int32_t * v16;
@@ -37135,14 +37200,14 @@ int32_t chs_4c2310(wl_char *self)
     intptr_t v19;
     int v20;
     intptr_t v21;
-    intptr_t LastError;
-    intptr_t v23;
-    intptr_t v24;
+    uint32_t LastError;
+    uint32_t v23;
+    uint32_t v24;
     char * v25;
     char * v26;
     char * v27;
     char v28;
-    intptr_t v29;
+    uint32_t v29;
     intptr_t result;
     intptr_t v31;
     intptr_t v32;
@@ -37443,9 +37508,9 @@ int32_t chs_4c29c0(wl_char *self)
     intptr_t v5;
     intptr_t v6;
     intptr_t v7;
-    intptr_t v8;
+    uint32_t v8;
     intptr_t v9;
-    intptr_t v10;
+    uint32_t v10;
     int32_t * v11;
     intptr_t v12;
     int32_t * v13;
@@ -37453,14 +37518,14 @@ int32_t chs_4c29c0(wl_char *self)
     intptr_t v15;
     int v16;
     intptr_t v17;
-    intptr_t LastError;
-    intptr_t v19;
-    intptr_t v20;
+    uint32_t LastError;
+    uint32_t v19;
+    uint32_t v20;
     char * v21;
     char * v22;
     char * v23;
     char v24;
-    intptr_t v25;
+    uint32_t v25;
     intptr_t v27;
     intptr_t v28;
     intptr_t v29;
@@ -37607,7 +37672,7 @@ int32_t chs_4c2dc0(wl_char *self)
 {
     intptr_t c = (intptr_t)self;
     intptr_t v2;
-    intptr_t v3;
+    uint32_t v3;
     intptr_t v4;
     intptr_t v5;
     intptr_t v6;
@@ -37644,7 +37709,7 @@ int32_t chs_4c2dc0(wl_char *self)
     intptr_t v38;
     intptr_t v39;
     intptr_t v40;
-    intptr_t v41;
+    uint32_t v41;
     intptr_t v42;
     intptr_t v43;
     intptr_t v44;
@@ -38356,7 +38421,7 @@ int32_t chs_4c3ee0(wl_char *self)
     intptr_t v6;
     intptr_t v7;
     intptr_t result;
-    intptr_t v9;
+    uint32_t v9;
     intptr_t v10;
     intptr_t v11;
     intptr_t v12;
@@ -38638,18 +38703,18 @@ int32_t chs_4c45a0(wl_char *self)
     intptr_t v3;
     intptr_t v4;
     intptr_t v5;
-    intptr_t v6;
+    uint32_t v6;
     intptr_t v7;
     intptr_t v8;
     int32_t * v9;
     intptr_t result;
     intptr_t v11;
     intptr_t v12;
+    intptr_t v13;
     intptr_t i;
-    intptr_t v14;
     intptr_t v15;
+    intptr_t v16;
     intptr_t j;
-    intptr_t v17;
     intptr_t v18;
     intptr_t v19;
     intptr_t v20;
@@ -38658,57 +38723,59 @@ int32_t chs_4c45a0(wl_char *self)
     intptr_t v23;
     intptr_t v24;
     intptr_t v25;
-    char * v26;
+    intptr_t v26;
     intptr_t v27;
-    uint16_t k;
+    char * v28;
     intptr_t v29;
-    int32_t * v30;
-    uint16_t * v31;
-    uint16_t v32;
-    intptr_t v33;
-    intptr_t v34;
+    uint16_t k;
+    intptr_t v31;
+    int32_t * v32;
+    uint16_t * v33;
+    uint16_t v34;
     intptr_t v35;
-    uint16_t v36;
+    intptr_t v36;
     intptr_t v37;
-    intptr_t * v38;
-    int32_t * v39;
-    intptr_t v40;
-    intptr_t v41;
+    uint16_t v38;
+    intptr_t v39;
+    intptr_t * v40;
+    int32_t * v41;
     intptr_t v42;
     intptr_t v43;
     intptr_t v44;
-    intptr_t v45;
+    uint32_t v45;
     intptr_t v46;
     intptr_t v47;
     intptr_t v48;
     intptr_t v49;
-    uint16_t * v50;
-    uint16_t v51;
-    intptr_t v52;
-    intptr_t v53;
+    intptr_t v50;
+    intptr_t v51;
+    uint16_t * v52;
+    uint16_t v53;
     intptr_t v54;
-    uint16_t v55;
+    intptr_t v55;
     intptr_t v56;
-    intptr_t * v57;
+    uint16_t v57;
     intptr_t v58;
-    intptr_t v59;
-    int32_t * v60;
+    intptr_t * v59;
+    intptr_t v60;
     intptr_t v61;
-    intptr_t v62;
+    int32_t * v62;
+    intptr_t v63;
+    intptr_t v64;
     _Alignas(8) uint8_t frame_[0x154 + 0x10];   /* the stack locals at their ebp offsets */
     memset(frame_, 0, sizeof frame_);
-    char *v72 = (char *)(frame_ + 0x2c);   /* [20] at ebp-0x128 */
-    char *v73 = (char *)(frame_ + 0x40);   /* [20] at ebp-0x114 */
+    char *v74 = (char *)(frame_ + 0x2c);   /* [20] at ebp-0x128 */
+    char *v75 = (char *)(frame_ + 0x40);   /* [20] at ebp-0x114 */
     char *Buffer = (char *)(frame_ + 0x54);   /* [256] at ebp-0x100 */
-    intptr_t *const v63__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x154 */
-    intptr_t *const v66__f = (intptr_t *)(frame_ + 0x14);   /* ebp-0x140 */
-    intptr_t *const v65__f = (intptr_t *)(frame_ + 0x14);   /* ebp-0x140 */
-    int32_t * *const v64__f = (int32_t * *)(frame_ + 0x14);   /* ebp-0x140 */
-    intptr_t *const v67__f = (intptr_t *)(frame_ + 0x18);   /* ebp-0x13c */
-    intptr_t *const v68__f = (intptr_t *)(frame_ + 0x1c);   /* ebp-0x138 */
-    intptr_t *const v69__f = (intptr_t *)(frame_ + 0x20);   /* ebp-0x134 */
-    intptr_t *const v70__f = (intptr_t *)(frame_ + 0x24);   /* ebp-0x130 */
-    intptr_t *const v71__f = (intptr_t *)(frame_ + 0x28);   /* ebp-0x12c */
+    intptr_t *const v65__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x154 */
+    intptr_t *const v68__f = (intptr_t *)(frame_ + 0x14);   /* ebp-0x140 */
+    intptr_t *const v67__f = (intptr_t *)(frame_ + 0x14);   /* ebp-0x140 */
+    int32_t * *const v66__f = (int32_t * *)(frame_ + 0x14);   /* ebp-0x140 */
+    intptr_t *const v69__f = (intptr_t *)(frame_ + 0x18);   /* ebp-0x13c */
+    intptr_t *const v70__f = (intptr_t *)(frame_ + 0x1c);   /* ebp-0x138 */
+    intptr_t *const v71__f = (intptr_t *)(frame_ + 0x20);   /* ebp-0x134 */
+    intptr_t *const v72__f = (intptr_t *)(frame_ + 0x24);   /* ebp-0x130 */
+    intptr_t *const v73__f = (intptr_t *)(frame_ + 0x28);   /* ebp-0x12c */
 
   v1 = *(_DWORD **)&GAP(W, 0x1030, 8);
   v3 = 0;
@@ -38725,34 +38792,34 @@ int32_t chs_4c45a0(wl_char *self)
         if ( F32(c, 0x10) == 1 )
         {
           v11 = W_actor_by_handle(450245502);
-          W_sc_41eb30(v11);
+          W_sc_41eb30((int)c, v12, v11);
         }
         else
         {
           if ( F32(c, 0x0) != 0 )
           {
-            v12 = 4448;
+            v13 = 4448;
             for ( i = 32; i != 0; --i )
             {
-              v14 = *(intptr_t *)&GAP(W, 0x0, v12);
-              if ( F32(v14, 0x1d0) != 0 && F32(v14, 0x1f8) == 1 && F32(v14, 0x1dc) == 2 && F32(v14, 0x1d4) == 51111 )
-                W_char_release(v14);
-              v12 += 4;
+              v15 = *(intptr_t *)&GAP(W, 0x0, v13);
+              if ( F32(v15, 0x1d0) != 0 && F32(v15, 0x1f8) == 1 && F32(v15, 0x1dc) == 2 && F32(v15, 0x1d4) == 51111 )
+                W_char_release(v15);
+              v13 += 4;
             }
             if ( F32(c, 0x0) != 0 )
             {
-              v15 = 4448;
+              v16 = 4448;
               for ( j = 32; j != 0; --j )
               {
-                v17 = *(intptr_t *)&GAP(W, 0x0, v15);
-                if ( F32(v17, 0x1d0) != 0 && F32(v17, 0x1f8) == 1 && F32(v17, 0x1dc) == 2 && F32(v17, 0x1d4) == 51122 )
-                  W_char_release(v17);
-                v15 += 4;
+                v18 = *(intptr_t *)&GAP(W, 0x0, v16);
+                if ( F32(v18, 0x1d0) != 0 && F32(v18, 0x1f8) == 1 && F32(v18, 0x1dc) == 2 && F32(v18, 0x1d4) == 51122 )
+                  W_char_release(v18);
+                v16 += 4;
               }
             }
           }
-          v18 = W_actor_by_handle(450245501);
-          W_sc_41eb30(v18);
+          v19 = W_actor_by_handle(450245501);
+          W_sc_41eb30((int)c, v20, v19);
         }
         W_script_begin(c);
         F32(c, 0x30) = 1;
@@ -38766,12 +38833,12 @@ int32_t chs_4c45a0(wl_char *self)
         v3 = W_script_wait(c);
         if ( v3 != 6 )
         {
-          v19 = F32(c, 0x0);
+          v21 = F32(c, 0x0);
           F32(c, 0x1c) = 0;
-          F32(v19, 0xd8) = 0;
-          F16(v19, 0xdc) = 0;
-          SETLO(v20, W_bgm_pick(v19));
-          RC_40a5d0((int)((intptr_t)g_eng.sys), v20, 1, 0, 20, 1);
+          F32(v21, 0xd8) = 0;
+          F16(v21, 0xdc) = 0;
+          SETLO(v22, W_bgm_pick(v21));
+          RC_40a5d0((int)((intptr_t)g_eng.sys), v22, 1, 0, 20, 1);
           goto LABEL_39;
         }
         return v3;
@@ -38784,9 +38851,9 @@ int32_t chs_4c45a0(wl_char *self)
   if ( W_script_flag(c, 100450103) == 0 && F32(c, 0x10) == 2 )
   {
     W_script_begin(c);
-    v21 = W_script_leader(c);
+    v23 = W_script_leader(c);
     F32(c, 0x4c) = 0;
-    F32(c, 0x5c) = v21;
+    F32(c, 0x5c) = v23;
     F32(c, 0x50) = 0;
     F32(c, 0x54) = 0;
     F32(c, 0x58) = 800;
@@ -38801,9 +38868,9 @@ int32_t chs_4c45a0(wl_char *self)
       if ( v3 == 6 )
         return v3;
     }
-    v22 = W_script_leader(c);
+    v24 = W_script_leader(c);
     F32(c, 0x4c) = 0;
-    F32(c, 0x5c) = v22;
+    F32(c, 0x5c) = v24;
     F32(c, 0x50) = 0;
     F32(c, 0x54) = 0;
     F32(c, 0x58) = 800;
@@ -38819,24 +38886,24 @@ int32_t chs_4c45a0(wl_char *self)
     v3 = W_script_wait(c);
     if ( v3 == 6 )
       return v3;
-    v23 = W_scene_yes_no(c);
+    v25 = W_scene_yes_no(c);
     v3 = 6;
-    if ( v23 == 6 )
+    if ( v25 == 6 )
       return v3;
     *(_DWORD *)&GAP(c, 0x300, 636) = 20;
     F32(c, 0x20) = 6;
     v3 = W_script_wait(c);
     if ( v3 == 6 )
       return v3;
-    if ( v23 == 14 )
+    if ( v25 == 14 )
     {
-      v24 = 0;
-      (*v64__f) = &(*v67__f);
+      v26 = 0;
+      (*v66__f) = &(*v69__f);
       do
       {
-        (*v71__f) = v24 + 1;
-        g_eng.h5bf3ee(Buffer, "What will you set dial %d to?", v24 + 1);
-        v25 = 0;
+        (*v73__f) = v26 + 1;
+        g_eng.h5bf3ee(Buffer, "What will you set dial %d to?", v26 + 1);
+        v27 = 0;
         W_scene_msg(c, 3u, 0, Buffer, 0, 1, 0, 0, 0, 0, 0);
         v3 = W_script_wait(c);
         if ( v3 == 6 )
@@ -38851,81 +38918,81 @@ int32_t chs_4c45a0(wl_char *self)
         F32(c, 0x20) = 5;
         do
         {
-          g_eng.h5bf3ee(Buffer, "Set to %d", v25);
-          v26 = (uint8_t *)c + 88 * F16(c, 0x584);
-          F32(v26, 4 * 381) = v25;
-          F32(v26, 4 * 380) = 0;
-          strcpy(v26 + 1440, Buffer);
+          g_eng.h5bf3ee(Buffer, "Set to %d", v27);
+          v28 = (uint8_t *)c + 88 * F16(c, 0x584);
+          F32(v28, 4 * 381) = v27;
+          F32(v28, 4 * 380) = 0;
+          strcpy(v28 + 1440, Buffer);
           ++F16(c, 0x584);
-          ++v25;
+          ++v27;
         }
-        while ( v25 < 10 );
+        while ( v27 < 10 );
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
-        v27 = *(_DWORD *)&F16(c, 0x588);
-        v24 = (*v71__f);
+        v29 = *(_DWORD *)&F16(c, 0x588);
+        v26 = (*v73__f);
         F32(c, 0x2e4) = 1;
-        *(*v64__f)++ = v27;
+        *(*v66__f)++ = v29;
       }
-      while ( v24 < 4 );
-      g_eng.h5bf3ee(v73, "%d%d%d%d", (*v67__f), (*v68__f), (*v69__f), (*v70__f));
+      while ( v26 < 4 );
+      g_eng.h5bf3ee(v75, "%d%d%d%d", (*v69__f), (*v70__f), (*v71__f), (*v72__f));
       if ( F32(CFG(), 2696) == 0 )
       {
         for ( k = 0; k < 4u; ++k )
         {
           do
           {
-            v29 = 1000 * rnd() / 0x8000 % 10;
-            v30 = &(*v67__f) + k;
-            *v30 = v29;
+            v31 = 1000 * rnd() / 0x8000 % 10;
+            v32 = &(*v69__f) + k;
+            *v32 = v31;
           }
-          while ( k != 0 && v29 == *(v30 - 1) );
+          while ( k != 0 && v31 == *(v32 - 1) );
         }
-        (*v63__f) = CFG() + 2688;
-        F32((*v63__f), 8) = (*v70__f) + 10 * ((*v69__f) + 10 * ((*v68__f) + 10 * (*v67__f)));
-        W_sc_4c5300((*v63__f));
+        (*v65__f) = CFG() + 2688;
+        F32((*v65__f), 8) = (*v72__f) + 10 * ((*v71__f) + 10 * ((*v70__f) + 10 * (*v69__f)));
+        W_sc_4c5300((*v65__f));
       }
-      g_eng.h5bf3ee(v72, "%04d", F32(CFG(), 2696));
+      g_eng.h5bf3ee(v74, "%04d", F32(CFG(), 2696));
       F32(c, 0x2e4) = 1;
-      if ( strcmp(v73, v72) == 0 )
+      if ( strcmp(v75, v74) == 0 )
       {
         *(_DWORD *)&GAP(c, 0x300, 636) = 50;
         F32(c, 0x20) = 6;
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
-        v31 = SYS32(1764);
+        v33 = SYS32(1764);
         if ( F32(SYS32(1764), 8) != 0
           && (F32(SYS32(1764), 4) != 0
            || W_vpool_load(SYS32(1764)) != 0) )
         {
-          v32 = 0;
-          (*v65__f) = 0;
-          if ( *v31 != 0 )
+          v34 = 0;
+          (*v67__f) = 0;
+          if ( *v33 != 0 )
           {
-            v33 = F32(v31, 4 * 1);
-            SETHI(v34, 0);
+            v35 = F32(v33, 4 * 1);
+            SETHI(v36, 0);
             while ( 1 )
             {
-              SETLO(v34, v31[1]);
-              v35 = (v34 + v32) % *v31;
-              if ( F32(v33 + 8 * (uint16_t)v35, 4) == 0 )
+              SETLO(v36, v33[1]);
+              v37 = (v36 + v34) % *v33;
+              if ( F32(v35 + 8 * (uint16_t)v37, 4) == 0 )
                 break;
-              v32 = ++(*v65__f);
-              if ( (uint16_t)(*v65__f) >= *v31 )
+              v34 = ++(*v67__f);
+              if ( (uint16_t)(*v67__f) >= *v33 )
                 goto LABEL_76;
             }
-            v36 = v35 + 1;
-            v37 = 8 * (uint16_t)v35;
-            v31[1] = v36;
-            F32(v37 + v33, 4) = 0;
-            v38 = (intptr_t *)(F32(v31, 4 * 1) + v37);
-            if ( v38 != 0 )
+            v38 = v37 + 1;
+            v39 = 8 * (uint16_t)v37;
+            v33[1] = v38;
+            F32(v39 + v35, 4) = 0;
+            v40 = (intptr_t *)(F32(v33, 4 * 1) + v39);
+            if ( v40 != 0 )
             {
-              g_eng.dsb_volume_5bb870(F32(v38, 0), F32(CFG(), 360) + 1000);
-              g_eng.dsb_freq_5bb890(*v38, 0);
-              g_eng.dsb_play_5bb8c0(*v38);
+              g_eng.dsb_volume_5bb870(F32(v40, 0), F32(CFG(), 360) + 1000);
+              g_eng.dsb_freq_5bb890(*v40, 0);
+              g_eng.dsb_play_5bb8c0(*v40);
             }
           }
         }
@@ -38955,14 +39022,14 @@ LABEL_76:
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      v39 = (_DWORD *)F32(c, 0x0);
+      v41 = (_DWORD *)F32(c, 0x0);
       if ( F32(W, 0x2784) != 0 )
       {
-        v39[4] = 1;
-        v39[579] = 2;
-        v39[576] = 450150;
-        v39[577] = 101;
-        v39[578] = 1;
+        v41[4] = 1;
+        v41[579] = 2;
+        v41[576] = 450150;
+        v41[577] = 101;
+        v41[578] = 1;
       }
     }
     W_script_end(c);
@@ -38978,14 +39045,14 @@ LABEL_5:
       {
         if ( v6 <= 0x1AD62002 )
         {
-          v40 = W_actor_by_handle(450240513);
-          if ( W_sc_49cf60(v40) == 1 )
+          v42 = W_actor_by_handle(450240513);
+          if ( W_sc_49cf60(v42) == 1 )
           {
-            v41 = W_actor_by_handle(450240514);
-            if ( W_sc_49cf60(v41) == 1 )
+            v43 = W_actor_by_handle(450240514);
+            if ( W_sc_49cf60(v43) == 1 )
             {
-              v42 = W_actor_by_handle(450240515);
-              RC_49d330(v42, 0);
+              v44 = W_actor_by_handle(450240515);
+              RC_49d330(v44, 0);
               return 0;
             }
           }
@@ -39038,22 +39105,22 @@ LABEL_5:
     }
     return v3;
   }
-  v43 = F32(F32(c, 0x4), 472);
-  if ( v43 > 0x1AD61FF5 )
+  v45 = F32(F32(c, 0x4), 472);
+  if ( v45 > 0x1AD61FF5 )
   {
-    if ( v43 != 450295501 )
+    if ( v45 != 450295501 )
       return v3;
     goto LABEL_106;
   }
-  if ( v43 != 450240501 )
+  if ( v45 != 450240501 )
   {
-    if ( v43 != 450185501 && v43 != 450225501 )
+    if ( v45 != 450185501 && v45 != 450225501 )
       return 0;
 LABEL_106:
     W_script_begin(c);
-    v47 = W_script_leader(c);
+    v49 = W_script_leader(c);
     F32(c, 0x4c) = 0;
-    F32(c, 0x5c) = v47;
+    F32(c, 0x5c) = v49;
     F32(c, 0x50) = 0;
     F32(c, 0x54) = 0;
     F32(c, 0x58) = 800;
@@ -39068,9 +39135,9 @@ LABEL_106:
       if ( v3 == 6 )
         return v3;
     }
-    v48 = W_script_leader(c);
+    v50 = W_script_leader(c);
     F32(c, 0x4c) = 0;
-    F32(c, 0x5c) = v48;
+    F32(c, 0x5c) = v50;
     F32(c, 0x50) = 0;
     F32(c, 0x54) = 0;
     F32(c, 0x58) = 800;
@@ -39086,64 +39153,64 @@ LABEL_106:
         return v3;
     }
     F32(c, 0x2e4) = 1;
-    v49 = W_scene_yes_no(c);
+    v51 = W_scene_yes_no(c);
     v3 = 6;
-    if ( v49 == 6 )
+    if ( v51 == 6 )
       return v3;
     *(_DWORD *)&GAP(c, 0x300, 636) = 20;
     F32(c, 0x20) = 6;
     v3 = W_script_wait(c);
     if ( v3 == 6 )
       return v3;
-    if ( v49 != 14 )
+    if ( v51 != 14 )
       goto LABEL_39;
-    v50 = SYS32(1208);
+    v52 = SYS32(1208);
     if ( F32(SYS32(1208), 8) != 0
       && (F32(SYS32(1208), 4) != 0
        || W_vpool_load(SYS32(1208)) != 0) )
     {
-      v51 = 0;
-      (*v66__f) = 0;
-      if ( *v50 != 0 )
+      v53 = 0;
+      (*v68__f) = 0;
+      if ( *v52 != 0 )
       {
-        v52 = F32(v50, 4 * 1);
-        SETHI(v53, 0);
+        v54 = F32(v52, 4 * 1);
+        SETHI(v55, 0);
         while ( 1 )
         {
-          SETLO(v53, v50[1]);
-          v54 = (v53 + v51) % *v50;
-          if ( F32(v52 + 8 * (uint16_t)v54, 4) == 0 )
+          SETLO(v55, v52[1]);
+          v56 = (v55 + v53) % *v52;
+          if ( F32(v54 + 8 * (uint16_t)v56, 4) == 0 )
             break;
-          v51 = ++(*v66__f);
-          if ( (uint16_t)(*v66__f) >= *v50 )
+          v53 = ++(*v68__f);
+          if ( (uint16_t)(*v68__f) >= *v52 )
             goto LABEL_125;
         }
-        v55 = v54 + 1;
-        v56 = 8 * (uint16_t)v54;
-        v50[1] = v55;
-        F32(v56 + v52, 4) = 0;
-        v57 = (intptr_t *)(F32(v50, 4 * 1) + v56);
-        if ( v57 != 0 )
+        v57 = v56 + 1;
+        v58 = 8 * (uint16_t)v56;
+        v52[1] = v57;
+        F32(v58 + v54, 4) = 0;
+        v59 = (intptr_t *)(F32(v52, 4 * 1) + v58);
+        if ( v59 != 0 )
         {
-          g_eng.dsb_volume_5bb870(F32(v57, 0), F32(CFG(), 360));
-          g_eng.dsb_freq_5bb890(*v57, 0);
-          g_eng.dsb_play_5bb8c0(*v57);
+          g_eng.dsb_volume_5bb870(F32(v59, 0), F32(CFG(), 360));
+          g_eng.dsb_freq_5bb890(*v59, 0);
+          g_eng.dsb_play_5bb8c0(*v59);
         }
       }
     }
 LABEL_125:
-    v58 = 8;
-    v59 = F32(c, 0x8) + 16432;
+    v60 = 8;
+    v61 = F32(c, 0x8) + 16432;
     while ( 1 )
     {
-      v60 = *(_DWORD **)v59;
-      if ( F32(F32(v59, 0), 2500) != 1 )
+      v62 = *(_DWORD **)v61;
+      if ( F32(F32(v61, 0), 2500) != 1 )
         break;
-      if ( v60[636] != 100000104 )
+      if ( v62[636] != 100000104 )
         goto LABEL_130;
 LABEL_131:
-      v59 += 4;
-      if ( --v58 == 0 )
+      v61 += 4;
+      if ( --v60 == 0 )
       {
         *(_DWORD *)&GAP(c, 0x300, 636) = 50;
         F32(c, 0x20) = 6;
@@ -39163,23 +39230,23 @@ LABEL_39:
         return v3;
       }
     }
-    if ( F32(F32(v59, 0), 2500) != 2 )
+    if ( F32(F32(v61, 0), 2500) != 2 )
       goto LABEL_131;
 LABEL_130:
-    v61 = v60[678];
-    v62 = v60[668];
-    v60[665] = v60[666] + v60[677] + v60[683];
-    v60[667] = v62 + v61 + v60[684];
-    memset(v60 + 918, 0, 0x24u);
+    v63 = v62[678];
+    v64 = v62[668];
+    v62[665] = v62[666] + v62[677] + v62[683];
+    v62[667] = v64 + v63 + v62[684];
+    memset(v62 + 918, 0, 0x24u);
     goto LABEL_131;
   }
   if ( W_script_flag(c, 100450101) != 0 )
     return v3;
   W_script_flag_set(c, 100450101, 1, 0);
   W_script_begin(c);
-  v44 = W_script_leader(c);
+  v46 = W_script_leader(c);
   F32(c, 0x4c) = 0;
-  F32(c, 0x5c) = v44;
+  F32(c, 0x5c) = v46;
   F32(c, 0x50) = 0;
   F32(c, 0x54) = 0;
   F32(c, 0x58) = 800;
@@ -39198,9 +39265,9 @@ LABEL_130:
   v3 = W_script_wait(c);
   if ( v3 == 6 )
     return v3;
-  v45 = W_script_leader(c);
+  v47 = W_script_leader(c);
   F32(c, 0x4c) = 0;
-  F32(c, 0x5c) = v45;
+  F32(c, 0x5c) = v47;
   F32(c, 0x50) = 0;
   F32(c, 0x54) = 0;
   F32(c, 0x58) = 800;
@@ -39213,7 +39280,7 @@ LABEL_130:
   if ( v3 == 6 )
     return v3;
   result = W_scene_yes_no(c);
-  v46 = result;
+  v48 = result;
   if ( result == 6 )
     return result;
   *(_DWORD *)&GAP(c, 0x300, 636) = 20;
@@ -39221,7 +39288,7 @@ LABEL_130:
   v3 = W_script_wait(c);
   if ( v3 == 6 )
     return v3;
-  if ( v46 != 14 )
+  if ( v48 != 14 )
     goto LABEL_39;
   W_scene_msg(c, 3u, 0, D(0x864118), 0, 1, 0, 0, 0, 0, 0);
   v3 = W_script_wait(c);

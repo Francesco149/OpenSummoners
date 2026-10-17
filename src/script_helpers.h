@@ -40,7 +40,7 @@ int32_t sc_406c70(int32_t a1, int32_t a2, int32_t a3, uint16_t a4, int32_t a5);
 int32_t sc_41a3a0(wl_char *self, int32_t a2);
 int32_t sc_41e2b0(wl_char *self, int32_t a2);
 int32_t sc_41e340(int32_t a1, int32_t a2);
-void sc_41eb30(int32_t a1);
+void sc_41eb30(int32_t ecx0, int32_t a2, int32_t a1);
 int32_t sc_41ece0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6, int32_t a7);
 int32_t sc_41efe0(int32_t a1, int32_t a2);
 int32_t sc_41f050(int32_t a1, int32_t a2);
@@ -55,7 +55,7 @@ int32_t sc_4a5e70(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5)
 int32_t sc_4a5ea0(wl_char *self);
 int32_t sc_4a5ec0(wl_char *self);
 int32_t sc_4a5f80(wl_char *self, int32_t a2);
-int32_t sc_4a63d0(wl_char *self, int32_t a2);
+int32_t sc_4a63d0(wl_char *self, uint32_t a2);
 int32_t sc_4ac610(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6, int32_t a7);
 int32_t sc_4ac660(wl_char *self, int32_t a2, char * a3);
 int32_t sc_4b3b10(void);

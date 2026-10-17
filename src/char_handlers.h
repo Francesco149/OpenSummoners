@@ -22,7 +22,7 @@ int32_t ih_4512d0(wl_char *self, int32_t a2, int32_t a3, int32_t * a4, int32_t a
 void ih_4466b0(wl_char *self, int32_t a2, int32_t a3, int32_t a4);
 int32_t ih_467260(wl_char *self, int32_t a3, int32_t a4, int32_t a5);
 int32_t item_effect(wl_char *self, int32_t a2, int32_t a3, uint16_t * a4, int32_t a5, int32_t a6, int16_t a7);
-int32_t ih_5b28a0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6, int32_t a7, int32_t a8, int32_t a9, char * Buffer);
-int32_t ih_456c60(intptr_t ecx_, int32_t a1, int32_t a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6);
+int32_t ih_5b28a0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6, int32_t a7, uint32_t a8, int32_t a9, char * Buffer);
+int32_t ih_456c60(wl_char *self, int32_t a1, int32_t a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6);
 
 #endif /* OSS_CHAR_HANDLERS_H */

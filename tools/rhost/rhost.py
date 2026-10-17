@@ -579,6 +579,7 @@ VERIFY_HOOKS = ["rand", "input_poll", "mover_v", "sweep_h", "ent_move_h", "ent_m
 # REPLACE-only hooks (a whole room per call / DirectInput): proven by `corpus --check --hook replace:…`
 # (chs_49f7c0: ported but OFF — diverges on rh-errands-items from f7835: 12-byte records at 0x20b60398..; open)
 REPLACE_ONLY_HOOKS = ["chs_4d7d80", "chs_4dc510", "chs_4d64f0", "chs_4cd6d0", "chs_4d13a0", "chs_4ccc90", "chs_4c6b40", "chs_4e19e0", "chs_49d930", "chs_4a0c90", "chs_4a6b80", "chs_4ac6d0", "chs_4a66a0", "chs_4a5fa0", "chs_4ae150", "chs_4ae420", "chs_4afdb0", "chs_4b3b20", "chs_4b3c70", "chs_4b4d40", "chs_4bbef0", "chs_4bd2e0", "chs_4bd6b0", "chs_4bd820", "chs_4bdf90", "chs_4bdbe0", "chs_4be220", "chs_4c1a30", "chs_4c1c20", "chs_4c2310", "chs_4c29c0", "chs_4c2dc0", "chs_4c3ee0", "chs_4c45a0",
+                      "rd_417c40", "rd_418470", "rd_43e250", "rd_48c150", "rd_48c820", "rd_491820", "rd_494e10", "rd_495dc0", "rd_495e40", "rd_4961e0", "rd_496240",
                       "room_loop", "input_repoll_flush", "load_room", "scene_loop", "menu_pace", "menu_run",
                       "shop_run", "shop_buy", "shop_who", "menu_ctx_clear", "scene_run",
                       "world_new", "world_free",

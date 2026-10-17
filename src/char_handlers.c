@@ -18,6 +18,7 @@
 static intptr_t rnd(void) { return (intptr_t)rng_rand(); }
 
 
+
 #include "actor_update.h"
 #include "arche_pose.h"
 #include "behave_helpers.h"
@@ -40,6 +41,7 @@ static intptr_t rnd(void) { return (intptr_t)rng_rand(); }
 #pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
 #define CFG() ((intptr_t)**(uint8_t ***)((uint8_t *)g_eng.sys + 0x320))
 #define SYS32(o) F32(g_eng.sys, (o))
+#define SYSB(o) F8(g_eng.sys, (o))   /* the system object's byte at +o (an lvalue: &SYSB(o) is its address) */
 static inline int ofsub32_(int32_t a, int32_t b) { int32_t r; return __builtin_sub_overflow(a, b, &r); }
 static inline int ofadd32_(int32_t a, int32_t b) { int32_t r; return __builtin_add_overflow(a, b, &r); }
 #define __OFSUB__(a, b) ofsub32_((int32_t)(a), (int32_t)(b))
@@ -69,12 +71,15 @@ typedef uint16_t _WORD;
 typedef uint8_t _BYTE;
 typedef uint64_t _QWORD;
 #define GAP(p, o, i) F8(p, (o) + (i))   /* IDA's gapN[i]: the byte at +N + i */
+#define qmemcpy memcpy   /* IDA's inline memcpy */
+typedef char CHAR;
 #define SETLO(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff0000u) | (uint16_t)(v)))
 #define SETHI(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffu) | ((uint32_t)(uint16_t)(v) << 16)))
 #define SETLB(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffff00u) | (uint8_t)(v)))
 #define SETLODW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffff00000000ull) | (uint32_t)(v)))
 #define SETHIDW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffffull) | ((uint64_t)(uint32_t)(v) << 32)))
 #define F32(p, o) (*(int32_t *)((uint8_t *)(intptr_t)(p) + (o)))
+#define FU32(p, o) (*(uint32_t *)((uint8_t *)(intptr_t)(p) + (o)))   /* an `unsigned int` load: >> / < / / stay unsigned */
 #define F16(p, o) (*(uint16_t *)((uint8_t *)(intptr_t)(p) + (o)))
 #define S16(p, o) (*(int16_t *)((uint8_t *)(intptr_t)(p) + (o)))
 #define F8(p, o)  (*(uint8_t *)((uint8_t *)(intptr_t)(p) + (o)))
@@ -119,14 +124,15 @@ static inline intptr_t W_summon_spawn(intptr_t a0, intptr_t a1, intptr_t a2, int
 static inline intptr_t W_voice_set_free(intptr_t a0, ...) { voice_set_free((wl_voiceset *)a0); return 0; }
 static inline intptr_t W_vpool_take(intptr_t a0, intptr_t a1, ...) { return (intptr_t)vpool_take((wl_vpool *)a0, (int32_t)a1); }
 static inline intptr_t W_world_log_line(intptr_t a0, intptr_t a1, ...) { world_log_line((wl_world *)a0, (const char *)a1); return 0; }
+
 int32_t ih_455d80(wl_char *self, int32_t a2, int32_t a3, int32_t * a4, int32_t a5, int32_t a6, int32_t * a7, int32_t a8);
 int32_t ih_44d2e0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5, int32_t * a6);
 int32_t ih_4512d0(wl_char *self, int32_t a2, int32_t a3, int32_t * a4, int32_t a5, int32_t a6, int32_t a7);
 void ih_4466b0(wl_char *self, int32_t a2, int32_t a3, int32_t a4);
 int32_t ih_467260(wl_char *self, int32_t a3, int32_t a4, int32_t a5);
 int32_t item_effect(wl_char *self, int32_t a2, int32_t a3, uint16_t * a4, int32_t a5, int32_t a6, int16_t a7);
-int32_t ih_5b28a0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6, int32_t a7, int32_t a8, int32_t a9, char * Buffer);
-int32_t ih_456c60(intptr_t ecx_, int32_t a1, int32_t a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6);
+int32_t ih_5b28a0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6, int32_t a7, uint32_t a8, int32_t a9, char * Buffer);
+int32_t ih_456c60(wl_char *self, int32_t a1, int32_t a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6);
 
 /* 0x455d80: int __thiscall sub_455D80(cls_4022A0 *this, int a2, int a3, _DWORD *a4, int a5, int a6, _DWORD *a7, int a8) */
 int32_t ih_455d80(wl_char *self, int32_t a2, int32_t a3, int32_t * a4, int32_t a5, int32_t a6, int32_t * a7, int32_t a8)
@@ -174,7 +180,7 @@ int32_t ih_455d80(wl_char *self, int32_t a2, int32_t a3, int32_t * a4, int32_t a
     intptr_t v48;
     int32_t * v49;
     intptr_t v50;
-    intptr_t v51;
+    uint32_t v51;
     intptr_t v52;
     intptr_t v53;
     intptr_t v54;
@@ -682,7 +688,7 @@ LABEL_15:
         v11 = 1000 * v10 / 0x8000 - 1000;
         if ( a3 == 0 )
         {
-          v12 = W_vpool_take(SYS32(1420), 0);
+          v12 = (intptr_t *)W_vpool_take(SYS32(1420), 0);
           if ( v12 != 0 )
           {
             v13 = F32(v12, 0);
@@ -1151,7 +1157,7 @@ LABEL_24:
           v18 = (_DWORD *)F32(c, 0x40);
           if ( a3 == 0 )
           {
-            v19 = W_vpool_take(SYS32(1468), 0);
+            v19 = (intptr_t *)W_vpool_take(SYS32(1468), 0);
             if ( v19 != 0 )
             {
               v20 = F32(v19, 0);
@@ -1181,7 +1187,7 @@ LABEL_24:
         v14 = 1000 * v13 / 0x8000 - 1000;
         if ( a3 == 0 )
         {
-          v15 = W_vpool_take(SYS32(1464), 0);
+          v15 = (intptr_t *)W_vpool_take(SYS32(1464), 0);
           if ( v15 != 0 )
           {
             v16 = F32(v15, 0);
@@ -1425,7 +1431,7 @@ LABEL_34:
         W_entity_fx_add(a4, a6, 1, a7, 0, 0, 0, 0);
       return (*v25__f);
     case 5:
-      v11 = F32(W, 0x1030 + (20));
+      v11 = *(_DWORD **)&GAP(W, 0x1030, 20);
       if ( F32(a5, 176) != 20 )
         return 0;
       v11[4] = 1;
@@ -1444,7 +1450,7 @@ LABEL_34:
   }
   while ( 1 )
   {
-    v16 = F32(W, 0x0 + ((*v26__f)));
+    v16 = *(_DWORD *)&GAP(W, 0x0, (*v26__f));
     if ( F32(v16, 464) != 0 )
     {
       if ( W_entity_near(v16, 48000, 28000, (int)v7, 0) )
@@ -1511,13 +1517,13 @@ LABEL_34:
           g_eng.h5bf3ee(Buffer, "%s is outside the range of your magic!", *(const char **)(v16 + 1872));
           v18 = 0;
           v19 = F32(W, 0x1024);
-          while ( F32(W, 0x0 + (516 * v19 + 4)) != 0 )
+          while ( *(_DWORD *)&GAP(W, 0x0, 516 * v19 + 4) != 0 )
           {
             v19 = (v19 + 1) % 8;
             if ( (uint16_t)++v18 >= 8u )
               goto LABEL_31;
           }
-          v20 = (W + 0x0 + (516 * v19));
+          v20 = &GAP(W, 0x0, 516 * v19);
           F32(v20, 4 * 1) = 1;
           strcpy(v20 + 8, Buffer);
         }
@@ -1534,7 +1540,7 @@ LABEL_31:
 }
 
 /* 0x5b28a0: int __thiscall sub_5B28A0( cls_4022A0 *this, int a2, int a3, int a4, int a5, int a6, int a7, unsigned int a8, int a9, char *Buffer) */
-int32_t ih_5b28a0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6, int32_t a7, int32_t a8, int32_t a9, char * Buffer)
+int32_t ih_5b28a0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6, int32_t a7, uint32_t a8, int32_t a9, char * Buffer)
 {
     intptr_t c = (intptr_t)self;
     int32_t * v11;
@@ -1618,7 +1624,7 @@ int32_t ih_5b28a0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5,
       if ( a9 != 0 )
       {
         v23 = (_DWORD *)F32(c, 0x40);
-        v24 = W_vpool_take(SYS32(1208), 0);
+        v24 = (intptr_t *)W_vpool_take(SYS32(1208), 0);
         if ( v24 != 0 )
         {
           v25 = F32(v24, 0);
@@ -1689,7 +1695,7 @@ int32_t ih_5b28a0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5,
       if ( a9 == 0 )
         goto LABEL_83;
       v35 = (_DWORD *)F32(c, 0x40);
-      v36 = W_vpool_take(SYS32(1208), 0);
+      v36 = (intptr_t *)W_vpool_take(SYS32(1208), 0);
       if ( v36 != 0 )
       {
         v37 = F32(v36, 0);
@@ -1702,7 +1708,7 @@ int32_t ih_5b28a0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5,
         }
       }
       v38 = (_DWORD *)F32(c, 0x40);
-      v39 = W_vpool_take(SYS32(1212), 0);
+      v39 = (intptr_t *)W_vpool_take(SYS32(1212), 0);
       if ( v39 == 0 )
         goto LABEL_83;
       v40 = F32(v39, 0);
@@ -1758,7 +1764,7 @@ LABEL_60:
       if ( a9 != 0 )
       {
         v44 = (_DWORD *)F32(c, 0x40);
-        v45 = W_vpool_take(SYS32(1208), 0);
+        v45 = (intptr_t *)W_vpool_take(SYS32(1208), 0);
         if ( v45 != 0 )
         {
           v46 = F32(v45, 0);
@@ -1779,7 +1785,7 @@ LABEL_60:
         if ( a9 != 0 )
         {
           v47 = (_DWORD *)F32(c, 0x40);
-          v48 = W_vpool_take(SYS32(1208), 0);
+          v48 = (intptr_t *)W_vpool_take(SYS32(1208), 0);
           if ( v48 != 0 )
           {
             v49 = F32(v48, 0);
@@ -1817,7 +1823,7 @@ LABEL_83:
       if ( a9 != 0 )
       {
         v13 = (_DWORD *)F32(c, 0x40);
-        v14 = W_vpool_take(SYS32(1208), 0);
+        v14 = (intptr_t *)W_vpool_take(SYS32(1208), 0);
         if ( v14 != 0 )
         {
           v15 = F32(v14, 0);
@@ -1880,52 +1886,52 @@ LABEL_83:
   return result;
 }
 
-/* 0x456c60: int __stdcall sub_456C60(int a1, int a2, int a3, int a4, int a5, int a6) */
-int32_t ih_456c60(intptr_t ecx_, int32_t a1, int32_t a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6)
+/* 0x456c60: int __thiscall sub_456C60(cls_4022A0 *this, int a1, int a2, int a3, int a4, int a5, int a6) */
+int32_t ih_456c60(wl_char *self, int32_t a1, int32_t a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6)
 {
-
-    intptr_t v6;
+    intptr_t c = (intptr_t)self;
+    intptr_t v7;
     _Alignas(8) uint8_t frame_[0x20 + 0x10];   /* the stack locals at their ebp offsets */
     memset(frame_, 0, sizeof frame_);
-    intptr_t *v8 = (intptr_t *)(frame_ + 0x0);   /* [2] at ebp-0x20 */
-    intptr_t *const v9__f = (intptr_t *)(frame_ + 0x8);   /* ebp-0x18 */
-    intptr_t *const v10__f = (intptr_t *)(frame_ + 0xc);   /* ebp-0x14 */
-    intptr_t *const v11__f = (intptr_t *)(frame_ + 0x10);   /* ebp-0x10 */
-    int16_t *const v12__f = (int16_t *)(frame_ + 0x14);   /* ebp-0xc */
-    int16_t *const v13__f = (int16_t *)(frame_ + 0x16);   /* ebp-0xa */
-    intptr_t *const v14__f = (intptr_t *)(frame_ + 0x18);   /* ebp-0x8 */
-    int16_t *const v15__f = (int16_t *)(frame_ + 0x1c);   /* ebp-0x4 */
+    intptr_t *v9 = (intptr_t *)(frame_ + 0x0);   /* [2] at ebp-0x20 */
+    intptr_t *const v10__f = (intptr_t *)(frame_ + 0x8);   /* ebp-0x18 */
+    intptr_t *const v11__f = (intptr_t *)(frame_ + 0xc);   /* ebp-0x14 */
+    intptr_t *const v12__f = (intptr_t *)(frame_ + 0x10);   /* ebp-0x10 */
+    int16_t *const v13__f = (int16_t *)(frame_ + 0x14);   /* ebp-0xc */
+    int16_t *const v14__f = (int16_t *)(frame_ + 0x16);   /* ebp-0xa */
+    intptr_t *const v15__f = (intptr_t *)(frame_ + 0x18);   /* ebp-0x8 */
+    int16_t *const v16__f = (int16_t *)(frame_ + 0x1c);   /* ebp-0x4 */
 
-  v8[1] = 0;
-  v8[0] = 0;
-  (*v9__f) = 0;
+  v9[1] = 0;
+  v9[0] = 0;
   (*v10__f) = 0;
-  (*v12__f) = 0;
   (*v11__f) = 0;
   (*v13__f) = 0;
+  (*v12__f) = 0;
   (*v14__f) = 0;
   (*v15__f) = 0;
+  (*v16__f) = 0;
   switch ( a4 )
   {
     case 1:
-      v6 = (F32(a1, 44) != 1) + 1;
+      v7 = (F32(a1, 44) != 1) + 1;
       goto LABEL_6;
     case 2:
-      v6 = 2 - (F32(a1, 44) != 1);
+      v7 = 2 - (F32(a1, 44) != 1);
       goto LABEL_6;
     case 5:
-      v6 = (F32(a1, 44) != 1) + 5;
+      v7 = (F32(a1, 44) != 1) + 5;
       goto LABEL_6;
     case 6:
-      v6 = 6 - (F32(a1, 44) != 1);
+      v7 = 6 - (F32(a1, 44) != 1);
 LABEL_6:
-      v8[0] = v6;
+      v9[0] = v7;
       break;
     default:
       break;
   }
   if ( a5 == 7 )
-    (*v9__f) = (F16(a1, 56) == 3) + 7;
-  return W_char_physics_step(ecx_, v8, a1, a2, 0, a3, a6);
+    (*v10__f) = (F16(a1, 56) == 3) + 7;
+  return W_char_physics_step(c, v9, a1, a2, 0, a3, a6);
 }
 /* unported callees: none */

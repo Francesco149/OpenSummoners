@@ -360,7 +360,7 @@ int char_behave(wl_char *self, int32_t cut, wl_body *b, int32_t gr)
             int32_t need = 0, have = 0;
             if (self->base.coll_off != 0 || self->target == NULL || char_targetable(self->target, 1, 1) == 0 ||
                 beh_47eae0((wl_char *)(self), (int32_t *)(IP(self->f14298)), (int32_t *)(IP(&need)), (int16_t *)(0), 1) == 0 ||
-                beh_47adb0((intptr_t)(self->target), (int32_t)(intptr_t)self, (int32_t *)(*(int32_t *)self->f14298), (int32_t)(IP(&have)), 0, 0, 1, 0) == 0 ||
+                beh_47adb0(self->target, (int32_t)(intptr_t)self, (int32_t *)(*(int32_t *)self->f14298), &have, NULL, 0, 1, NULL) == 0 ||
                 need > have) {
                 self->target = NULL;
                 self->f14288 = 0;

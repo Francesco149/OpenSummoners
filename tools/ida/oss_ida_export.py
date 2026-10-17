@@ -168,6 +168,9 @@ if O.get("classes"):
     keep = {int(v, 16) for v in (kb.get("protos", {}) if O.get("kb") else {})}
     n_classes = oss_ida_classes.build_and_apply(log, os.path.join(OUT, "classes_ida.tsv"), keep)
     ida_auto.auto_wait()
+    # the recovery decompiled every method BEFORE giving it its thiscall type: Hex-Rays' cache would hand the
+    # export those stale bodies (a caller's call of a now-thiscall callee without its `this`)
+    ida_hexrays.clear_cached_cfuncs()
 
 # ---------------------------------------------------------------- helpers
 def fn_cc(ea):

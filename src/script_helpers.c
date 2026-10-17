@@ -2,7 +2,7 @@
  * script_helpers.h.
  *
  * A FIRST PASS through tools/ida/decomp2c.py (IDA's control flow and types, real class layouts, stack locals at
- * their ebp offsets); hand finish: 0x41eb30's entity_release ecx (= its a1, IDA dropped it). */
+ * their ebp offsets); no hand finish (the fresh export shows every call's ecx). */
 #include "script_helpers.h"
 
 #include <stddef.h>
@@ -15,6 +15,7 @@
 #define W ((intptr_t)*g_eng.world)
 #define D(va) ((intptr_t)g_eng.data(va))
 static intptr_t rnd(void) { return (intptr_t)rng_rand(); }
+
 
 
 #include "actor_update.h"
@@ -33,6 +34,7 @@ static intptr_t rnd(void) { return (intptr_t)rng_rand(); }
 #pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
 #define CFG() ((intptr_t)**(uint8_t ***)((uint8_t *)g_eng.sys + 0x320))
 #define SYS32(o) F32(g_eng.sys, (o))
+#define SYSB(o) F8(g_eng.sys, (o))   /* the system object's byte at +o (an lvalue: &SYSB(o) is its address) */
 static inline int ofsub32_(int32_t a, int32_t b) { int32_t r; return __builtin_sub_overflow(a, b, &r); }
 static inline int ofadd32_(int32_t a, int32_t b) { int32_t r; return __builtin_add_overflow(a, b, &r); }
 #define __OFSUB__(a, b) ofsub32_((int32_t)(a), (int32_t)(b))
@@ -70,6 +72,7 @@ typedef char CHAR;
 #define SETLODW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffff00000000ull) | (uint32_t)(v)))
 #define SETHIDW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffffull) | ((uint64_t)(uint32_t)(v) << 32)))
 #define F32(p, o) (*(int32_t *)((uint8_t *)(intptr_t)(p) + (o)))
+#define FU32(p, o) (*(uint32_t *)((uint8_t *)(intptr_t)(p) + (o)))   /* an `unsigned int` load: >> / < / / stay unsigned */
 #define F16(p, o) (*(uint16_t *)((uint8_t *)(intptr_t)(p) + (o)))
 #define S16(p, o) (*(int16_t *)((uint8_t *)(intptr_t)(p) + (o)))
 #define F8(p, o)  (*(uint8_t *)((uint8_t *)(intptr_t)(p) + (o)))
@@ -122,7 +125,7 @@ int32_t sc_406c70(int32_t a1, int32_t a2, int32_t a3, uint16_t a4, int32_t a5);
 int32_t sc_41a3a0(wl_char *self, int32_t a2);
 int32_t sc_41e2b0(wl_char *self, int32_t a2);
 int32_t sc_41e340(int32_t a1, int32_t a2);
-void sc_41eb30(int32_t a1);
+void sc_41eb30(int32_t ecx0, int32_t a2, int32_t a1);
 int32_t sc_41ece0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6, int32_t a7);
 int32_t sc_41efe0(int32_t a1, int32_t a2);
 int32_t sc_41f050(int32_t a1, int32_t a2);
@@ -137,7 +140,7 @@ int32_t sc_4a5e70(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5)
 int32_t sc_4a5ea0(wl_char *self);
 int32_t sc_4a5ec0(wl_char *self);
 int32_t sc_4a5f80(wl_char *self, int32_t a2);
-int32_t sc_4a63d0(wl_char *self, int32_t a2);
+int32_t sc_4a63d0(wl_char *self, uint32_t a2);
 int32_t sc_4ac610(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6, int32_t a7);
 int32_t sc_4ac660(wl_char *self, int32_t a2, char * a3);
 int32_t sc_4b3b10(void);
@@ -831,60 +834,62 @@ int32_t sc_41e340(int32_t a1, int32_t a2)
   return result;
 }
 
-/* 0x41eb30: void __stdcall sub_41EB30(int a1) */
-void sc_41eb30(int32_t a1)
+/* 0x41eb30: void __fastcall sub_41EB30(int ecx0, int a2, cls_4022A0 *a1) */
+void sc_41eb30(int32_t ecx0, int32_t a2, int32_t a1)
 {
 
-    intptr_t v1;
-    intptr_t v2;
     intptr_t v3;
     intptr_t v4;
+    intptr_t v5;
+    intptr_t v6;
     intptr_t i;
+    intptr_t v8;
 
   if ( a1 != 0 )
   {
-    if ( F32(a1, 440) == 2 )
+    if ( F32(a1, 0x1b8) == 2 )
     {
-      v1 = F32(a1, 504);
-      if ( v1 != 0 )
+      v3 = F32(a1, 0x1f8);
+      if ( v3 != 0 )
       {
-        W_actor_release(v1);
-        F32(a1, 504) = 0;
+        W_actor_release(v3);
+        F32(a1, 0x1f8) = 0;
       }
-      v2 = F32(W, 4 * 2534);
-      v3 = 0;
-      SETLO(v1, F16(v2, 8));
-      v4 = v1;
-      if ( (uint16_t)v1 != 0 )
+      v4 = *(_DWORD *)&GAP(W, 0x2788, 16);
+      v5 = 0;
+      SETLO(v3, F16(v4, 8));
+      v6 = v3;
+      if ( (uint16_t)v3 != 0 )
       {
-        while ( F32((F32(v2, 4) + 4 * (uint16_t)v3), 0) != a1 )
+        while ( F32((F32(v4, 4) + 4 * (uint16_t)v5), 0) != a1 )
         {
-          if ( (uint16_t)++v3 >= (uint16_t)v1 )
+          v5 = ((uint8_t *)v5 + 1);
+          if ( (uint16_t)v5 >= (uint16_t)v3 )
             goto LABEL_12;
         }
-        v4 = v3;
+        v6 = v5;
       }
 LABEL_12:
-      if ( (uint16_t)v4 < (uint16_t)v1 )
+      if ( (uint16_t)v6 < (uint16_t)v3 )
       {
-        for ( i = (uint16_t)v4; (uint16_t)v4 < F16(v2, 8) - 1; i = (uint16_t)v4 )
+        for ( i = (uint16_t)v6; (uint16_t)v6 < F16(v4, 8) - 1; i = (uint16_t)v6 )
         {
-          ++v4;
-          F32((F32(v2, 4) + 4 * i), 0) = F32(F32((v2 + 4), 0) + 4 * i, 4);
+          v6 = ((uint8_t *)v6 + 1);
+          F32((F32(v4, 4) + 4 * i), 0) = F32(F32((v4 + 4), 0) + 4 * i, 4);
         }
-        --F16(v2, 8);
+        --F16(v4, 8);
       }
-      W_entity_unlist(a1);
-      W_entity_release(a1, 1);   /* ecx = edi = a1 (IDA dropped it) */
-      if ( F32(a1, 680) != 0 )
+      W_entity_unlist(a1 /*edx*/);
+      W_entity_release((int)a1, /*edx*/ 1);
+      if ( F32(a1, 0x2a8) != 0 )
       {
-        g_eng.op_delete((void *)F32(a1, 680));
-        F32(a1, 680) = 0;
+        g_eng.op_delete((void *)(void *)F32(a1, 0x2a8));
+        F32(a1, 0x2a8) = 0;
       }
     }
-    else if ( F32(a1, 440) == 5 )
+    else if ( F32(a1, 0x1b8) == 5 )
     {
-      W_entity_release(a1, 0);   /* ecx = edi = a1 */
+      W_entity_release((int)a1, /*edx*/ 0);
     }
   }
 }
@@ -1135,37 +1140,38 @@ int32_t sc_49cf60(int32_t a1)
   return result;
 }
 
-/* 0x49cf80: void __fastcall sub_49CF80(int a1, int a2, int a3, int a4) */
+/* 0x49cf80: void __fastcall sub_49CF80(int a1, int a2, cls_4022A0 *a3, int a4) */
 void sc_49cf80(int32_t a1, int32_t a2, int32_t a3, int32_t a4)
 {
 
     intptr_t v4;
     uint16_t v5;
     int v6;
-    intptr_t v7;
+    uint32_t v7;
     intptr_t v8;
     intptr_t v9;
-    intptr_t v10;
-    intptr_t v11;
+    uint32_t v10;
+    uint32_t v11;
     intptr_t v12;
     intptr_t v13;
     intptr_t v14;
-    intptr_t v15;
+    uint32_t v15;
+    intptr_t v16;
 
   if ( a3 == 0 )
     return;
-  v4 = F32(a3, 64);
+  v4 = F32(a3, 0x40);
   v5 = 0;
-  v6 = F16(a3, 616) == 0;
-  F32(a3, 12) = a4;
+  v6 = F32(a3, 0x268) == 0;
+  F32(a3, 0xc) = a4;
   if ( !v6 )
   {
     do
     {
-      a2 = F32(a3 + 12 * v5, 520);
+      a2 = *(&F32(a3, 0x208) + 3 * v5);
       if ( a2 == a4 )
       {
-        a2 = F32(a3 + 12 * v5, 524);
+        a2 = *(&F32(a3, 0x20c) + 3 * v5);
         if ( a2 != 0 )
         {
           if ( F32(v4, 108) != a2 )
@@ -1175,45 +1181,45 @@ void sc_49cf80(int32_t a1, int32_t a2, int32_t a3, int32_t a4)
             F16(v4, 114) = 0;
             F16(v4, 112) = 0;
           }
-          a2 = F32(a3 + 12 * v5, 524);
+          a2 = *(&F32(a3, 0x20c) + 3 * v5);
           F16(v4, 114) = F16(a2, 66) - 1;
         }
       }
       ++v5;
     }
-    while ( v5 < F16(a3, 616) );
+    while ( v5 < F32(a3, 0x268) );
   }
-  v7 = F32(a3, 468);
+  v7 = F32(a3, 0x1d4);
   if ( v7 <= 0x112E3 )
   {
     if ( v7 == 70371 )
     {
 LABEL_26:
-      W_switch_glow((_DWORD *)a3, F32(a3, 12), 0);
+      W_switch_glow(a3, F32(a3, 0xc), 0);
     }
     else
     {
       switch ( v7 )
       {
         case 0x111D4u:
-          F32(a3, 644) = F32(a3, 12) == 1;
+          F32(a3, 0x284) = F32(a3, 0xc) == 1;
           break;
         case 0x111E8u:
           v9 = F32(v4, 16);
-          if ( F32(a3, 12) == 1 )
+          if ( F32(a3, 0xc) == 1 )
           {
-            F32(v4, 8) += v9 - F32(a3, 624);
-            F32(v4, 16) = F32(a3, 624);
-            F32(F32(W, 4 * 1042), 40) = 1;
+            F32(v4, 8) += v9 - F32(a3, 0x270);
+            F32(v4, 16) = F32(a3, 0x270);
+            F32(*(_DWORD *)&GAP(W, 0x1030, 24), 40) = 1;
           }
           else
           {
-            F32(v4, 8) += v9 - F32(a3, 620);
-            F32(v4, 16) = F32(a3, 620);
+            F32(v4, 8) += v9 - *(_DWORD *)&F32(a3, 0x26c);
+            F32(v4, 16) = *(_DWORD *)&F32(a3, 0x26c);
           }
           break;
         case 0x11256u:
-          v8 = F32(a3, 12);
+          v8 = F32(a3, 0xc);
           if ( v8 != 0 )
           {
             if ( v8 == 1 )
@@ -1223,22 +1229,22 @@ LABEL_26:
           {
             F32(v4, 16) = 12800;
           }
-          F32(v4, 68) = (F32(v4, 16) - F32(a3, 44)) / 100;
+          F32(v4, 68) = (F32(v4, 16) - F32(a3, 0x2c)) / 100;
           break;
         case 0x1126Bu:
         case 0x1126Cu:
           goto LABEL_26;
         case 0x11289u:
         case 0x11292u:
-          if ( F32(a3, 12) == 1 )
+          if ( F32(a3, 0xc) == 1 )
           {
-            F32(a3, 644) = 1;
-            W_entity_set_collide(/*ECX: the caller's ecx*/ 0, 0, 0);
+            F32(a3, 0x284) = 1;
+            W_entity_set_collide(a3, 0, 0);
           }
           else
           {
-            F32(a3, 644) = 0;
-            W_entity_set_collide(/*ECX: the caller's ecx*/ 0, 3, 2);
+            F32(a3, 0x284) = 0;
+            W_entity_set_collide(a3, 3, 2);
           }
           break;
         default:
@@ -1249,30 +1255,30 @@ LABEL_26:
   }
   if ( v7 > 0x113DC )
   {
-    v14 = v7 - 70810;
-    if ( v14 != 0 )
+    v15 = v7 - 70810;
+    if ( v15 != 0 )
     {
-      if ( v14 == 10 )
+      if ( v15 == 10 )
       {
         if ( a4 != 0 )
         {
           if ( a4 == 1 )
-            W_entity_set_collide(/*ECX: the caller's ecx*/ 0, 0, 0);
+            W_entity_set_collide(a3, 0, 0);
         }
         else
         {
-          W_entity_set_collide(/*ECX: the caller's ecx*/ 0, 3, 3);
+          W_entity_set_collide(a3, 3, 3);
         }
       }
     }
     else
     {
-      v15 = F32(a3, 12);
-      if ( v15 == 0 )
+      v16 = F32(a3, 0xc);
+      if ( v16 == 0 )
         goto LABEL_51;
-      if ( v15 == 1 )
+      if ( v16 == 1 )
       {
-        F32(a3, 644) = 1;
+        F32(a3, 0x284) = 1;
         F32(v4, 92) = 0;
       }
     }
@@ -1290,38 +1296,38 @@ LABEL_26:
         if ( v11 != 170 )
           return;
 LABEL_39:
-        v13 = F32(a3, 12);
-        if ( v13 != 0 )
+        v14 = F32(a3, 0xc);
+        if ( v14 != 0 )
         {
-          if ( v13 == 1 )
+          if ( v14 == 1 )
           {
-            F32(a3, 644) = 1;
+            F32(a3, 0x284) = 1;
             F32(v4, 92) = 0;
           }
           return;
         }
 LABEL_51:
-        F32(a3, 644) = 0;
+        F32(a3, 0x284) = 0;
         F32(v4, 92) = 1000;
         return;
       }
-      v12 = F32(a3, 12);
+      v12 = F32(a3, 0xc);
       if ( v12 != 0 )
       {
         if ( v12 == 1 )
-          F32(v4, 8) = F32(a3, 700) + 19200;
+          F32(v4, 8) = F32(a3, 0x2bc) + 19200;
       }
       else
       {
-        F32(v4, 8) = F32(a3, 700);
+        F32(v4, 8) = F32(a3, 0x2bc);
       }
     }
-    else if ( F32(a3, 12) == 1 )
+    else if ( F32(a3, 0xc) == 1 )
     {
-      F32(a3, 644) = 1;
-      W_wl_list_remove(F32(W, 4 * 2534), /*edx*/ a3);
-      W_entity_unlist(a3);
-      F32(a3, 656) = 0;
+      F32(a3, 0x284) = 1;
+      W_wl_list_remove(*(_DWORD *)&GAP(W, 0x2788, 16), /*edx*/ (int)a3);
+      W_entity_unlist(a3 /*edx*/);
+      F32(a3, 0x290) = 0;
     }
   }
 }
@@ -1760,24 +1766,24 @@ int32_t sc_4a5f80(wl_char *self, int32_t a2)
 }
 
 /* 0x4a63d0: unsigned int *__thiscall sub_4A63D0(cls_4A63D0 *this, unsigned int a2) */
-int32_t sc_4a63d0(wl_char *self, int32_t a2)
+int32_t sc_4a63d0(wl_char *self, uint32_t a2)
 {
     intptr_t c = (intptr_t)self;
     uint32_t * result;
-    intptr_t v3;
+    uint32_t v3;
     intptr_t v4;
     intptr_t v5;
     intptr_t v6;
     intptr_t v7;
     uint32_t * v8;
-    intptr_t LastError;
+    uint32_t LastError;
     intptr_t v10;
-    intptr_t v11;
+    uint32_t v11;
     char * v12;
     char * v13;
     char * v14;
     char v15;
-    intptr_t v16;
+    uint32_t v16;
     intptr_t v17;
     _Alignas(8) uint8_t frame_[0x210 + 0x10];   /* the stack locals at their ebp offsets */
     memset(frame_, 0, sizeof frame_);
@@ -1840,7 +1846,7 @@ int32_t sc_4ac660(wl_char *self, int32_t a2, char * a3)
     intptr_t c = (intptr_t)self;
     char * v4;
     char * v5;
-    intptr_t result;
+    uint32_t result;
 
   v4 = &GAP(c, 0x0, 88 * F16(c, 0x584));
   F32(v4, 4 * 381) = a2;
@@ -2066,11 +2072,11 @@ int32_t sc_402f60(wl_char *self, char * a2, char * a3)
     intptr_t c = (intptr_t)self;
     char * v3;
     intptr_t v4;
-    intptr_t v5;
-    intptr_t v6;
+    uint32_t v5;
+    uint32_t v6;
     int32_t * v7;
     intptr_t v8;
-    intptr_t v9;
+    uint32_t v9;
     char * v10;
     char * v11;
     char * v12;
@@ -2079,7 +2085,7 @@ int32_t sc_402f60(wl_char *self, char * a2, char * a3)
     int32_t * v15;
     intptr_t v16;
     intptr_t v17;
-    intptr_t v18;
+    uint32_t v18;
     char * v20;
     _Alignas(8) uint8_t frame_[0xc + 0x10];   /* the stack locals at their ebp offsets */
     memset(frame_, 0, sizeof frame_);
@@ -2664,7 +2670,7 @@ LABEL_28:
   v16 = F32(v15, 88396);
   if ( v16 == 0 )
   {
-    if ( W_entity_ground_probe(c, F32(v15, 64), 0) )
+    if ( W_entity_ground_probe(v15, F32(v15, 64), 0) )
       goto LABEL_34;
     return 0;
   }

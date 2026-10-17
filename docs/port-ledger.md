@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **985** (63.4% of engine-proper) — tested 249, ported 736
-- code bytes touched: **58.8%** (1,044,748 / 1,776,526 B of engine-proper)
-- unported: **839**
+- touched: **1037** (66.8% of engine-proper) — tested 249, ported 788
+- code bytes touched: **60.9%** (1,082,716 / 1,776,526 B of engine-proper)
+- unported: **787**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -47,8 +47,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4179b0 | sub_4179B0 | 415 | asset_register.c, asset_register.h, sprite_slot.h (+1) |
 | 0x417b50 | sub_417B50 | 109 | asset_register.c, asset_register.h, sprite_slot.h |
 | 0x417bc0 | ar_pal_swap_table_for_va_417BC0 | 123 | asset_register.c, asset_register.h, sprite_slot.h |
-| 0x417c40 | game_arm_parallax_grade_417C40 | 1625 | actor_render.h, actor_spawn.c, color_grade.c (+2) |
-| 0x418470 | sub_418470 | 40 | asset_register.c, asset_register.h, color_grade.h (+4) |
+| 0x417c40 | game_arm_parallax_grade_417C40 | 1625 | actor_render.h, actor_spawn.c, color_grade.c (+3) |
+| 0x418470 | sub_418470 | 40 | asset_register.c, asset_register.h, color_grade.h (+5) |
 | 0x4184a0 | sub_4184A0 | 1035 | asset_register.c, asset_register.h, bitmap_session.h (+1) |
 | 0x4188b0 | sub_4188B0 | 891 | asset_register.c, asset_register.h |
 | 0x4192b0 | sub_4192B0 | 52 | menu_list.c, menu_list.h, newgame_picker.c (+1) |
@@ -65,7 +65,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x43ce50 | menu_list_latch_43CE50 | 220 | cutscene.c, dialogue.h, menu_list.c (+2) |
 | 0x43d1d0 | camera_follow_step_43D1D0 | 366 | camera_follow.c, camera_follow.h, main.c |
 | 0x43d340 | camera_shake_apply_43D340 | 299 | camera_follow.c, camera_follow.h |
-| 0x43e250 | sub_43E250 | 334 | main.c |
+| 0x43e250 | sub_43E250 | 334 | main.c, render_draw.h |
 | 0x440f40 | sub_440F40 | 670 | char_ai.c, char_ai.h |
 | 0x4411e0 | sub_4411E0 | 131 | char_ai.c, char_ai.h |
 | 0x4416c0 | sub_4416C0 | 52 | entity_move.c, entity_move.h |
@@ -84,31 +84,31 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x479da0 | sub_479DA0 | 62 | char_ai.h |
 | 0x479de0 | sub_479DE0 | 34 | char_ai.h |
 | 0x479e70 | sub_479E70 | 275 | char_ai.h, character.c, character.h (+2) |
-| 0x48c820 | sub_48C820 | 873 | newgame_cursor.h |
-| 0x48cf80 | widget_box_frame_48CF80 | 1095 | main.c, newgame_box.c, newgame_box.h |
-| 0x48d3d0 | sub_48D3D0 | 664 | newgame_box.c |
-| 0x48d670 | sub_48D670 | 154 | newgame_box.c |
-| 0x48d940 | sub_48D940 | 300 | main.c, newgame_cursor.c, newgame_cursor.h |
-| 0x48e200 | sub_48E200 | 1221 | glyph_render.c, glyph_render.h, main.c |
-| 0x48e6d0 | glyph_ruby_draw_48E6D0 | 389 | glyph_render.c, glyph_render.h |
-| 0x48e860 | sub_48E860 | 181 | glyph_render.c, glyph_render.h, main.c |
-| 0x48e920 | scene_fade_grid_render_48E920 | 403 | main.c, scene_fade.c, scene_fade.h |
-| 0x48eac0 | sub_48EAC0 | 1131 | main.c, map_present.c, map_present.h (+2) |
+| 0x48c820 | sub_48C820 | 873 | newgame_cursor.h, render_draw.h |
+| 0x48cf80 | widget_box_frame_48CF80 | 1095 | main.c, newgame_box.c, newgame_box.h (+1) |
+| 0x48d3d0 | sub_48D3D0 | 664 | newgame_box.c, render_draw.h |
+| 0x48d670 | sub_48D670 | 154 | newgame_box.c, render_draw.h |
+| 0x48d940 | sub_48D940 | 300 | main.c, newgame_cursor.c, newgame_cursor.h (+1) |
+| 0x48e200 | sub_48E200 | 1221 | glyph_render.c, glyph_render.h, main.c (+1) |
+| 0x48e6d0 | glyph_ruby_draw_48E6D0 | 389 | glyph_render.c, glyph_render.h, render_draw.h |
+| 0x48e860 | sub_48E860 | 181 | glyph_render.c, glyph_render.h, main.c (+1) |
+| 0x48e920 | scene_fade_grid_render_48E920 | 403 | main.c, render_draw.h, scene_fade.c (+1) |
+| 0x48eac0 | sub_48EAC0 | 1131 | main.c, map_present.c, map_present.h (+3) |
 | 0x490b90 | sub_490B90 | 307 | camera_follow.h, dialogue.c, map_present.c (+2) |
-| 0x490cd0 | sub_490CD0 | 603 | color_grade.h, main.c, parallax.c (+3) |
-| 0x490f30 | sub_490F30 | 2002 | color_grade.h, draw_pool.h, main.c (+6) |
+| 0x490cd0 | sub_490CD0 | 603 | color_grade.h, main.c, parallax.c (+4) |
+| 0x490f30 | sub_490F30 | 2002 | color_grade.h, draw_pool.h, main.c (+7) |
 | 0x491770 | sub_491770 | 52 | asset_register.c, asset_register.h, sprite_slot.h |
-| 0x4917b0 | draw_pool_emit_layered_4917B0 | 106 | draw_pool.c, draw_pool.h, map_render.c |
-| 0x492670 | draw_pool_emit_actor_492670 | 118 | actor_render.h, actor_spawn.h, draw_pool.c (+2) |
-| 0x494e60 | sub_494E60 | 3904 | base_stat_table.h, hud.c, hud.h (+2) |
-| 0x4962a0 | sub_4962A0 | 242 | hud.c, hud.h, main.c |
-| 0x4969b0 | sub_4969B0 | 1272 | hud.c, hud.h, main.c |
-| 0x497b40 | party_stat_hp_display_497B40 | 98 | party.c |
-| 0x497bb0 | party_stat_mp_display_497BB0 | 98 | party.c |
-| 0x498620 | sub_498620 | 82 | hud.h, main.c |
-| 0x498680 | hud_bar_row_geom_498680 | 401 | hud.c, hud.h, main.c |
-| 0x498f10 | sub_498F10 | 344 | hud.h, main.c |
-| 0x499560 | parallax_strip_499560 | 271 | color_grade.h, parallax.c, parallax.h |
+| 0x4917b0 | draw_pool_emit_layered_4917B0 | 106 | draw_pool.c, draw_pool.h, map_render.c (+1) |
+| 0x492670 | draw_pool_emit_actor_492670 | 118 | actor_render.h, actor_spawn.h, draw_pool.c (+3) |
+| 0x494e60 | sub_494E60 | 3904 | base_stat_table.h, hud.c, hud.h (+3) |
+| 0x4962a0 | sub_4962A0 | 242 | hud.c, hud.h, main.c (+1) |
+| 0x4969b0 | sub_4969B0 | 1272 | hud.c, hud.h, main.c (+1) |
+| 0x497b40 | party_stat_hp_display_497B40 | 98 | party.c, render_draw.h |
+| 0x497bb0 | party_stat_mp_display_497BB0 | 98 | party.c, render_draw.h |
+| 0x498620 | sub_498620 | 82 | hud.h, main.c, render_draw.h |
+| 0x498680 | hud_bar_row_geom_498680 | 401 | hud.c, hud.h, main.c (+1) |
+| 0x498f10 | sub_498F10 | 344 | hud.h, main.c, render_draw.h |
+| 0x499560 | parallax_strip_499560 | 271 | color_grade.h, parallax.c, parallax.h (+1) |
 | 0x499ab0 | scene_cinematic_step_499AB0 | 1356 | camera_follow.h, screen_fx.h |
 | 0x49a740 | sf_pattern_edges_in_49A740 | 336 | scene_fade.c, scene_fade.h, screen_fx.h |
 | 0x49a890 | sf_pattern_center_out_49A890 | 361 | scene_fade.c, scene_fade.h, screen_fx.h |
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (736) — reimplemented, no host test yet
+## ported (788) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -753,8 +753,59 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x48bb30 | sub_48BB30 | 632 | char_status.h |
 | 0x48bdd0 | sub_48BDD0 | 132 | behave_helpers.h |
 | 0x48be60 | sub_48BE60 | 715 | behave_helpers.h |
+| 0x48c150 | sub_48C150 | 1374 | render_draw.h |
+| 0x48c6b0 | sub_48C6B0 | 359 | render_draw.h |
+| 0x48cb90 | sub_48CB90 | 1005 | render_draw.h |
+| 0x48d710 | sub_48D710 | 550 | render_draw.h |
+| 0x48da70 | sub_48DA70 | 1672 | render_draw.h |
+| 0x48e100 | sub_48E100 | 246 | render_draw.h |
+| 0x48ef40 | sub_48EF40 | 4389 | render_draw.h |
+| 0x490090 | sub_490090 | 59 | render_draw.h |
+| 0x4900d0 | sub_4900D0 | 129 | render_draw.h |
+| 0x490160 | sub_490160 | 641 | render_draw.h |
+| 0x4903f0 | sub_4903F0 | 1110 | render_draw.h |
+| 0x490860 | sub_490860 | 802 | render_draw.h |
 | 0x491740 | sub_491740 | 38 | sprite_slot.h |
+| 0x491820 | sub_491820 | 696 | render_draw.h |
+| 0x491ae0 | actor_render_emit_491AE0 | 2599 | render_draw.h |
+| 0x4925e0 | sub_4925E0 | 129 | render_draw.h |
+| 0x4926f0 | sub_4926F0 | 206 | render_draw.h |
+| 0x4927c0 | sub_4927C0 | 289 | render_draw.h |
+| 0x4928f0 | sub_4928F0 | 412 | render_draw.h |
+| 0x492a90 | sub_492A90 | 429 | render_draw.h |
+| 0x492c40 | sub_492C40 | 740 | render_draw.h |
+| 0x492f30 | sub_492F30 | 139 | render_draw.h |
+| 0x492fc0 | band_23e0_render_492FC0 | 623 | render_draw.h |
+| 0x493230 | band_2560_render_493230 | 584 | render_draw.h |
+| 0x493480 | band_13e0_render_493480 | 824 | render_draw.h |
+| 0x4937c0 | band_1060_render_4937C0 | 647 | render_draw.h |
+| 0x493a50 | sub_493A50 | 328 | render_draw.h |
+| 0x493ba0 | band_1160_char_render_493BA0 | 3014 | render_draw.h |
+| 0x494790 | sub_494790 | 706 | render_draw.h |
+| 0x494a60 | sub_494A60 | 918 | render_draw.h |
+| 0x494e10 | sub_494E10 | 66 | render_draw.h |
+| 0x495dc0 | sub_495DC0 | 119 | render_draw.h |
+| 0x495e40 | sub_495E40 | 411 | render_draw.h |
+| 0x495fe0 | sub_495FE0 | 394 | render_draw.h |
+| 0x496170 | sub_496170 | 42 | render_draw.h |
+| 0x4961a0 | sub_4961A0 | 63 | render_draw.h |
+| 0x4961e0 | sub_4961E0 | 95 | render_draw.h |
+| 0x496240 | sub_496240 | 95 | render_draw.h |
+| 0x4963a0 | sub_4963A0 | 446 | render_draw.h |
+| 0x496560 | sub_496560 | 1028 | render_draw.h |
 | 0x496970 | sub_496970 | 54 | hud_view.h |
+| 0x496ec0 | sub_496EC0 | 1756 | render_draw.h |
+| 0x4975a0 | sub_4975A0 | 64 | render_draw.h |
+| 0x4975e0 | sub_4975E0 | 1054 | render_draw.h |
+| 0x497a00 | sub_497A00 | 313 | render_draw.h |
+| 0x497c20 | sub_497C20 | 788 | render_draw.h |
+| 0x497f40 | sub_497F40 | 1750 | render_draw.h |
+| 0x498820 | sub_498820 | 319 | render_draw.h |
+| 0x498960 | sub_498960 | 1449 | render_draw.h |
+| 0x499070 | sub_499070 | 142 | render_draw.h |
+| 0x499100 | sub_499100 | 1118 | render_draw.h |
+| 0x499670 | sub_499670 | 316 | render_draw.h |
+| 0x4997b0 | sub_4997B0 | 150 | render_draw.h |
 | 0x49a050 | sub_49A050 | 13 | sprite_slot.h |
 | 0x49a060 | sub_49A060 | 651 | ui_run.h |
 | 0x49a2f0 | sub_49A2F0 | 76 | ui_run.h |
@@ -767,6 +818,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x49bd50 | sub_49BD50 | 147 | hud_view.h |
 | 0x49bdf0 | sub_49BDF0 | 97 | hud_view.h |
 | 0x49be60 | sub_49BE60 | 290 | room_loop.h |
+| 0x49c170 | sub_49C170 | 371 | render_draw.h |
 | 0x49c2f0 | sub_49C2F0 | 808 | screen_fx.h |
 | 0x49c620 | sub_49C620 | 31 | ui_core.h |
 | 0x49c910 | sub_49C910 | 588 | scene_box.h |

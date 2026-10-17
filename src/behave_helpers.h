@@ -34,7 +34,7 @@
 #include "world_layout.h"
 
 int32_t beh_441f50(wl_char *self, int32_t * a2, int32_t a3);
-int32_t beh_47adb0(intptr_t ecx_, int32_t a1, int32_t * a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6, int32_t a7);
+int32_t beh_47adb0(wl_char *self, int32_t a1, int32_t * a2, int32_t * a3, int32_t * a4, int32_t a5, int32_t a6, int32_t * a7);
 int32_t beh_47d790(wl_char *self, int32_t a2, int32_t a3, int32_t a4);
 int32_t beh_47da60(wl_char *self, int32_t * a2);
 int32_t beh_47de50(int32_t * a1, int32_t a2);

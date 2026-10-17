@@ -36,6 +36,7 @@ static intptr_t rnd(void) { return (intptr_t)rng_rand(); }
 #pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
 #define CFG() ((intptr_t)**(uint8_t ***)((uint8_t *)g_eng.sys + 0x320))
 #define SYS32(o) F32(g_eng.sys, (o))
+#define SYSB(o) F8(g_eng.sys, (o))   /* the system object's byte at +o (an lvalue: &SYSB(o) is its address) */
 static inline int ofsub32_(int32_t a, int32_t b) { int32_t r; return __builtin_sub_overflow(a, b, &r); }
 static inline int ofadd32_(int32_t a, int32_t b) { int32_t r; return __builtin_add_overflow(a, b, &r); }
 #define __OFSUB__(a, b) ofsub32_((int32_t)(a), (int32_t)(b))
@@ -65,12 +66,15 @@ typedef uint16_t _WORD;
 typedef uint8_t _BYTE;
 typedef uint64_t _QWORD;
 #define GAP(p, o, i) F8(p, (o) + (i))   /* IDA's gapN[i]: the byte at +N + i */
+#define qmemcpy memcpy   /* IDA's inline memcpy */
+typedef char CHAR;
 #define SETLO(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff0000u) | (uint16_t)(v)))
 #define SETHI(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffu) | ((uint32_t)(uint16_t)(v) << 16)))
 #define SETLB(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffff00u) | (uint8_t)(v)))
 #define SETLODW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffff00000000ull) | (uint32_t)(v)))
 #define SETHIDW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffffull) | ((uint64_t)(uint32_t)(v) << 32)))
 #define F32(p, o) (*(int32_t *)((uint8_t *)(intptr_t)(p) + (o)))
+#define FU32(p, o) (*(uint32_t *)((uint8_t *)(intptr_t)(p) + (o)))   /* an `unsigned int` load: >> / < / / stay unsigned */
 #define F16(p, o) (*(uint16_t *)((uint8_t *)(intptr_t)(p) + (o)))
 #define S16(p, o) (*(int16_t *)((uint8_t *)(intptr_t)(p) + (o)))
 #define F8(p, o)  (*(uint8_t *)((uint8_t *)(intptr_t)(p) + (o)))
@@ -102,6 +106,7 @@ static inline intptr_t W_voice_place(intptr_t a0, intptr_t a1, intptr_t a2, intp
 static inline intptr_t W_voice_play(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, ...) { return (intptr_t)voice_play((wl_voiceset *)a0, (uint16_t)a1, (int32_t)a2, (int32_t)a3, (int32_t)a4, (int32_t)a5, (int32_t)a6); }
 static inline intptr_t W_voiceset_sounding(intptr_t a0, intptr_t a1, intptr_t a2, ...) { return (intptr_t)voiceset_sounding((const wl_voiceset *)a0, (wl_vgroup **)a1, (wl_vline **)a2); }
 static inline intptr_t W_vpool_take(intptr_t a0, intptr_t a1, ...) { return (intptr_t)vpool_take((wl_vpool *)a0, (int32_t)a1); }
+
 int32_t skill_cast(wl_char *self, int32_t a2, int32_t errno_decorate, int32_t a4, int32_t a5, int32_t a6, int32_t * a7, uint16_t * a8, int32_t a9);
 int32_t skill_charge(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t * a5, int32_t a6, uint16_t * a7, uint16_t a8, int32_t a9);
 int32_t skill_stage(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t * a5, int32_t a6, uint16_t * a7, uint16_t a8, int16_t a9, int32_t a10);
@@ -127,14 +132,14 @@ int32_t skill_cast(wl_char *self, int32_t a2, int32_t errno_decorate, int32_t a4
     intptr_t v19;
     intptr_t v20;
     uint16_t v21;
-    intptr_t v22;
+    uint32_t v22;
     intptr_t v23;
     uint16_t * v24;
     intptr_t v25;
     intptr_t v26;
     intptr_t v27;
     uint16_t v28;
-    intptr_t v29;
+    uint32_t v29;
     intptr_t v30;
     int32_t * v31;
     intptr_t * v32;
@@ -168,7 +173,7 @@ int32_t skill_cast(wl_char *self, int32_t a2, int32_t errno_decorate, int32_t a4
     intptr_t v60;
     intptr_t v61;
     uint16_t v62;
-    intptr_t v63;
+    uint32_t v63;
     intptr_t v64;
     int32_t * v65;
     intptr_t v66;
@@ -180,7 +185,7 @@ int32_t skill_cast(wl_char *self, int32_t a2, int32_t errno_decorate, int32_t a4
     intptr_t v72;
     intptr_t v73;
     uint16_t v74;
-    intptr_t v75;
+    uint32_t v75;
     intptr_t v76;
     int32_t * v77;
     int32_t * v78;
@@ -201,7 +206,7 @@ int32_t skill_cast(wl_char *self, int32_t a2, int32_t errno_decorate, int32_t a4
     intptr_t v93;
     intptr_t v94;
     uint16_t v95;
-    intptr_t v96;
+    uint32_t v96;
     intptr_t v97;
     int32_t * v98;
     intptr_t * v99;
@@ -225,7 +230,7 @@ int32_t skill_cast(wl_char *self, int32_t a2, int32_t errno_decorate, int32_t a4
     intptr_t v117;
     intptr_t v118;
     uint16_t v119;
-    intptr_t v120;
+    uint32_t v120;
     intptr_t v121;
     int32_t * v122;
     intptr_t * v123;
@@ -253,7 +258,7 @@ int32_t skill_cast(wl_char *self, int32_t a2, int32_t errno_decorate, int32_t a4
     intptr_t v145;
     intptr_t v146;
     uint16_t v147;
-    intptr_t v148;
+    uint32_t v148;
     intptr_t v149;
     intptr_t v150;
     intptr_t v151;
@@ -262,7 +267,7 @@ int32_t skill_cast(wl_char *self, int32_t a2, int32_t errno_decorate, int32_t a4
     intptr_t v154;
     intptr_t v155;
     uint16_t v156;
-    intptr_t v157;
+    uint32_t v157;
     intptr_t v158;
     uint16_t * v159;
     int32_t * v160;
@@ -270,7 +275,7 @@ int32_t skill_cast(wl_char *self, int32_t a2, int32_t errno_decorate, int32_t a4
     intptr_t v162;
     intptr_t v163;
     uint16_t v164;
-    intptr_t v165;
+    uint32_t v165;
     intptr_t v166;
     int32_t * v167;
     intptr_t * v168;
@@ -281,7 +286,7 @@ int32_t skill_cast(wl_char *self, int32_t a2, int32_t errno_decorate, int32_t a4
     intptr_t v173;
     intptr_t v174;
     uint16_t v175;
-    intptr_t v176;
+    uint32_t v176;
     intptr_t v177;
     int16_t v178;
     int32_t * v179;
@@ -701,7 +706,7 @@ LABEL_70:
                   if ( (uint16_t)v30 != 3 && v30 == 6 && v25 == 0 )
                   {
                     v31 = (_DWORD *)F32(c, 0x40);
-                    v32 = W_vpool_take(SYS32(1256), 0);
+                    v32 = (intptr_t *)W_vpool_take(SYS32(1256), 0);
                     if ( v32 != 0 )
                     {
                       v33 = F32(v32, 0);
@@ -1661,7 +1666,7 @@ LABEL_282:
           v98 = (_DWORD *)F32(c, 0x40);
           if ( v92 == 0 )
           {
-            v99 = W_vpool_take(SYS32(1248), 0);
+            v99 = (intptr_t *)W_vpool_take(SYS32(1248), 0);
             if ( v99 != 0 )
             {
               v100 = F32(v99, 0);
@@ -1858,7 +1863,7 @@ LABEL_326:
             v122 = (_DWORD *)F32(c, 0x40);
             if ( v116 == 0 )
             {
-              v123 = W_vpool_take(SYS32(1248), 0);
+              v123 = (intptr_t *)W_vpool_take(SYS32(1248), 0);
               if ( v123 != 0 )
               {
                 v124 = F32(v123, 0);
@@ -2345,7 +2350,7 @@ LABEL_499:
       if ( (uint16_t)v166 == 3 || v166 != 6 || v161 != 0 )
         return (*v263__f);
       v167 = (_DWORD *)F32(c, 0x40);
-      v168 = W_vpool_take(SYS32(1256), 0);
+      v168 = (intptr_t *)W_vpool_take(SYS32(1256), 0);
       if ( v168 != 0 )
       {
         v169 = F32(v168, 0);
@@ -3017,7 +3022,7 @@ int32_t skill_stage(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t *
     intptr_t * v18;
     intptr_t v19;
     uint16_t v20;
-    intptr_t v21;
+    uint32_t v21;
     intptr_t * v24;
     _Alignas(8) uint8_t frame_[0x4 + 0x10];   /* the stack locals at their ebp offsets */
     memset(frame_, 0, sizeof frame_);
@@ -3108,20 +3113,20 @@ LABEL_51:
             {
               if ( W_sfx_place(c, 0, 0, 0, (_DWORD *)F32(c, 0x40), 0, 0) != 0 )
               {
-                v16 = F32(c, 0x1b0);
+                v16 = (intptr_t **)F32(c, 0x1b0);
                 v17 = SYS32(1192);
                 v24 = SYS32(1192);
                 if ( F32(v16, 0) != 0 )
                   W_entity_snd_release(c, 0, 0, 1);
-                v18 = W_vpool_take(v17, 1);
+                v18 = (intptr_t *)W_vpool_take(v17, 1);
                 if ( v18 != 0 )
                 {
                   *v16 = v18;
                   v16[1] = v24;
                   v16[2] = 0;
-                  v16[3] = -500;
+                  v16[3] = (intptr_t *)-500;
                   v16[4] = 0;
-                  v16[5] = 1;
+                  v16[5] = (intptr_t *)1;
                   v16[6] = 0;
                   v16[7] = 0;
                   g_eng.dsb_volume_5bb870(F32(v18, 0), -10000);
@@ -3268,26 +3273,26 @@ int32_t summon_recall(int32_t a1, int32_t a2)
     intptr_t v3;
     char * v4;
     intptr_t i;
-    intptr_t v6;
+    int32_t * v6;
     intptr_t v7;
     int16_t v9;
     intptr_t v10;
 
   v2 = 0;
   v3 = 0;
-  v4 = (uint8_t *)W + 4448;
+  v4 = &GAP(W, 0x1030, 304);
   for ( i = 32; i != 0; --i )
   {
-    v6 = F32(v4, 0);
+    v6 = *(_DWORD **)v4;
     if ( F32(F32(v4, 0), 464) == 1
-      && F8(F32(v6, 64), 0) == 1
-      && F16(F32(v6, 1872), 1098) == 0
-      && F32(v6, 88928) == a1
-      && (F32(v6, 468) == a2 || a2 == 0)
-      && (v3 < F32(v6, 88264) || v2 == 0) )
+      && *(_BYTE *)v6[16] == 1
+      && F16(v6[468], 1098) == 0
+      && v6[22232] == a1
+      && (v6[117] == a2 || a2 == 0)
+      && (v3 < v6[22066] || v2 == 0) )
     {
       v2 = *(_DWORD **)v4;
-      v3 = F32(v6, 88264);
+      v3 = v6[22066];
     }
     v4 += 4;
   }
@@ -3316,7 +3321,7 @@ int32_t summon_recall(int32_t a1, int32_t a2)
   }
   else
   {
-    W_char_die((intptr_t)v2, 0, 1, F32(v2[16], 44));   /* thiscall (ecx = v2): IDA read it as fastcall */
+    W_char_die((int)v2, /*edx*/ 0, 1, F32(v2[16], 44));
     return 1;
   }
 }
@@ -3435,7 +3440,7 @@ int32_t skill_space_ahead(int32_t * a1, int32_t a2, int32_t a3, int32_t a4, int3
     v15 = v13 / 3200 + 1;
     if ( v14 >= 0 )
     {
-      v16 = F32(W, 4 * 1042);
+      v16 = *(_DWORD *)&GAP(W, 0x1030, 24);
       (*v28__f) = v16;
       if ( v15 <= F32(v16, 2887728) )
       {
@@ -3502,9 +3507,9 @@ LABEL_23:
 int32_t summon_init(wl_char *self, int32_t * a2)
 {
     intptr_t c = (intptr_t)self;
-    intptr_t v3;
+    uint32_t v3;
     intptr_t v4;
-    intptr_t v5;
+    uint32_t v5;
     intptr_t v6;
     intptr_t v7;
     intptr_t v8;
@@ -3615,7 +3620,7 @@ LABEL_5:
   return result;
 }
 
-/* 0x55ce70: int __stdcall sub_55CE70(int a1, _DWORD *a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9) */
+/* 0x55ce70: cls_4022A0 *__stdcall sub_55CE70(int a1, _DWORD *a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9) */
 int32_t summon_spawn(int32_t a1, int32_t * a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6, int32_t a7, int32_t a8, int32_t a9)
 {
 
@@ -3631,13 +3636,13 @@ int32_t summon_spawn(int32_t a1, int32_t * a2, int32_t a3, int32_t a4, int32_t a
   if ( a6 != 0 )
     return 0;
   v10 = 0;
-  v11 = F32(W, 4 * 1041);
+  v11 = *(_DWORD *)&GAP(W, 0x1030, 20);
   while ( 1 )
   {
     v12 = F16(v11, 204);
-    v13 = F32(W, 4 * (v12 + 1112));
+    v13 = *(intptr_t *)&GAP(W, 0x1030, 4 * v12 + 304);
     F16(v11, 204) = (v12 + 1) & 0x1F;
-    if ( F32(v13, 464) == 0 )
+    if ( F32(v13, 0x1d0) == 0 )
       break;
     if ( (uint16_t)++v10 >= 0x20u )
       return 0;

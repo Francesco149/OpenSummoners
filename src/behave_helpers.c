@@ -18,6 +18,7 @@
 static intptr_t rnd(void) { return (intptr_t)rng_rand(); }
 
 
+
 #include "actor_update.h"
 #include "arche_pose.h"
 #include "behave_ops.h"
@@ -36,6 +37,7 @@ static intptr_t rnd(void) { return (intptr_t)rng_rand(); }
 #pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
 #define CFG() ((intptr_t)**(uint8_t ***)((uint8_t *)g_eng.sys + 0x320))
 #define SYS32(o) F32(g_eng.sys, (o))
+#define SYSB(o) F8(g_eng.sys, (o))   /* the system object's byte at +o (an lvalue: &SYSB(o) is its address) */
 static inline int ofsub32_(int32_t a, int32_t b) { int32_t r; return __builtin_sub_overflow(a, b, &r); }
 static inline int ofadd32_(int32_t a, int32_t b) { int32_t r; return __builtin_add_overflow(a, b, &r); }
 #define __OFSUB__(a, b) ofsub32_((int32_t)(a), (int32_t)(b))
@@ -65,12 +67,15 @@ typedef uint16_t _WORD;
 typedef uint8_t _BYTE;
 typedef uint64_t _QWORD;
 #define GAP(p, o, i) F8(p, (o) + (i))   /* IDA's gapN[i]: the byte at +N + i */
+#define qmemcpy memcpy   /* IDA's inline memcpy */
+typedef char CHAR;
 #define SETLO(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff0000u) | (uint16_t)(v)))
 #define SETHI(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffu) | ((uint32_t)(uint16_t)(v) << 16)))
 #define SETLB(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffff00u) | (uint8_t)(v)))
 #define SETLODW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffff00000000ull) | (uint32_t)(v)))
 #define SETHIDW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffffull) | ((uint64_t)(uint32_t)(v) << 32)))
 #define F32(p, o) (*(int32_t *)((uint8_t *)(intptr_t)(p) + (o)))
+#define FU32(p, o) (*(uint32_t *)((uint8_t *)(intptr_t)(p) + (o)))   /* an `unsigned int` load: >> / < / / stay unsigned */
 #define F16(p, o) (*(uint16_t *)((uint8_t *)(intptr_t)(p) + (o)))
 #define S16(p, o) (*(int16_t *)((uint8_t *)(intptr_t)(p) + (o)))
 #define F8(p, o)  (*(uint8_t *)((uint8_t *)(intptr_t)(p) + (o)))
@@ -117,8 +122,9 @@ static inline intptr_t W_path_dfs(intptr_t a0, intptr_t a1, intptr_t a2, intptr_
 static inline intptr_t W_path_search(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, intptr_t a7, intptr_t a8, intptr_t a9, intptr_t a10, intptr_t a11, intptr_t a12, ...) { return (intptr_t)path_search((path_finder *)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3, (int32_t)a4, (int32_t)a5, (int32_t)a6, (int32_t)a7, (int32_t)a8, (uint8_t *)a9, (uint16_t *)a10, (path_rec *)a11, (int32_t)a12); }
 static inline intptr_t W_skill_pose_ok(intptr_t a0, intptr_t a1, ...) { return (intptr_t)skill_pose_ok((const wl_skill *)a0, (const wl_body *)a1); }
 static inline intptr_t W_stat_jitter(intptr_t a0, intptr_t a1, intptr_t a2, ...) { return (intptr_t)stat_jitter((int32_t)a0, (int32_t)a1, (int32_t)a2); }
+
 int32_t beh_441f50(wl_char *self, int32_t * a2, int32_t a3);
-int32_t beh_47adb0(intptr_t ecx_, int32_t a1, int32_t * a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6, int32_t a7);
+int32_t beh_47adb0(wl_char *self, int32_t a1, int32_t * a2, int32_t * a3, int32_t * a4, int32_t a5, int32_t a6, int32_t * a7);
 int32_t beh_47d790(wl_char *self, int32_t a2, int32_t a3, int32_t a4);
 int32_t beh_47da60(wl_char *self, int32_t * a2);
 int32_t beh_47de50(int32_t * a1, int32_t a2);
@@ -485,12 +491,12 @@ LABEL_80:
   return result;
 }
 
-/* 0x47adb0: int __stdcall sub_47ADB0(int a1, _DWORD *a2, int a3, int a4, int a5, int a6, int a7) */
-int32_t beh_47adb0(intptr_t ecx_, int32_t a1, int32_t * a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6, int32_t a7)
+/* 0x47adb0: int __thiscall sub_47ADB0(cls_4022A0 *this, int a1, _DWORD *a2, int *a3, int *a4, int a5, int a6, int *a7) */
+int32_t beh_47adb0(wl_char *self, int32_t a1, int32_t * a2, int32_t * a3, int32_t * a4, int32_t a5, int32_t a6, int32_t * a7)
 {
+    intptr_t c = (intptr_t)self;
 
-
-  return beh_47ae00(ecx_, a1, a2[44], a2[177], a2[178], a2[179], a2[180], a3, a4, a5, a6, 0, a7);
+  return beh_47ae00(c, a1, a2[44], a2[177], a2[178], a2[179], a2[180], a3, a4, a5, a6, 0, a7);
 }
 
 /* 0x47d790: int __thiscall sub_47D790(cls_47D790 *this, int a2, int a3, int a4) */
@@ -574,7 +580,7 @@ int32_t beh_47d790(wl_char *self, int32_t a2, int32_t a3, int32_t a4)
     (*v31__f) = F32(v15, 4);
     (*v33__f) = (*v31__f) + F32(v15, 12);
     SETLO(v17, 0);
-    v18 = F32(W, 0x2788 + (4));
+    v18 = *(_DWORD *)&GAP(W, 0x2788, 4);
     v37 = 0;
     if ( F16(v18, 8) != 0 )
     {
@@ -602,7 +608,7 @@ int32_t beh_47d790(wl_char *self, int32_t a2, int32_t a3, int32_t a4)
           }
         }
         v17 = v37 + 1;
-        v18 = F32(W, 0x2788 + (4));
+        v18 = *(_DWORD *)&GAP(W, 0x2788, 4);
         v37 = v17;
       }
       while ( (uint16_t)v17 < F16(v18, 8) );
@@ -675,7 +681,7 @@ int32_t beh_47da60(wl_char *self, int32_t * a2)
     intptr_t *const v16__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x4 */
 
   v3 = a2[1];
-  v4 = F32(W, 0x1030 + (24));
+  v4 = *(_DWORD *)&GAP(W, 0x1030, 24);
   (*v16__f) = v4;
   v5 = F32(v4, 2887728) - 1;
   if ( v5 >= (v3 / 3200 < 0 ? 0 : v3 / 3200) )
@@ -735,7 +741,7 @@ int32_t beh_47de50(int32_t * a1, int32_t a2)
   (*v13__f) = (a1[4] + a1[2] - 1) / 3200;
   if ( a2 > 0 )
   {
-    v3 = F32(W, 4 * 1042);
+    v3 = *(_DWORD *)&GAP(W, 0x1030, 24);
     v4 = 3200 * (((int)v2 - HIDWORD(v2)) >> 1) / 3200;
     do
     {
@@ -1333,7 +1339,7 @@ int32_t beh_47ecd0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5
         v21 = 0;
         do
         {
-          v22 = F32(W, 0x1030 + (4 * v21 + 304));
+          v22 = *(_DWORD *)&GAP(W, 0x1030, 4 * v21 + 304);
           if ( v22 != v10
             && F32(v22, 464) == 1
             && F8(F32(v22, 64), 0) == 1
@@ -1531,13 +1537,13 @@ LABEL_86:
                   v42 = 4448;
                   for ( (*i__f) = 32; (*i__f) != 0; --(*i__f) )
                   {
-                    v43 = F32(W, 0x0 + (v42));
-                    if ( F32(v43, 464) != 0
-                      && beh_47adb0(c, (int)(*v61__f), v41, (int)&(*v65__f), (int)&(*v68__f), 0, 1, 0) != 0
+                    v43 = *(intptr_t *)&GAP(W, 0x0, v42);
+                    if ( F32(v43, 0x1d0) != 0
+                      && beh_47adb0(v43, (int)(*v61__f), v41, &(*v65__f), &(*v68__f), 0, 1, 0) != 0
                       && (*v65__f) > 0 )
                     {
                       if ( v36 == 0 )
-                        v36 = v43;
+                        v36 = (int)v43;
                       if ( (*v67__f) <= (*v65__f) )
                         (*v67__f) = (*v65__f);
                       if ( (*v62__f) <= (*v68__f) )
@@ -1556,15 +1562,13 @@ LABEL_94:
                     v39 = 4448;
                     for ( (*i__f) = 32; (*i__f) != 0; --(*i__f) )
                     {
-                      v40 = F32(W, 0x0 + (v39));
-                      if ( F32(v40, 464) != 0
-                        && beh_47adb0(c, (int)(*v61__f), (*v60__f), (int)&(*v65__f), (int)&(*v68__f), 0, 1, (int)&(*v77__f)) != 0
-                        && (*v65__f) > 0 )
+                      v40 = *(intptr_t *)&GAP(W, 0x0, v39);
+                      if ( F32(v40, 0x1d0) != 0 && beh_47adb0(v40, (int)(*v61__f), (*v60__f), &(*v65__f), &(*v68__f), 0, 1, &(*v77__f)) != 0 && (*v65__f) > 0 )
                       {
                         if ( v36 == 0 || v35 < (*v77__f) )
                         {
                           v35 = (*v77__f);
-                          v36 = v40;
+                          v36 = (int)v40;
                           (*v67__f) = (*v65__f);
                           (*v62__f) = (*v68__f);
                         }
@@ -1587,7 +1591,7 @@ LABEL_94:
                     if ( beh_48be60((*v61__f), F16((*v60__f), 2 * 354), 0) != 0 )
                       goto LABEL_124;
                   }
-                  if ( beh_47adb0(c, (int)v44, v34, (int)&(*v65__f), (int)&(*v68__f), 0, 1, 0) != 0 && (*v65__f) > 0 )
+                  if ( beh_47adb0(v44, (int)v44, v34, &(*v65__f), &(*v68__f), 0, 1, 0) != 0 && (*v65__f) > 0 )
                   {
                     (*v67__f) = (*v65__f);
                     v36 = (int)v44;
@@ -2627,7 +2631,7 @@ LABEL_70:
       v28 = 0;
       while ( 1 )
       {
-        v29 = F32(W, 0x1030 + (4 * v28 + 304));
+        v29 = *(_DWORD *)&GAP(W, 0x1030, 4 * v28 + 304);
         if ( v29 != c
           && W_char_targetable(v29, 0, 1)
           && W_faction_rel(c, F32(c, 476), F32(v29, 476)) == 2
@@ -3655,7 +3659,7 @@ int32_t beh_483de0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5
   F32(c, 0x147a8) = a5;
   v11 = v10 != 0 && F32(c, 0xc7ec) == 0 && F16(F32(c, 0x750), 1118) == 0;
   if ( W_path_search(
-         F32(W, 0x1030 + (32)),
+         *(intptr_t *)&GAP(W, 0x1030, 32),
          F32(a2, 4),
          F32(a2, 8),
          F32(a2, 12),
@@ -3664,7 +3668,7 @@ int32_t beh_483de0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5
          a5,
          1,
          -1,
-         F32(W, 0x1030 + (24)),
+         *(_DWORD *)&GAP(W, 0x1030, 24),
          &F16(c, 0x1429c),
          (int)&GAP(c, 0x1429e, 2),
          v11) != 0 )
@@ -3775,11 +3779,11 @@ int32_t beh_483fb0(wl_char *self, int32_t * a2, int32_t a3, int32_t a4, int32_t 
     v17 = W_part_bottom(v9, v27[0]);
     v18 = F32(c, 0x1424c);
     v19 = v17;
-    v20 = F32(v18, 88396);
+    v20 = F32(v18, 0x1594c);
     if ( v20 != 0 )
       v21 = v20 > 0 && v20 <= 3;
     else
-      v21 = W_entity_ground_probe(c, F32(v18, 64) + 15840, 24);
+      v21 = W_entity_ground_probe(v18, (_DWORD *)(F32(v18, 0x40) + 15840), 24);
     if ( a5 != 0 || F16(F32(c, 0x750), 1098) == 0 )
     {
       v22 = a2;
@@ -3902,7 +3906,7 @@ int32_t beh_484530(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5
   if ( v18 != 0 && F32(c, 0xc7ec) == 0 )
     v17 = F16(F32(c, 0x750), 1118) == 0;
   if ( W_path_search(
-         F32(W, 0x1030 + (32)),
+         *(intptr_t *)&GAP(W, 0x1030, 32),
          F32(a2, 4),
          F32(a2, 8),
          F32(a2, 12),
@@ -3911,7 +3915,7 @@ int32_t beh_484530(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5
          a5,
          1,
          -1,
-         F32(W, 0x1030 + (24)),
+         *(_DWORD *)&GAP(W, 0x1030, 24),
          &F16(c, 0x1429c),
          (int)&GAP(c, 0x1429e, 2),
          v17) != 0
@@ -4848,7 +4852,7 @@ LABEL_95:
               (*v60__f) = 32;
               while ( 1 )
               {
-                v52 = F32(W, 0x0 + (v74));
+                v52 = *(intptr_t *)&GAP(W, 0x0, v74);
                 if ( F32(v52, 0x1d0) == 1 )
                 {
                   v53 = (_BYTE *)F32(v52, 0x40);
@@ -4926,7 +4930,7 @@ LABEL_139:
             v31 = 0;
             v73 = 0;
             v71 = 0;
-            v32 = (W + 0x1030 + (304));
+            v32 = &GAP(W, 0x1030, 304);
             v33 = 32;
             break;
           case 15:
@@ -4989,7 +4993,7 @@ LABEL_46:
               v39 = 4448;
               for ( j = 32; j != 0; --j )
               {
-                v40 = F32(W, 0x0 + (v39));
+                v40 = *(intptr_t *)&GAP(W, 0x0, v39);
                 if ( F32(v40, 0x1d0) == 1 )
                 {
                   v41 = (_BYTE *)F32(v40, 0x40);
@@ -5157,7 +5161,7 @@ LABEL_9:
   (*v35__f) = 32;
   do
   {
-    v13 = F32(W, 0x0 + (v47));
+    v13 = *(_DWORD *)&GAP(W, 0x0, v47);
     if ( !W_char_targetable(v13, 0, 0)
       || F16(v13, 622) != 0
       || F8(F32(v13, 64), 125) != 0
@@ -5675,13 +5679,13 @@ LABEL_20:
               v4 = W;
               v12 = 0;
               v13 = F32(W, 0x1024);
-              while ( F32(W, 0x0 + (516 * v13 + 4)) != 0 )
+              while ( *(_DWORD *)&GAP(W, 0x0, 516 * v13 + 4) != 0 )
               {
                 v13 = (v13 + 1) % 8;
                 if ( (uint16_t)++v12 >= 8u )
                   goto LABEL_30;
               }
-              v14 = (W + 0x0 + (516 * v13));
+              v14 = &GAP(W, 0x0, 516 * v13);
               F32(v14, 4 * 1) = 1;
               strcpy(v14 + 8, Buffer);
             }
@@ -5902,7 +5906,7 @@ int32_t beh_47a970(wl_char *self, int32_t a2, int32_t * a3, int32_t * a4, int32_
       i = 32;
       while ( 1 )
       {
-        v18 = F32(W, 0x0 + (v17));
+        v18 = *(intptr_t *)&GAP(W, 0x0, v17);
         if ( F32(v18, 0x1d0) != 0
           && beh_47ae00(v18, (int)c, v8[44], v8[177], v8[178], v8[179], v8[180], &a6, &a2, v16, 1, 0, 0) != 0
           && a6 > 0
@@ -5929,7 +5933,7 @@ int32_t beh_47a970(wl_char *self, int32_t a2, int32_t * a3, int32_t * a4, int32_
       v10 = 0;
       while ( 1 )
       {
-        v11 = F32(W, 0x1030 + (4 * v10 + 304));
+        v11 = *(_DWORD *)&GAP(W, 0x1030, 4 * v10 + 304);
         if ( F32(v11, 464) == 1
           && F8(F32(v11, 64), 0) == 1
           && F16(F32(v11, 1872), 1098) == 0
@@ -5974,7 +5978,7 @@ LABEL_11:
             v14 = 4448;
             for ( i = 32; i != 0; --i )
             {
-              v15 = F32(W, 0x0 + (v14));
+              v15 = *(intptr_t *)&GAP(W, 0x0, v14);
               if ( F32(v15, 0x1d0) != 0
                 && beh_47ae00(v15, (int)(*v27__f), v8[44], v8[177], v8[178], v8[179], v8[180], &a6, &a2, v13, 1, 0, &(*v31__f)) != 0
                 && a6 > 0 )
@@ -6004,7 +6008,7 @@ LABEL_11:
   }
   while ( 1 )
   {
-    v20 = F32(W, 0x1030 + (4 * v19 + 304));
+    v20 = *(_DWORD *)&GAP(W, 0x1030, 4 * v19 + 304);
     if ( F32(v20, 464) == 1 && F8(F32(v20, 64), 0) == 1 )
     {
       v21 = F32(v20, 1872);
@@ -6152,7 +6156,7 @@ int32_t beh_483040(wl_char *self, int32_t * a2, int32_t a3, int32_t a4, int32_t 
     intptr_t v12;
     intptr_t v13;
     int32_t * v14;
-    intptr_t v15;
+    uint32_t v15;
     int v16;
     intptr_t v17;
     intptr_t v18;
@@ -6164,7 +6168,7 @@ int32_t beh_483040(wl_char *self, int32_t * a2, int32_t a3, int32_t a4, int32_t 
     int32_t * v24;
     int16_t v25;
     intptr_t v26;
-    intptr_t v27;
+    uint32_t v27;
     _Alignas(8) uint8_t frame_[0x508 + 0x10];   /* the stack locals at their ebp offsets */
     memset(frame_, 0, sizeof frame_);
     uint16_t *v31 = (uint16_t *)(frame_ + 0x8);   /* [2] at ebp-0x500 */
@@ -6196,8 +6200,8 @@ int32_t beh_483040(wl_char *self, int32_t * a2, int32_t a3, int32_t a4, int32_t 
   v11 = a2[3];
   v12 = a2[2];
   v13 = a2[1];
-  v14 = F32(W, 0x1030 + (32));
-  *v14 = F32(W, 0x1030 + (24));
+  v14 = *(_DWORD **)&GAP(W, 0x1030, 32);
+  *v14 = *(_DWORD *)&GAP(W, 0x1030, 24);
   v15 = (int)((uint64_t)(1374389535LL * v13) >> 32) >> 10;
   v14[10246] = 0;
   v16 = (int)((v15 >> 31) + v15) < 0;
@@ -6310,7 +6314,7 @@ int32_t beh_484d60(wl_char *self, int32_t a2)
   else
   {
     v7 = v4[1];
-    v8 = F32(W, 0x1030 + (24));
+    v8 = *(_DWORD *)&GAP(W, 0x1030, 24);
     v9 = F32(v8, 2887728) - 1;
     if ( v9 >= (v7 / 3200 < 0 ? 0 : v7 / 3200) )
       v10 = v7 / 3200 < 0 ? 0 : v7 / 3200;
@@ -6345,7 +6349,7 @@ int32_t beh_485330(wl_char *self)
   return result;
 }
 
-/* 0x483920: int __stdcall sub_483920(int a1, _DWORD *a2, _DWORD *a3, unsigned __int16 a4) */
+/* 0x483920: int __stdcall sub_483920(cls_4022A0 *a1, _DWORD *a2, _DWORD *a3, unsigned __int16 a4) */
 int32_t beh_483920(int32_t a1, int32_t * a2, int32_t * a3, uint16_t a4)
 {
 
@@ -6388,23 +6392,23 @@ int32_t beh_483920(int32_t a1, int32_t * a2, int32_t * a3, uint16_t a4)
     v4 = (*v24__f);
   }
   v5 = a1;
-  v6 = F32(a1, 0);
+  v6 = F32(a1, 0x0);
   v7 = a3[2] + a2[2];
   (*v25__f) = v7;
   (*v26__f) = a3[1];
   (*v27__f) = a3[3];
-  if ( F32(a1, 0) != 0 )
+  if ( F32(a1, 0x0) != 0 )
   {
     v14 = 0;
     v29 = 0;
-    (*v23__f) = F16(a1, 4);
+    (*v23__f) = F32(a1, 0x4);
     if ( (*v23__f) != 0 )
     {
       do
       {
         if ( F32(32 * (uint16_t)v14 + v6, 16) != 0 )
         {
-          v15 = (_DWORD *)(F32(v5, 64) + 660 * a4);
+          v15 = (_DWORD *)(F32(v5, 0x40) + 660 * a4);
           v16 = 20 * (uint16_t)v14;
           v17 = v15[164];
           if ( F32(v17 + v16, 16) == 0 )
@@ -6421,7 +6425,7 @@ int32_t beh_483920(int32_t a1, int32_t * a2, int32_t * a3, uint16_t a4)
               return 1;
             v5 = a1;
             v14 = v29;
-            v6 = F32(a1, 0);
+            v6 = F32(a1, 0x0);
           }
         }
         v29 = ++v14;
@@ -6432,13 +6436,13 @@ int32_t beh_483920(int32_t a1, int32_t * a2, int32_t * a3, uint16_t a4)
   else
   {
     v8 = a4;
-    if ( a4 >= F16(a1, 68) )
+    if ( a4 >= F32(a1, 0x44) )
       v8 = 0;
-    v9 = F32(a1, 64);
+    v9 = F32(a1, 0x40);
     if ( F32(v9 + 660 * v8, 4) <= v4 + (*v26__f) )
     {
       v10 = a4;
-      v11 = F16(a1, 68);
+      v11 = F32(a1, 0x44);
       if ( a4 >= v11 )
         v10 = 0;
       if ( F32(v9 + 660 * v10, 4) + F32(v9 + 660 * v10, 12) > v4 )
@@ -6541,7 +6545,7 @@ LABEL_21:
     return 0;
   }
   v12 = (uint8_t *)c + 20 * v8;
-  v27 = F32(W, 0x1030 + (24));
+  v27 = *(_DWORD *)&GAP(W, 0x1030, 24);
   if ( *(_WORD *)(v27 + 2 * (F32(v12, 4 * 20652) + (F32(v12, 4 * 20651) << 7)) + 2887746) != 0 )
   {
     v13 = 1;
@@ -6558,7 +6562,7 @@ LABEL_21:
           F16(c, 0x147ae) = v13;
           F16(c, 0x147f0) = 0;
           F16(c, 0x147f2) = 80;
-          v15 = F32(W, 0x1030 + (24))
+          v15 = *(_DWORD *)&GAP(W, 0x1030, 24)
               + 48 * (F32(v12, 4 * 20652) + (F32(v12, 4 * 20651) << 7));
           F32(c, 0x147b0) = F32(v15, 1904728);
           F32(c, 0x147b4) = F32(v15, 1904732);
@@ -6569,7 +6573,7 @@ LABEL_21:
             v18 = v13 - 1;
             do
             {
-              beh_484bc0(F32(W, 0x1030 + (24)), *v16, v16[1], v17, v17 + 1);
+              beh_484bc0(*(intptr_t *)&GAP(W, 0x1030, 24), *v16, v16[1], v17, v17 + 1);
               v16 += 5;
               v17 += 2;
               --v18;
@@ -6714,7 +6718,7 @@ int32_t beh_442710(wl_char *self, uint16_t a2)
   v2 = a2;
   v3 = *(_DWORD *)&GAP(c, 0x1429e, 20 * a2 + 18);
   v4 = (uint8_t *)c + 20 * a2;
-  v15 = F32(W, 0x1030 + (24));
+  v15 = *(_DWORD *)&GAP(W, 0x1030, 24);
   if ( *(_WORD *)(v15 + 2 * (v3 + (F32(v4, 4 * 20651) << 7)) + 2887746) != 0 )
   {
     for ( i = 1; v2 < F16(c, 0x1429c); ++v2 )
@@ -6730,7 +6734,7 @@ int32_t beh_442710(wl_char *self, uint16_t a2)
         F16(c, 0x147ae) = i;
         F16(c, 0x147f0) = 0;
         F16(c, 0x147f2) = 80;
-        v8 = F32(W, 0x1030 + (24)) + 48 * (F32(v4, 4 * 20652) + (F32(v4, 4 * 20651) << 7));
+        v8 = *(_DWORD *)&GAP(W, 0x1030, 24) + 48 * (F32(v4, 4 * 20652) + (F32(v4, 4 * 20651) << 7));
         F32(c, 0x147b0) = F32(v8, 1904728);
         F32(c, 0x147b4) = F32(v8, 1904732);
         if ( i > 1u )
@@ -6744,7 +6748,7 @@ int32_t beh_442710(wl_char *self, uint16_t a2)
             v13 = v10[1];
             v10 += 5;
             v9 += 8;
-            v14 = F32(W, 0x1030 + (24)) + 48 * (v13 + (v12 << 7));
+            v14 = *(_DWORD *)&GAP(W, 0x1030, 24) + 48 * (v13 + (v12 << 7));
             --v11;
             *((int32_t *)v9 - 3) = F32(v14, 1904728);
             *((int32_t *)v9 - 2) = F32(v14, 1904732);
@@ -7248,17 +7252,17 @@ int32_t beh_480580(wl_char *self, int32_t a2, int32_t * a3, int32_t a4, int32_t 
     intptr_t v12;
     intptr_t v13;
     intptr_t v14;
-    intptr_t v15;
-    intptr_t v16;
+    uint32_t v15;
+    uint32_t v16;
     intptr_t v17;
     intptr_t v18;
     intptr_t v19;
-    intptr_t v20;
+    uint32_t v20;
     intptr_t v21;
     intptr_t v22;
     intptr_t v23;
     intptr_t v24;
-    intptr_t v25;
+    uint32_t v25;
     intptr_t v26;
     intptr_t v27;
     intptr_t v28;

@@ -57,6 +57,7 @@ uint8_t *arche_combo_skill(wl_char *c)
 #pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
 #define CFG() ((intptr_t)**(uint8_t ***)((uint8_t *)g_eng.sys + 0x320))
 #define SYS32(o) F32(g_eng.sys, (o))
+#define SYSB(o) F8(g_eng.sys, (o))   /* the system object's byte at +o (an lvalue: &SYSB(o) is its address) */
 static inline int ofsub32_(int32_t a, int32_t b) { int32_t r; return __builtin_sub_overflow(a, b, &r); }
 static inline int ofadd32_(int32_t a, int32_t b) { int32_t r; return __builtin_add_overflow(a, b, &r); }
 #define __OFSUB__(a, b) ofsub32_((int32_t)(a), (int32_t)(b))
@@ -86,12 +87,15 @@ typedef uint16_t _WORD;
 typedef uint8_t _BYTE;
 typedef uint64_t _QWORD;
 #define GAP(p, o, i) F8(p, (o) + (i))   /* IDA's gapN[i]: the byte at +N + i */
+#define qmemcpy memcpy   /* IDA's inline memcpy */
+typedef char CHAR;
 #define SETLO(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff0000u) | (uint16_t)(v)))
 #define SETHI(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffu) | ((uint32_t)(uint16_t)(v) << 16)))
 #define SETLB(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffff00u) | (uint8_t)(v)))
 #define SETLODW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffff00000000ull) | (uint32_t)(v)))
 #define SETHIDW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffffull) | ((uint64_t)(uint32_t)(v) << 32)))
 #define F32(p, o) (*(int32_t *)((uint8_t *)(intptr_t)(p) + (o)))
+#define FU32(p, o) (*(uint32_t *)((uint8_t *)(intptr_t)(p) + (o)))   /* an `unsigned int` load: >> / < / / stay unsigned */
 #define F16(p, o) (*(uint16_t *)((uint8_t *)(intptr_t)(p) + (o)))
 #define S16(p, o) (*(int16_t *)((uint8_t *)(intptr_t)(p) + (o)))
 #define F8(p, o)  (*(uint8_t *)((uint8_t *)(intptr_t)(p) + (o)))
@@ -143,6 +147,7 @@ static inline intptr_t W_voice_place(intptr_t a0, intptr_t a1, intptr_t a2, intp
 static inline intptr_t W_voice_play(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, ...) { return (intptr_t)voice_play((wl_voiceset *)a0, (uint16_t)a1, (int32_t)a2, (int32_t)a3, (int32_t)a4, (int32_t)a5, (int32_t)a6); }
 static inline intptr_t W_vpool_take(intptr_t a0, intptr_t a1, ...) { return (intptr_t)vpool_take((wl_vpool *)a0, (int32_t)a1); }
 
+
 /* 0x461790: int __thiscall sub_461790(cls_4022A0 *this, int a2, int a3, _DWORD *a4, int a5, int a6, _DWORD *a7) */
 int32_t arche_sword(wl_char *self, wl_body *body, int32_t probe, int32_t *ctl, int32_t grounded, int32_t part, const wl_cmd *cmd)
 {
@@ -153,14 +158,14 @@ int32_t arche_sword(wl_char *self, wl_body *body, int32_t probe, int32_t *ctl, i
     intptr_t v10;
     intptr_t v11;
     intptr_t v12;
-    intptr_t v13;
+    uint32_t v13;
     uint16_t v14;
     void * v15;
     int16_t v16;
     intptr_t v17;
     int16_t v18;
     intptr_t v19;
-    intptr_t v20;
+    uint32_t v20;
     intptr_t v21;
     intptr_t v22;
     intptr_t v23;
@@ -358,7 +363,7 @@ int32_t arche_sword(wl_char *self, wl_body *body, int32_t probe, int32_t *ctl, i
     intptr_t v216;
     intptr_t v217;
     intptr_t v218;
-    intptr_t v219;
+    uint32_t v219;
     intptr_t v220;
     intptr_t v221;
     intptr_t v222;
@@ -383,7 +388,7 @@ int32_t arche_sword(wl_char *self, wl_body *body, int32_t probe, int32_t *ctl, i
     intptr_t v241;
     intptr_t * v242;
     intptr_t v243;
-    intptr_t v244;
+    uint32_t v244;
     intptr_t v245;
     intptr_t v246;
     intptr_t v247;
@@ -627,7 +632,7 @@ LABEL_551:
               (*v301__f) = F32(c, 0x40);
               if ( a3 == 0 )
               {
-                v225 = W_vpool_take(SYS32(1404), 0);
+                v225 = (intptr_t *)W_vpool_take(SYS32(1404), 0);
                 if ( v225 != 0 )
                 {
                   (*i__f) = F32(v225, 0);
@@ -652,7 +657,7 @@ LABEL_551:
               v227 = 1000 * v226 / 0x8000 + 500;
               if ( a3 == 0 )
               {
-                v228 = W_vpool_take(SYS32(1156), 0);
+                v228 = (intptr_t *)W_vpool_take(SYS32(1156), 0);
                 if ( v228 != 0 )
                 {
                   (*i__f) = F32(v228, 0);
@@ -804,7 +809,7 @@ LABEL_566:
                   v241 = 1000 * v240 / 0x8000;
                   if ( a3 == 0 )
                   {
-                    v242 = W_vpool_take(SYS32(1404), 0);
+                    v242 = (intptr_t *)W_vpool_take(SYS32(1404), 0);
                     if ( v242 != 0 )
                     {
                       (*i__f) = F32(v242, 0);
@@ -985,7 +990,7 @@ LABEL_448:
                 (*v301__f) = F32(c, 0x40);
                 if ( a3 == 0 )
                 {
-                  v189 = W_vpool_take(SYS32(1140), 0);
+                  v189 = (intptr_t *)W_vpool_take(SYS32(1140), 0);
                   if ( v189 != 0 )
                   {
                     (*i__f) = F32(v189, 0);
@@ -1367,7 +1372,7 @@ LABEL_386:
                 v164 = 1000 * v163 / 0x8000 - 2500;
                 if ( a3 == 0 )
                 {
-                  v165 = W_vpool_take(SYS32(1140), 0);
+                  v165 = (intptr_t *)W_vpool_take(SYS32(1140), 0);
                   if ( v165 != 0 )
                   {
                     (*i__f) = F32(v165, 0);
@@ -1628,7 +1633,7 @@ LABEL_330:
                 (*v301__f) = F32(c, 0x40);
                 if ( a3 == 0 )
                 {
-                  v118 = W_vpool_take(SYS32(1140), 0);
+                  v118 = (intptr_t *)W_vpool_take(SYS32(1140), 0);
                   if ( v118 != 0 )
                   {
                     (*i__f) = F32(v118, 0);
@@ -2415,7 +2420,7 @@ LABEL_652:
         (*v301__f) = F32(c, 0x40);
         if ( a3 == 0 )
         {
-          v212 = W_vpool_take(SYS32(1404), 0);
+          v212 = (intptr_t *)W_vpool_take(SYS32(1404), 0);
           if ( v212 != 0 )
           {
             (*i__f) = F32(v212, 0);
@@ -2638,7 +2643,7 @@ LABEL_224:
           v97 = 1000 * v96 / 0x8000 + 1000;
           if ( a3 == 0 )
           {
-            v98 = W_vpool_take(SYS32(1400), 0);
+            v98 = (intptr_t *)W_vpool_take(SYS32(1400), 0);
             if ( v98 != 0 )
             {
               (*i__f) = F32(v98, 0);
@@ -2905,7 +2910,7 @@ LABEL_150:
           v60 = 1000 * v59 / 0x8000 - 1500;
           if ( a3 == 0 )
           {
-            v61 = W_vpool_take(SYS32(1140), 0);
+            v61 = (intptr_t *)W_vpool_take(SYS32(1140), 0);
             if ( v61 != 0 )
             {
               (*v300__f) = F32(v61, 0);
@@ -2956,7 +2961,7 @@ LABEL_150:
           (*i__f) = F32(c, 0x40);
           if ( a3 == 0 )
           {
-            v57 = W_vpool_take(SYS32(1152), 0);
+            v57 = (intptr_t *)W_vpool_take(SYS32(1152), 0);
             if ( v57 != 0 )
             {
               v58 = F32(v57, 0);

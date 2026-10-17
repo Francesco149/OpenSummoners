@@ -73,6 +73,9 @@ typedef struct engine_calls {
     /* retail's own function at `va` (decomp2c's RC_xxxxxx calls of callees not ported yet: rhost = identity;
      * PORT-DEBT(engine-call-slots), like the hXXXXXX slots) */
     void *(*retail)(uint32_t va);
+    /* a Win32 import by name, through retail's own import slot (decomp2c's API_xxx calls: rhost's GDI / clock
+     * overrides stay in the path) */
+    void *(*api)(const char *name);
     void  (*op_delete)(void *p);
     /* roots */
     uint32_t (ENG_STDCALL *tick)(void);   /* GetTickCount — the engine's only clock          */

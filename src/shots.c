@@ -20,6 +20,7 @@ static intptr_t rnd(void) { return (intptr_t)rng_rand(); }
 
 
 
+
 #include "actor_update.h"
 #include "camera_follow.h"
 #include "char_attack.h"
@@ -40,6 +41,7 @@ static intptr_t rnd(void) { return (intptr_t)rng_rand(); }
 #pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
 #define CFG() ((intptr_t)**(uint8_t ***)((uint8_t *)g_eng.sys + 0x320))
 #define SYS32(o) F32(g_eng.sys, (o))
+#define SYSB(o) F8(g_eng.sys, (o))   /* the system object's byte at +o (an lvalue: &SYSB(o) is its address) */
 static inline int ofsub32_(int32_t a, int32_t b) { int32_t r; return __builtin_sub_overflow(a, b, &r); }
 static inline int ofadd32_(int32_t a, int32_t b) { int32_t r; return __builtin_add_overflow(a, b, &r); }
 #define __OFSUB__(a, b) ofsub32_((int32_t)(a), (int32_t)(b))
@@ -69,12 +71,15 @@ typedef uint16_t _WORD;
 typedef uint8_t _BYTE;
 typedef uint64_t _QWORD;
 #define GAP(p, o, i) F8(p, (o) + (i))   /* IDA's gapN[i]: the byte at +N + i */
+#define qmemcpy memcpy   /* IDA's inline memcpy */
+typedef char CHAR;
 #define SETLO(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff0000u) | (uint16_t)(v)))
 #define SETHI(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffu) | ((uint32_t)(uint16_t)(v) << 16)))
 #define SETLB(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffff00u) | (uint8_t)(v)))
 #define SETLODW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffff00000000ull) | (uint32_t)(v)))
 #define SETHIDW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffffull) | ((uint64_t)(uint32_t)(v) << 32)))
 #define F32(p, o) (*(int32_t *)((uint8_t *)(intptr_t)(p) + (o)))
+#define FU32(p, o) (*(uint32_t *)((uint8_t *)(intptr_t)(p) + (o)))   /* an `unsigned int` load: >> / < / / stay unsigned */
 #define F16(p, o) (*(uint16_t *)((uint8_t *)(intptr_t)(p) + (o)))
 #define S16(p, o) (*(int16_t *)((uint8_t *)(intptr_t)(p) + (o)))
 #define F8(p, o)  (*(uint8_t *)((uint8_t *)(intptr_t)(p) + (o)))
@@ -124,16 +129,17 @@ static inline intptr_t W_tint_fade_b(intptr_t a0, intptr_t a1, ...) { return (in
 static inline intptr_t W_view_box_visible(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, ...) { return (intptr_t)view_box_visible((const camera_view *)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3, (int32_t)a4, (int32_t)a5); }
 static inline intptr_t W_vpool_load(intptr_t a0, ...) { return (intptr_t)vpool_load((wl_vpool *)a0); }
 static inline intptr_t W_vpool_take(intptr_t a0, intptr_t a1, ...) { return (intptr_t)vpool_take((wl_vpool *)a0, (int32_t)a1); }
+
 int32_t shots_tick(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5);
 int32_t shot_init(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6, int32_t a7, int32_t a8, int16_t a9, int32_t a10, int32_t a11, int32_t a12, int32_t a13, int32_t a14, int32_t a15, int32_t a16, int32_t a17, int32_t a18);
 int32_t band96_tick(wl_char *self);
-int32_t shot_445ce0(intptr_t ecx_, int32_t a1, int32_t a2);
+int32_t shot_445ce0(wl_char *self, int32_t * a1, uint16_t a2);
 int32_t shot_449700(wl_char *self, int32_t a2, int32_t a3, uint16_t a4, int32_t a5, int32_t a6, int32_t a7, int32_t a8);
 int32_t shot_4497b0(wl_char *self, int32_t a2, int32_t a3, int32_t a4);
-int32_t shot_4504c0(intptr_t ecx_, int32_t a1, int32_t a2, int32_t a3, int32_t * a4, int32_t a5, int32_t a6, int32_t a7, int32_t a8, int32_t a9, int32_t a10, int32_t a11, int32_t a12, int32_t a13, int32_t a14);
+int32_t shot_4504c0(wl_char *self, int32_t a1, int32_t a2, int32_t a3, int32_t * a4, int32_t a5, int32_t a6, int32_t a7, int32_t a8, int32_t a9, int32_t a10, int32_t a11, int32_t a12, int32_t a13, int32_t a14);
 int32_t shot_4538f0(int32_t * a1, int32_t * a2, int32_t a3);
-int32_t shot_46e110(intptr_t ecx_, int32_t a1, int32_t a2);
-int32_t shot_46e150(intptr_t ecx_, int32_t a1, int32_t a2);
+int32_t shot_46e110(wl_char *self, int32_t * a1, uint16_t a2);
+int32_t shot_46e150(wl_char *self, int32_t * a1, uint16_t a2);
 int32_t shot_46e190(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6);
 int32_t shot_476500(int32_t a1, int32_t a2, int32_t a3);
 int32_t shot_476550(int32_t a1, int32_t a2, int32_t * a3, double * a4);
@@ -238,7 +244,7 @@ int32_t shots_tick(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5
     intptr_t v74;
     intptr_t v75;
     intptr_t v76;
-    intptr_t v77;
+    uint32_t v77;
     intptr_t v78;
     intptr_t v79;
     intptr_t v80;
@@ -278,10 +284,10 @@ int32_t shots_tick(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5
     intptr_t v114;
     intptr_t v115;
     intptr_t v116;
-    long double v117;
+    double v117;
     double v118;
-    long double v119;
-    long double v120;
+    double v119;
+    double v120;
     intptr_t v121;
     intptr_t v122;
     intptr_t v123;
@@ -312,10 +318,10 @@ int32_t shots_tick(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5
     intptr_t v148;
     intptr_t v149;
     intptr_t v150;
-    long double v151;
+    double v151;
     double v152;
-    long double v153;
-    long double v154;
+    double v153;
+    double v154;
     intptr_t v155;
     intptr_t v156;
     intptr_t v157;
@@ -829,7 +835,8 @@ LABEL_761:
         }
         (*v357__f) = 1600 * rnd() / 0x8000 - 800;
         v303 = rnd();
-        shot_4504c0(c, 
+        shot_4504c0(
+          c,
           16000,
           (int)c,
           100043,
@@ -846,7 +853,8 @@ LABEL_761:
           0);
         (*v358__f) = 1600 * rnd() / 0x8000 - 800;
         v304 = rnd();
-        shot_4504c0(c, 
+        shot_4504c0(
+          c,
           16000,
           (int)c,
           100043,
@@ -878,7 +886,7 @@ LABEL_671:
             (*v387__f) = (_DWORD *)F32(c, 0x40);
             if ( (int32_t)errno_decorate == 0 )
             {
-              v164 = W_vpool_take(SYS32(1200), 0);
+              v164 = (intptr_t *)W_vpool_take(SYS32(1200), 0);
               if ( v164 != 0 )
               {
                 v165 = F32(v164, 0);
@@ -906,21 +914,21 @@ LABEL_671:
               {
                 if ( W_sfx_place(c, 1000, 0, 0, (_DWORD *)F32(c, 0x40), 0, 0) != 0 )
                 {
-                  v166 = F32(c, 0x1b0);
+                  v166 = (intptr_t **)F32(c, 0x1b0);
                   (*v388__f) = SYS32(1104);
                   if ( F32(v166, 0) != 0 )
                     W_entity_snd_release(c, 0, 0, 0);
-                  v167 = W_vpool_take((*v388__f), 1);
+                  v167 = (intptr_t *)W_vpool_take((*v388__f), 1);
                   if ( v167 != 0 )
                   {
                     v168 = (*v388__f);
-                    v169 = (*v387__f);
+                    v169 = (intptr_t *)(*v387__f);
                     *v166 = v167;
-                    v166[1] = v168;
-                    v166[2] = 1000;
+                    v166[1] = (intptr_t *)v168;
+                    v166[2] = (intptr_t *)1000;
                     v166[3] = v169;
                     v166[4] = 0;
-                    v166[5] = 1;
+                    v166[5] = (intptr_t *)1;
                     v166[6] = 0;
                     v166[7] = 0;
                     g_eng.dsb_volume_5bb870(F32(v167, 0), -10000);
@@ -1279,7 +1287,8 @@ LABEL_646:
             }
             (*v355__f) = 12000 * rnd() / 0x8000 - 4000;
             v298 = rnd();
-            shot_4504c0(c, 
+            shot_4504c0(
+              c,
               16000,
               (int)c,
               100117,
@@ -1296,7 +1305,8 @@ LABEL_646:
               0);
             (*v356__f) = 12000 * rnd() / 0x8000 - 4000;
             v299 = rnd();
-            shot_4504c0(c, 
+            shot_4504c0(
+              c,
               16000,
               (int)c,
               100118,
@@ -1426,7 +1436,8 @@ LABEL_598:
           shot_476ef0(c, a3, errno_decorate, 1, 8, 1, 1, 1, 8, 0, 0, 0, 0);
         (*v349__f) = 3200 * rnd() / 0x8000 - 1600;
         v278 = rnd();
-        shot_4504c0(c, 
+        shot_4504c0(
+          c,
           16000,
           (int)c,
           100064,
@@ -1445,7 +1456,8 @@ LABEL_598:
         {
           (*v350__f) = 3200 * rnd() / 0x8000 - 1600;
           v279 = rnd();
-          shot_4504c0(c, 
+          shot_4504c0(
+            c,
             16000,
             (int)c,
             100064,
@@ -1554,7 +1566,8 @@ LABEL_538:
         (*v370__f) = F32(a3, 44);
         (*v347__f) = 2000 * rnd() / 0x8000 - 1000;
         v250 = rnd();
-        shot_4504c0(c, 
+        shot_4504c0(
+          c,
           16000,
           (int)c,
           100056,
@@ -1574,7 +1587,8 @@ LABEL_538:
           (*v371__f) = F32(a3, 44);
           (*v348__f) = 2000 * rnd() / 0x8000 - 1000;
           v251 = rnd();
-          shot_4504c0(c, 
+          shot_4504c0(
+            c,
             16000,
             (int)c,
             100056,
@@ -1605,20 +1619,20 @@ LABEL_538:
               {
                 if ( W_sfx_place(c, -500, 0, 0, (_DWORD *)F32(c, 0x40), 0, 0) != 0 )
                 {
-                  v221 = F32(c, 0x1b0);
+                  v221 = (intptr_t **)F32(c, 0x1b0);
                   (*v388__f) = SYS32(1320);
                   if ( F32(v221, 0) != 0 )
                     W_entity_snd_release(c, 0, 0, 0);
-                  v222 = W_vpool_take((*v388__f), 1);
+                  v222 = (intptr_t *)W_vpool_take((*v388__f), 1);
                   if ( v222 != 0 )
                   {
-                    v223 = (*v387__f);
-                    v221[1] = (*v388__f);
+                    v223 = (intptr_t *)(*v387__f);
+                    v221[1] = (intptr_t *)(*v388__f);
                     *v221 = v222;
-                    v221[2] = -500;
+                    v221[2] = (intptr_t *)-500;
                     v221[3] = v223;
                     v221[4] = 0;
-                    v221[5] = 1;
+                    v221[5] = (intptr_t *)1;
                     v221[6] = 0;
                     v221[7] = 0;
                     g_eng.dsb_volume_5bb870(F32(v222, 0), -10000);
@@ -1679,7 +1693,7 @@ LABEL_496:
             (*v387__f) = (_DWORD *)F32(c, 0x40);
             if ( (int32_t)errno_decorate == 0 )
             {
-              v228 = W_vpool_take(SYS32(1376), 0);
+              v228 = (intptr_t *)W_vpool_take(SYS32(1376), 0);
               if ( v228 != 0 )
               {
                 v229 = F32(v228, 0);
@@ -1726,7 +1740,7 @@ LABEL_485:
             (*v387__f) = F32(a3, 44);
             v231 = 800 * rnd() / 0x8000 - 400;
             v232 = 800 * rnd() / 0x8000 - 400;
-            if ( (int32_t)errno_decorate == 0 && shot_4538f0(F32(W, 0x1030 + (28)), (_DWORD *)a3, 16000) )
+            if ( (int32_t)errno_decorate == 0 && shot_4538f0(*(_DWORD **)&GAP(W, 0x1030, 28), (_DWORD *)a3, 16000) )
               W_particle_spawn(c, (int)c, 100061, (_DWORD *)a3, v232, v231, (int)(*v387__f), 1, 0, 0, 2, 0, 0, 10);
             if ( F32(a3, 92) <= 24 )
             {
@@ -1817,7 +1831,8 @@ LABEL_468:
           default:
             break;
         }
-        shot_4504c0(c, 
+        shot_4504c0(
+          c,
           16000,
           (int)c,
           v212,
@@ -1925,7 +1940,8 @@ LABEL_468:
           shot_476ef0(c, a3, errno_decorate, 1, 10, 1, 1, 0, 7, 0, 0, 0, 0);
         (*v346__f) = 2000 - 4000 * rnd() / 0x8000;
         v210 = rnd();
-        shot_4504c0(c, 
+        shot_4504c0(
+          c,
           16000,
           (int)c,
           100046,
@@ -1973,7 +1989,8 @@ LABEL_468:
           shot_476ef0(c, a3, errno_decorate, 1, 10, 1, 1, 0, 7, 0, 0, 0, 0);
         (*v345__f) = 2000 - 4000 * rnd() / 0x8000;
         v196 = rnd();
-        shot_4504c0(c, 
+        shot_4504c0(
+          c,
           16000,
           (int)c,
           100048,
@@ -2113,7 +2130,7 @@ LABEL_197:
                 (*v387__f) = (_DWORD *)F32(c, 0x40);
                 if ( (int32_t)errno_decorate == 0 )
                 {
-                  v94 = W_vpool_take(SYS32(1196), 0);
+                  v94 = (intptr_t *)W_vpool_take(SYS32(1196), 0);
                   if ( v94 != 0 )
                   {
                     v95 = F32(v94, 0);
@@ -2156,7 +2173,7 @@ LABEL_218:
               v390[0] = F32(c, 0x20c);
               if ( (int32_t)errno_decorate == 0
                 && W_view_box_visible(
-                     F32(W, 0x1030 + (28)),
+                     *(intptr_t *)&GAP(W, 0x1030, 28),
                      F32(a3, 4),
                      F32(a3, 8),
                      F32(a3, 12),
@@ -2234,7 +2251,7 @@ LABEL_218:
                 v102 = 1600 * v101 / 0x8000 - 800;
                 if ( (int32_t)errno_decorate == 0
                   && W_view_box_visible(
-                       F32(W, 0x1030 + (28)),
+                       *(intptr_t *)&GAP(W, 0x1030, 28),
                        F32(a3, 4),
                        F32(a3, 8),
                        F32(a3, 12),
@@ -2523,20 +2540,20 @@ LABEL_175:
               {
                 if ( W_sfx_place(c, 0, 0, 0, (_DWORD *)F32(c, 0x40), 0, 0) != 0 )
                 {
-                  v128 = F32(c, 0x1b0);
+                  v128 = (intptr_t **)F32(c, 0x1b0);
                   (*v388__f) = SYS32(1312);
                   if ( F32(v128, 0) != 0 )
                     W_entity_snd_release(c, 0, 0, 0);
-                  v129 = W_vpool_take((*v388__f), 1);
+                  v129 = (intptr_t *)W_vpool_take((*v388__f), 1);
                   if ( v129 != 0 )
                   {
-                    v130 = (*v387__f);
-                    v128[1] = (*v388__f);
+                    v130 = (intptr_t *)(*v387__f);
+                    v128[1] = (intptr_t *)(*v388__f);
                     *v128 = v129;
                     v128[2] = 0;
                     v128[3] = v130;
                     v128[4] = 0;
-                    v128[5] = 1;
+                    v128[5] = (intptr_t *)1;
                     v128[6] = 0;
                     v128[7] = 0;
                     g_eng.dsb_volume_5bb870(F32(v129, 0), -10000);
@@ -2564,7 +2581,8 @@ LABEL_299:
               (*v377__f) = F32(a3, 52);
               v134 = rnd();
               W_polar_div(400 - 800 * v134 / 0x8000, (*v377__f), 1000, 0, 0, v390, &(*v387__f));
-              v135 = shot_4504c0(c, 
+              v135 = shot_4504c0(
+                                     c,
                                      16000,
                                      (int)c,
                                      100062,
@@ -2589,7 +2607,8 @@ LABEL_299:
               (*v378__f) = F32(a3, 52);
               v138 = rnd();
               W_polar_div(400 - 800 * v138 / 0x8000, (*v378__f), 1000, 0, 0, &(*v389__f), &(*v388__f));
-              v139 = shot_4504c0(c, 
+              v139 = shot_4504c0(
+                                     c,
                                      16000,
                                      (int)c,
                                      100062,
@@ -2606,7 +2625,8 @@ LABEL_299:
                                      0);
               if ( v139 != 0 )
                 W_entity_scatter(v139, 20000, 0, v136, 0);
-              v140 = shot_4504c0(c, 
+              v140 = shot_4504c0(
+                                     c,
                                      16000,
                                      (int)c,
                                      100062,
@@ -2656,7 +2676,7 @@ LABEL_299:
               (*v387__f) = (_DWORD *)F32(c, 0x40);
               if ( (int32_t)errno_decorate == 0 )
               {
-                v146 = W_vpool_take(SYS32(1316), 0);
+                v146 = (intptr_t *)W_vpool_take(SYS32(1316), 0);
                 if ( v146 != 0 )
                 {
                   v147 = F32(v146, 0);
@@ -2724,7 +2744,7 @@ LABEL_299:
           (*v387__f) = F32(a3, 44);
           v157 = -v156;
           if ( W_view_box_visible(
-                 F32(W, 0x1030 + (28)),
+                 *(intptr_t *)&GAP(W, 0x1030, 28),
                  F32(a3, 4),
                  F32(a3, 8),
                  F32(a3, 12),
@@ -2735,7 +2755,7 @@ LABEL_299:
           }
           (*v387__f) = F32(a3, 44);
           if ( W_view_box_visible(
-                 F32(W, 0x1030 + (28)),
+                 *(intptr_t *)&GAP(W, 0x1030, 28),
                  F32(a3, 4),
                  F32(a3, 8),
                  F32(a3, 12),
@@ -2801,7 +2821,7 @@ LABEL_354:
         goto LABEL_763;
       case 0x186B1:
         v252 = F16(a3, 88) < 3u;
-        if ( shot_445ce0(c, a3, SHIDWORD(errno_decorate)) )
+        if ( shot_445ce0(c, (_DWORD *)a3, WORD2(errno_decorate)) )
         {
           if ( v252 )
           {
@@ -2828,7 +2848,7 @@ LABEL_354:
           if ( v254 > 80000 )
             v254 = 80000;
           F32(a3, 24) = v254;
-          shot_46e150(c, a3, SHIDWORD(errno_decorate));
+          shot_46e150(c, (_DWORD *)a3, WORD2(errno_decorate));
         }
         v255 = F16(a3, 88);
         switch ( v255 )
@@ -2838,7 +2858,7 @@ LABEL_354:
             (*v387__f) = (_DWORD *)F32(c, 0x40);
             if ( (int32_t)errno_decorate == 0 )
             {
-              v257 = W_vpool_take(SYS32(1200), 0);
+              v257 = (intptr_t *)W_vpool_take(SYS32(1200), 0);
               if ( v257 != 0 )
               {
                 v258 = F32(v257, 0);
@@ -2883,7 +2903,7 @@ LABEL_568:
             {
               v261 = 1000 * rnd() / 0x8000 - 500;
               (*v387__f) = (_DWORD *)F32(c, 0x40);
-              v262 = W_vpool_take(SYS32(1776), 0);
+              v262 = (intptr_t *)W_vpool_take(SYS32(1776), 0);
               if ( v262 != 0 )
               {
                 v263 = F32(v262, 0);
@@ -2988,7 +3008,7 @@ LABEL_585:
         {
           v269 = 3200 * rnd() / 0x8000 - 1600;
           v270 = 3200 * rnd() / 0x8000 - 1600;
-          if ( (int32_t)errno_decorate == 0 && shot_4538f0(F32(W, 0x1030 + (28)), (_DWORD *)a3, 16000) )
+          if ( (int32_t)errno_decorate == 0 && shot_4538f0(*(_DWORD **)&GAP(W, 0x1030, 28), (_DWORD *)a3, 16000) )
             W_particle_spawn(c, (int)c, 100058, (_DWORD *)a3, v270, v269, 99, 4, 0, 0, 2, 0, 0, 0);
         }
         shot_476ba0((_DWORD *)a3, 0);
@@ -3008,7 +3028,8 @@ LABEL_675:
         {
           (*v359__f) = 6400 * rnd() / 0x8000 - 3200;
           v307 = rnd();
-          shot_4504c0(c, 
+          shot_4504c0(
+            c,
             16000,
             (int)c,
             v306,
@@ -3060,7 +3081,8 @@ LABEL_619:
         {
           (*v352__f) = 400 * rnd() / 0x8000 - 200;
           v284 = rnd();
-          shot_4504c0(c, 
+          shot_4504c0(
+            c,
             6400,
             (int)c,
             100065,
@@ -3088,7 +3110,8 @@ LABEL_619:
         }
         (*v351__f) = 400 * rnd() / 0x8000 - 200;
         v281 = rnd();
-        shot_4504c0(c, 
+        shot_4504c0(
+          c,
           16000,
           (int)c,
           100066,
@@ -3302,7 +3325,8 @@ LABEL_64:
         }
         (*v360__f) = 800 * rnd() / 0x8000 - 400;
         v308 = rnd();
-        shot_4504c0(c, 
+        shot_4504c0(
+          c,
           16000,
           (int)c,
           100110,
@@ -3537,7 +3561,7 @@ LABEL_100:
           v45 = (_DWORD *)F32(c, 0x40);
           if ( (int32_t)errno_decorate == 0 )
           {
-            v46 = W_vpool_take(SYS32(1152), 0);
+            v46 = (intptr_t *)W_vpool_take(SYS32(1152), 0);
             if ( v46 != 0 )
             {
               v47 = F32(v46, 0);
@@ -3587,7 +3611,8 @@ LABEL_100:
           (*v374__f) = F32(a3, 44);
           (*v361__f) = 6400 - 16000 * rnd() / 0x8000;
           v311 = rnd();
-          shot_4504c0(c, 
+          shot_4504c0(
+            c,
             25600,
             (int)c,
             100136,
@@ -3668,7 +3693,8 @@ LABEL_693:
               (*v375__f) = F32(a3, 44);
               (*v362__f) = 1000 * rnd() / 0x8000 - 500;
               v316 = rnd();
-              shot_4504c0(c, 
+              shot_4504c0(
+                c,
                 16000,
                 (int)c,
                 100054,
@@ -3723,20 +3749,20 @@ LABEL_703:
               {
                 if ( W_sfx_place(c, 0, 0, 0, (_DWORD *)F32(c, 0x40), 0, 0) != 0 )
                 {
-                  v109 = F32(c, 0x1b0);
+                  v109 = (intptr_t **)F32(c, 0x1b0);
                   (*v388__f) = SYS32(1312);
                   if ( F32(v109, 0) != 0 )
                     W_entity_snd_release(c, 0, 0, 0);
-                  v110 = W_vpool_take((*v388__f), 1);
+                  v110 = (intptr_t *)W_vpool_take((*v388__f), 1);
                   if ( v110 != 0 )
                   {
-                    v111 = (*v387__f);
-                    v109[1] = (*v388__f);
+                    v111 = (intptr_t *)(*v387__f);
+                    v109[1] = (intptr_t *)(*v388__f);
                     *v109 = v110;
                     v109[2] = 0;
                     v109[3] = v111;
                     v109[4] = 0;
-                    v109[5] = 1;
+                    v109[5] = (intptr_t *)1;
                     v109[6] = 0;
                     v109[7] = 0;
                     g_eng.dsb_volume_5bb870(F32(v110, 0), -10000);
@@ -3788,7 +3814,7 @@ LABEL_266:
               (*v387__f) = F32(a3, 44);
               v123 = -v122;
               if ( W_view_box_visible(
-                     F32(W, 0x1030 + (28)),
+                     *(intptr_t *)&GAP(W, 0x1030, 28),
                      F32(a3, 4),
                      F32(a3, 8),
                      F32(a3, 12),
@@ -3813,7 +3839,7 @@ LABEL_266:
               }
               (*v387__f) = F32(a3, 44);
               if ( W_view_box_visible(
-                     F32(W, 0x1030 + (28)),
+                     *(intptr_t *)&GAP(W, 0x1030, 28),
                      F32(a3, 4),
                      F32(a3, 8),
                      F32(a3, 12),
@@ -3994,9 +4020,9 @@ int32_t shot_init(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5,
     intptr_t v91;
     intptr_t v92;
     intptr_t v93;
-    intptr_t v94;
+    uint32_t v94;
     intptr_t v95;
-    intptr_t v96;
+    uint32_t v96;
     intptr_t v97;
     intptr_t v98;
     intptr_t v99;
@@ -5160,22 +5186,22 @@ int32_t band96_tick(wl_char *self)
     intptr_t *const v36__f = (intptr_t *)(frame_ + 0x34);   /* ebp-0x8 */
     intptr_t *const v37__f = (intptr_t *)(frame_ + 0x38);   /* ebp-0x4 */
 
-  v3 = F32(c, 0x204);
+  v3 = (intptr_t *)F32(c, 0x204);
   v4 = F32(c, 0x40);
-  if ( v3 != 2 )
+  if ( v3 != (intptr_t *)2 )
   {
     switch ( F32(c, 0x1d4) )
     {
       case 0x1873F:
       case 0x18740:
       case 0x18741:
-        if ( v3 == 3 && F16(v4, 88) < 0x64u )
+        if ( v3 == (intptr_t *)3 && F16(v4, 88) < 0x64u )
         {
-          v3 = W_vpool_take(SYS32(1736), 0);
+          v3 = (intptr_t *)W_vpool_take(SYS32(1736), 0);
           if ( v3 != 0 )
           {
             v30 = F32(v3, 0);
-            v3 = W_sfx_place(
+            v3 = (intptr_t *)W_sfx_place(
                                   c,
                                   F32(CFG(), 360) - 800,
                                   0,
@@ -5239,9 +5265,9 @@ int32_t band96_tick(wl_char *self)
         }
         return (char)v3;
       case 0x18742:
-        if ( v3 == 3 && F16(v4, 88) < 0x64u )
+        if ( v3 == (intptr_t *)3 && F16(v4, 88) < 0x64u )
         {
-          v21 = W_vpool_take(SYS32(1744), 0);
+          v21 = (intptr_t *)W_vpool_take(SYS32(1744), 0);
           if ( v21 != 0 )
           {
             v22 = F32(v21, 0);
@@ -5261,7 +5287,7 @@ int32_t band96_tick(wl_char *self)
             }
           }
           v23 = F32(v4, 108);
-          v3 = D(0x6474c8);
+          v3 = (intptr_t *)D(0x6474c8);
           F16(v4, 88) = 100;
           F32(v4, 92) = 0;
           if ( v23 != D(0x6474c8) )
@@ -5318,7 +5344,7 @@ int32_t band96_tick(wl_char *self)
               else
               {
                 v26 = (int *)((uint8_t *)g_eng.sys + (-4 * v25 + 10228));
-                v3 = *v26;
+                v3 = (intptr_t *)*v26;
                 F32(c, 0xf4) = *v26;
               }
             }
@@ -5337,7 +5363,7 @@ int32_t band96_tick(wl_char *self)
               case 0:
               case 1:
                 v6 = 0;
-                if ( F32(v4, 24) > 0 && shot_445ce0(c, v4, 0) )
+                if ( F32(v4, 24) > 0 && shot_445ce0(c, (_DWORD *)v4, 0) )
                 {
                   v7 = F32(v4, 24);
                   v6 = 1;
@@ -5414,7 +5440,7 @@ int32_t band96_tick(wl_char *self)
             }
             F16(v4, 88) = v5 + 1;
             v15 = (_DWORD *)F32(c, 0x40);
-            v16 = W_vpool_take(SYS32(1744), 0);
+            v16 = (intptr_t *)W_vpool_take(SYS32(1744), 0);
             if ( v16 != 0 )
             {
               v17 = F32(v16, 0);
@@ -5497,27 +5523,27 @@ LABEL_27:
   return (char)v3;
 }
 
-/* 0x445ce0: BOOL __stdcall sub_445CE0(int a1, int a2) */
-int32_t shot_445ce0(intptr_t ecx_, int32_t a1, int32_t a2)
+/* 0x445ce0: BOOL __thiscall sub_445CE0(cls_4022A0 *this, _DWORD *a1, unsigned __int16 a2) */
+int32_t shot_445ce0(wl_char *self, int32_t * a1, uint16_t a2)
 {
-
-    intptr_t v2;
+    intptr_t c = (intptr_t)self;
     int32_t * v3;
-    int32_t * v4;
+    int32_t ** v4;
+    int32_t * v5;
     intptr_t result;
     _Alignas(8) uint8_t frame_[0xc + 0x10];   /* the stack locals at their ebp offsets */
     memset(frame_, 0, sizeof frame_);
-    intptr_t *const v6__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0xc */
+    int32_t * *const v7__f = (int32_t * *)(frame_ + 0x0);   /* ebp-0xc */
 
-  v2 = a1;
-  v3 = &a1;
-  v4 = (_DWORD *)(a1 + 644);
-  (*v6__f) = a1 + 644;
-  SETLO(v3, F8(a1, 32));
-  a1 = F32(a1, 8);
-  result = W_entity_move_vertical(ecx_, v2, 1, v3, a2, &a1, (*v6__f)) == 0;
-  if ( *v4 != 0 )
-    F32(v2, 8) = a1;
+  v3 = a1;
+  v4 = &a1;
+  v5 = a1 + 161;
+  (*v7__f) = a1 + 161;
+  SETLO(v4, *((uint8_t *)a1 + 32));
+  a1 = (_DWORD *)a1[2];
+  result = W_entity_move_vertical(c, v3, 1, (int)v4, a2, (int)&a1, (*v7__f)) == 0;
+  if ( *v5 != 0 )
+    v3[2] = a1;
   return result;
 }
 
@@ -5572,21 +5598,21 @@ int32_t shot_4497b0(wl_char *self, int32_t a2, int32_t a3, int32_t a4)
   return result;
 }
 
-/* 0x4504c0: int __stdcall sub_4504C0( int a1, int a2, int a3, _DWORD *a4, int a5, int a6, int a7, int a8, int a9, int a10, int a11, int a12, int a13, int a14) */
-int32_t shot_4504c0(intptr_t ecx_, int32_t a1, int32_t a2, int32_t a3, int32_t * a4, int32_t a5, int32_t a6, int32_t a7, int32_t a8, int32_t a9, int32_t a10, int32_t a11, int32_t a12, int32_t a13, int32_t a14)
+/* 0x4504c0: int __thiscall sub_4504C0( cls_4022A0 *this, int a1, int a2, int a3, _DWORD *a4, int a5, int a6, int a7, int a8, int a9, int a10, int a11, int a12, int a13, int a14) */
+int32_t shot_4504c0(wl_char *self, int32_t a1, int32_t a2, int32_t a3, int32_t * a4, int32_t a5, int32_t a6, int32_t a7, int32_t a8, int32_t a9, int32_t a10, int32_t a11, int32_t a12, int32_t a13, int32_t a14)
 {
-
-    int32_t * v15;
-    intptr_t v16;
+    intptr_t c = (intptr_t)self;
+    int32_t * v16;
     intptr_t v17;
+    intptr_t v18;
 
   if ( a9 != 0 )
     return 0;
-  v15 = F32(W, 4 * (1043));
-  v16 = a4[1] - v15[24] - v15[13];
-  v17 = a4[2] - 100 * v15[29] - v15[23] - v15[19];
-  if ( a1 + v16 + a4[3] >= 0 && a1 + v17 + a4[4] >= 0 && v15[25] > v16 - a1 && v15[26] > v17 - a1 )
-    return W_particle_spawn(ecx_, a2, a3, a4, a5, a6, a7, a8, 0, a10, a11, a12, a13, a14);
+  v16 = *(_DWORD **)&GAP(W, 0x1030, 28);
+  v17 = a4[1] - v16[24] - v16[13];
+  v18 = a4[2] - 100 * v16[29] - v16[23] - v16[19];
+  if ( a1 + v17 + a4[3] >= 0 && a1 + v18 + a4[4] >= 0 && v16[25] > v17 - a1 && v16[26] > v18 - a1 )
+    return W_particle_spawn(c, a2, a3, a4, a5, a6, a7, a8, 0, a10, a11, a12, a13, a14);
   else
     return 0;
 }
@@ -5603,26 +5629,26 @@ int32_t shot_4538f0(int32_t * a1, int32_t * a2, int32_t a3)
   return a3 + v3 + a2[3] >= 0 && a3 + v4 + a2[4] >= 0 && a1[25] > v3 - a3 && a1[26] > v4 - a3;
 }
 
-/* 0x46e110: int __stdcall sub_46E110(int a1, int a2) */
-int32_t shot_46e110(intptr_t ecx_, int32_t a1, int32_t a2)
+/* 0x46e110: int __thiscall sub_46E110(cls_4022A0 *this, _DWORD *a1, unsigned __int16 a2) */
+int32_t shot_46e110(wl_char *self, int32_t * a1, uint16_t a2)
 {
-
-    intptr_t v2;
+    intptr_t c = (intptr_t)self;
     intptr_t v3;
+    uint32_t v4;
 
-  v2 = 1374389535;
-  if ( F32(a1, 44) != 1 )
-    v2 = -1374389535;
-  v3 = (int)((uint64_t)(F32(a1, 40) * (int64_t)v2) >> 32) >> 5;
-  return W_entity_move_horizontal(ecx_, a1, (v3 >> 31) + v3, 1, 1, 0, a2, 0);
+  v3 = 1374389535;
+  if ( a1[11] != 1 )
+    v3 = -1374389535;
+  v4 = (int)((uint64_t)((int)a1[10] * (int64_t)v3) >> 32) >> 5;
+  return W_entity_move_horizontal(c, a1, (v4 >> 31) + v4, 1, 1, 0, a2, 0);
 }
 
-/* 0x46e150: int __stdcall sub_46E150(int a1, int a2) */
-int32_t shot_46e150(intptr_t ecx_, int32_t a1, int32_t a2)
+/* 0x46e150: int __thiscall sub_46E150(cls_4022A0 *this, _DWORD *a1, unsigned __int16 a2) */
+int32_t shot_46e150(wl_char *self, int32_t * a1, uint16_t a2)
 {
+    intptr_t c = (intptr_t)self;
 
-
-  return W_entity_move_vertical(ecx_, a1, F32(a1, 24) / 100, 0, a2, a1 + 8, 0);
+  return W_entity_move_vertical(c, a1, a1[6] / 100, 0, a2, (int)(a1 + 2), 0);
 }
 
 /* 0x46e190: int __thiscall sub_46E190(cls_4022A0 *this, int a2, int a3, int a4, int a5, int a6) */
@@ -5827,16 +5853,16 @@ int32_t shot_476500(int32_t a1, int32_t a2, int32_t a3)
   return v3 - 360 * a3 * v4;
 }
 
-/* 0x476550: int __stdcall sub_476550(int a1, int a2, _DWORD *a3, double *a4) */
+/* 0x476550: int __stdcall sub_476550(int a1, int a2, _DWORD *a3, long double *a4) */
 int32_t shot_476550(int32_t a1, int32_t a2, int32_t * a3, double * a4)
 {
 
-    long double v4;
-    long double v5;
-    long double v6;
-    long double v7;
+    double v4;
+    double v5;
+    double v6;
+    double v7;
     int64_t v8;
-    long double v9;
+    double v9;
 
   if ( a1 != 0 || a2 != 0 )
   {
@@ -5941,13 +5967,13 @@ int32_t shot_476740(wl_char *self, int32_t a2)
   return v2;
 }
 
-/* 0x476a80: int __stdcall sub_476A80(_DWORD *a1) */
+/* 0x476a80: unsigned int __stdcall sub_476A80(_DWORD *a1) */
 int32_t shot_476a80(int32_t * a1)
 {
 
     intptr_t v1;
-    intptr_t v2;
-    intptr_t result;
+    uint32_t v2;
+    uint32_t result;
 
   v1 = 1374389535;
   if ( a1[11] != 1 )
@@ -5962,13 +5988,13 @@ int32_t shot_476a80(int32_t * a1)
 int32_t shot_476ab0(wl_char *self, int32_t * a1, int32_t a2, uint16_t a3, int32_t a4)
 {
     intptr_t c = (intptr_t)self;
-    long double v6;
+    double v6;
     double v7;
-    long double v8;
-    long double v9;
+    double v8;
+    double v9;
     intptr_t v10;
-    long double v11;
-    long double v12;
+    double v11;
+    double v12;
     intptr_t v13;
     intptr_t result;
 
@@ -6006,12 +6032,12 @@ int64_t shot_476ba0(int32_t * a1, int32_t a2)
 {
 
     intptr_t v3;
-    long double v4;
+    double v4;
     intptr_t v5;
     double v6;
-    long double v7;
-    long double v8;
-    long double v9;
+    double v7;
+    double v8;
+    double v9;
     int64_t result;
     intptr_t v11;
 
@@ -6237,13 +6263,13 @@ int32_t shot_476ef0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a
 int32_t shot_477070(wl_char *self, int32_t a2, int32_t a3)
 {
     intptr_t c = (intptr_t)self;
-    long double v4;
+    double v4;
     intptr_t v5;
     double v6;
-    long double v7;
-    long double v8;
-    long double v9;
-    long double v10;
+    double v7;
+    double v8;
+    double v9;
+    double v10;
     int64_t v11;
     uint16_t v12;
     uint16_t i;
@@ -6315,15 +6341,15 @@ int32_t shot_4771d0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, uint16_t 
     intptr_t v10;
     uint16_t v11;
     uint16_t v12;
-    long double v13;
+    double v13;
     intptr_t v14;
     double v15;
     intptr_t v16;
     intptr_t v17;
-    long double v18;
-    long double v19;
-    long double v20;
-    long double v21;
+    double v18;
+    double v19;
+    double v20;
+    double v21;
 
   if ( a10 == 3 )
     a4 = 360000 - a4;
@@ -6366,12 +6392,12 @@ int32_t shot_477310(wl_char *self, int32_t a2, int32_t * a3, int32_t * a4, int32
     int32_t * result;
     intptr_t v11;
     intptr_t v12;
-    long double v13;
+    double v13;
     double v14;
-    long double v15;
-    long double v16;
-    long double v17;
-    long double v18;
+    double v15;
+    double v16;
+    double v17;
+    double v18;
     int32_t * v19;
     intptr_t v20;
     intptr_t v21;
@@ -6404,7 +6430,7 @@ int32_t shot_477310(wl_char *self, int32_t a2, int32_t * a3, int32_t * a4, int32
     else
       v18 = v17 - 0.5;
     v29 = -(int)(int64_t)v18;
-    v19 = F32(W, 0x1030 + (28));
+    v19 = *(_DWORD **)&GAP(W, 0x1030, 28);
     v20 = a3[1] - v19[24] - v19[13];
     v21 = a3[2] - 100 * v19[29] - v19[23] - v19[19];
     if ( v20 + a3[3] + 16000 >= 0 && v21 + a3[4] + 16000 >= 0 && v19[25] > v20 - 16000 && v19[26] > v21 - 16000 )
@@ -6422,7 +6448,7 @@ int32_t shot_477310(wl_char *self, int32_t a2, int32_t * a3, int32_t * a4, int32
     result = (_DWORD *)a5;
     if ( a5 > 0 )
     {
-      result = F32(W, 0x1030 + (28));
+      result = *(_DWORD **)&GAP(W, 0x1030, 28);
       v24 = a3[1] - result[24] - result[13];
       v25 = a3[2] - 100 * result[29] - result[23] - result[19];
       if ( v24 + a3[3] + 16000 >= 0 && v25 + a3[4] + 16000 >= 0 && result[25] > v24 - 16000 && result[26] > v25 - 16000 )
@@ -6561,7 +6587,7 @@ LABEL_3:
       ++F32(a2, 92);
       if ( a3 == 0
         && W_view_box_visible(
-             F32(W, 0x1030 + (28)),
+             *(intptr_t *)&GAP(W, 0x1030, 28),
              F32(a2, 4),
              F32(a2, 8),
              F32(a2, 12),
@@ -6583,7 +6609,7 @@ LABEL_3:
       v8 = 2000 * rnd() / 0x8000 - 1000;
       if ( a3 == 0
         && W_view_box_visible(
-             F32(W, 0x1030 + (28)),
+             *(intptr_t *)&GAP(W, 0x1030, 28),
              F32(a2, 4),
              F32(a2, 8),
              F32(a2, 12),
@@ -6597,7 +6623,7 @@ LABEL_3:
       v10 = 2000 * rnd() / 0x8000 - 1000;
       if ( a3 == 0
         && W_view_box_visible(
-             F32(W, 0x1030 + (28)),
+             *(intptr_t *)&GAP(W, 0x1030, 28),
              F32(a2, 4),
              F32(a2, 8),
              F32(a2, 12),
@@ -6613,7 +6639,7 @@ LABEL_3:
         v12 = 2000 * rnd() / 0x8000 - 1000;
         if ( a3 == 0
           && W_view_box_visible(
-               F32(W, 0x1030 + (28)),
+               *(intptr_t *)&GAP(W, 0x1030, 28),
                F32(a2, 4),
                F32(a2, 8),
                F32(a2, 12),
@@ -6667,7 +6693,7 @@ LABEL_3:
         v19 = 3200 * rnd() / 0x8000 - 1600;
         if ( a3 == 0
           && W_view_box_visible(
-               F32(W, 0x1030 + (28)),
+               *(intptr_t *)&GAP(W, 0x1030, 28),
                F32(a2, 4),
                F32(a2, 8),
                F32(a2, 12),
@@ -6722,7 +6748,7 @@ int32_t shot_477b70(wl_char *self, int32_t a2, int32_t a3)
     intptr_t v21;
     intptr_t v22;
     intptr_t v23;
-    long double v24;
+    double v24;
     intptr_t v25;
     intptr_t v26;
     _Alignas(8) uint8_t frame_[0x44 + 0x10];   /* the stack locals at their ebp offsets */
@@ -6744,7 +6770,7 @@ int32_t shot_477b70(wl_char *self, int32_t a2, int32_t a3)
       v8 = 1000 * v6 / 0x8000 - 2000;
       if ( a3 == 0 )
       {
-        v9 = W_vpool_take(SYS32(1292), 0);
+        v9 = (intptr_t *)W_vpool_take(SYS32(1292), 0);
         if ( v9 != 0 )
         {
           (*v29__f) = F32(v9, 0);
@@ -6872,7 +6898,22 @@ LABEL_9:
       F32(v3, 8) = v21 - v25;
       (*v27__f) = 2000 - 4000 * rnd() / 0x8000;
       v26 = rnd();
-      shot_4504c0(c, 16000, (int)c, 100045, (_DWORD *)v3, 2000 - 4000 * v26 / 0x8000, (*v27__f), 99, 1, (*v28__f), 0, 2, 0, 0, 0);
+      shot_4504c0(
+        c,
+        16000,
+        (int)c,
+        100045,
+        (_DWORD *)v3,
+        2000 - 4000 * v26 / 0x8000,
+        (*v27__f),
+        99,
+        1,
+        (*v28__f),
+        0,
+        2,
+        0,
+        0,
+        0);
       result = 0;
       break;
   }
@@ -6916,7 +6957,7 @@ int32_t shot_477f10(wl_char *self, int32_t a2, int32_t a3)
     v7 = 1000 * v5 / 0x8000 - 2000;
     if ( a3 == 0 )
     {
-      v8 = W_vpool_take(SYS32(1292), 0);
+      v8 = (intptr_t *)W_vpool_take(SYS32(1292), 0);
       if ( v8 != 0 )
       {
         (*v18__f) = F32(v8, 0);
@@ -7001,7 +7042,7 @@ LABEL_22:
   if ( a3 == 0 )
   {
     result = W_view_box_visible(
-               F32(W, 0x1030 + (28)),
+               *(intptr_t *)&GAP(W, 0x1030, 28),
                F32(v3, 4),
                F32(v3, 8),
                F32(v3, 12),
@@ -7036,7 +7077,7 @@ int32_t shot_4781f0(wl_char *self, int32_t a2, int32_t a3)
     intptr_t v21;
     intptr_t v22;
     intptr_t v23;
-    long double v24;
+    double v24;
     intptr_t v25;
     intptr_t v26;
     _Alignas(8) uint8_t frame_[0x10 + 0x10];   /* the stack locals at their ebp offsets */
@@ -7056,7 +7097,7 @@ int32_t shot_4781f0(wl_char *self, int32_t a2, int32_t a3)
       v14 = 1000 * v12 / 0x8000 - 2000;
       if ( a3 == 0 )
       {
-        v15 = W_vpool_take(SYS32(1292), 0);
+        v15 = (intptr_t *)W_vpool_take(SYS32(1292), 0);
         if ( v15 != 0 )
         {
           (*v27__f) = F32(v15, 0);
@@ -7117,7 +7158,7 @@ LABEL_29:
     F32(v3, 8) = v20 - ftol_round_(v24 * (*v28__f));
     v25 = 2000 - 4000 * rnd() / 0x8000;
     v26 = 2000 - 4000 * rnd() / 0x8000;
-    if ( a3 == 0 && shot_4538f0(F32(W, 0x1030 + (28)), (_DWORD *)v3, 16000) )
+    if ( a3 == 0 && shot_4538f0(*(_DWORD **)&GAP(W, 0x1030, 28), (_DWORD *)v3, 16000) )
       W_particle_spawn(c, (int)c, 100045, (_DWORD *)v3, v26, v25, 99, 1, 0, 0, 2, 0, 0, 0);
     return 0;
   }
@@ -7373,11 +7414,11 @@ int32_t shot_478820(int32_t * a1, uint16_t a2, int32_t a3, int32_t * a4, int32_t
     int32_t * v11;
     int64_t v12;
     intptr_t v13;
-    long double v14;
-    long double v15;
-    long double v16;
-    long double v17;
-    long double v18;
+    double v14;
+    double v15;
+    double v16;
+    double v17;
+    double v18;
     intptr_t v19;
     intptr_t v21;
 
@@ -7478,7 +7519,7 @@ int32_t shot_54cab0(int32_t a1, int32_t a2, int32_t a3, int32_t a4, int32_t a5, 
     v29 = 4448;
     for ( (*i__f) = 32; ; --(*i__f) )
     {
-      v14 = F32(((uint8_t *)W + v29), 0);
+      v14 = *(_DWORD *)&GAP(W, 0x0, v29);
       if ( F32(v14, 464) != 1 )
         goto LABEL_40;
       v15 = F32(v14, 64);
@@ -7574,8 +7615,8 @@ int32_t shot_54cca0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a
     intptr_t v16;
     intptr_t v17;
     double v18;
-    long double v19;
-    long double v20;
+    double v19;
+    double v20;
     intptr_t v21;
     intptr_t v22;
     intptr_t v23;
@@ -7604,7 +7645,7 @@ int32_t shot_54cca0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a
   (*v31__f) = 32;
   do
   {
-    v8 = F32(W, 0x0 + ((*v29__f)));
+    v8 = *(_DWORD *)&GAP(W, 0x0, (*v29__f));
     (*v36__f) = v8;
     if ( F32(v8, 464) == 1 )
     {
@@ -7710,12 +7751,12 @@ int32_t shot_55f150(int32_t a1, int32_t a2)
     return SYS32(10328);
 }
 
-/* 0x54cfc0: long double __stdcall sub_54CFC0(int a1, int a2) */
+/* 0x54cfc0: double __stdcall sub_54CFC0(int a1, int a2) */
 double shot_54cfc0(int32_t a1, int32_t a2)
 {
 
-    long double v3;
-    long double v4;
+    double v3;
+    double v4;
 
   if ( a1 == 0 && a2 == 0 )
     return 0.0;
@@ -7818,7 +7859,7 @@ LABEL_14:
                &(*v16__f),
                &(*v17__f)) != 0 )
         {
-          v9 = F32(F32(v5, 0), 0);
+          v9 = **(intptr_t **)v5;
           v10 = F32(v5, 28) + (*v16__f);
           if ( v10 < -10000 )
             v10 = -10000;
