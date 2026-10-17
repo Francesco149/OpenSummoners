@@ -173,7 +173,18 @@ understates how much actual instruction volume is ported.
      the ENDING CREDITS ("Produced by" …), unreachable until the game is beaten.  decomp2c now resolves a call's ecx
      from the caller's asm (`lea ecx, [esp+…+var_N]` → that local) — the "caller's this" guess put the scene object
      in the reader's file calls; `tools/ida/decomp2c_drift.py` lists committed functions today's decomp2c would emit
-     differently (the chapter script 0x4d64f0 carries a stale table-address bug: unreached).
+     differently — run 2026-10-17: 25 functions in 9 modules, all benign (callees now bound to their new ports instead
+     of RC_, the hand finishes, `*v = x` spelling) except 0x4d64f0's table address (fixed, 42f286c); the ecx resolver
+     changes no committed call site.  Also ported since: the AI skill pick 0x479f90 (`src/ai_skill.c`) and the script
+     engine's I/O callees (`src/script_io.c`: gifts, voice pick, the logger 0x408b90, the BGM change 0x40a5d0).
+     Deferred: the frame loaders 0x4184a0 / 0x4188b0 (they call 0x5b7310, an IDA __userpurge with an ebx argument —
+     needs a register-call thunk in decomp2c; 5 such functions in the binary).
+     **What a new recording would open up** (unreached + unported engine code, ~627 KB): the later chapters' story
+     scripts (0x525e70 40 KB, 0x507e70, 0x51a1d0, 0x5402e0 … ~400 KB: the field trip, Stella …), the main menu's other
+     screens (Status 0x592190 / 0x592850, Items 0x593f60, Abilities 0x596b50, Party Commands 0x598d00, the Options pages
+     0x569220, the level-up screen 0x5915c0), monster / boss types rh-combat never meets (the integrator's handlers
+     0x4539b0 / 0x456d30 / 0x452730 / 0x446900 …, 14 per-type inits 0x428c00 ..), a gamepad (0x468b10, 7 KB).
+     Chain them with `record NEXT --from rh-combat` (rh-combat ends after a statue save).
   00000. (2026-10-17) the frame RENDER runs as port code (`src/render_draw.c`, 78 functions; 11 REPLACE hooks):
      pure ≡ hybrid in pixels on every presented frame (the render gate).  Every decomp2c module regenerated from a
      fresh IDA export (callers had lost their callee's `this`); its platform layer too (`src/render_platform.c`: every
