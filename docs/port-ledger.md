@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **1039** (67.0% of engine-proper) — tested 249, ported 790
-- code bytes touched: **61.0%** (1,082,827 / 1,776,526 B of engine-proper)
-- unported: **785**
+- touched: **1074** (69.3% of engine-proper) — tested 249, ported 825
+- code bytes touched: **61.6%** (1,093,848 / 1,776,526 B of engine-proper)
+- unported: **750**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -52,7 +52,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4184a0 | sub_4184A0 | 1035 | asset_register.c, asset_register.h, bitmap_session.h (+1) |
 | 0x4188b0 | sub_4188B0 | 891 | asset_register.c, asset_register.h |
 | 0x4192b0 | sub_4192B0 | 52 | menu_list.c, menu_list.h, newgame_picker.c (+1) |
-| 0x419900 | picker_seek_value_419900 | 128 | newgame_picker.c, newgame_picker.h |
+| 0x419900 | picker_seek_value_419900 | 128 | newgame_picker.c, newgame_picker.h, title_menu.h |
 | 0x426110 | sub_426110 | 610 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
 | 0x426f50 | sub_426F50 | 26 | char_integrate.h, character.c |
 | 0x426fd0 | sub_426FD0 | 781 | base_stat_table.c, base_stat_table.h, char_def.h (+2) |
@@ -127,30 +127,30 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x560e60 | actor_slot_reset_560E60 | 42 | game_map.c, game_map.h, scene_loop.h |
 | 0x561c90 | sub_561C90 | 94 | game_map.h, game_world.h, scene_loop.h |
 | 0x562210 | _WinMain@16 | 688 | app_pump.h, rng.h |
-| 0x562a10 | sub_562A10 | 92 | asset_register.c, asset_register.h |
-| 0x562ea0 | build_title_drive_562EA0 | 4062 | app_flow.c, app_flow.h, asset_register.c (+10) |
+| 0x562a10 | sub_562A10 | 92 | asset_register.c, asset_register.h, title_menu.h |
+| 0x562ea0 | build_title_drive_562EA0 | 4062 | app_flow.c, app_flow.h, asset_register.c (+11) |
 | 0x563ef0 | sub_563EF0 | 445 | asset_register.c, asset_register.h |
-| 0x564160 | sub_564160 | 376 | newgame_drive.c, newgame_drive.h |
-| 0x564780 | sub_564780 | 4067 | newgame_drive.c, newgame_drive.h, newgame_menu.c (+4) |
-| 0x5657f0 | newgame_picker_dispatch_5657F0 | 31 | newgame_drive.c, newgame_picker.c, newgame_picker.h |
-| 0x565d10 | sub_565D10 | 1228 | main.c, newgame_drive.c, newgame_drive.h |
-| 0x566570 | newgame_option_label_566570 | 485 | newgame_menu.c, newgame_menu.h, newgame_picker.h |
-| 0x566850 | sub_566850 | 337 | newgame_menu.c, newgame_menu.h, newgame_scene.c (+1) |
-| 0x566a80 | newgame_option_value_566A80 | 2781 | newgame_menu.c, newgame_menu.h, newgame_picker.c (+2) |
-| 0x567ba0 | sub_567BA0 | 1647 | main.c, newgame_drive.c, newgame_drive.h (+2) |
-| 0x568320 | sub_568320 | 964 | newgame_drive.c, newgame_picker.c, newgame_picker.h |
-| 0x56aea0 | sub_56AEA0 | 4294 | app_flow.h, input.h, main.c (+11) |
-| 0x56c030 | sub_56C030 | 62 | title_particles.c |
-| 0x56c070 | drive_spawn_sparkle_56C070 | 265 | main.c, rng.h, title_particles.c (+1) |
-| 0x56c180 | title_compositor_resolve_56C180 | 297 | main.c, title_particles.c, title_particles.h (+3) |
-| 0x56c2b0 | sub_56C2B0 | 373 | main.c, title_particles.c, title_particles.h |
-| 0x56c470 | sub_56C470 | 107 | title_render.c, title_render.h, title_sink.c |
-| 0x56c4e0 | sub_56C4E0 | 155 | title_render.c, title_render.h |
-| 0x56c580 | title_render_sparkle_56C580 | 133 | title_render.c, title_render.h, title_scene.c |
-| 0x56c610 | title_draw_sprite_56C610 | 35 | title_render.c, title_render.h |
-| 0x56c930 | menu_owner_transition_step_56C930 | 607 | menu_list.c, menu_list.h |
-| 0x56cd20 | sub_56CD20 | 2275 | main.c, prologue_drive.c, prologue_drive.h (+2) |
-| 0x56dc20 | sub_56DC20 | 344 | main.c |
+| 0x564160 | sub_564160 | 376 | newgame_drive.c, newgame_drive.h, title_menu.h |
+| 0x564780 | sub_564780 | 4067 | newgame_drive.c, newgame_drive.h, newgame_menu.c (+5) |
+| 0x5657f0 | newgame_picker_dispatch_5657F0 | 31 | newgame_drive.c, newgame_picker.c, newgame_picker.h (+1) |
+| 0x565d10 | sub_565D10 | 1228 | main.c, newgame_drive.c, newgame_drive.h (+1) |
+| 0x566570 | newgame_option_label_566570 | 485 | newgame_menu.c, newgame_menu.h, newgame_picker.h (+1) |
+| 0x566850 | sub_566850 | 337 | newgame_menu.c, newgame_menu.h, newgame_scene.c (+2) |
+| 0x566a80 | newgame_option_value_566A80 | 2781 | newgame_menu.c, newgame_menu.h, newgame_picker.c (+3) |
+| 0x567ba0 | sub_567BA0 | 1647 | main.c, newgame_drive.c, newgame_drive.h (+3) |
+| 0x568320 | sub_568320 | 964 | newgame_drive.c, newgame_picker.c, newgame_picker.h (+1) |
+| 0x56aea0 | sub_56AEA0 | 4294 | app_flow.h, input.h, main.c (+12) |
+| 0x56c030 | sub_56C030 | 62 | title_menu.h, title_particles.c |
+| 0x56c070 | drive_spawn_sparkle_56C070 | 265 | main.c, rng.h, title_menu.h (+2) |
+| 0x56c180 | title_compositor_resolve_56C180 | 297 | main.c, title_menu.h, title_particles.c (+4) |
+| 0x56c2b0 | sub_56C2B0 | 373 | main.c, title_menu.h, title_particles.c (+1) |
+| 0x56c470 | sub_56C470 | 107 | title_menu.h, title_render.c, title_render.h (+1) |
+| 0x56c4e0 | sub_56C4E0 | 155 | title_menu.h, title_render.c, title_render.h |
+| 0x56c580 | title_render_sparkle_56C580 | 133 | title_menu.h, title_render.c, title_render.h (+1) |
+| 0x56c610 | title_draw_sprite_56C610 | 35 | title_menu.h, title_render.c, title_render.h |
+| 0x56c930 | menu_owner_transition_step_56C930 | 607 | menu_list.c, menu_list.h, title_menu.h |
+| 0x56cd20 | sub_56CD20 | 2275 | main.c, prologue_drive.c, prologue_drive.h (+3) |
+| 0x56dc20 | sub_56DC20 | 344 | main.c, title_menu.h |
 | 0x56e190 | sub_56E190 | 26411 | asset_register.c, asset_register.h |
 | 0x5748c0 | sub_5748C0 | 237 | asset_register.c, asset_register.h |
 | 0x5749b0 | sub_5749B0 | 2342 | asset_register.c, asset_register.h, main.c |
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (790) — reimplemented, no host test yet
+## ported (825) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -336,6 +336,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x40afe0 | sub_40AFE0 | 1640 | gimmick.c, gimmick.h |
 | 0x40b710 | sub_40B710 | 480 | sound_fx.h |
 | 0x40b8f0 | sub_40B8F0 | 626 | event.c, event.h |
+| 0x40bb70 | sub_40BB70 | 30 | title_menu.h |
 | 0x40bb90 | sub_40BB90 | 502 | sound_fx.h |
 | 0x40bd90 | sub_40BD90 | 110 | entity_life.h |
 | 0x40be00 | sub_40BE00 | 36 | gimmick.h |
@@ -417,8 +418,15 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x41a2a0 | sub_41A2A0 | 254 | scene_cmd.h |
 | 0x41a3a0 | sub_41A3A0 | 136 | script_helpers.h |
 | 0x41a7f0 | sub_41A7F0 | 152 | scene_loop.h |
+| 0x41bb80 | sub_41BB80 | 95 | title_menu.h |
+| 0x41bbe0 | sub_41BBE0 | 312 | title_menu.h |
+| 0x41c150 | sub_41C150 | 219 | title_menu.h |
+| 0x41c240 | sub_41C240 | 58 | title_menu.h |
 | 0x41c280 | sub_41C280 | 112 | ui_core.h |
+| 0x41c2f0 | sub_41C2F0 | 42 | title_menu.h |
+| 0x41c320 | sub_41C320 | 105 | title_menu.h |
 | 0x41d190 | sub_41D190 | 779 | scene_cmd.h |
+| 0x41d780 | sub_41D780 | 942 | title_menu.h |
 | 0x41dc40 | sub_41DC40 | 75 | party_member.h |
 | 0x41dc90 | sub_41DC90 | 890 | room_load.h |
 | 0x41e020 | sub_41E020 | 70 | room_load.h |
@@ -811,6 +819,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x49a2f0 | sub_49A2F0 | 76 | ui_run.h |
 | 0x49a340 | sub_49A340 | 291 | ui_run.h |
 | 0x49a470 | sub_49A470 | 622 | ui_run.h |
+| 0x49a6e0 | sub_49A6E0 | 82 | title_menu.h |
 | 0x49abd0 | sub_49ABD0 | 168 | screen_fx.h |
 | 0x49ac80 | sub_49AC80 | 664 | screen_fx.h |
 | 0x49af40 | hud_party_anim_update_49AF40 | 3313 | hud_view.h |
@@ -964,6 +973,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x55f190 | sub_55F190 | 936 | ui_run.h |
 | 0x55f550 | sub_55F550 | 199 | ui_run.h |
 | 0x55f790 | sub_55F790 | 1558 | scene_loop.h |
+| 0x560a00 | sub_560A00 | 57 | title_menu.h |
+| 0x560a40 | sub_560A40 | 1049 | title_menu.h |
 | 0x560e90 | sub_560E90 | 700 | scene_loop.h |
 | 0x561150 | sub_561150 | 126 | scene_loop.h |
 | 0x5611d0 | sub_5611D0 | 173 | scene_loop.h |
@@ -971,11 +982,33 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5612b0 | sub_5612B0 | 56 | scene_loop.h |
 | 0x5614e0 | sub_5614E0 | 113 | scene_loop.h |
 | 0x562a70 | sub_562A70 | 127 | scene_loop.h |
+| 0x562af0 | sub_562AF0 | 82 | title_menu.h |
 | 0x562ba0 | sub_562BA0 | 432 | scene_loop.h |
 | 0x562d50 | sub_562D50 | 239 | room_load.h |
 | 0x562e40 | sub_562E40 | 30 | scene_loop.h |
 | 0x562e60 | sub_562E60 | 58 | scene_loop.h |
+| 0x5642e0 | sub_5642E0 | 440 | title_menu.h |
+| 0x5644a0 | sub_5644A0 | 483 | title_menu.h |
+| 0x564690 | sub_564690 | 47 | title_menu.h |
+| 0x565810 | sub_565810 | 45 | title_menu.h |
+| 0x565840 | sub_565840 | 115 | title_menu.h |
+| 0x5658c0 | sub_5658C0 | 565 | title_menu.h |
+| 0x566250 | sub_566250 | 169 | title_menu.h |
+| 0x566350 | sub_566350 | 540 | title_menu.h |
+| 0x568b40 | sub_568B40 | 659 | title_menu.h |
+| 0x568de0 | sub_568DE0 | 998 | title_menu.h |
+| 0x56a220 | sub_56A220 | 66 | title_menu.h |
+| 0x56bfd0 | sub_56BFD0 | 88 | title_menu.h |
+| 0x56cb90 | sub_56CB90 | 113 | title_menu.h |
+| 0x56cc10 | sub_56CC10 | 267 | title_menu.h |
+| 0x56d710 | sub_56D710 | 510 | title_menu.h |
+| 0x56d910 | sub_56D910 | 272 | title_menu.h |
+| 0x56da40 | sub_56DA40 | 96 | title_menu.h |
+| 0x56daa0 | sub_56DAA0 | 267 | title_menu.h |
+| 0x56de80 | sub_56DE80 | 67 | title_menu.h |
+| 0x56ded0 | sub_56DED0 | 61 | title_menu.h |
 | 0x56df10 | sub_56DF10 | 203 | sprite_slot.h |
+| 0x56dfe0 | sub_56DFE0 | 417 | title_menu.h |
 | 0x5851e0 | sub_5851E0 | 114 | scene_loop.h |
 | 0x585f00 | sub_585F00 | 258 | scene_loop.h |
 | 0x5878a0 | sub_5878A0 | 207 | room_load.h |
@@ -1026,6 +1059,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x59d3f0 | sub_59D3F0 | 323 | room_loop.h |
 | 0x59db70 | sub_59DB70 | 227 | room_load.h |
 | 0x59e1a0 | sub_59E1A0 | 34 | scene_loop.h |
+| 0x59ec30 | sub_59EC30 | 531 | title_menu.h |
+| 0x59ee50 | sub_59EE50 | 1132 | title_menu.h |
 | 0x5a3bb0 | sub_5A3BB0 | 62 | scene_loop.h |
 | 0x5a3bf0 | sub_5A3BF0 | 27 | scene_loop.h |
 | 0x5a3c10 | sub_5A3C10 | 37 | scene_loop.h |

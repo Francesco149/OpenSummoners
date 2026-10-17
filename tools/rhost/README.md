@@ -92,7 +92,8 @@ counts as external too: wine's heaps grow there to a high-water mark that varies
 0x0ac8.. vs 0x0bc5.. in two identical hybrids).
 
 **Probes:** `--trap VA` lines carry 11 stack words (`args`, after the return address); `--trap-frames A-B` logs
-only inside a frame window; every access violation is logged (`AV fN at VA (read/write addr)`, registers, the
+only inside a frame window; `--heap-trace A-B` logs every HeapAlloc / HeapFree there (size, block, ebp chain:
+diff pure vs hybrid sequences for an allocation-order divergence); every access violation is logged (`AV fN at VA (read/write addr)`, registers, the
 ebp chain — symbolize port frames with `nm -n build/rhost/rhost.exe`); a foreign `HeapFree` logs its callers.
 
 **REPLACE reaches port→port calls too (2026-10-17):** a hook redirects retail's `call` sites to its wrapper; a

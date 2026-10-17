@@ -985,6 +985,7 @@ static void parse(int argc, char **argv)
             }
         }
         else if (!strcmp(a, "--trap-max")) O.trap_max = strtoul(ARG(), 0, 0);
+        else if (!strcmp(a, "--heap-trace")) { const char *v = ARG(); O.htrace_f0 = strtoul(v, 0, 0); const char *d = strchr(v, '-'); O.htrace_f1 = d ? strtoul(d + 1, 0, 0) : O.htrace_f0; }
         else if (!strcmp(a, "--trap-frames")) { const char *v = ARG(); O.trap_f0 = strtoul(v, 0, 0); const char *d = strchr(v, '-'); O.trap_f1 = d ? strtoul(d + 1, 0, 0) : O.trap_f0; }
         else if (!strcmp(a, "--trap-census")) {     /* VA:OFF (hex), one per flag; no register log */
             char *t = ARG(), *c = strchr(t, ':');

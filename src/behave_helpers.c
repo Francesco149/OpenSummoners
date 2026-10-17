@@ -31,6 +31,7 @@ static intptr_t rnd(void) { return (intptr_t)rng_rand(); }
 #include "entity_move.h"
 #include "gimmick.h"
 #include "npc_ai.h"
+#include "party_member.h"
 #include "scene_cast.h"
 #pragma GCC optimize ("no-strict-aliasing")
 #pragma GCC diagnostic ignored "-Wint-conversion"
@@ -97,7 +98,7 @@ static inline intptr_t W_char_integrate(intptr_t a0, intptr_t a1, intptr_t a2, i
 static inline intptr_t W_char_mag_sum(intptr_t a0, ...) { return (intptr_t)char_mag_sum((const wl_char *)a0); }
 static inline intptr_t W_char_part_top(intptr_t a0, intptr_t a1, ...) { return (intptr_t)char_part_top((const wl_char *)a0, (uint16_t)a1); }
 static inline intptr_t W_char_room_logs(intptr_t a0, ...) { return (intptr_t)char_room_logs((const wl_char *)a0); }
-static inline intptr_t W_char_skill_ok(intptr_t a0, intptr_t a1, intptr_t a2, ...) { return (intptr_t)char_skill_ok((wl_char *)a0, (const wl_skill *)a1, (int32_t)a2); }
+static inline intptr_t W_char_skill_usable(intptr_t a0, intptr_t a1, intptr_t a2, ...) { return (intptr_t)char_skill_usable((wl_char *)a0, (const uint8_t *)a1, (int32_t)a2); }
 static inline intptr_t W_char_targetable(intptr_t a0, intptr_t a1, intptr_t a2, ...) { return (intptr_t)char_targetable((const wl_char *)a0, (int32_t)a1, (int32_t)a2); }
 static inline intptr_t W_cmd_clear(intptr_t a0, ...) { cmd_clear((wl_cmd *)a0); return 0; }
 static inline intptr_t W_entity_blocks(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, ...) { return (intptr_t)entity_blocks((const wl_entity *)a0, (const wl_entity *)a1, (uint16_t)a2, (int32_t)a3, (int16_t)a4, (int32_t)a5); }
@@ -1294,7 +1295,7 @@ int32_t beh_47ecd0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5
       v13 = (int *)(*v59__f);
     }
     v15 = *v13;
-    if ( W_char_skill_ok(v10, *v13, 1) == 0 || W_skill_pose_ok(v15, (uint16_t *)a4) == 0 )
+    if ( W_char_skill_usable(v10, *v13, 1) == 0 || W_skill_pose_ok(v15, (uint16_t *)a4) == 0 )
       continue;
     v16 = F32(v15, 188) - 1;
     if ( v16 != 0 )
@@ -3369,7 +3370,7 @@ int32_t beh_4834f0(wl_char *self, int32_t a2, int32_t a3)
     v6 = 320 * (*v27__f);
     v7 = *(_DWORD *)&GAP(c, 0xca26, v6 + 2);
     v8 = &GAP(c, 0xca26, v6 + 2);
-    if ( W_char_skill_ok(c, v7, 1) == 0 )
+    if ( W_char_skill_usable(c, v7, 1) == 0 )
       goto LABEL_32;
     v9 = F32(v7, 748);
     if ( v9 == 0 )
@@ -4070,7 +4071,7 @@ int32_t beh_484ea0(wl_char *self, int32_t a2, int32_t a3)
       if ( v10 < *((uint16_t *)v9 + 158) || v10 > *((uint16_t *)v9 + 159) )
         goto LABEL_65;
     }
-    if ( W_char_skill_ok(c, v8, 1) == 0 || W_skill_pose_ok(v8, (uint16_t *)a2) == 0 )
+    if ( W_char_skill_usable(c, v8, 1) == 0 || W_skill_pose_ok(v8, (uint16_t *)a2) == 0 )
       goto LABEL_65;
     if ( F32(v8, 188) == 1 )
     {

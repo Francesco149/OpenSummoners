@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 790,
-  "unported": 785,
+  "ported": 825,
+  "unported": 750,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 1039,
-  "pct_touched": 67.0,
+  "touched": 1074,
+  "pct_touched": 69.3,
   "pct_tested": 15.7,
-  "engine_proper_touched": 1026,
+  "engine_proper_touched": 1061,
   "bytes_total": 1776526,
-  "bytes_touched": 1082827,
-  "pct_bytes_touched": 61.0
+  "bytes_touched": 1093848,
+  "pct_bytes_touched": 61.6
  },
  "orphan_refs": [],
  "functions": [
@@ -944,8 +944,10 @@
    "name": "sub_40BB70",
    "size": 30,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x40bb90",
@@ -2089,7 +2091,8 @@
    "status": "tested",
    "src": [
     "src/newgame_picker.c",
-    "src/newgame_picker.h"
+    "src/newgame_picker.h",
+    "src/title_menu.h"
    ]
   },
   {
@@ -2219,16 +2222,20 @@
    "name": "sub_41BB80",
    "size": 95,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x41bbe0",
    "name": "sub_41BBE0",
    "size": 312,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x41bd20",
@@ -2251,8 +2258,10 @@
    "name": "sub_41C150",
    "size": 219,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x41c230",
@@ -2267,8 +2276,10 @@
    "name": "sub_41C240",
    "size": 58,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x41c280",
@@ -2285,16 +2296,20 @@
    "name": "sub_41C2F0",
    "size": 42,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x41c320",
    "name": "sub_41C320",
    "size": 105,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x41c390",
@@ -2343,8 +2358,10 @@
    "name": "sub_41D780",
    "size": 942,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x41db30",
@@ -7614,8 +7631,10 @@
    "name": "sub_49A6E0",
    "size": 82,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x49a740",
@@ -9924,16 +9943,20 @@
    "name": "sub_560A00",
    "size": 57,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x560a40",
    "name": "sub_560A40",
    "size": 1049,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x560e60",
@@ -10086,7 +10109,8 @@
    "status": "tested",
    "src": [
     "src/asset_register.c",
-    "src/asset_register.h"
+    "src/asset_register.h",
+    "src/title_menu.h"
    ]
   },
   {
@@ -10104,8 +10128,10 @@
    "name": "sub_562AF0",
    "size": 82,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x562b50",
@@ -10182,6 +10208,7 @@
     "src/prologue_stone.h",
     "src/title_drive.c",
     "src/title_drive.h",
+    "src/title_menu.h",
     "src/title_scene.h"
    ]
   },
@@ -10220,7 +10247,8 @@
    "status": "tested",
    "src": [
     "src/newgame_drive.c",
-    "src/newgame_drive.h"
+    "src/newgame_drive.h",
+    "src/title_menu.h"
    ]
   },
   {
@@ -10228,24 +10256,30 @@
    "name": "sub_5642E0",
    "size": 440,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x5644a0",
    "name": "sub_5644A0",
    "size": 483,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x564690",
    "name": "sub_564690",
    "size": 47,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x5646c0",
@@ -10268,7 +10302,8 @@
     "src/newgame_menu.h",
     "src/newgame_picker.h",
     "src/newgame_scene.c",
-    "src/newgame_scene.h"
+    "src/newgame_scene.h",
+    "src/title_menu.h"
    ]
   },
   {
@@ -10280,7 +10315,8 @@
    "src": [
     "src/newgame_drive.c",
     "src/newgame_picker.c",
-    "src/newgame_picker.h"
+    "src/newgame_picker.h",
+    "src/title_menu.h"
    ]
   },
   {
@@ -10288,24 +10324,30 @@
    "name": "sub_565810",
    "size": 45,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x565840",
    "name": "sub_565840",
    "size": 115,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x5658c0",
    "name": "sub_5658C0",
    "size": 565,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x565b00",
@@ -10324,7 +10366,8 @@
    "src": [
     "src/main.c",
     "src/newgame_drive.c",
-    "src/newgame_drive.h"
+    "src/newgame_drive.h",
+    "src/title_menu.h"
    ]
   },
   {
@@ -10332,8 +10375,10 @@
    "name": "sub_566250",
    "size": 169,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x566300",
@@ -10348,8 +10393,10 @@
    "name": "sub_566350",
    "size": 540,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x566570",
@@ -10360,7 +10407,8 @@
    "src": [
     "src/newgame_menu.c",
     "src/newgame_menu.h",
-    "src/newgame_picker.h"
+    "src/newgame_picker.h",
+    "src/title_menu.h"
    ]
   },
   {
@@ -10373,7 +10421,8 @@
     "src/newgame_menu.c",
     "src/newgame_menu.h",
     "src/newgame_scene.c",
-    "src/newgame_scene.h"
+    "src/newgame_scene.h",
+    "src/title_menu.h"
    ]
   },
   {
@@ -10387,7 +10436,8 @@
     "src/newgame_menu.h",
     "src/newgame_picker.c",
     "src/newgame_picker.h",
-    "src/newgame_scene.c"
+    "src/newgame_scene.c",
+    "src/title_menu.h"
    ]
   },
   {
@@ -10401,7 +10451,8 @@
     "src/newgame_drive.c",
     "src/newgame_drive.h",
     "src/newgame_picker.c",
-    "src/newgame_picker.h"
+    "src/newgame_picker.h",
+    "src/title_menu.h"
    ]
   },
   {
@@ -10413,7 +10464,8 @@
    "src": [
     "src/newgame_drive.c",
     "src/newgame_picker.c",
-    "src/newgame_picker.h"
+    "src/newgame_picker.h",
+    "src/title_menu.h"
    ]
   },
   {
@@ -10429,16 +10481,20 @@
    "name": "sub_568B40",
    "size": 659,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x568de0",
    "name": "sub_568DE0",
    "size": 998,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x569220",
@@ -10453,8 +10509,10 @@
    "name": "sub_56A220",
    "size": 66,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x56a270",
@@ -10510,6 +10568,7 @@
     "src/obj_container.h",
     "src/title_drive.c",
     "src/title_drive.h",
+    "src/title_menu.h",
     "src/title_particles.c",
     "src/title_particles.h",
     "src/title_scene.c",
@@ -10524,8 +10583,10 @@
    "name": "sub_56BFD0",
    "size": 88,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x56c030",
@@ -10534,6 +10595,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/title_menu.h",
     "src/title_particles.c"
    ]
   },
@@ -10546,6 +10608,7 @@
    "src": [
     "src/main.c",
     "src/rng.h",
+    "src/title_menu.h",
     "src/title_particles.c",
     "src/title_particles.h"
    ]
@@ -10558,6 +10621,7 @@
    "status": "tested",
    "src": [
     "src/main.c",
+    "src/title_menu.h",
     "src/title_particles.c",
     "src/title_particles.h",
     "src/title_render.c",
@@ -10573,6 +10637,7 @@
    "status": "tested",
    "src": [
     "src/main.c",
+    "src/title_menu.h",
     "src/title_particles.c",
     "src/title_particles.h"
    ]
@@ -10592,6 +10657,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/title_menu.h",
     "src/title_render.c",
     "src/title_render.h",
     "src/title_sink.c"
@@ -10604,6 +10670,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/title_menu.h",
     "src/title_render.c",
     "src/title_render.h"
    ]
@@ -10615,6 +10682,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/title_menu.h",
     "src/title_render.c",
     "src/title_render.h",
     "src/title_scene.c"
@@ -10627,6 +10695,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/title_menu.h",
     "src/title_render.c",
     "src/title_render.h"
    ]
@@ -10655,7 +10724,8 @@
    "status": "tested",
    "src": [
     "src/menu_list.c",
-    "src/menu_list.h"
+    "src/menu_list.h",
+    "src/title_menu.h"
    ]
   },
   {
@@ -10663,16 +10733,20 @@
    "name": "sub_56CB90",
    "size": 113,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x56cc10",
    "name": "sub_56CC10",
    "size": 267,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x56cd20",
@@ -10685,7 +10759,8 @@
     "src/prologue_drive.c",
     "src/prologue_drive.h",
     "src/prologue_stone.c",
-    "src/prologue_stone.h"
+    "src/prologue_stone.h",
+    "src/title_menu.h"
    ]
   },
   {
@@ -10701,32 +10776,40 @@
    "name": "sub_56D710",
    "size": 510,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x56d910",
    "name": "sub_56D910",
    "size": 272,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x56da40",
    "name": "sub_56DA40",
    "size": 96,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x56daa0",
    "name": "sub_56DAA0",
    "size": 267,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x56dbb0",
@@ -10743,7 +10826,8 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/main.c"
+    "src/main.c",
+    "src/title_menu.h"
    ]
   },
   {
@@ -10759,16 +10843,20 @@
    "name": "sub_56DE80",
    "size": 67,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x56ded0",
    "name": "sub_56DED0",
    "size": 61,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x56df10",
@@ -10785,8 +10873,10 @@
    "name": "sub_56DFE0",
    "size": 417,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x56e190",
@@ -12196,16 +12286,20 @@
    "name": "sub_59EC30",
    "size": 531,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x59ee50",
    "name": "sub_59EE50",
    "size": 1132,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_menu.h"
+   ]
   },
   {
    "va": "0x59f2c0",

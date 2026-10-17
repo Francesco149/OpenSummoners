@@ -47,6 +47,14 @@ def port_names():
         for m in re.finditer(r"FUN_00([0-9a-f]{6})\s+([A-Za-z_]\w*)", open(os.path.join(REPO, "src", fn), errors="replace").read()):
             if m.group(2) in protos:   # a real port function (prose like "FUN_0044e680 call (...)" is not)
                 names.setdefault(int(m.group(1), 16), m.group(2))
+    # two port functions may claim a VA (an older port-side twin: glyph_cell_layout on menu_ctrl vs grid_cell_text on
+    # the retail layout, both 0x40fa00): rhost's hook table names the verified retail-layout one
+    hp = os.path.join(REPO, "tools", "rhost", "rh_hooks.c")
+    if os.path.exists(hp):
+        for m in re.finditer(r'X\(\w+, "(\w+)", 0x([0-9a-f]+)u\)', open(hp, errors="replace").read()):
+            va, n = int(m.group(2), 16), m.group(1)
+            if va in names and names[va] != n and n in protos:
+                names[va] = n
     return names
 
 

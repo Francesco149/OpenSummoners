@@ -20,6 +20,18 @@ specific commits where relevant.
   but its heap state differs from f750 in title-options (retail builds "Game Control Setup" text records the port
   does not) — still PARKED.
 
+## 2026-10-17 (morning, 3) — the TITLE as port code
+
+- `src/title_menu.c` (59 functions, decomp2c): the title drive 0x562ea0, splash + title menu 0x56aea0, New Game
+  options, Options 0x568de0, the load screen, the sparkles / compositor; 30 REPLACE hooks.  The last divergence (heap
+  state from title-options f750, pixels equal) was decomp2c binding 0x40fa00 to the OLD port's `glyph_cell_layout`
+  (menu_ctrl) instead of the retail-layout `grid_cell_text`: two port functions claimed the VA and the first header
+  won.  decomp2c now prefers the name rhost's hook table binds (also 0x407320: `char_skill_usable` over the
+  equivalent `char_skill_ok` in the behaviour layer).  Found with a new probe: `--heap-trace A-B` (every
+  HeapAlloc / HeapFree in a frame window, with the ebp chain) — pure vs port: retail's seven 2880-byte glyph buffers
+  the old twin never made.
+- Hybrid (786 hooks, render gate) PASS 9/9 on wine (every 600-frame sample) and Windows.
+
 ## 2026-10-17 (morning) — the render's platform layer; decomp2c's next constructs
 
 - `src/render_platform.c` (23 functions, decomp2c): surface DC get / release, lock / unlock, the blits, the

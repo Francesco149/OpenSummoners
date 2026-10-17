@@ -198,14 +198,22 @@ static LPVOID WINAPI my_HeapAlloc(HANDLE h, DWORD fl, SIZE_T n)
     (void)h;
     lock(); void *p = arena_alloc((uint32_t)n, (fl & HEAP_ZERO_MEMORY) != 0); unlock();
     if (O.log_heap && g_nalloc <= 50) rh_log("HeapAlloc(%lu) = %p\n", (unsigned long)n, p);
+    if (O.htrace_f1 && g_frame >= O.htrace_f0 && g_frame <= O.htrace_f1) {
+        char b[96]; int o = 0; uint32_t *fp = __builtin_frame_address(0);
+        for (int i = 0; i < 6 && fp && (uintptr_t)fp > 0x10000 && !((uintptr_t)fp & 3); i++, fp = (uint32_t *)(uintptr_t)fp[0])
+            o += snprintf(b + o, sizeof b - o, " %08x", fp[1]);
+        rh_log("heap f%u alloc %lu = %p callers%s\n", g_frame, (unsigned long)n, p, b);
+    }
     return p;
 }
 static BOOL WINAPI my_HeapFree(HANDLE h, DWORD fl, LPVOID p)
 {
     (void)h; (void)fl;
     if (!p) return TRUE;
-    lock(); hdr_t *hd = hdr_of(p); if (hd) arena_free(hd); unlock();
+    lock(); hdr_t *hd = hdr_of(p); uint32_t req = hd ? hd->req : 0; if (hd) arena_free(hd); unlock();
     if (!hd) { bad_ptr("HeapFree", p); return FALSE; }
+    if (O.htrace_f1 && g_frame >= O.htrace_f0 && g_frame <= O.htrace_f1)
+        rh_log("heap f%u free %u = %p ret %p\n", g_frame, req, p, __builtin_return_address(0));
     return TRUE;
 }
 static SIZE_T WINAPI my_HeapSize(HANDLE h, DWORD fl, LPCVOID p)

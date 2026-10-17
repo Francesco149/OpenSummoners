@@ -65,6 +65,7 @@
 #include "script_helpers.h"
 #include "render_draw.h"
 #include "render_platform.h"
+#include "title_menu.h"
 #include "chapter_scripts.h"
 #include "room_tick.h"
 #include "ui_core.h"
@@ -304,6 +305,16 @@ typedef struct {
     X(H_RP5B9500, "rp_5b9500", 0x5b9500u) X(H_RP5B9520, "rp_5b9520", 0x5b9520u) X(H_RP5B9A40, "rp_5b9a40", 0x5b9a40u) \
     X(H_RP5B9AE0, "rp_5b9ae0", 0x5b9ae0u) X(H_RP5B9B70, "rp_5b9b70", 0x5b9b70u) X(H_RP5B9BF0, "rp_5b9bf0", 0x5b9bf0u) \
     X(H_RP5BD550, "rp_5bd550", 0x5bd550u) X(H_RP5BD680, "rp_5bd680", 0x5bd680u) \
+    X(H_TM41BBE0, "tm_41bbe0", 0x41bbe0u) X(H_TM562EA0, "tm_562ea0", 0x562ea0u) X(H_TM5642E0, "tm_5642e0", 0x5642e0u) \
+    X(H_TM5644A0, "tm_5644a0", 0x5644a0u) X(H_TM564690, "tm_564690", 0x564690u) X(H_TM564780, "tm_564780", 0x564780u) \
+    X(H_TM419900, "tm_419900", 0x419900u) X(H_TM5658C0, "tm_5658c0", 0x5658c0u) X(H_TM565D10, "tm_565d10", 0x565d10u) \
+    X(H_TM566250, "tm_566250", 0x566250u) X(H_TM566350, "tm_566350", 0x566350u) X(H_TM566A80, "tm_566a80", 0x566a80u) \
+    X(H_TM56DA40, "tm_56da40", 0x56da40u) X(H_TM56DAA0, "tm_56daa0", 0x56daa0u) X(H_TM56DC20, "tm_56dc20", 0x56dc20u) \
+    X(H_TM56A220, "tm_56a220", 0x56a220u) X(H_TM41C150, "tm_41c150", 0x41c150u) X(H_TM41C240, "tm_41c240", 0x41c240u) \
+    X(H_TM560A40, "tm_560a40", 0x560a40u) X(H_TM41C2F0, "tm_41c2f0", 0x41c2f0u) X(H_TM41C320, "tm_41c320", 0x41c320u) \
+    X(H_TM560A00, "tm_560a00", 0x560a00u) X(H_TM562A10, "tm_562a10", 0x562a10u) X(H_TM41BB80, "tm_41bb80", 0x41bb80u) \
+    X(H_TM56C2B0, "tm_56c2b0", 0x56c2b0u) X(H_TM562AF0, "tm_562af0", 0x562af0u) X(H_TM40BB70, "tm_40bb70", 0x40bb70u) \
+    X(H_TM56D710, "tm_56d710", 0x56d710u) X(H_TM41D780, "tm_41d780", 0x41d780u) X(H_TM49A6E0, "tm_49a6e0", 0x49a6e0u) \
     X(H_SC401D80, "sc_401d80", 0x401d80u) X(H_SC402030, "sc_402030", 0x402030u) X(H_SC4020A0, "sc_4020a0", 0x4020a0u) \
     X(H_SC4024E0, "sc_4024e0", 0x4024e0u) X(H_SC402610, "sc_402610", 0x402610u) X(H_SC402F40, "sc_402f40", 0x402f40u) \
     X(H_SC406500, "sc_406500", 0x406500u) X(H_SC406AB0, "sc_406ab0", 0x406ab0u) X(H_SC406C70, "sc_406c70", 0x406c70u) \
@@ -4325,6 +4336,38 @@ TC_HOOK(H_RP5B9B70, "rp_5b9b70", 3, 1, return (intptr_t)rp_5b9b70((wl_char *)sel
 TC_HOOK(H_RP5B9BF0, "rp_5b9bf0", 7, 1, return (intptr_t)rp_5b9bf0((wl_char *)self, a1, a2, a3, a4, a5, a6, a7))
 TC_HOOK(H_RP5BD550, "rp_5bd550", 10, 1, return (intptr_t)rp_5bd550((wl_char *)self, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10))
 TC_HOOK(H_RP5BD680, "rp_5bd680", 9, 1, return (intptr_t)rp_5bd680((wl_char *)self, (int32_t * *)a1, (int32_t * *)a2, a3, a4, a5, a6, a7, a8, a9))
+/* the title / menu screens (src/title_menu.c: the title drive, new game options, the load screen, the sparkle /
+ * compositor; decomp2c) — REPLACE only (they run frame loops) */
+TC_HOOK0(H_TM41BBE0, "tm_41bbe0", 0, tm_41bbe0((wl_char *)self); return 0)
+TC_HOOK(H_TM562EA0, "tm_562ea0", 1, 1, return (intptr_t)tm_562ea0((wl_char *)self, a1))
+TC_HOOK(H_TM5642E0, "tm_5642e0", 2, 1, return (intptr_t)tm_5642e0((wl_char *)self, a1, a2))
+TC_HOOK0(H_TM5644A0, "tm_5644a0", 1, return (intptr_t)tm_5644a0((wl_char *)self))
+TC_HOOK0(H_TM564690, "tm_564690", 1, return (intptr_t)tm_564690((wl_char *)self))
+TC_HOOK(H_TM564780, "tm_564780", 1, 1, return (intptr_t)tm_564780((wl_char *)self, a1))
+TC_HOOK(H_TM419900, "tm_419900", 2, 1, return (intptr_t)tm_419900((wl_char *)self, a1, a2))
+TC_HOOK0(H_TM5658C0, "tm_5658c0", 1, return (intptr_t)tm_5658c0((wl_char *)self))
+TC_HOOK(H_TM565D10, "tm_565d10", 5, 1, return (intptr_t)tm_565d10((wl_char *)self, (int32_t *)a1, (int16_t)a2, (int32_t *)a3, a4, (uint32_t)a5))
+TC_HOOK(H_TM566250, "tm_566250", 1, 1, return (intptr_t)tm_566250((wl_char *)self, a1))
+TC_HOOK(H_TM566350, "tm_566350", 1, 1, return (intptr_t)tm_566350((wl_char *)self, (int32_t *)a1))
+ST_HOOK(H_TM566A80, "tm_566a80", 3, 1, return (intptr_t)tm_566a80((int16_t)a1, a2, (char *)a3))
+TC_HOOK(H_TM56DA40, "tm_56da40", 3, 1, return (intptr_t)tm_56da40((wl_char *)self, (char *)a1, a2, a3))
+TC_HOOK(H_TM56DAA0, "tm_56daa0", 10, 1, return (intptr_t)tm_56daa0((wl_char *)self, a1, (int16_t)a2, a3, a4, (int16_t)a5, a6, a7, (int16_t *)a8, U16(a9), (int16_t)a10))
+ST_HOOK(H_TM56DC20, "tm_56dc20", 3, 0, tm_56dc20(a1, a2, a3); return 0)
+TC_HOOK0(H_TM56A220, "tm_56a220", 1, return (intptr_t)tm_56a220((wl_char *)self))
+ST_HOOK(H_TM41C150, "tm_41c150", 3, 1, return (intptr_t)tm_41c150((int32_t *)a1, (int32_t *)a2, a3))
+TC_HOOK(H_TM41C240, "tm_41c240", 1, 1, return (intptr_t)tm_41c240((wl_char *)self, a1))
+TC_HOOK(H_TM560A40, "tm_560a40", 3, 1, return (intptr_t)tm_560a40((wl_char *)self, a1, a2, a3))
+TC_HOOK(H_TM41C2F0, "tm_41c2f0", 2, 1, return (intptr_t)tm_41c2f0((wl_char *)self, (int32_t *)a1, (uint16_t *)a2))
+TC_HOOK(H_TM41C320, "tm_41c320", 2, 1, return (intptr_t)tm_41c320((wl_char *)self, (int32_t *)a1, U16(a2)))
+TC_HOOK(H_TM560A00, "tm_560a00", 1, 1, return (intptr_t)tm_560a00((wl_char *)self, a1))
+TC_HOOK0(H_TM562A10, "tm_562a10", 0, tm_562a10((wl_char *)self); return 0)
+TC_HOOK(H_TM41BB80, "tm_41bb80", 2, 1, return (intptr_t)tm_41bb80((wl_char *)self, U16(a1), a2))
+TC_HOOK0(H_TM56C2B0, "tm_56c2b0", 0, tm_56c2b0((wl_char *)self); return 0)
+TC_HOOK0(H_TM562AF0, "tm_562af0", 0, tm_562af0((wl_char *)self); return 0)
+TC_HOOK(H_TM40BB70, "tm_40bb70", 1, 1, return (intptr_t)tm_40bb70((wl_char *)self, (char)a1))
+TC_HOOK0(H_TM56D710, "tm_56d710", 1, return (intptr_t)tm_56d710((wl_char *)self))
+TC_HOOK(H_TM41D780, "tm_41d780", 3, 1, return (intptr_t)tm_41d780((wl_char *)self, a1, a2, a3))
+TC_HOOK0(H_TM49A6E0, "tm_49a6e0", 0, tm_49a6e0((wl_char *)self); return 0)
 /* the chapter scripts' file / sound / DirectX-free callees (src/script_helpers.c; 0x4a5e40 0x4cbfb0 0x4cbfd0 0x4d6490
  * read their caller's ecx: thiscall wrappers) */
 ST_HOOK(H_SC401D80, "sc_401d80", 3, 1, return (intptr_t)sc_401d80(a1, a2, a3))
