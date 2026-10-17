@@ -178,7 +178,13 @@ static void arena_free(hdr_t *h)
 static int g_bad_logged;
 static void bad_ptr(const char *op, const void *p)
 {
-    if (g_bad_logged++ < 20) rh_log("rh_heap: %s on foreign/corrupt pointer %p (frame %u)\n", op, p, g_frame);
+    if (g_bad_logged++ < 20) {
+        /* who: the return addresses up the ebp chain (retail frames keep ebp; port code -O2 may not: a hint) */
+        char b[160]; int o = 0; uint32_t *fp = __builtin_frame_address(0);
+        for (int i = 0; i < 8 && fp && (uintptr_t)fp > 0x10000 && !((uintptr_t)fp & 3); i++, fp = (uint32_t *)(uintptr_t)fp[0])
+            o += snprintf(b + o, sizeof b - o, " %08x", fp[1]);
+        rh_log("rh_heap: %s on foreign/corrupt pointer %p (frame %u) callers%s\n", op, p, g_frame, b);
+    }
 }
 
 static HANDLE WINAPI my_HeapCreate(DWORD fl, SIZE_T init, SIZE_T max)

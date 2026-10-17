@@ -66,6 +66,11 @@ static void build_ext_map(void)
                 if (!rh_is_det_addr(q << 12)) g_ext[q >> 3] |= (uint8_t)(1u << (q & 7));
         last = pg + 1;
     }
+    /* ... and the whole system zone between rhost's image and its arena (0x05c00000..0x20000000): wine's heaps grow
+     * there to a high-water mark that varies by thread timing (0x0ac8.. vs 0x0bc5.. in two rh-combat hybrids), so a
+     * byte tuple like 0x0b0a0908 fell inside one run's map only.  Masked in every run, it hashes alike. */
+    for (uint32_t pg = 0x05c00; pg < 0x20000; pg++)
+        if (!rh_is_det_addr(pg << 12)) g_ext[pg >> 3] |= (uint8_t)(1u << (pg & 7));
 }
 /* --log-ext: where do masked values point? (largest external committed regions) */
 void rh_state_ext_report(void)

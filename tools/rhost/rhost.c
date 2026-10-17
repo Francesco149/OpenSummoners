@@ -637,9 +637,14 @@ static LONG CALLBACK trap_veh(EXCEPTION_POINTERS *e)
     if (e->ExceptionRecord->ExceptionCode == EXCEPTION_BREAKPOINT) {
         for (int i = 0; i < g_ntrap; i++) if (g_tva[i] == a) {
             if (g_cen_off[i] >= 0) census_add(i, *(uint32_t *)(uintptr_t)(c->Ecx + (uint32_t)g_cen_off[i]));
-            if (g_thits[i]++ < O.trap_max)
-                rh_log("trap %08x f%u ret=%08x eax=%08lx ebx=%08lx ecx=%08lx edx=%08lx esi=%08lx edi=%08lx ebp=%08lx esp=%08lx\n", a, g_frame,
-                       *(uint32_t *)(uintptr_t)c->Esp, c->Eax, c->Ebx, c->Ecx, c->Edx, c->Esi, c->Edi, c->Ebp, c->Esp);
+            int inwin = !O.trap_f1 || (g_frame >= O.trap_f0 && g_frame <= O.trap_f1);
+            if (inwin && g_thits[i]++ < O.trap_max) {
+                const uint32_t *sp = (const uint32_t *)(uintptr_t)c->Esp;   /* [esp] = return address, then the stack args */
+                rh_log("trap %08x f%u ret=%08x eax=%08lx ebx=%08lx ecx=%08lx edx=%08lx esi=%08lx edi=%08lx ebp=%08lx esp=%08lx"
+                       " args %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x\n", a, g_frame,
+                       sp[0], c->Eax, c->Ebx, c->Ecx, c->Edx, c->Esi, c->Edi, c->Ebp, c->Esp,
+                       sp[1], sp[2], sp[3], sp[4], sp[5], sp[6], sp[7], sp[8], sp[9], sp[10], sp[11]);
+            }
             *(volatile uint8_t *)(uintptr_t)a = g_torig[i];
             c->Eip = a; c->EFlags |= 0x100; g_trearm = i;     /* single-step, then re-arm */
             return EXCEPTION_CONTINUE_EXECUTION;
@@ -823,6 +828,23 @@ static void watch_str(char *wb, size_t n)
     for (int i = 0; i < O.n_watch; i++) wo += snprintf(wb + wo, n - wo, " %x=%d", O.watch[i], (int)G32(O.watch[i]));
 }
 static uint64_t g_fb_chain = 0xcbf29ce484222325ull; static uint32_t g_fb_n;   /* --fb-hash */
+/* every access violation: where, the registers, the ebp chain (first 8; the run's own handling continues) */
+static LONG CALLBACK crash_veh(EXCEPTION_POINTERS *e)
+{
+    static int n;
+    if (e->ExceptionRecord->ExceptionCode != EXCEPTION_ACCESS_VIOLATION || n++ >= 8) return EXCEPTION_CONTINUE_SEARCH;
+    CONTEXT *c = e->ContextRecord;
+    char b[160]; int o = 0; uint32_t *fp = (uint32_t *)(uintptr_t)c->Ebp;
+    uintptr_t lo = c->Esp, hi = c->Esp + 0x100000;   /* the frame walk stays on this stack (no probing reads) */
+    for (int i = 0; i < 8 && (uintptr_t)fp >= lo && (uintptr_t)fp + 8 <= hi && !((uintptr_t)fp & 3); i++, fp = (uint32_t *)(uintptr_t)fp[0])
+        o += snprintf(b + o, sizeof b - o, " %08x", fp[1]);
+    rh_log("AV f%u at %08x (%s %08lx) eax=%08lx ebx=%08lx ecx=%08lx edx=%08lx esi=%08lx edi=%08lx esp=%08lx ebp=%08lx callers%s\n",
+           g_frame, (unsigned)(uintptr_t)e->ExceptionRecord->ExceptionAddress,
+           e->ExceptionRecord->ExceptionInformation[0] ? "write" : "read", (unsigned long)e->ExceptionRecord->ExceptionInformation[1],
+           c->Eax, c->Ebx, c->Ecx, c->Edx, c->Esi, c->Edi, c->Esp, c->Ebp, b);
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+
 /* runs at the ENTRY of every Flip (the frame's back buffer is complete): frame g_frame ends */
 static void __cdecl pre_flip(void)
 {
@@ -963,6 +985,7 @@ static void parse(int argc, char **argv)
             }
         }
         else if (!strcmp(a, "--trap-max")) O.trap_max = strtoul(ARG(), 0, 0);
+        else if (!strcmp(a, "--trap-frames")) { const char *v = ARG(); O.trap_f0 = strtoul(v, 0, 0); const char *d = strchr(v, '-'); O.trap_f1 = d ? strtoul(d + 1, 0, 0) : O.trap_f0; }
         else if (!strcmp(a, "--trap-census")) {     /* VA:OFF (hex), one per flag; no register log */
             char *t = ARG(), *c = strchr(t, ':');
             if (!c || g_ntrap >= 8) rh_fatal("--trap-census VA:OFF");
@@ -1136,6 +1159,7 @@ int main(int argc, char **argv)
     rh_trace_init();
     rh_hooks_install();
     if (O.coverage) cov_install();
+    AddVectoredExceptionHandler(0, crash_veh);   /* last in line: the trap / watch handlers see theirs first */
     if (g_nw) AddVectoredExceptionHandler(1, watch_veh);
     if (g_ntrap) {
         AddVectoredExceptionHandler(1, trap_veh);

@@ -87,6 +87,13 @@ on every presented frame. Deterministic per platform (wine ≠ Windows pixels, e
 external too. Wine places a 2 MB system block in whichever gap is free when its thread asks (two layouts
 across runs), and a plain integer (a byte tuple like 0x09090908) then fell inside the map in one run only:
 rh-combat's wine series flaked f13200..f51000 (pure runs too). Re-blessed the wine series with the envelope.
+The whole system zone between rhost's image and its arena (0x05c00000..0x20000000, minus rhost's own pages)
+counts as external too: wine's heaps grow there to a high-water mark that varies by thread timing (2026-10-17:
+0x0ac8.. vs 0x0bc5.. in two identical hybrids).
+
+**Probes:** `--trap VA` lines carry 11 stack words (`args`, after the return address); `--trap-frames A-B` logs
+only inside a frame window; every access violation is logged (`AV fN at VA (read/write addr)`, registers, the
+ebp chain — symbolize port frames with `nm -n build/rhost/rhost.exe`); a foreign `HeapFree` logs its callers.
 
 ## Hooks — port functions vs retail on identical state (`--hook shadow:NAME[@N],replace:NAME`)
 
