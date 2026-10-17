@@ -586,10 +586,12 @@ WIN_INT = {"HDC", "HGDIOBJ", "HWND", "HBITMAP", "HFONT", "HBRUSH", "HPEN", "HAND
 WIN_UINT = {"UINT", "DWORD", "COLORREF", "WPARAM", "ULONG", "SIZE_T"}   # ... unsigned
 WIN_STRUCT = {"POINT", "RECT", "SIZE", "BITMAPINFOHEADER", "BITMAPINFO", "RGBQUAD", "PALETTEENTRY", "LOGFONTA",
               "TEXTMETRICA", "BITMAP", "MSG", "PAINTSTRUCT", "SYSTEMTIME"}   # kept as <windows.h>'s own
-WORD_SHELLS = ("paint_ctx", "input_dev", "input_mgr", "zdm")   # wnd_proc.h's shells: passed through as words
+WORD_SHELLS = ("paint_ctx", "input_dev", "input_mgr", "zdm", "log_singleton")   # wnd_proc.h's shells: passed through as words
+SHELL_ARRAYS = {"log_singleton": {"path": 0x404}}   # ... their array members (an address, not a load)
 SHELL_FIELDS = {"paint_ctx": {"zdd_device": 0x2c, "blit_x": 0x138, "blit_y": 0x13c, "blit_w": 0x140, "blit_h": 0x144,
                               "state": 0x164, "back_ctx": 0x16c}}   # (wnd_proc.h's pinned offsets)
 WIN_ALIAS = {"struct tagRECT": "RECT", "tagRECT": "RECT", "struct tagPOINT": "POINT", "tagPOINT": "POINT",
+             "struct _SYSTEMTIME": "SYSTEMTIME", "_SYSTEMTIME": "SYSTEMTIME",
              "struct tagSIZE": "SIZE",
              "LPCSTR": "char *", "LPSTR": "char *", "LPBITMAPINFO": "BITMAPINFO *", "LPPOINT": "POINT *",
              "LPRECT": "RECT *", "WORD": "uint16_t", "BYTE": "uint8_t", "LPBYTE": "uint8_t *", "HPSTR": "char *"}
@@ -763,6 +765,10 @@ def convert(text, names, widths, this):
         off = class_layout(cl)[2].get(int(m.group(2), 16), int(m.group(2), 16)) if cl else int(m.group(2), 16)
         return f"((uint8_t *)({m.group(1)}) + 0x{off:x})"
     s = re.sub(r"\b(?!this\b|p_cls_)([A-Za-z_]\w*)->gap([0-9A-F]+)\b(?!\s*\[)", vgap0, s)
+    for sh, flds in SHELL_ARRAYS.items():   # a word shell's array member: its address
+        vs = set(re.findall(r"\b%s \*(\w+)\b" % sh, head + "\n" + text))
+        for v in vs:
+            s = re.sub(r"\b%s->(%s)\b" % (re.escape(v), "|".join(flds)), lambda m, v=v, flds=flds: f"((char *){v} + 0x{flds[m.group(1)]:x})", s)
     for sh, flds in SHELL_FIELDS.items():   # a word shell's member: a load at its pinned offset
         vs = set(re.findall(r"\b%s \*(\w+)\b" % sh, head + "\n" + text))
         for v in vs:
@@ -946,6 +952,7 @@ def convert(text, names, widths, this):
     s = re.sub(r"\bstru_8A6B60\.zdm_ptr->name\b", "(SYS32(0x2884) + 0x2c)", s)  # the manager's track name (inline)
     s = re.sub(r"\bstru_8A6B60\.zdm_ptr\b", "SYS32(0x2884)", s)              # the system's music manager
     s = re.sub(r"&stru_8A9530\b(?!\.)", "((intptr_t)g_eng.log)", s)          # the error log object
+    s = re.sub(r"\bstru_8A9530\.path\b", "((char *)D(0x8a9530) + 0x404)", s)    # ... its log-file path (log_singleton)
     wsz, _, wgaps = class_layout("cls_40BE00")
     s = re.sub(r"(&?)(?:p_cls_40BE00|\bW)\[(\d+)\]\.gap([0-9A-F]+)\[([^\]]+)\]",
                lambda m: f"{m.group(1)}GAP(W, {int(m.group(2)) * wsz} + 0x{wgaps.get(int(m.group(3), 16), int(m.group(3), 16)):x}, {m.group(4)})", s)
@@ -1002,6 +1009,7 @@ def convert(text, names, widths, this):
                r"|g_eng\.log, \(const char \*\)\((D\(0x[0-9a-f]+\))\), \(const char \*\)\(D\(0x8a9b6c\)\))\);",
                lambda m: f"g_eng.h426110(g_eng.log, (intptr_t){m.group(2) or m.group(3)}, 1, (intptr_t)D(0x8a9b6c));   /* the error box 0x426110, inlined */", s, flags=re.S)
     s = re.sub(r"\((cls_\w+)\)(?=-?\d)", "", s)   # IDA's by-value class cast of a constant
+    s = re.sub(r"&::([A-Za-z_]\w*)\b", lambda m: f"D(0x{SYMS[m.group(1)]:x})" if m.group(1) in SYMS else m.group(0), s)   # (a global a local / parameter shadows)
     s = re.sub(r"(?<![\w:])::([A-Za-z_]\w*)\b", lambda m: (f"((char *)D(0x{SYMS[m.group(1)]:x}))" if TYPED[0] else f"D(0x{SYMS[m.group(1)]:x})")
                if m.group(1) in SYMS else m.group(1), s)   # `::X`: the global X (a local may share its name)
     for _, t, n in FRAMEVARS:   # (last: the patterns above see IDA's names)

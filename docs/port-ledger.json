@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 850,
-  "unported": 725,
+  "ported": 858,
+  "unported": 717,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 1099,
-  "pct_touched": 70.9,
+  "touched": 1107,
+  "pct_touched": 71.4,
   "pct_tested": 15.7,
-  "engine_proper_touched": 1086,
+  "engine_proper_touched": 1094,
   "bytes_total": 1776526,
-  "bytes_touched": 1115111,
-  "pct_bytes_touched": 62.8
+  "bytes_touched": 1120249,
+  "pct_bytes_touched": 63.1
  },
  "orphan_refs": [],
  "functions": [
@@ -706,8 +706,10 @@
    "name": "sub_408730",
    "size": 1114,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/script_io.h"
+   ]
   },
   {
    "va": "0x408b90",
@@ -716,6 +718,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/script_io.h",
     "src/wnd_proc.h"
    ]
   },
@@ -782,8 +785,10 @@
    "name": "sub_409520",
    "size": 1093,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/script_io.h"
+   ]
   },
   {
    "va": "0x409970",
@@ -831,8 +836,10 @@
    "name": "sub_40A2A0",
    "size": 56,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/script_io.h"
+   ]
   },
   {
    "va": "0x40a2e0",
@@ -847,8 +854,10 @@
    "name": "sub_40A340",
    "size": 498,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/script_io.h"
+   ]
   },
   {
    "va": "0x40a540",
@@ -866,8 +875,10 @@
    "name": "sub_40A5D0",
    "size": 568,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/script_io.h"
+   ]
   },
   {
    "va": "0x40a810",
@@ -2152,8 +2163,10 @@
    "name": "sub_41A160",
    "size": 311,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/script_io.h"
+   ]
   },
   {
    "va": "0x41a2a0",
@@ -2362,8 +2375,10 @@
    "name": "sub_41D4A0",
    "size": 623,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/script_io.h"
+   ]
   },
   {
    "va": "0x41d780",
@@ -5787,8 +5802,10 @@
    "name": "sub_479F90",
    "size": 875,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/ai_skill.h"
+   ]
   },
   {
    "va": "0x47a300",

@@ -640,7 +640,7 @@ static wl_pslot *slot_by_id(const wl_room *r, int32_t id)
     return NULL;
 }
 
-void room_formation(wl_room *r)
+int32_t room_formation(wl_room *r)
 {
     const wl_pslot *lead = r->leader;
     int32_t lead_order = lead != NULL ? lead->order : 0;
@@ -707,6 +707,8 @@ void room_formation(wl_room *r)
         c->side_t = 0;
         c->f14258 = 0;
     }
+    /* eax as retail leaves it (0x41d4a0 returns it on): the member-slot cursor past the last of the 8 (+0x4030 + 32) */
+    return (int32_t)((uintptr_t)r + 0x4050);
 }
 
 void palette_tint(uint8_t *dst, const uint8_t *src, int32_t r, int32_t g, int32_t b, int32_t gray)

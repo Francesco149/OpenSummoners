@@ -659,7 +659,8 @@ VERIFY_HOOKS = ["rand", "input_poll", "mover_v", "sweep_h", "ent_move_h", "ent_m
                 "ih_455d80", "ih_44d2e0", "ih_4512d0", "ih_4466b0", "ih_467260", "item_effect", "ih_5b28a0",
                 "sc_401d80", "sc_402030", "sc_4020a0", "sc_4024e0", "sc_402610", "sc_402f40", "sc_406500", "sc_406ab0", "sc_406c70", "sc_41a3a0", "sc_41e2b0", "sc_41e340", "sc_41eb30", "sc_41ece0", "sc_41efe0", "sc_41f050", "sc_439510", "sc_439560", "sc_49cf60", "sc_49cf80", "sc_49e250", "sc_49e6c0", "sc_4a5e40", "sc_4a5e70", "sc_4a5ea0", "sc_4a5ec0", "sc_4a5f80", "sc_4a63d0", "sc_4ac610", "sc_4ac660", "sc_4b3b10", "sc_4b3f30", "sc_402f60", "sc_4b4570", "sc_4bbe00", "sc_4bbe40", "sc_4bbe80", "sc_4c5300", "sc_4cbfb0", "sc_4cbfd0", "sc_41f000", "sc_4cbff0", "sc_4cc010", "sc_4cc030", "sc_4cc250", "sc_4cc470", "sc_4cca20", "sc_4cca50", "sc_4d6490", "sc_5b4330",
                 "fm_591590", "fm_5984c0", "fm_598460", "fm_56c430",
-                "sv_55f620", "sv_561bf0", "sv_561cf0", "sv_560530", "sv_41cfd0"]
+                "sv_55f620", "sv_561bf0", "sv_561cf0", "sv_560530", "sv_41cfd0",
+                "ai_479f90", "si_409520", "si_41d4a0", "si_40a2a0"]
 # REPLACE-only hooks (a whole room per call / DirectInput): proven by `corpus --check --hook replace:…`
 # (chs_49f7c0: ported but OFF — diverges on rh-errands-items from f7835: 12-byte records at 0x20b60398..; open)
 REPLACE_ONLY_HOOKS = ["chs_4d7d80", "chs_4dc510", "chs_4d64f0", "chs_4cd6d0", "chs_4d13a0", "chs_4ccc90", "chs_4c6b40", "chs_4e19e0", "chs_49d930", "chs_4a0c90", "chs_4a6b80", "chs_4ac6d0", "chs_4a66a0", "chs_4a5fa0", "chs_4ae150", "chs_4ae420", "chs_4afdb0", "chs_4b3b20", "chs_4b3c70", "chs_4b4d40", "chs_4bbef0", "chs_4bd2e0", "chs_4bd6b0", "chs_4bd820", "chs_4bdf90", "chs_4bdbe0", "chs_4be220", "chs_4c1a30", "chs_4c1c20", "chs_4c2310", "chs_4c29c0", "chs_4c2dc0", "chs_4c3ee0", "chs_4c45a0",
@@ -668,6 +669,7 @@ REPLACE_ONLY_HOOKS = ["chs_4d7d80", "chs_4dc510", "chs_4d64f0", "chs_4cd6d0", "c
                       "tm_41bbe0", "tm_562ea0", "tm_5642e0", "tm_5644a0", "tm_564690", "tm_564780", "tm_419900", "tm_5658c0", "tm_565d10", "tm_566250", "tm_566350", "tm_566a80", "tm_56da40", "tm_56daa0", "tm_56dc20", "tm_56a220", "tm_41c150", "tm_41c240", "tm_560a40", "tm_41c2f0", "tm_41c320", "tm_560a00", "tm_562a10", "tm_41bb80", "tm_56c2b0", "tm_562af0", "tm_40bb70", "tm_56d710", "tm_41d780", "tm_49a6e0",
                       "fm_591120", "fm_596d60", "fm_597aa0", "fm_5985f0", "fm_590480", "fm_590f20", "fm_590ca0", "fm_59d540", "fm_59ad60",
                       "sv_41a430", "sv_41a890", "sv_41b670", "sv_41bd20", "sv_41bf60", "sv_561560", "sv_561d20",
+                      "si_408730", "si_40a340", "si_41a160", "si_408b90", "si_40a5d0",
                       "room_loop", "input_repoll_flush", "load_room", "scene_loop", "menu_pace", "menu_run",
                       "shop_run", "shop_buy", "shop_who", "menu_ctx_clear", "scene_run",
                       "world_new", "world_free",

@@ -7,15 +7,15 @@
 ## Port coverage (engine-proper functions of `sotes.exe`)
 
 ```
-██████████████░░░░░░  70.9% touched   (15.7% host-tested, 62.8% of code bytes)
+██████████████░░░░░░  71.4% touched   (15.7% host-tested, 63.1% of code bytes)
 ```
 
 | status      | count | what it means                                          |
 |-------------|------:|--------------------------------------------------------|
 | tested      |   249 | ported + module covered by the host unit suite       |
-| ported      |   850 | reimplemented in src/, no host test for that module  |
-| **touched** | **1099** | tested + ported (FUN_ provenance ref in src/)    |
-| unported    |   725 | exists in engine, never referenced from src/         |
+| ported      |   858 | reimplemented in src/, no host test for that module  |
+| **touched** | **1107** | tested + ported (FUN_ provenance ref in src/)    |
+| unported    |   717 | exists in engine, never referenced from src/         |
 
 **Denominator note (read this before judging the %):** the headline % is over
 **engine-proper** functions — the **1532** below
@@ -26,7 +26,7 @@ those like retail rather than porting them (PLAN.md §2-3), so counting them
 would bury real progress. Full table is **1824** non-thunk
 functions (of 1824 incl. thunks).
 
-Code-byte coverage (62.8% of engine-proper bytes) is the truer progress
+Code-byte coverage (63.1% of engine-proper bytes) is the truer progress
 signal: the engine has a long tail of tiny leaf helpers, so function count
 understates how much actual instruction volume is ported.
 

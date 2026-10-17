@@ -68,6 +68,8 @@
 #include "title_menu.h"
 #include "field_menu.h"
 #include "save_game.h"
+#include "ai_skill.h"
+#include "script_io.h"
 #include "chapter_scripts.h"
 #include "room_tick.h"
 #include "ui_core.h"
@@ -326,6 +328,10 @@ typedef struct {
     X(H_SV41BD20, "sv_41bd20", 0x41bd20u) X(H_SV41BF60, "sv_41bf60", 0x41bf60u) X(H_SV55F620, "sv_55f620", 0x55f620u) \
     X(H_SV561560, "sv_561560", 0x561560u) X(H_SV561BF0, "sv_561bf0", 0x561bf0u) X(H_SV561CF0, "sv_561cf0", 0x561cf0u) \
     X(H_SV561D20, "sv_561d20", 0x561d20u) X(H_SV560530, "sv_560530", 0x560530u) X(H_SV41CFD0, "sv_41cfd0", 0x41cfd0u) \
+    X(H_AI479F90, "ai_479f90", 0x479f90u) \
+    X(H_SI408730, "si_408730", 0x408730u) X(H_SI409520, "si_409520", 0x409520u) X(H_SI40A340, "si_40a340", 0x40a340u) \
+    X(H_SI41A160, "si_41a160", 0x41a160u) X(H_SI41D4A0, "si_41d4a0", 0x41d4a0u) X(H_SI40A2A0, "si_40a2a0", 0x40a2a0u) \
+    X(H_SI408B90, "si_408b90", 0x408b90u) X(H_SI40A5D0, "si_40a5d0", 0x40a5d0u) \
     X(H_SC401D80, "sc_401d80", 0x401d80u) X(H_SC402030, "sc_402030", 0x402030u) X(H_SC4020A0, "sc_4020a0", 0x4020a0u) \
     X(H_SC4024E0, "sc_4024e0", 0x4024e0u) X(H_SC402610, "sc_402610", 0x402610u) X(H_SC402F40, "sc_402f40", 0x402f40u) \
     X(H_SC406500, "sc_406500", 0x406500u) X(H_SC406AB0, "sc_406ab0", 0x406ab0u) X(H_SC406C70, "sc_406c70", 0x406c70u) \
@@ -3108,15 +3114,19 @@ static void *__attribute__((thiscall)) w_phdel(uint8_t *m, int32_t f)
 }
 
 /* ---- the formation, the actor state restore, the palette tint, the map resource load — full state ---- */
-typedef void (__attribute__((thiscall)) *form_t)(wl_room *);
-static void form_retail(void *c) { ((form_t)(uintptr_t)H[H_FORM].va)(c); }
-static void form_port(void *c) { port_world(); room_formation(c); }
-static void __attribute__((thiscall)) w_form(wl_room *r)
+typedef int32_t (__attribute__((thiscall)) *form_t)(wl_room *);
+typedef struct { wl_room *r; int32_t rr, rp; } form_ctx;
+static void form_retail(void *c) { form_ctx *x = c; x->rr = ((form_t)(uintptr_t)H[H_FORM].va)(x->r); }
+static void form_port(void *c) { form_ctx *x = c; port_world(); x->rp = room_formation(x->r); }
+static int32_t __attribute__((thiscall)) w_form(wl_room *r)
 {
     hook_t *h = &H[H_FORM];
-    if (h->mode == 2) { h->calls++; form_port(r); return; }
-    if (!sample(h)) { form_retail(r); return; }
-    full_shadow(h, "room_formation", form_retail, form_port, r, "room");
+    form_ctx x = { r, 0, 0 };
+    if (h->mode == 2) { h->calls++; form_port(&x); return x.rp; }
+    if (!sample(h)) { form_retail(&x); return x.rr; }
+    if (!full_shadow(h, "room_formation", form_retail, form_port, &x, "room") && x.rr != x.rp)
+        diverged(h, "f%u room_formation ret %08x/%08x", g_frame, (unsigned)x.rr, (unsigned)x.rp);
+    return x.rr;
 }
 typedef int (__attribute__((thiscall)) *follow_t)(wl_char *, int32_t, wl_char *, int32_t, int32_t);
 typedef struct { wl_char *c; int32_t mode; wl_char *ld; int32_t sd, fd; } follow_ctx;
@@ -4408,6 +4418,17 @@ TC_HOOK(H_SV561CF0, "sv_561cf0", 1, 1, return (intptr_t)sv_561cf0((wl_char *)sel
 TC_HOOK(H_SV561D20, "sv_561d20", 1, 1, return (intptr_t)sv_561d20((wl_char *)self, a1))
 TC_HOOK(H_SV560530, "sv_560530", 1, 1, return (intptr_t)sv_560530((wl_char *)self, a1))
 ST_HOOK(H_SV41CFD0, "sv_41cfd0", 4, 1, return (intptr_t)sv_41cfd0(a1, U16(a2), (char *)a3, (int32_t *)a4))
+TC_HOOK(H_AI479F90, "ai_479f90", 2, 1, return (intptr_t)ai_479f90((wl_char *)self, a1, a2))
+/* the script engine's callees with outside effects (src/script_io.c; decomp2c): the logger / BGM / frame-loop ones
+ * REPLACE only; the voice pick, the party command, 0x40a2a0 shadow */
+TC_HOOK(H_SI408730, "si_408730", 1, 1, return (intptr_t)si_408730((wl_char *)self, a1))
+TC_HOOK(H_SI409520, "si_409520", 9, 1, return (intptr_t)si_409520((wl_char *)self, a1, a2, a3, a4, a5, a6, a7, (int32_t *)a8, a9))
+TC_HOOK0(H_SI40A340, "si_40a340", 1, return (intptr_t)si_40a340((wl_char *)self))
+TC_HOOK0(H_SI41A160, "si_41a160", 1, return (intptr_t)si_41a160((wl_char *)self))
+TC_HOOK(H_SI41D4A0, "si_41d4a0", 2, 1, return (intptr_t)si_41d4a0((wl_char *)self, a1, a2))
+TC_HOOK(H_SI40A2A0, "si_40a2a0", 1, 1, return (intptr_t)si_40a2a0((wl_char *)self, a1))
+TC_HOOK(H_SI408B90, "si_408b90", 3, 0, si_408b90((wl_char *)self, (char *)a1, a2, (char *)a3); return 0)
+TC_HOOK(H_SI40A5D0, "si_40a5d0", 5, 0, si_40a5d0((wl_char *)self, a1, a2, a3, a4, a5); return 0)
 /* the chapter scripts' file / sound / DirectX-free callees (src/script_helpers.c; 0x4a5e40 0x4cbfb0 0x4cbfd0 0x4d6490
  * read their caller's ecx: thiscall wrappers) */
 ST_HOOK(H_SC401D80, "sc_401d80", 3, 1, return (intptr_t)sc_401d80(a1, a2, a3))

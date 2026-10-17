@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **1099** (70.9% of engine-proper) — tested 249, ported 850
-- code bytes touched: **62.8%** (1,115,111 / 1,776,526 B of engine-proper)
-- unported: **725**
+- touched: **1107** (71.4% of engine-proper) — tested 249, ported 858
+- code bytes touched: **63.1%** (1,120,249 / 1,776,526 B of engine-proper)
+- unported: **717**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -25,7 +25,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 |----|------|-----:|-----|
 | 0x4031c0 | sub_4031C0 | 815 | glyph_wrap.h, ui_text.h |
 | 0x406440 | cs_fail_406440 | 184 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
-| 0x408b90 | sub_408B90 | 419 | wnd_proc.h |
+| 0x408b90 | sub_408B90 | 419 | script_io.h, wnd_proc.h |
 | 0x40a540 | sub_40A540 | 133 | char_integrate.h, character.h |
 | 0x40dee0 | sub_40DEE0 | 85 | main.c, ui_core.h |
 | 0x40e0c0 | menu_ctrl_clear_40E0C0 | 555 | menu_list.c, menu_list.h, room_load.h |
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (850) — reimplemented, no host test yet
+## ported (858) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -321,15 +321,20 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x407ba0 | sub_407BA0 | 907 | sound_fx.h |
 | 0x408100 | sub_408100 | 205 | gimmick.h |
 | 0x4081d0 | sub_4081D0 | 1366 | script_engine.h |
+| 0x408730 | sub_408730 | 1114 | script_io.h |
 | 0x408d40 | sub_408D40 | 124 | party_member.h |
 | 0x408dc0 | sub_408DC0 | 714 | party_member.h |
 | 0x409090 | sub_409090 | 67 | party_member.h |
 | 0x4090e0 | sub_4090E0 | 107 | char_def.h |
 | 0x4094d0 | sub_4094D0 | 71 | party_member.h |
+| 0x409520 | sub_409520 | 1093 | script_io.h |
 | 0x409970 | sub_409970 | 45 | sana_skills.h, sound_fx.h |
 | 0x4099a0 | sub_4099A0 | 1251 | sound_fx.h |
 | 0x409e90 | sub_409E90 | 375 | sound_fx.h |
 | 0x40a010 | sub_40A010 | 645 | sound_fx.h |
+| 0x40a2a0 | sub_40A2A0 | 56 | script_io.h |
+| 0x40a340 | sub_40A340 | 498 | script_io.h |
+| 0x40a5d0 | sub_40A5D0 | 568 | script_io.h |
 | 0x40a810 | sub_40A810 | 691 | gimmick.h |
 | 0x40ab80 | sub_40AB80 | 136 | actor_ops.h |
 | 0x40ac10 | sub_40AC10 | 127 | gimmick.h |
@@ -415,6 +420,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x418c90 | sub_418C90 | 547 | ui_menu.h |
 | 0x419c00 | sub_419C00 | 110 | scene_loop.h |
 | 0x41a140 | sub_41A140 | 28 | room_loop.h |
+| 0x41a160 | sub_41A160 | 311 | script_io.h |
 | 0x41a2a0 | sub_41A2A0 | 254 | scene_cmd.h |
 | 0x41a3a0 | sub_41A3A0 | 136 | script_helpers.h |
 | 0x41a430 | sub_41A430 | 947 | save_game.h |
@@ -432,6 +438,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x41c320 | sub_41C320 | 105 | title_menu.h |
 | 0x41cfd0 | sub_41CFD0 | 438 | save_game.h |
 | 0x41d190 | sub_41D190 | 779 | scene_cmd.h |
+| 0x41d4a0 | sub_41D4A0 | 623 | script_io.h |
 | 0x41d780 | sub_41D780 | 942 | title_menu.h |
 | 0x41dc40 | sub_41DC40 | 75 | party_member.h |
 | 0x41dc90 | sub_41DC90 | 890 | room_load.h |
@@ -678,6 +685,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x478a50 | sub_478A50 | 329 | char_attack.h |
 | 0x479e10 | sub_479E10 | 38 | behave_helpers.h |
 | 0x479e40 | sub_479E40 | 41 | behave_helpers.h |
+| 0x479f90 | sub_479F90 | 875 | ai_skill.h |
 | 0x47a970 | sub_47A970 | 1059 | behave_helpers.h |
 | 0x47adb0 | sub_47ADB0 | 79 | behave_helpers.h |
 | 0x47ae00 | sub_47AE00 | 2364 | behave_helpers.h |

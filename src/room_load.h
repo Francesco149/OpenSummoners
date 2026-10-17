@@ -137,7 +137,7 @@ void engine_fatal(uint32_t msg_va);
  * formation kind: the member's slot +0xa00 / room +0x4054) and follow set-up: the leader (or every
  * member without one) mode 2; others by the follow mode (slot +0x9fc / room +0x4050): 1 behind the
  * leader, 2 in a line (4000 per order step), else 0x41e020 mode 3; 4800 per member placed ahead */
-void room_formation(wl_room *r);
+int32_t room_formation(wl_room *r);
 /* 0x41e020 (thiscall character): follow `leader` in `mode` at the given distances */
 void char_follow_set(wl_char *c, int32_t mode, wl_char *leader, int32_t side_dist, int32_t follow_dist);
 /* 0x4182d0 (stdcall): dst rgb = src rgb (or their mean, `gray`) x r / g / b percent, clamped 0..255 */
