@@ -10,7 +10,9 @@
   rhost.py corpus [--only RE] [--check|--bless]  every scenario; summary.tsv; expected.json gate
   rhost.py verify [--only RE]             every scenario × every shadow hook → evidence table
   rhost.py diff A.rhs B.rhs               classify the differences between two dumps
-  rhost.py record NAME [--save DIR|TGZ]   HUMAN PLAY on the Windows desktop (realtime) → trace
+  rhost.py record NAME [--save DIR|TGZ | --from SCEN]   HUMAN PLAY on the Windows desktop (realtime) → trace;
+                                          --from = continue SCEN's play from its final save (Load at the title)
+  rhost.py final-save SCEN [--refresh]    the user\\ dir (saves) SCEN's pure replay leaves (cached, _saves/)
   rhost.py coverage [--only RE]           first-hit coverage of every IDA function over the corpus
   rhost.py portshots SCEN --at F,F        retail (rhost) | port exe at the same flips → cmp PNGs + differ_px
 
@@ -126,12 +128,25 @@ def ensure_staged():
 
 
 # ---------------------------------------------------------------- scenarios
-def scenario_inputs(name):
-    """→ (trace path, save dir/tgz or None, edition)"""
+def trace_meta(tr):
+    """the trace's {"meta": {...}} line (merged if several)"""
+    meta = {}
+    for line in open(tr):
+        line = line.strip()
+        if line.startswith("{") and '"meta"' in line:
+            meta.update(json.loads(line)["meta"])
+    return meta
+
+
+def scenario_inputs(name, a=None):
+    """→ (trace path, save dir/tgz or None, edition).  A trace whose meta says "from": "SCEN" starts from the
+    user\\ dir SCEN's replay leaves behind (its final save; derived on demand + cached, `final_save`)."""
     if name.endswith(".jsonl") and os.path.exists(name):
-        return os.path.abspath(name), None, None
-    d = os.path.join(SCEN, name)
-    tr = os.path.join(d, "trace.jsonl")
+        tr = os.path.abspath(name)
+        d = os.path.dirname(tr)
+    else:
+        d = os.path.join(SCEN, name)
+        tr = os.path.join(d, "trace.jsonl")
     if not os.path.exists(tr):
         raise SystemExit(f"no trace: {tr}")
     save, ed = None, None
@@ -142,7 +157,74 @@ def scenario_inputs(name):
             save = None if ref == "@fresh" else os.path.normpath(os.path.join(d, ref))
         if line.startswith("{") and '"edition"' in line:
             ed = re.search(r'"edition"\s*:\s*"([^"]*)"', line).group(1)
+    meta = trace_meta(tr)
+    if meta.get("from"):
+        target = getattr(a, "target", None) or os.environ.get("RHOST_TARGET", "win")
+        save, digest = final_save(meta["from"], target)
+        want = meta.get("from_save")    # the recording's (Windows) start save
+        if want and digest != want and target == "win":
+            print(f"WARNING {name}: {meta['from']}'s final save is {digest}, the recording started from {want} "
+                  f"(the replay may desync; a changed predecessor trace?)")
     return tr, save, ed
+
+
+# ---------------------------------------------------------------- save chains (a scenario continuing another's play)
+def save_digest(udir):
+    """content hash of a user\\ dir (file names + bytes), 12 hex"""
+    import hashlib
+    h = hashlib.sha256()
+    for f in sorted(os.listdir(udir)):
+        p = os.path.join(udir, f)
+        if os.path.isfile(p):
+            h.update(f.lower().encode() + b"\0" + open(p, "rb").read() + b"\0")
+    return h.hexdigest()[:12]
+
+
+def save_slots(udir):
+    """the slot saves a user\\ dir holds: a statue save is savedataNN.sdt (kind 10040 — the title's Load reads that
+    kind); .dat = kind 10010, .bak = the overwrite backup"""
+    return sorted(f for f in os.listdir(udir) if re.fullmatch(r"savedata\d\d\.(dat|sdt)", f, re.I))
+
+
+def final_save(scen, target):
+    """the user\\ dir a PURE replay of SCEN leaves behind (its saves + config.dat) → (dir, digest).
+    Deterministic: a function of (trace, start save, edition, target); retail writes the saves itself, so no save
+    file is ever committed — a chain is re-derivable from the corpus alone.  Cached in tests/scenarios/SCEN/_saves/
+    (gitignored), keyed on those inputs; `rhost.py final-save SCEN --refresh` re-derives."""
+    import hashlib
+    tr, save, ed = scenario_inputs(scen, argparse.Namespace(target=target))
+    k = hashlib.sha256(open(tr, "rb").read())
+    k.update(f"|{ed or 'enold'}|{target}|".encode())
+    if save:
+        k.update((save_digest(save) if os.path.isdir(save) else hashlib.sha256(open(save, "rb").read()).hexdigest()).encode())
+    cache = os.path.join(SCEN, scen, "_saves", f"final-{target}-{k.hexdigest()[:12]}")
+    ok = cache + ".ok"     # beside the dir, not in it (the dir is staged as the run's user\\ verbatim)
+    if os.path.isdir(cache) and os.path.exists(ok) and not FINAL_SAVE_REFRESH:
+        return cache, open(ok).read().split()[0]
+    print(f"[final save of {scen} ({target}): replaying it, pure retail]")
+    # a clean run: no hooks / probes / seed override (the chain's save is canonical retail output)
+    ra = argparse.Namespace(target=target, jobs=1, edition=None, wine_timeout=7200)
+    batch, bdir, res, out = run_batch(ra, [(scen, tr, save, ed)], "final-save-" + scen)
+    r = res.get(scen, {})
+    if r.get("status") != "ok" or r.get("complete") != "1":
+        raise SystemExit(f"final save of {scen}: the replay did not complete ({r or 'no result'}; {bdir})")
+    if os.path.exists(cache):
+        shutil.rmtree(cache)
+    os.makedirs(os.path.dirname(cache), exist_ok=True)
+    src = os.path.join(bdir, scen, "user")
+    if target == "win":
+        if not scp(f"{WIN}:C:/oss-rhost/runs/{batch}/{scen}/user", cache, recursive=True, check=False):
+            raise SystemExit(f"final save of {scen}: the run left no user\\ dir ({bdir})")
+    elif os.path.isdir(src):
+        shutil.copytree(src, cache)
+    else:
+        raise SystemExit(f"final save of {scen}: the run left no user\\ dir ({bdir})")
+    digest = save_digest(cache)
+    open(ok, "w").write(f"{digest} {batch} f{r.get('frame')} sem={r.get('state_sem')}\n")
+    return cache, digest
+
+
+FINAL_SAVE_REFRESH = False
 
 
 def stage_save(save, rdir):
@@ -338,8 +420,8 @@ def run_batch(a, runs, tag, fetch=("rhost.log",)):
     return batch, bdir, results, out
 
 
-def resolve_runs(names):
-    return [(os.path.splitext(os.path.basename(n))[0] if n.endswith(".jsonl") else n, *scenario_inputs(n)) for n in names]
+def resolve_runs(names, a=None):
+    return [(os.path.splitext(os.path.basename(n))[0] if n.endswith(".jsonl") else n, *scenario_inputs(n, a)) for n in names]
 
 
 def all_scenarios(only=None):
@@ -362,7 +444,7 @@ def print_results(results, names):
 
 # ---------------------------------------------------------------- commands
 def cmd_run(a):
-    runs = resolve_runs(a.scenarios)
+    runs = resolve_runs(a.scenarios, a)
     fetch = ("rhost.log", "shot_*.png", "stdout.txt", "stderr.txt", "grid_*.bin") + (("state_*.rhs",) if a.dump_at else ())
     batch, bdir, res, out = run_batch(a, runs, "run", fetch=fetch)
     print_results(res, [r[0] for r in runs])
@@ -386,7 +468,7 @@ def cmd_det(a):
         tr, save, ed = None, None, None
         a.frames = a.frames or 1500
     else:
-        tr, save, ed = scenario_inputs(a.scenario)
+        tr, save, ed = scenario_inputs(a.scenario, a)
     if getattr(a, "learn_every", None):   # mid-run dumps too: slots alive only mid-run (the sem series checks them)
         ep = os.path.join(SCEN, a.scenario, "expected.json" if a.target == "win" else f"expected.{a.target}.json")
         last = int(json.load(open(ep))["frame"]) if os.path.exists(ep) else (a.frames or 0)
@@ -469,7 +551,7 @@ def cmd_corpus(a):
         # its layout moves per run, and mid-run system pointers stay unmasked there (calibrating them means 16 GB
         # of dumps per scenario over the network) — the end state is the gate there
         a.hash_every = SERIES_EVERY
-    runs = resolve_runs(names)
+    runs = resolve_runs(names, a)
     batch, bdir, res, out = run_batch(a, runs, "corpus", fetch=("rhost.log",))
     print_results(res, names)
     done = sum(1 for n in names if res.get(n, {}).get("complete") == "1")
@@ -596,7 +678,7 @@ def cmd_verify(a):
     want = {h.split("@")[0]: h for h in (a.hooks or "").split(",") if h}   # `name@N` overrides the sampling
     hooks = [want.get(h.split("@")[0], h) for h in VERIFY_HOOKS if not want or h.split("@")[0] in want]
     a.hook = ",".join("shadow:" + h for h in hooks)
-    runs = resolve_runs(names)
+    runs = resolve_runs(names, a)
     k = max(1, a.split)
     if k > 1:      # the shadows are independent (retail stays authoritative): each scenario × k hook subsets in parallel
         runs = [(f"{r[0]}~{i}", *r[1:4], ",".join("shadow:" + h for h in hooks[i::k])) for r in runs for i in range(k)]
@@ -640,7 +722,7 @@ def cmd_coverage(a):
     open(cov_in, "w").write("\n".join(vas) + "\n")
     a.coverage_file = cov_in
     names = all_scenarios(a.only) if not a.scenarios else a.scenarios
-    runs = resolve_runs(names)
+    runs = resolve_runs(names, a)
     batch, bdir, res, out = run_batch(a, runs, "coverage", fetch=("rhost.log", "coverage.txt"))
     print_results(res, [r[0] for r in runs])
     hit = {}
@@ -700,7 +782,7 @@ def cmd_portshots(a):
     ssh_win(f"New-Item -ItemType Directory -Force {WROOT}\\port | Out-Null; "
             f"if (!(Test-Path {WROOT}\\portgame\\sotesd.dll)) {{ Copy-Item -Recurse {WROOT}\\game\\enold {WROOT}\\portgame }}; exit 0")
     scp(os.path.join(ROOT, "build", "opensummoners.exe"), f"{WIN}:C:/oss-rhost/port/opensummoners.exe")
-    tr, save, ed = scenario_inputs(a.scenario)
+    tr, save, ed = scenario_inputs(a.scenario, a)
     frames = sorted(int(x) for x in a.at.split(","))
     W = a.search or 0
     # numbering: the port's capture N = the N-th present (1-based, g_present_frame after ++);
@@ -773,7 +855,7 @@ def cmd_hookbisect(a):
     reference + N groups of the candidates (each group replaced alone); the diverging groups split again
     until single hooks remain.  Compares frame / tick / rng (+ state_sem on the Windows target)."""
     cand = a.hooks.split(",") if a.hooks else hybrid_hooks()
-    tr, save, ed = scenario_inputs(a.scenario)
+    tr, save, ed = scenario_inputs(a.scenario, a)
     # wine: semv (blind to system-heap values); Windows: state_sem only at a scenario's end (mid-run it is not
     # stable there: system pointers the end-state calibration never saw)
     keys = ("frame", "tick", "rng") + (("state_semv",) if a.target == "wine" else () if a.frames else ("state_sem",)) \
@@ -812,28 +894,57 @@ def cmd_diff(a):
 
 
 def cmd_record(a):
-    """human play: visible window on the Windows desktop, realtime, real keyboard"""
-    ensure_staged()
+    """human play: visible window on the Windows desktop, realtime, real keyboard.  --from SCEN: boot with the
+    saves SCEN's play left behind (its final user\\ dir) — Load the slot at the title and keep playing; the trace
+    records "from" and replays re-derive that save from SCEN's trace (nothing to commit but the trace)."""
     name = a.name
     out_dir = os.path.join(SCEN, name)
     if os.path.exists(os.path.join(out_dir, "trace.jsonl")) and not a.force:
         raise SystemExit(f"{out_dir}/trace.jsonl exists (use --force)")
+    if a.save and getattr(a, "from_scen", None):
+        raise SystemExit("--save and --from are exclusive")
+    a.target = "win"      # a human at the Windows desktop
+    save, digest, ed = a.save, None, a.edition
+    if getattr(a, "from_scen", None):
+        save, digest = final_save(a.from_scen, "win")
+        ed = ed or scenario_inputs(a.from_scen, a)[2]
+        slots = save_slots(save)
+        print(f"starting from {a.from_scen}'s final save {digest}: " +
+              (f"slot(s) {', '.join(slots)} — Load at the title" if slots else
+               "NO slot save (the predecessor never saved at a statue; only its config / system data carry over)"))
+    ensure_staged()
     a.show = True
     a.extra = ((a.extra or "") + f" --record trace.jsonl").strip()
     a.jobs = 1
-    runs = [(name, None, a.save, a.edition)]
+    runs = [(name, None, save, ed)]
     batch, bdir, res, out = run_batch(a, runs, "record-" + name, fetch=("rhost.log", "trace.jsonl"))
     print_results(res, [name])
     src = os.path.join(bdir, name, "trace.jsonl")
     if not os.path.exists(src):
         raise SystemExit("no trace recorded")
     os.makedirs(out_dir, exist_ok=True)
+    meta = {"recorded": datetime.datetime.now().isoformat(timespec="seconds"), "edition": ed or "enold"}
+    if digest:
+        meta.update({"from": a.from_scen, "from_save": digest})
     with open(os.path.join(out_dir, "trace.jsonl"), "w") as f:
-        f.write(f'{{"meta": {{"recorded": "{datetime.datetime.now().isoformat(timespec="seconds")}", "edition": "{a.edition or "enold"}"}}}}\n')
+        f.write(json.dumps({"meta": meta}) + "\n")
         if a.save:
             f.write(f'{{"savefile": "{os.path.relpath(a.save, out_dir)}"}}\n')
         f.write(open(src).read())
     print(f"recorded → {out_dir}/trace.jsonl (verify: rhost.py det {name})")
+    udir = os.path.join(bdir, name, "user")
+    if scp(f"{WIN}:C:/oss-rhost/runs/{batch}/{name}/user", udir, recursive=True, check=False):
+        slots = save_slots(udir)
+        print(f"this play ends with slot save(s): {', '.join(slots)} — continue it with `rhost.py record NEXT --from {name}`"
+              if slots else "this play left NO slot save: save at a statue before quitting to continue it later (--from)")
+
+
+def cmd_final_save(a):
+    global FINAL_SAVE_REFRESH
+    FINAL_SAVE_REFRESH = a.refresh
+    d, digest = final_save(a.scenario, a.target)
+    print(f"{a.scenario} final save ({a.target}): {d}\n  digest {digest}; slots: {', '.join(save_slots(d)) or 'none'}; "
+          f"files: {', '.join(sorted(os.listdir(d)))}")
 
 
 def main():
@@ -885,7 +996,10 @@ def main():
     common(p); p.set_defaults(fn=cmd_portshots)
     p = sub.add_parser("diff"); p.add_argument("a"); p.add_argument("b"); p.add_argument("--show", type=int, default=40); p.set_defaults(fn=cmd_diff)
     p = sub.add_parser("record"); p.add_argument("name"); p.add_argument("--save"); p.add_argument("--force", action="store_true")
+    p.add_argument("--from", dest="from_scen", help="start from SCEN's final save (its replay's user\\ dir); the trace records it")
     common(p); p.set_defaults(fn=cmd_record)
+    p = sub.add_parser("final-save"); p.add_argument("scenario"); p.add_argument("--refresh", action="store_true")
+    common(p); p.set_defaults(fn=cmd_final_save)
     a = ap.parse_args()
     if not hasattr(a, "jobs"):
         a.jobs = 1

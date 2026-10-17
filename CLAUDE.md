@@ -33,7 +33,8 @@ state hash; ~830–1000 fps; no Frida, no pins. Editions: `enold` (port target) 
   (`rhost shadow: N calls / K scenarios, 0 divergences; replace: corpus --check PASS`).
 - **Gates:** `rhost.py det SCEN -n 3` (only `volatile.<edition>.txt` pointer slots may differ);
   `rhost.py corpus --check` (expected.json per `tests/scenarios/rh-*`; re-`--bless` only for an
-  intended rhost change). Scenarios: DIK-level traces; humans record with `rhost.py record NAME`.
+  intended rhost change). Scenarios: DIK-level traces; humans record with `rhost.py record NAME` (`--from PREV`: continue PREV's play
+  from its final save — re-derived from PREV's trace on every replay, nothing committed but the trace).
   **The hybrid gate** `corpus --check --hybrid` = every ported function REPLACING retail; on wine it also
   compares the state hash every 600 frames (`expected.wine.json` `sem_series`, `semv`) — transient
   divergences a room reload erases show there; `hookbisect SCEN --frames N` names the breaking hook.

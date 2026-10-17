@@ -46,6 +46,17 @@ Default keymap (retail producer 0x46a880): arrows 0xc8/0xd0/0xcb/0xcd → ring i
 action keys come from config.dat (+0x548…). `rhost.py record` writes the same format.
 Saves are the game's `user\` dir (savedataNN.dat…): user data, gitignored (`_saves/`).
 
+**Save chains — continuing a play (`"from"`, 2026-10-17):** `rhost.py record NEXT --from PREV` boots with the
+`user\` dir a PURE replay of PREV leaves behind (its statue saves — EN-old writes them as `savedataNN.sdt`, kind
+10040 — + config.dat): pick Continue at the title and keep playing. The trace's meta records
+`"from": "PREV", "from_save": "<digest>"`, and every replay (run / det / corpus / verify, either target)
+re-derives that save from PREV's trace (`final_save`, cached in `tests/scenarios/PREV/_saves/final-<target>-<key>/`,
+keyed on PREV's trace + start save + edition + target) — no save file is ever committed; a chain replays from the
+corpus alone. `rhost.py final-save PREV [--refresh]` shows it (slots, digest). Windows and wine derive the same
+bytes (rh-combat: `f9debda624d1` both). A replay warns if the derived save's digest differs from the one the
+recording started from. `record` reports whether the new play left a slot save (save at a statue before quitting
+to continue it later).
+
 ## What makes a run deterministic
 
 | source of run-to-run difference | rhost layer |
