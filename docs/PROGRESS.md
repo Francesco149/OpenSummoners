@@ -6,6 +6,20 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-17 (morning, 2) — the title pass's lessons: rhost owns the Flip for RC_ too; two latent table bugs
+
+- rhost: `g_eng.retail(0x5b8fc0)` / `(0x43d1d0)` now hand out rhost's Flip / easer stubs (as the named slots do): a
+  ported title loop calling the raw Flip ran 4,553 iterations in 47 frames (the virtual clock crept by polling, the
+  splash timeline ran through, the attract demo started at f47).
+- decomp2c: a bare `dword_X` assigned to a pointer local is the table's ADDRESS (it had read the first value:
+  0x560a40 dereferenced skill code 50010 — and two committed functions carried the same bug unreached:
+  `sc_49e6c0`, `beh_47ecd0`); a class pointer's `v + k` moves by whole objects; `if (p) ctor(p); else v = 0` keeps the
+  ctor's returned object; IDA's CRLF in multi-line patterns; a display-mode switch IDA rendered as `return` (hand
+  fix in the title pass: 0x562ea0 jumps to the default case).
+- The `title_menu` pass (59 functions) now runs every scenario to the end pixel-identical (fb, ticks, rng equal)
+  but its heap state differs from f750 in title-options (retail builds "Game Control Setup" text records the port
+  does not) — still PARKED.
+
 ## 2026-10-17 (morning) — the render's platform layer; decomp2c's next constructs
 
 - `src/render_platform.c` (23 functions, decomp2c): surface DC get / release, lock / unlock, the blits, the

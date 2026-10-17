@@ -2244,6 +2244,10 @@ static uint32_t g_rep_va[1024]; static void *g_rep_w[1024]; static int g_nrep;  
 /* decomp2c's RC_ calls: retail is mapped in place — a function a hook REPLACES: its wrapper (the port) */
 static void *rh_retail(uint32_t va)
 {
+    /* the Flip and the camera easer are rhost's own (the frame count / virtual clock step there, as through the
+     * named slots): a ported title loop calling the raw Flip ran 4,553 iterations in 47 frames */
+    if (va == 0x5b8fc0u) return g_rh_flip_stub;
+    if (va == 0x43d1d0u) return g_rh_easer_stub;
     int lo = 0, hi = g_nrep - 1;
     while (lo <= hi) { int m = (lo + hi) / 2; if (g_rep_va[m] == va) return g_rep_w[m]; if (g_rep_va[m] < va) lo = m + 1; else hi = m - 1; }
     return (void *)(uintptr_t)va;

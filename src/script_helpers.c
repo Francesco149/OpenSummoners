@@ -1455,8 +1455,8 @@ int32_t sc_49e6c0(wl_char *self)
 
   v1 = 0;
   v2 = 0;
-  v3 = F32(D(0x6e7a38), 0);
-  (*v43__f) = F32(D(0x6e7a38), 0);
+  v3 = (int32_t *)D(0x6e7a38);
+  (*v43__f) = (int32_t *)D(0x6e7a38);
   while ( 1 )
   {
     v5 = W_script_flag(c, v3[2]);

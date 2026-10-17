@@ -160,8 +160,8 @@ understates how much actual instruction volume is ported.
      pure ≡ hybrid in pixels on every presented frame (the render gate).  Every decomp2c module regenerated from a
      fresh IDA export (callers had lost their callee's `this`); its platform layer too (`src/render_platform.c`: every
      blit).  Next: the frame loaders 0x4184a0 / 0x4188b0 / 0x4178e0 / 0x499850 + the bitmap session 0x5b6xxx; the
-     title / menu screens (a decomp2c `title_menu` pass is PARKED in the session scratchpad: the title drive 0x562ea0
-     returns "quit" at boot — debug it first); a targeted (sampled) shadow verify of the regenerated modules; `_DWORD` is unsigned in IDA but
+     title / menu screens (a decomp2c `title_menu` pass is PARKED in the session scratchpad: it now runs pixel-identical
+     everywhere; open: a heap difference from title-options f750 — the "Game Control Setup" text records); a targeted (sampled) shadow verify of the regenerated modules; `_DWORD` is unsigned in IDA but
      signed in decomp2c's prologue (check before relying on `>>` / `<` of a `_DWORD` load).
   0000. (2026-10-16 evening) the shots, the behaviour layer, the integrator's reached handlers + the item / skill
      effect + 34 chapter scripts run as port code; the hybrid gate holds at every 600-frame sample (wine).  Open:

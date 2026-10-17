@@ -459,6 +459,13 @@ def convert(text, names, widths, this):
     lines = text.split("\n")
     k = lines.index("{")
     head, body = " ".join(l.strip() for l in lines[:k]), lines[k + 1:-1]
+    # `if ( p ) ctor(p); else v = nullptr;`: the constructor returns `this` in eax and retail stores it (IDA, with a
+    # void prototype, dropped the assignment: 0x56aea0's v6)
+    bt = "\n".join(body)
+    bt = re.sub(r"if \( (\w+) != nullptr \)\r?\n(\s+)(\w+)\(\1\);\r?\n(\s+)else\r?\n(\s+)(\w+) = nullptr;",
+                lambda m: f"if ( {m.group(1)} != nullptr )\n{m.group(2)}{{ {m.group(3)}({m.group(1)}); {m.group(6)} = {m.group(1)}; }}   /* (a ctor returns its object) */\n"
+                          f"{m.group(4)}else\n{m.group(5)}{m.group(6)} = nullptr;", bt)
+    body = bt.split("\n")
     for rn in RESERVED:   # IDA names TextOutA's length local `c`: it would alias `this` (0x496ec0 read this->+0x3d0 off it)
         if any(re.match(r"^  [A-Za-z_][\w\s\*]*?\b%s(\[\d+\])?; // " % rn, l) for l in body) or re.search(r"[(,]\s*[^,()]*\b%s\)" % rn, head):
             body = [re.sub(r"\b%s\b" % rn, rn + "_l", l) for l in body]
@@ -610,6 +617,9 @@ def convert(text, names, widths, this):
             s = re.sub(r"\*\(%s \*\)(\w+)\b(?!\s*[\[(])" % t, r"%s(\1, 0)" % f, s)
             s = re.sub(r"\*\(%s \*\)\(%s\)" % (t, inner), r"%s((\1), 0)" % f, s)
         s = re.sub(r"(?<!\*)\*\((?:_UNKNOWN|void|cls_\w+|_DWORD|int|_WORD|_BYTE|char|__int16|unsigned __int16) \*\*\)\(%s\)" % inner, r"F32((\1), 0)", s)
+    for v, (cls, n) in CLSIDX.items():   # a class pointer's `v + k` as a value moves by whole objects (0x5642e0's v9 + 1)
+        if n > 1:
+            s = re.sub(r"(?<=[=,(] )%s \+ (\d+)(?=[;,)])" % re.escape(v), lambda m: f"{v} + {n} * {m.group(1)}", s)
     for v, (cls, n) in CLSIDX.items():   # a class pointer kept as an integer, indexed: by the class size
         _, fs0, gs0 = class_layout(cls)
         el = lambda i: f"({v} + ({i}) * 0x{n:x})"
@@ -649,6 +659,9 @@ def convert(text, names, widths, this):
     s = re.sub(r"\bflt_([0-9A-F]{6})\b", lambda m: f"(*(const float *)D(0x{int(m.group(1), 16):x}))", s)
     for kind, f in (("dword", "int32_t"), ("word", "uint16_t"), ("byte", "uint8_t")):
         s = re.sub(r"\b%s_([0-9A-F]{6})\[" % kind, lambda m: f"(({f} *)D(0x{int(m.group(1), 16):x}))[", s)
+    for kind, ct in (("dword", "int32_t"), ("word", "uint16_t"), ("byte", "uint8_t")):   # an array into a pointer local:
+        s = re.sub(r"\b(\w+) = %s_([0-9A-F]{6});" % kind,                               # its address (0x560a40's v12)
+                   lambda m, ct=ct: f"{m.group(1)} = ({ct} *)D(0x{int(m.group(2), 16):x});" if m.group(1) in PTRVARS else m.group(0), s)
     for name, va in SYMS.items():
         if not re.search(r"\b%s\b" % re.escape(name), s) or name.startswith(("sub_", "p_cls_")) or name in ("Format", "Buffer", "stru_8A6B60") \
                 or re.search(r"\b%s\b" % re.escape(name), head) or name in DECLNAMES:   # (a1..: a parameter only when in the head)
