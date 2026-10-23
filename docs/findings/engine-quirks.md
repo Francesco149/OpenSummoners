@@ -5072,6 +5072,20 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   rh-combat reaches it 17 times (first f22470), rh-early-game 37 (in == out: the live tick); no other special pose.
 - The three `0x445ce0` calls in 0x75 / 0x76 / 0x77 take ecx = edi = this (`0x442f89` / `0x4439dc` / `0x444473`).
 
+### #175 — the CRT runs under the Japanese locale: `setlocale(LC_ALL, "ja")` SUCCEEDS on VC6 (rhost 2026-10-23)
+- WinMain 0x562210 calls `setlocale(0, "ja")` (0x8a0b98) and ignores the result.  VC6 matches a short language name as
+  a case-insensitive PREFIX of a locale's English name ("ja" ~ "Japanese"), so retail's CRT is Japanese_Japan.932 from
+  then on: `__lc_handle` 0x8a9d48[1..5] = 0x411, `__lc_codepage` 0x8a9d60 = `__lc_collate_cp` 0x8a9d64 = 932 (read on
+  Windows, `--watch`).  Game-invisible: game code reads no CRT locale state; the one strftime format ("%Y/%m/%d %H:%M",
+  0x8a0b70) is ASCII digits; the tz names it converts with code page 932 are never shown.
+
+### #176 — the C++ static-init table's FIRST entry is a jmp IDA defines no function for (2026-10-23)
+- `_cinit` runs `_initterm(0x854000, 0x854040)`: 15 entries; the first, `0x401000`, is `jmp 0x401010`, and 0x401010 =
+  `fld [0x5cc288]; fmul [0x850d60]; fstp [0x8a9a38]` (the degree -> radian factor every later initializer multiplies).
+  Neither address is an IDA function (functions_ida.tsv starts at 0x401030).  The C initializers 0x854044..0x854058 are
+  CRT-only (`___onexitinit`, `___initstdio`, `___initmbctable`, the unhandled-exception filter 0x5c7c05); the exit
+  tables 0x85405c (`___endstdio`) / 0x854068 (0x5c7c16).  The atexit'd 0x401120 = `mov ecx, 0x8a6b50; jmp 0x5b5a90`.
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

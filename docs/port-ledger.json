@@ -6,19 +6,22 @@
   "non_thunk_functions": 1824,
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
-  "tested": 249,
-  "ported": 1294,
-  "unported": 281,
-  "orphan_refs_not_in_function_table": 0,
-  "touched": 1543,
+  "tested": 268,
+  "ported": 1290,
+  "unported": 266,
+  "orphan_refs_not_in_function_table": 2,
+  "touched": 1558,
   "pct_touched": 99.9,
   "pct_tested": 15.7,
-  "engine_proper_touched": 1530,
+  "engine_proper_touched": 1531,
   "bytes_total": 1776526,
-  "bytes_touched": 1776512,
+  "bytes_touched": 1776522,
   "pct_bytes_touched": 100.0
  },
- "orphan_refs": [],
+ "orphan_refs": [
+  "0x401000",
+  "0x401010"
+ ],
  "functions": [
   {
    "va": "0x401030",
@@ -125,8 +128,10 @@
    "name": "unknown_libname_1",
    "size": 10,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/static_init.h"
+   ]
   },
   {
    "va": "0x401130",
@@ -16087,8 +16092,10 @@
    "name": "__fpmath",
    "size": 23,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/msvc_crt.h"
+   ]
   },
   {
    "va": "0x5bee27",
@@ -16119,8 +16126,10 @@
    "name": "_atexit",
    "size": 18,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/msvc_crt.h"
+   ]
   },
   {
    "va": "0x5beedf",
@@ -16141,6 +16150,7 @@
     "src/asset_register.h",
     "src/cs_dispatch.c",
     "src/menu_list.c",
+    "src/msvc_crt.h",
     "src/pixel_drawer.c",
     "src/zdd.c",
     "src/zdd.h"
@@ -16175,8 +16185,10 @@
    "name": "??2@YAPAXI@Z",
    "size": 14,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/msvc_crt.h"
+   ]
   },
   {
    "va": "0x5bf01b",
@@ -16311,9 +16323,10 @@
    "name": "emit_last_error_line_5BF3EE",
    "size": 82,
    "is_thunk": false,
-   "status": "ported",
+   "status": "tested",
    "src": [
-    "src/cs_dispatch_win32.c"
+    "src/cs_dispatch_win32.c",
+    "src/msvc_crt.h"
    ]
   },
   {
@@ -16321,9 +16334,10 @@
    "name": "_fclose",
    "size": 86,
    "is_thunk": false,
-   "status": "ported",
+   "status": "tested",
    "src": [
-    "src/cs_dispatch_win32.c"
+    "src/cs_dispatch_win32.c",
+    "src/msvc_crt.h"
    ]
   },
   {
@@ -16331,9 +16345,10 @@
    "name": "_fprintf",
    "size": 50,
    "is_thunk": false,
-   "status": "ported",
+   "status": "tested",
    "src": [
-    "src/cs_dispatch_win32.c"
+    "src/cs_dispatch_win32.c",
+    "src/msvc_crt.h"
    ]
   },
   {
@@ -16352,6 +16367,7 @@
    "status": "tested",
    "src": [
     "src/cs_dispatch_win32.c",
+    "src/msvc_crt.h",
     "src/wnd_proc.h"
    ]
   },
@@ -16360,8 +16376,9 @@
    "name": "sub_5BF4FB",
    "size": 10,
    "is_thunk": false,
-   "status": "ported",
+   "status": "tested",
    "src": [
+    "src/msvc_crt.h",
     "src/rng.c",
     "src/rng.h"
    ]
@@ -16407,6 +16424,7 @@
     "src/app_pump_win32.c",
     "src/cs_dispatch.h",
     "src/cs_dispatch_win32.c",
+    "src/msvc_crt.h",
     "src/wnd_proc.c",
     "src/wnd_proc.h",
     "src/zdd.c"
@@ -16451,8 +16469,9 @@
    "name": "_time",
    "size": 220,
    "is_thunk": false,
-   "status": "ported",
+   "status": "tested",
    "src": [
+    "src/msvc_crt.h",
     "src/rng.h"
    ]
   },
@@ -16477,8 +16496,10 @@
    "name": "_strftime",
    "size": 27,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/msvc_crt.h"
+   ]
   },
   {
    "va": "0x5bf880",
@@ -16533,16 +16554,20 @@
    "name": "_localtime",
    "size": 352,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/msvc_crt.h"
+   ]
   },
   {
    "va": "0x5c022c",
    "name": "_setlocale",
    "size": 518,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/msvc_crt.h"
+   ]
   },
   {
    "va": "0x5c0432",
@@ -16605,16 +16630,20 @@
    "name": "_fseek",
    "size": 140,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/msvc_crt.h"
+   ]
   },
   {
    "va": "0x5c08f1",
    "name": "_fscanf",
    "size": 22,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/msvc_crt.h"
+   ]
   },
   {
    "va": "0x5c0907",
@@ -16623,6 +16652,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/msvc_crt.h",
     "src/zdd.c",
     "src/zdd.h"
    ]
@@ -16634,6 +16664,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/msvc_crt.h",
     "src/zdd.c"
    ]
   },
@@ -16650,8 +16681,10 @@
    "name": "start",
    "size": 246,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/msvc_crt.h"
+   ]
   },
   {
    "va": "0x5c0b85",
@@ -17132,8 +17165,10 @@
    "name": "___loctotime_t",
    "size": 194,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/msvc_crt.h"
+   ]
   },
   {
    "va": "0x5c2b60",
@@ -17180,24 +17215,30 @@
    "name": "__tzset",
    "size": 606,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/msvc_crt.h"
+   ]
   },
   {
    "va": "0x5c3278",
    "name": "__isindst",
    "size": 428,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/msvc_crt.h"
+   ]
   },
   {
    "va": "0x5c3424",
    "name": "_cvtdate",
    "size": 320,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/msvc_crt.h"
+   ]
   },
   {
    "va": "0x5c3570",
@@ -17212,8 +17253,10 @@
    "name": "_gmtime",
    "size": 249,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/msvc_crt.h"
+   ]
   },
   {
    "va": "0x5c36f5",

@@ -136,7 +136,19 @@
 - **NPC navigation AI `0x43f880` LANDED** (`src/npc_ai.c`: + `0x4412d0` try-command, `0x441ae0` floor
   ahead, `0x4418e0`, `0x440e40`, `0x441700`, `0x43ee30`, …; scratch bodies from retail's heap via
   `g_eng.op_new`). Hybrid gate with all 12 movement functions replacing retail: PASS.
+- **THE STANDALONE (2026-10-23 late night, `docs/standalone.md`):** the port runs with NO retail code —
+  `build/rhost/opensummoners-standalone.exe` (the product: drop it in the game folder, stock Steam `sotes.exe` works,
+  real platform) and `rhost.exe --standalone` (deterministic: the corpus gate).  Data sections only (code range = INT3
+  + 1,360 `jmp` thunks into port code), asset DLLs as data, the port CRT `src/msvc_crt.c` (the game's 16 CRT entry
+  points + `start`).  `corpus --check --standalone` = PURE RETAIL's frame / tick / RNG / every frame's pixels: PASS
+  9/9 Windows + wine (state hashes: PORT-DEBT(crt-heap)).  Proof: every run writes `standalone_audit.txt` (refuses to
+  run if it fails); `tools/standalone/prove_no_retail_code.py` re-derives it from the files (image / binary / source /
+  audit).  Survey: no script / bytecode format in the exe (`findings/exe-data-interpreted.md`).
 - **Next (port side):**
+  0000000000. The USER plays the standalone: any INT3 stop names a retail VA the play reached with no port (log +
+  message box) → port it, add its row.  Then: PORT-DEBT(crt-heap) (MSVC6's SBH from the decompile → standalone state
+  hashes = retail's: the full corpus gate), the format docs the survey owes (text markup, MPED2DT, anim clip 0x194,
+  sotesd res 1986).
   000000000. (2026-10-23 night, no new traces) WHAT RETAIL CODE STILL RUNS under the full hybrid: `rhost.py coverage
      --hybrid` (INT3 on every retail entry while all ports replace retail) found 51 game functions / 18 KB — now 4 / 79
      BYTES, all CRT internals (srand behind rhost's seed stub, 0x5c071e / 0x5c7c05 / 0x5c8d47); the rest of what runs

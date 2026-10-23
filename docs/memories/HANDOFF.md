@@ -6,7 +6,23 @@
 > `findings/`. Keep this to: the current checkpoint, the next move, the module layout, and
 > open RE threads.
 
-## Where we are — 2026-10-23 (rhost era: nearly the whole engine runs as port code inside retail)
+## Where we are — 2026-10-23 late night: THE STANDALONE runs (no retail code); `docs/standalone.md`
+
+- **Binaries:** `build/rhost/opensummoners-standalone.exe` (rhost.c `-DRH_PRODUCT`: `--standalone --live` always, code
+  copy compiled out; staged to `C:\oss-rhost\bin\`), `rhost.exe --standalone` (deterministic; `rhost.py run / corpus
+  --standalone`; `corpus --check --standalone` compares frame / tick / rng / fb with PURE RETAIL's expected.json — never
+  `--bless` with it).  `--no-launcher` skips the launcher in live mode.
+- **The hook set** of the standalone = `rhost.py standalone_hooks()` (hybrid + `CRT_HOOKS`), embedded by build.sh as
+  `g_sa_spec` (`$B/sa_spec.c`).  A port reached BY ADDRESS (window / dialog procs, atexit, vector-iterator callbacks,
+  `_initterm` entries) needs a hook row + `BYADDR` + REPLACE_ONLY_HOOKS — else the standalone stops at its INT3 (and
+  the hybrid runs retail there).  `prove_no_retail_code.py` "source" check lists any.
+- **Port CRT** `src/msvc_crt.c`: OS effects via `g_eng.api` (retail's IAT), CRT state at retail VAs.  Not faithful yet:
+  heap placement (crt-heap) + stream buffering (crt-stdio).
+- **decomp2c:** a `D(va)` inside .text that is no function entry → `#error` (MSVC switch index tables).  Regenerating
+  `src/ending.c` needs `--keep 0x49bf90` (its 0x49c150 table decoded by hand).
+- Gates run: Windows standalone PASS 9/9; wine standalone 9/9; prover 14/14.
+
+## Before — 2026-10-23 (rhost era: nearly the whole engine runs as port code inside retail)
 
 The loop (CLAUDE.md "Methodology"): `tools/ida/decomp2c.py` module first pass (or a hand port) → `src/<module>.{c,h}`
 (header: `FUN_00va name` table) → `tools/rhost/build.sh` list + X / TC_HOOK / ST_HOOK rows in `rh_hooks.c` (+ the

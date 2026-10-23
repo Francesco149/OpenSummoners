@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **1543** (99.9% of engine-proper) — tested 249, ported 1294
-- code bytes touched: **100.0%** (1,776,512 / 1,776,526 B of engine-proper)
-- unported: **281**
-- orphan refs in src/ not in this table: 0
+- touched: **1558** (99.9% of engine-proper) — tested 268, ported 1290
+- code bytes touched: **100.0%** (1,776,522 / 1,776,526 B of engine-proper)
+- unported: **266**
+- orphan refs in src/ not in this table: 2
 
-## tested (249) — ported + host unit suite
+## tested (268) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -264,16 +264,35 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5bd4d0 | pd_blend_init_5BD4D0 | 71 | pixel_drawer.c, pixel_drawer.h, zdd_dev.h |
 | 0x5bd550 | blt_alpha_5BD550 | 302 | hud.h, main.c, map_present.c (+8) |
 | 0x5bd680 | sub_5BD680 | 1072 | render_platform.h, zdd.c, zdd.h |
-| 0x5bef0e | ??3@YAXPAX@Z | 11 | asset_register.c, asset_register.h, cs_dispatch.c (+4) |
-| 0x5bf4e8 | _fopen | 19 | cs_dispatch_win32.c, wnd_proc.h |
+| 0x5bee10 | __fpmath | 23 | msvc_crt.h |
+| 0x5beecd | _atexit | 18 | msvc_crt.h |
+| 0x5bef0e | ??3@YAXPAX@Z | 11 | asset_register.c, asset_register.h, cs_dispatch.c (+5) |
+| 0x5bf00d | ??2@YAPAXI@Z | 14 | msvc_crt.h |
+| 0x5bf3ee | emit_last_error_line_5BF3EE | 82 | cs_dispatch_win32.c, msvc_crt.h |
+| 0x5bf440 | _fclose | 86 | cs_dispatch_win32.c, msvc_crt.h |
+| 0x5bf496 | _fprintf | 50 | cs_dispatch_win32.c, msvc_crt.h |
+| 0x5bf4e8 | _fopen | 19 | cs_dispatch_win32.c, msvc_crt.h, wnd_proc.h |
+| 0x5bf4fb | sub_5BF4FB | 10 | msvc_crt.h, rng.c, rng.h |
 | 0x5bf505 | rand_draw_5BF505 | 30 | cutscene.c, main.c, rng.c (+1) |
-| 0x5bf5db | _exit | 17 | app_pump.c, app_pump.h, app_pump_win32.c (+5) |
+| 0x5bf5db | _exit | 17 | app_pump.c, app_pump.h, app_pump_win32.c (+6) |
 | 0x5bf5fd | _doexit | 153 | wnd_proc.h |
-| 0x5c0907 | hex32_lower_5C0907 | 45 | zdd.c, zdd.h |
-| 0x5c0934 | _xtoa | 92 | zdd.c |
+| 0x5bf6df | _time | 220 | msvc_crt.h, rng.h |
+| 0x5bf865 | _strftime | 27 | msvc_crt.h |
+| 0x5c00cc | _localtime | 352 | msvc_crt.h |
+| 0x5c022c | _setlocale | 518 | msvc_crt.h |
+| 0x5c0865 | _fseek | 140 | msvc_crt.h |
+| 0x5c08f1 | _fscanf | 22 | msvc_crt.h |
+| 0x5c0907 | hex32_lower_5C0907 | 45 | msvc_crt.h, zdd.c, zdd.h |
+| 0x5c0934 | _xtoa | 92 | msvc_crt.h, zdd.c |
+| 0x5c0a8f | start | 246 | msvc_crt.h |
 | 0x5c123f | _free | 47 | asset_register.c |
+| 0x5c2a94 | ___loctotime_t | 194 | msvc_crt.h |
+| 0x5c301a | __tzset | 606 | msvc_crt.h |
+| 0x5c3278 | __isindst | 428 | msvc_crt.h |
+| 0x5c3424 | _cvtdate | 320 | msvc_crt.h |
+| 0x5c35fc | _gmtime | 249 | msvc_crt.h |
 
-## ported (1294) — reimplemented, no host test yet
+## ported (1290) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -287,6 +306,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4010d0 | sub_4010D0 | 19 | static_init.h |
 | 0x4010f0 | sub_4010F0 | 10 | static_init.h |
 | 0x401100 | sub_401100 | 11 | static_init.h |
+| 0x401120 | unknown_libname_1 | 10 | static_init.h |
 | 0x401130 | sub_401130 | 5 | static_init.h |
 | 0x401140 | sub_401140 | 89 | leftovers.h |
 | 0x4011a0 | sub_4011A0 | 5 | static_init.h |
@@ -1566,9 +1586,10 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5bcfa0 | sub_5BCFA0 | 4 | sound_dev.h |
 | 0x5bcfb0 | sub_5BCFB0 | 49 | sound_dev.h |
 | 0x5bd520 | sub_5BD520 | 36 | zdd_dev.h |
-| 0x5bf3ee | emit_last_error_line_5BF3EE | 82 | cs_dispatch_win32.c |
-| 0x5bf440 | _fclose | 86 | cs_dispatch_win32.c |
-| 0x5bf496 | _fprintf | 50 | cs_dispatch_win32.c |
-| 0x5bf4fb | sub_5BF4FB | 10 | rng.c, rng.h |
-| 0x5bf6df | _time | 220 | rng.h |
+
+## orphan refs (2) — FUN_ in src/ not in function table
+
+Sub-helper labels (Ghidra splits a few functions) or typos. Listed so they read as known, not as silent drift.
+
+`0x401000 0x401010`
 

@@ -6,6 +6,49 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-23 (late night) — the STANDALONE: the port runs with no retail code (+ the proof it copies none)
+
+- USER decisions (2026-10-23): CRT = a custom one covering only what the game uses (surface proved small); real Win32
+  in place of rhost's stand-ins, rhost's execution mode kept; data loaded from the user's exe, with tools proving no
+  copied blob is code; any script format in the exe RE'd + documented.  Design + proof: `docs/standalone.md`.
+- **rhost `--standalone`** (+ `--live`, `--no-launcher`): `retail_map` data-only mode copies the PE headers + every
+  section WITHOUT `CNT_CODE | MEM_EXECUTE` (sotes.exe: .rdata .data .rsrc; never .text), fills code sections with
+  INT3; `rh_hooks_install` writes a 5-byte `jmp` at the entry of every port in the built-in set (`g_sa_spec` = rhost.py
+  `standalone_hooks()`: the hybrid set + the CRT, embedded by build.sh) — 1,360 thunks; asset DLLs mapped from a
+  read-only view as data at their fixed slots (never LoadLibrary: they carry a DllMain); `sa_seal` = data RW, code RX,
+  DEP on; `sa_veh` names any INT3 hit ("the game reached retail code at VA") / data execution; entry = `crt_start`.
+  **The product** `build/rhost/opensummoners-standalone.exe` = rhost.c `-DRH_PRODUCT`: always standalone + live, the
+  code-section copy compiled out, GUI exe, game = its own folder.  It reads the STOCK Steam `sotes.exe` too: SteamStub
+  encrypts only .text (.rdata/.data/.rsrc + the import directory byte-identical to the Steamless output) — the header
+  copy gets SizeOfImage / entry back (`RETAIL_PACKED`).
+- **Port CRT** `src/msvc_crt.{c,h}`: the game's whole CRT API = 16 entry points (new / delete, atexit / exit, fopen
+  fclose fprintf fscanf fseek, time localtime strftime, setlocale, srand, sprintf, _itoa) + `start` 0x5c0a8f; ported
+  from retail's LIBC (time / tz / gmtime / localtime / _isindst / cvtdate / strftime / xtoa as decompiled), OS effects
+  through retail's import slots, CRT state the game could see at retail's VAs.  PORT-DEBT(crt-heap) (Win32 heap, not
+  the SBH: addresses differ), PORT-DEBT(crt-stdio).  6 host tests (`crt_*`, the real tables).
+- **Gaps the standalone surfaced** (each ran as retail code, or would have): the static-init table's first entry
+  `0x401000→0x401010` (no IDA function there: `coverage --hybrid` never trapped it — the hybrid ran it as retail code);
+  the atexit'd destructor `0x401120` (exit only: never in a corpus run); by-address callbacks `0x54c5e0` `0x5851a0`
+  `0x4017a0` (vector iterators) and the launcher DLGPROC `0x4013c0` — ported, no hook rows; `src/ending.c` read MSVC's
+  switch index table `0x49c150` out of .text (decoded into the switch; decomp2c now emits `#error` on any .text data read);
+  DirectInput's `c_dfDIKeyboard` / `c_dfDIJoystick` (.rdata) point at object arrays dinput.lib linked into .text
+  (0x5bdae0 / 0x5beb50) — fine under rhost's fake DirectInput, a crash under the real one: the port passes the SDK's
+  formats (identical, compared).  And `si_4010f0` now registers the VA 0x401120 with atexit (retail's onexit table
+  holds the VA; the wrapper address had moved the hybrid's state hash).
+- **Verified:** `rhost.py corpus --check --standalone` (new: frame / tick / RNG / every presented frame's pixels vs
+  PURE RETAIL's expected.json; state hashes not comparable under crt-heap): Windows 9/9 + wine 9/9 EN-old (the SE
+  scenario skipped: EN-old only).  Live (product, stock packed exe, headless wine): boots to the title menu.  Play
+  folder `C:\OpenSummoners\` + desktop shortcut (`tools/standalone/install-play.sh`).  `tools/standalone/prove_no_retail_code.py`: image (no IDA function in a copied section; `55 8B EC`
+  density .text 66/MB vs 0.0 in data), binary (no span our exes share with retail .text ≥ 128 B or covering a function;
+  the 37 short ones, ≤ 73 B, are listed per port function: the same constant stores / field tests compiled alike),
+  source (no .text data read, no structure holding a .text-data pointer handed out, every called / by-address
+  retail entry thunked), a run's audit — all PASS.
+- Survey (`docs/findings/exe-data-interpreted.md`): NO script / bytecode format in the exe or the DLLs (story / event /
+  AI logic is compiled code, already ported); interpreted = the text-markup mini-language (%n %mN% %w, @@ keys, #
+  ruby, the Messages screen's `@` page break) + data-keyed tables (maps, anim clips — 0x194 B with a +0x154 footstep
+  track —, sotesd res 1986's composite-sprite frames, quest rows).  Format docs owed: text markup, MPED2DT, anim clip,
+  res 1986.
+
 ## 2026-10-23 (night) — what retail code still runs under the hybrid: only the CRT
 
 - No new traces.  New probe `rhost.py coverage --hybrid`: first-hit INT3 on every retail function entry while all
