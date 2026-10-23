@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **1262** (81.5% of engine-proper) — tested 249, ported 1013
-- code bytes touched: **64.6%** (1,147,255 / 1,776,526 B of engine-proper)
-- unported: **562**
+- touched: **1353** (87.5% of engine-proper) — tested 249, ported 1104
+- code bytes touched: **71.4%** (1,267,701 / 1,776,526 B of engine-proper)
+- unported: **471**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (1013) — reimplemented, no host test yet
+## ported (1104) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -326,6 +326,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x408dc0 | sub_408DC0 | 714 | party_member.h |
 | 0x409090 | sub_409090 | 67 | party_member.h |
 | 0x4090e0 | sub_4090E0 | 107 | char_def.h |
+| 0x409150 | sub_409150 | 881 | menu_helpers.h |
 | 0x4094d0 | sub_4094D0 | 71 | party_member.h |
 | 0x409520 | sub_409520 | 1093 | script_io.h |
 | 0x409970 | sub_409970 | 45 | sana_skills.h, sound_fx.h |
@@ -418,7 +419,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4175a0 | sub_4175A0 | 710 | ui_menu.h |
 | 0x4182d0 | sub_4182D0 | 408 | room_load.h |
 | 0x418c90 | sub_418C90 | 547 | ui_menu.h |
+| 0x418ec0 | sub_418EC0 | 522 | menu_helpers.h |
+| 0x4190d0 | sub_4190D0 | 470 | menu_helpers.h |
+| 0x4199b0 | sub_4199B0 | 581 | menu_helpers.h |
 | 0x419c00 | sub_419C00 | 110 | scene_loop.h |
+| 0x419c70 | sub_419C70 | 574 | menu_helpers.h |
+| 0x419eb0 | sub_419EB0 | 645 | menu_helpers.h |
 | 0x41a140 | sub_41A140 | 28 | room_loop.h |
 | 0x41a160 | sub_41A160 | 311 | script_io.h |
 | 0x41a2a0 | sub_41A2A0 | 254 | scene_cmd.h |
@@ -509,13 +515,33 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4287d0 | sub_4287D0 | 384 | char_def.h |
 | 0x428950 | sub_428950 | 146 | char_def.h |
 | 0x4289f0 | sub_4289F0 | 522 | char_def.h |
+| 0x428c00 | sub_428C00 | 1115 | char_types.h |
+| 0x429060 | sub_429060 | 3218 | char_types.h |
 | 0x429d00 | sub_429D00 | 68 | party_member.h |
+| 0x429d50 | sub_429D50 | 91 | char_types.h |
+| 0x429db0 | sub_429DB0 | 1861 | char_types.h |
+| 0x42a500 | sub_42A500 | 1182 | char_types.h |
+| 0x42a9a0 | sub_42A9A0 | 2978 | char_types.h |
+| 0x42b550 | sub_42B550 | 42 | char_types.h |
+| 0x42b580 | sub_42B580 | 99 | char_types.h |
+| 0x42b5f0 | sub_42B5F0 | 587 | char_types.h |
+| 0x42b840 | sub_42B840 | 79 | char_types.h |
+| 0x42b890 | sub_42B890 | 265 | char_types.h |
+| 0x42b9a0 | sub_42B9A0 | 1929 | char_types.h |
+| 0x42c130 | sub_42C130 | 988 | char_types.h |
+| 0x42c510 | sub_42C510 | 1119 | char_types.h |
 | 0x42c970 | sub_42C970 | 877 | char_monster.h |
+| 0x42cce0 | sub_42CCE0 | 1760 | char_types.h |
+| 0x42d3c0 | sub_42D3C0 | 1628 | char_types.h |
 | 0x42da20 | sub_42DA20 | 39 | char_monster.h |
+| 0x42da50 | sub_42DA50 | 2105 | char_types.h |
 | 0x42e290 | sub_42E290 | 1970 | char_monster.h |
 | 0x42ea50 | sub_42EA50 | 195 | char_monster.h |
 | 0x42eb20 | sub_42EB20 | 3097 | char_def.h |
+| 0x42f840 | sub_42F840 | 936 | char_types.h |
 | 0x42fbf0 | sub_42FBF0 | 772 | char_monster.h |
+| 0x42ff00 | sub_42FF00 | 1267 | char_types.h |
+| 0x430400 | sub_430400 | 5039 | char_types.h |
 | 0x431930 | sub_431930 | 599 | char_def.h |
 | 0x431b90 | sub_431B90 | 15 | char_def.h |
 | 0x431ba0 | sub_431BA0 | 266 | char_def.h |
@@ -573,6 +599,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x445ce0 | sub_445CE0 | 67 | shots.h |
 | 0x445d30 | sub_445D30 | 124 | char_integrate.h |
 | 0x445db0 | sub_445DB0 | 150 | actor_update.c, actor_update.h |
+| 0x445e50 | sub_445E50 | 246 | char_handlers2.h |
 | 0x445f50 | sub_445F50 | 21 | char_integrate.h |
 | 0x445f70 | sub_445F70 | 91 | char_integrate.h |
 | 0x445fd0 | sub_445FD0 | 1015 | sound_fx.h |
@@ -583,6 +610,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x446640 | sub_446640 | 112 | char_integrate.h |
 | 0x4466b0 | sub_4466B0 | 276 | char_handlers.h |
 | 0x4467d0 | sub_4467D0 | 289 | entity_life.h |
+| 0x446900 | sub_446900 | 3869 | char_handlers2.h |
 | 0x4478e0 | sub_4478E0 | 18 | char_attack.h |
 | 0x447900 | sub_447900 | 772 | char_attack.h |
 | 0x447c10 | sub_447C10 | 697 | char_attack.h |
@@ -591,30 +619,53 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4481f0 | sub_4481F0 | 424 | char_attack.h |
 | 0x4483a0 | sub_4483A0 | 31 | char_attack.h |
 | 0x4483c0 | sub_4483C0 | 227 | char_attack.h |
+| 0x4484b0 | sub_4484B0 | 1894 | char_handlers2.h |
 | 0x448c80 | sub_448C80 | 47 | particle_init.h |
 | 0x448cb0 | sub_448CB0 | 264 | entity_fx.c, entity_fx.h |
+| 0x448dc0 | sub_448DC0 | 2221 | char_handlers2.h |
 | 0x449700 | sub_449700 | 165 | shots.h |
 | 0x4497b0 | sub_4497B0 | 82 | shots.h |
+| 0x449810 | sub_449810 | 2221 | char_handlers2.h |
+| 0x44a160 | sub_44A160 | 160 | char_handlers2.h |
+| 0x44a200 | sub_44A200 | 1338 | char_handlers2.h |
+| 0x44a740 | sub_44A740 | 2552 | char_handlers2.h |
+| 0x44b160 | sub_44B160 | 2523 | char_handlers2.h |
 | 0x44bbc0 | sub_44BBC0 | 66 | entity_fx.c, entity_fx.h |
+| 0x44bc10 | sub_44BC10 | 819 | char_handlers2.h |
+| 0x44c250 | sub_44C250 | 2972 | char_handlers2.h |
 | 0x44ce20 | sub_44CE20 | 505 | char_attack.h |
 | 0x44d020 | sub_44D020 | 308 | char_status.h |
 | 0x44d2e0 | sub_44D2E0 | 1528 | char_handlers.h |
+| 0x44d8f0 | sub_44D8F0 | 2164 | char_handlers2.h |
+| 0x44e1c0 | sub_44E1C0 | 1117 | char_handlers2.h |
 | 0x44e6c0 | sub_44E6C0 | 108 | char_status.h |
+| 0x44e730 | sub_44E730 | 404 | char_handlers2.h |
+| 0x44e8d0 | sub_44E8D0 | 3428 | char_handlers2.h |
+| 0x44f690 | sub_44F690 | 3586 | char_handlers2.h |
 | 0x4504c0 | sub_4504C0 | 197 | shots.h |
 | 0x450590 | sub_450590 | 46 | char_attack.h |
 | 0x4505c0 | sub_4505C0 | 577 | char_attack.h |
+| 0x450810 | sub_450810 | 1485 | char_handlers2.h |
 | 0x450e00 | sub_450E00 | 237 | entity_fx.h |
 | 0x450ef0 | sub_450EF0 | 776 | sound_fx.h |
 | 0x451200 | sub_451200 | 79 | entity_fx.c, entity_fx.h |
 | 0x451250 | sub_451250 | 119 | char_integrate.h |
 | 0x4512d0 | sub_4512D0 | 1012 | char_handlers.h |
+| 0x4516e0 | sub_4516E0 | 2336 | char_handlers2.h |
+| 0x452020 | sub_452020 | 1649 | char_handlers2.h |
+| 0x452730 | sub_452730 | 4119 | char_handlers2.h |
 | 0x4537d0 | sub_4537D0 | 283 | entity_fx.c, entity_fx.h |
 | 0x4538f0 | sub_4538F0 | 112 | shots.h |
 | 0x453960 | velocity_scatter_453960 | 70 | char_state.h |
+| 0x4539b0 | sub_4539B0 | 8699 | char_handlers2.h |
+| 0x455c90 | sub_455C90 | 93 | char_handlers2.h |
+| 0x455cf0 | sub_455CF0 | 46 | char_handlers2.h |
+| 0x455d20 | sub_455D20 | 87 | char_handlers2.h |
 | 0x455d80 | sub_455D80 | 3175 | char_handlers.h |
 | 0x456a50 | sub_456A50 | 272 | skill_cast.h |
 | 0x456b60 | sub_456B60 | 248 | skill_cast.h |
 | 0x456c60 | sub_456C60 | 184 | char_handlers.h |
+| 0x456d30 | sub_456D30 | 4581 | char_handlers2.h |
 | 0x457ff0 | sub_457FF0 | 4675 | arche_pose.c, arche_pose.h |
 | 0x459370 | sub_459370 | 71 | arche_pose.h |
 | 0x4593c0 | sub_4593C0 | 32 | char_state.h |
@@ -626,6 +677,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x45a300 | sub_45A300 | 14079 | skill_cast.c, skill_cast.h |
 | 0x45db20 | sub_45DB20 | 1293 | skill_cast.h |
 | 0x45e050 | sub_45E050 | 517 | skill_cast.h |
+| 0x45e260 | sub_45E260 | 375 | char_handlers2.h |
+| 0x45e3e0 | sub_45E3E0 | 223 | char_handlers2.h |
 | 0x45e4c0 | sub_45E4C0 | 725 | skill_cast.h |
 | 0x45e830 | sub_45E830 | 9388 | sana_skills.c, sana_skills.h |
 | 0x460de0 | sub_460DE0 | 87 | char_attack.h |
@@ -635,6 +688,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4611c0 | sub_4611C0 | 122 | char_attack.h |
 | 0x461240 | sub_461240 | 434 | char_attack.h |
 | 0x461410 | sub_461410 | 558 | char_attack.h |
+| 0x461640 | sub_461640 | 305 | char_handlers2.h |
 | 0x461790 | sub_461790 | 19423 | arche_sword.c, arche_sword.h |
 | 0x4665d0 | sub_4665D0 | 293 | char_attack.h |
 | 0x466700 | sub_466700 | 73 | char_attack.h |
@@ -642,6 +696,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x466e80 | sub_466E80 | 803 | char_attack.h |
 | 0x4671c0 | sub_4671C0 | 158 | char_integrate.h |
 | 0x467260 | sub_467260 | 208 | char_handlers.h |
+| 0x467330 | sub_467330 | 68 | char_handlers2.h |
 | 0x467380 | ambient_event_timer_467380 | 376 | sound_fx.h |
 | 0x467500 | sub_467500 | 185 | char_attack.h |
 | 0x4678f0 | sub_4678F0 | 482 | arche_pose.h |
@@ -942,6 +997,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4e6030 | sub_4E6030 | 54 | party_member.h |
 | 0x4e6070 | sub_4E6070 | 299 | party_member.h |
 | 0x4e61a0 | sub_4E61A0 | 33 | scene_loop.h |
+| 0x4e61d0 | sub_4E61D0 | 817 | menu_helpers.h |
+| 0x4e6520 | sub_4E6520 | 817 | menu_helpers.h |
+| 0x4e6870 | sub_4E6870 | 84 | menu_helpers.h |
 | 0x525ab0 | sub_525AB0 | 45 | char_hit.h |
 | 0x54bf90 | sub_54BF90 | 30 | room_load.h |
 | 0x54bfb0 | sub_54BFB0 | 801 | world_alloc.c, world_alloc.h |
@@ -1076,11 +1134,41 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x590f20 | sub_590F20 | 498 | field_menu.h |
 | 0x591120 | sub_591120 | 1096 | field_menu.h |
 | 0x591590 | sub_591590 | 41 | field_menu.h |
+| 0x5915c0 | sub_5915C0 | 2655 | menu_screens.h |
+| 0x592020 | sub_592020 | 353 | menu_screens.h |
+| 0x592190 | sub_592190 | 1715 | menu_screens.h |
+| 0x592850 | sub_592850 | 5428 | menu_screens.h |
+| 0x593d90 | sub_593D90 | 171 | menu_screens.h |
+| 0x593e40 | sub_593E40 | 281 | menu_screens.h |
+| 0x593f60 | sub_593F60 | 1114 | menu_screens.h |
+| 0x5943e0 | sub_5943E0 | 1576 | menu_screens.h |
+| 0x594a20 | sub_594A20 | 608 | menu_screens.h |
+| 0x594c80 | sub_594C80 | 690 | menu_screens.h |
+| 0x594f40 | sub_594F40 | 992 | menu_screens.h |
+| 0x595320 | sub_595320 | 44 | menu_screens.h |
+| 0x595350 | sub_595350 | 866 | menu_screens.h |
+| 0x5956c0 | sub_5956C0 | 1528 | menu_screens.h |
+| 0x595dd0 | sub_595DD0 | 950 | menu_screens.h |
+| 0x5962a0 | sub_5962A0 | 246 | menu_screens.h |
+| 0x5963a0 | sub_5963A0 | 633 | menu_screens.h |
+| 0x596620 | sub_596620 | 899 | menu_screens.h |
+| 0x596ac0 | sub_596AC0 | 139 | menu_screens.h |
+| 0x596b50 | sub_596B50 | 528 | menu_screens.h |
 | 0x596d60 | sub_596D60 | 1697 | field_menu.h |
+| 0x597480 | sub_597480 | 37 | menu_screens.h |
+| 0x5974b0 | sub_5974B0 | 446 | menu_screens.h |
+| 0x597670 | sub_597670 | 1060 | menu_screens.h |
 | 0x597aa0 | sub_597AA0 | 2492 | field_menu.h |
 | 0x598460 | sub_598460 | 89 | field_menu.h |
 | 0x5984c0 | sub_5984C0 | 300 | field_menu.h |
 | 0x5985f0 | sub_5985F0 | 1773 | field_menu.h |
+| 0x598d00 | sub_598D00 | 933 | menu_screens.h |
+| 0x5990b0 | sub_5990B0 | 112 | menu_screens.h |
+| 0x599140 | sub_599140 | 904 | menu_screens.h |
+| 0x5994e0 | sub_5994E0 | 1380 | menu_screens.h |
+| 0x599a60 | sub_599A60 | 90 | menu_screens.h |
+| 0x599ac0 | sub_599AC0 | 917 | menu_screens.h |
+| 0x599e60 | sub_599E60 | 902 | menu_screens.h |
 | 0x59a1f0 | sub_59A1F0 | 1485 | gimmick.h |
 | 0x59a7c0 | sub_59A7C0 | 181 | gimmick.h |
 | 0x59a880 | sub_59A880 | 138 | gimmick.h |
@@ -1137,8 +1225,11 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b15e0 | sub_5B15E0 | 1124 | char_attack.h |
 | 0x5b1aa0 | sub_5B1AA0 | 405 | arche_pose.h |
 | 0x5b1c50 | sub_5B1C50 | 699 | char_attack.h |
+| 0x5b1f10 | sub_5B1F10 | 2345 | menu_helpers.h |
 | 0x5b28a0 | sub_5B28A0 | 3020 | char_handlers.h |
 | 0x5b34d0 | sub_5B34D0 | 277 | char_hit.h |
+| 0x5b35f0 | sub_5B35F0 | 595 | menu_helpers.h |
+| 0x5b3850 | sub_5B3850 | 50 | menu_helpers.h |
 | 0x5b3890 | sub_5B3890 | 615 | char_attack.h |
 | 0x5b3b00 | sub_5B3B00 | 1002 | char_handlers.h |
 | 0x5b3f00 | sub_5B3F00 | 545 | char_hit.h |

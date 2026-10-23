@@ -638,7 +638,7 @@ WIN_INT = {"HDC", "HGDIOBJ", "HWND", "HBITMAP", "HFONT", "HBRUSH", "HPEN", "HAND
 WIN_UINT = {"UINT", "DWORD", "COLORREF", "WPARAM", "ULONG", "SIZE_T"}   # ... unsigned
 WIN_STRUCT = {"POINT", "RECT", "SIZE", "BITMAPINFOHEADER", "BITMAPINFO", "RGBQUAD", "PALETTEENTRY", "LOGFONTA",
               "TEXTMETRICA", "BITMAP", "MSG", "PAINTSTRUCT", "SYSTEMTIME", "MMCKINFO", "WAVEFORMATEX", "WNDCLASSA",
-              "OSVERSIONINFOA", "LOGBRUSH", "LOGFONTA", "struct tm", "WNDCLASSEXA"}   # kept as <windows.h>'s own
+              "OSVERSIONINFOA", "LOGBRUSH", "LOGFONTA", "struct tm", "WNDCLASSEXA", "FILE"}   # kept as <windows.h>'s own
 WORD_SHELLS = ("paint_ctx", "input_dev", "input_mgr", "zdm", "log_singleton")   # wnd_proc.h's shells: passed through as words
 SHELL_SIZE = {"input_dev": 12, "paint_ctx": 0x170, "log_singleton": 0x504}   # ... IDA's sizes for them (knowledge pack decls)
 SHELL_ARRAYS = {"log_singleton": {"path": 0x404}}   # ... their array members (an address, not a load)
@@ -650,7 +650,7 @@ WIN_ALIAS = {"struct tagRECT": "RECT", "tagRECT": "RECT", "struct tagPOINT": "PO
              "struct _SYSTEMTIME": "SYSTEMTIME", "_SYSTEMTIME": "SYSTEMTIME",
              "struct _MMCKINFO": "MMCKINFO", "_MMCKINFO": "MMCKINFO", "LPMMCKINFO": "MMCKINFO *",
              "struct tagMSG": "MSG", "tagMSG": "MSG", "LPMSG": "MSG *", "struct tagWNDCLASSA": "WNDCLASSA",
-             "tagWNDCLASSA": "WNDCLASSA", "struct tagWNDCLASSEXA": "WNDCLASSEXA", "tagWNDCLASSEXA": "WNDCLASSEXA", "struct tagLOGBRUSH": "LOGBRUSH", "tagLOGBRUSH": "LOGBRUSH", "struct tagLOGFONTA": "LOGFONTA", "struct _OSVERSIONINFOA": "OSVERSIONINFOA", "LPOSVERSIONINFOA": "OSVERSIONINFOA *",
+             "tagWNDCLASSA": "WNDCLASSA", "struct _iobuf": "FILE", "_iobuf": "FILE", "struct tagWNDCLASSEXA": "WNDCLASSEXA", "tagWNDCLASSEXA": "WNDCLASSEXA", "struct tagLOGBRUSH": "LOGBRUSH", "tagLOGBRUSH": "LOGBRUSH", "struct tagLOGFONTA": "LOGFONTA", "struct _OSVERSIONINFOA": "OSVERSIONINFOA", "LPOSVERSIONINFOA": "OSVERSIONINFOA *",
              "LPDIRECTSOUND": "void *", "LPDIRECTSOUNDBUFFER": "void *", "LPDIRECTINPUT7A": "void *",
              "LPDIRECTDRAW7": "void *", "LPDIRECTDRAWSURFACE7": "void *",
              "struct tagSIZE": "SIZE",
@@ -773,8 +773,8 @@ def convert(text, names, widths, this):
         m = re.match(r"^  ([A-Za-z_][\w\s\*]*?)\s*\b([A-Za-z_]\w*)(\[\d+\])?; // ", ln)
         if m:
             DECLNAMES.add(m.group(2))   # a local never takes a same-named data symbol (IDA names one `Block`)
-        if m and m.group(1).strip().startswith(("cls_", "_UNKNOWN", "struct ")) and "*" in m.group(1):
-            CLSPTR.append(m.group(2))
+        if m and m.group(1).strip().startswith(("cls_", "_UNKNOWN", "struct ")) and m.group(1).count("*") == 1:
+            CLSPTR.append(m.group(2))   # (a `cls_X **` local is a real C pointer: `(*v57)[1]` stays C)
         if m:
             fo = re.search(r"\[ebp-([0-9A-F]+)h\]", ln)
             if m.group(3) and fo:   # a stack array: laid out in one frame buffer as in retail (writers overrun them)
@@ -882,6 +882,7 @@ def convert(text, names, widths, this):
                        lambda m: f"this + {esz} * ({m.group(1)})", s)
     s = re.sub(r"\bthis\b", this, s)
     s = s.replace("nullptr", "0")
+    s = re.sub(r"\*\*\(\((?:_DWORD|int|cls_\w+) \*\*\)(\w+) \+ (\d+)\)", r"F32(F32(\1, 4 * \2), 0)", s)   # `**((_DWORD **)v + n)`
     s = re.sub(r"\*\(\(_DWORD \*\)(\w+) \+ (\d+)\)", r"F32(\1, 4 * \2)", s)
     s = re.sub(r"\*\(\(_WORD \*\)(\w+) \+ (\d+)\)", r"F16(\1, 2 * \2)", s)
     # `*(&dword_X + i)`: element i of a global table (IDA's pointer arithmetic: by the element size)
@@ -947,7 +948,7 @@ def convert(text, names, widths, this):
         s = re.sub(r"(?<=[=(,!&|<>?:]\s)\*%s\b(?!\s*[\[(])|(?<=[=(,!])\*%s\b(?!\s*[\[(])" % (v, v), f"F32({v}, 0)", s)
     for v in CLSPTR:   # a class pointer kept as an integer: its unary deref is a dword load (but `*v->field_X` derefs
         # the FIELD: `->` binds tighter — 0x5b8ea0's `*(_DWORD *)a1->field_8`)
-        s = re.sub(r"(?<=[=(,!&|<>?:]\s)\*%s\b(?!\s*->|\+\+|--)|(?<=[=(,!])\*%s\b(?!\s*->|\+\+|--)" % (v, v), f"F32({v}, 0)", s)   # (`*v9++`: the
+        s = re.sub(r"(?<=[=(,!&|<>?:]\s)\*%s\b(?!\s*->|\+\+|--)|(?<=[=(,!)])\*%s\b(?!\s*->|\+\+|--)" % (v, v), f"F32({v}, 0)", s)   # (`*v9++`: the
         # pointer advances — a `cls **` local is an intptr_t *: kept as C)
         s = re.sub(r"(?m)^(\s*)\*%s\b(?=\s*=[^=])" % v, lambda m: f"{m.group(1)}F32({v}, 0)", s)   # `*v3 = 0;` (a store)
     def vfld(m):
@@ -964,7 +965,9 @@ def convert(text, names, widths, this):
     # immediate IDA took for a code address (0x5749b0's colour 0x40c040)
     s = re.sub(r"\b(\w+)\[0\]\.gap([0-9A-F]+)\[(\d+)\]", lambda m: f"F8({m.group(1)}, 0x{int(m.group(2), 16) + int(m.group(3)):x})", s)   # an
     # element 0 of a class-typed stack array: its byte at +N + i (0x5a4770's `v88[0].gap0[0] = 0`)
+    s = s.replace("`eh vector destructor iterator'(", "eh_vec_dtor(").replace("(void (__thiscall *)(void *))", "(void *)")   # MSVC's delete[]
     s = s.replace("rand_draw_5BF505()", "rnd()")
+    s = re.sub(r"\bp_cls_40BE00 = ", "*(intptr_t *)g_eng.world = ", s)   # the world pointer itself (0x5a4320 clears it)
     s = s.replace("p_cls_40BE00", "W")
     s = re.sub(r"\*\(_DWORD \*\)&stru_8A6B60\._pad000\[(\d+)\]", r"SYS32(\1)", s)
     s = re.sub(r"stru_8A6B60\._pad000\[(\d+)\]", r"SYSB(\1)", s)
@@ -1052,12 +1055,14 @@ def convert(text, names, widths, this):
     CT = {"_DWORD": "int32_t", "_WORD": "uint16_t", "_BYTE": "uint8_t", "int": "int32_t", "char": "uint8_t",
           "unsigned __int16": "uint16_t", "__int16": "int16_t", "unsigned int": "uint32_t", "void": "uint8_t"}
     s = re.sub(r"(?<!\*)\((?:const )?(_DWORD|_WORD|_BYTE|int|char|unsigned __int16|__int16|unsigned int) (\*\*?)\)(?=(?:\w+|\((?:[^()]|\([^()]*\))*\)) [-+] )",
-               lambda m: f"({CT[m.group(1)] if m.group(2) == '*' else 'int32_t'} *)", s)
+               lambda m: f"({CT[m.group(1)]} *)" if m.group(2) == '*' else "(int32_t **)", s)   # (`**((_DWORD **)this + v2 + 3)`
+               # derefs twice: 0x566300)
     # every other IDA pointer cast is kept (_DWORD / _WORD / _BYTE are typedefs of the C widths): `**(_WORD **)x`
     # loads and pointer arithmetic then scale exactly as in the asm
     s = re.sub(r"\*&SYSB\((\d+)\)", r"SYS32(\1)", s)
     s = re.sub(r"(?:->|\.)unused\b", "", s)
     s = re.sub(r"\b(\w+)->_pad([0-9a-f]{3})\[", r"((uint8_t *)(\1) + 0x\2)[", s)   # a word shell's padding (named by its offset)
+    s = re.sub(r"\b(\w+)->_pad([0-9a-f]{3})\b(?!\s*\[)", r"((uint8_t *)(\1) + 0x\2)", s)   # ... its address
     s = re.sub(r"\((?:uint8_t|char) \*\)(\w+) - \((?:uint8_t|char) \*\)(\w+)", r"((uint8_t *)\1 - (uint8_t *)\2)", s)   # byte pointers' distance   # a Win32 handle's dummy member (HDC__ { int unused; }): the handle itself
     s = re.sub(r"\((?:const )?(%s)( ?\**)\)" % "|".join(sorted(WIN_INT | WIN_UINT | set(WIN_ALIAS), key=len, reverse=True)),
                lambda m: f"({map_type(m.group(1) + m.group(2))})", s)   # Win32 casts: (HDC)x, (LPCSTR)s, (HGDIOBJ ***)p
@@ -1182,6 +1187,12 @@ typedef uint64_t _QWORD;
 #define GAP(p, o, i) F8(p, (o) + (i))   /* IDA's gapN[i]: the byte at +N + i */
 #define qmemcpy memcpy   /* IDA's inline memcpy */
 static inline void *memset32(void *d, uint32_t v, size_t n) { uint32_t *p = d; while (n--) *p++ = v; return d; }   /* IDA's rep stosd */
+static inline void eh_vec_dtor(intptr_t p, uint32_t size, int32_t n, void *dtor)   /* MSVC's `eh vector destructor iterator': */
+{                                                                                  /* the elements' dtors, last first */
+    typedef void (__attribute__((thiscall)) *d_t)(void *);
+    p += (intptr_t)size * n;
+    while (--n >= 0) { p -= size; ((d_t)dtor)((void *)p); }
+}
 typedef char CHAR;
 #define SETLO(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff0000u) | (uint16_t)(v)))
 #define SETHI(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffu) | ((uint32_t)(uint16_t)(v) << 16)))
@@ -1421,6 +1432,7 @@ def main():
         funcs = [word_args(f) for f in funcs]
     if WINH[0] or any(re.search(r"\b(%s)\b" % "|".join(WIN_STRUCT), f) for f in funcs):
         print("#include <windows.h>")
+        print("#include <stdio.h>")
         print("#include <time.h>")
     print("\n".join(f'#include "{h}"' for h in sorted(KBH)))
     print("\n".join(f'#include "{h}"' for h in sorted({PROTO_HDR[n] for n in USED if n in PROTO_HDR})))
