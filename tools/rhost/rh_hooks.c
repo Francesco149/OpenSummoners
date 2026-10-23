@@ -71,6 +71,7 @@
 #include "ai_skill.h"
 #include "script_io.h"
 #include "frame_load.h"
+#include "win_app.h"
 #include "zdd_dev.h"
 #include "sound_dev.h"
 #include "input_dev.h"
@@ -398,6 +399,17 @@ typedef struct {
     X(H_ZD5B9740, "zd_5b9740", 0x5b9740u) X(H_ZD5BCFF0, "zd_5bcff0", 0x5bcff0u) X(H_ZD5BD020, "zd_5bd020", 0x5bd020u) \
     X(H_ZD5BD040, "zd_5bd040", 0x5bd040u) X(H_ZD5BD380, "zd_5bd380", 0x5bd380u) X(H_ZD5BD3B0, "zd_5bd3b0", 0x5bd3b0u) \
     X(H_ZD5BD3D0, "zd_5bd3d0", 0x5bd3d0u) X(H_ZD5BD4D0, "zd_5bd4d0", 0x5bd4d0u) X(H_ZD5BD520, "zd_5bd520", 0x5bd520u) \
+    X(H_WM5AFB00, "wm_5afb00", 0x5afb00u) X(H_WM5AFB90, "wm_5afb90", 0x5afb90u) X(H_WM5AFBF0, "wm_5afbf0", 0x5afbf0u) \
+    X(H_WM5AFC90, "wm_5afc90", 0x5afc90u) X(H_WM5AFF00, "wm_5aff00", 0x5aff00u) X(H_WM5AFF20, "wm_5aff20", 0x5aff20u) \
+    X(H_WM5AFFE0, "wm_5affe0", 0x5affe0u) X(H_WM5B01E0, "wm_5b01e0", 0x5b01e0u) X(H_WM5B0260, "wm_5b0260", 0x5b0260u) \
+    X(H_WM5B0280, "wm_5b0280", 0x5b0280u) X(H_WM5B0390, "wm_5b0390", 0x5b0390u) X(H_WM5B03E0, "wm_5b03e0", 0x5b03e0u) \
+    X(H_WM5B0450, "wm_5b0450", 0x5b0450u) X(H_WM5B0890, "wm_5b0890", 0x5b0890u) X(H_WM5B0C60, "wm_5b0c60", 0x5b0c60u) \
+    X(H_WM5B0CE0, "wm_5b0ce0", 0x5b0ce0u) X(H_WM5B0D70, "wm_5b0d70", 0x5b0d70u) X(H_WM5B0DD0, "wm_5b0dd0", 0x5b0dd0u) \
+    X(H_WM5B0EE0, "wm_5b0ee0", 0x5b0ee0u) X(H_WM5B1030, "wm_5b1030", 0x5b1030u) X(H_WM5B10D0, "wm_5b10d0", 0x5b10d0u) \
+    X(H_WM5B14C0, "wm_5b14c0", 0x5b14c0u) X(H_WM5B5A60, "wm_5b5a60", 0x5b5a60u) X(H_WM5B5A90, "wm_5b5a90", 0x5b5a90u) \
+    X(H_WM5B5AC0, "wm_5b5ac0", 0x5b5ac0u) X(H_WM5B5AF0, "wm_5b5af0", 0x5b5af0u) X(H_WM5B5D50, "wm_5b5d50", 0x5b5d50u) \
+    X(H_WM5B5D90, "wm_5b5d90", 0x5b5d90u) X(H_WM5B5DC0, "wm_5b5dc0", 0x5b5dc0u) X(H_WM5B5EF0, "wm_5b5ef0", 0x5b5ef0u) \
+    X(H_WM5B5F50, "wm_5b5f50", 0x5b5f50u) \
     /* (wire.py: new modules' rows go above this line) */ \
     X(H_SC401D80, "sc_401d80", 0x401d80u) X(H_SC402030, "sc_402030", 0x402030u) X(H_SC4020A0, "sc_4020a0", 0x4020a0u) \
     X(H_SC4024E0, "sc_4024e0", 0x4024e0u) X(H_SC402610, "sc_402610", 0x402610u) X(H_SC402F40, "sc_402f40", 0x402f40u) \
@@ -2335,7 +2347,8 @@ static int __attribute__((thiscall)) gd_49bf90(void *d, intptr_t v) { GUARD("the
 #define EV_GUARD(ev, what) if ((ev)->mode != 3 && (ev)->mode != 4) { GUARD(what) }
 #define H_CS_FIRST H_CS4D7D80
 #define H_CS_LAST H_CS4C45A0
-static uint32_t g_rep_va[1024]; static void *g_rep_w[1024]; static int g_nrep;   /* the REPLACE hooks, by VA */
+#define REP_MAX 4096
+static uint32_t g_rep_va[REP_MAX]; static void *g_rep_w[REP_MAX]; static int g_nrep;   /* the REPLACE hooks, by VA */
 /* decomp2c's RC_ calls: retail is mapped in place — a function a hook REPLACES: its wrapper (the port) */
 static void *rh_retail(uint32_t va)
 {
@@ -4685,6 +4698,38 @@ TC_HOOK(H_ZD5BD3B0, "zd_5bd3b0", 3, 1, return (intptr_t)zd_5bd3b0((wl_char *)sel
 TC_HOOK(H_ZD5BD3D0, "zd_5bd3d0", 1, 1, return (intptr_t)zd_5bd3d0((wl_char *)self, (int32_t *)a1))
 TC_HOOK0(H_ZD5BD4D0, "zd_5bd4d0", 1, return (intptr_t)zd_5bd4d0((wl_char *)self))
 TC_HOOK0(H_ZD5BD520, "zd_5bd520", 0, zd_5bd520((wl_char *)self); return 0)
+/* the application shell under WinMain (src/win_app.c; decomp2c): REPLACE only (files, the window, the pump; the window procedure 0x5b12e0 is registered by WinMain: no call site) */
+TC_HOOK(H_WM5AFB00, "wm_5afb00", 3, 1, return (intptr_t)wm_5afb00((wl_char *)self, (char *)a1, U16(a2), a3))
+TC_HOOK(H_WM5AFB90, "wm_5afb90", 4, 1, return (intptr_t)wm_5afb90((wl_char *)self, U16(a1), a2, a3, (void *)a4))
+TC_HOOK(H_WM5AFBF0, "wm_5afbf0", 3, 1, return (intptr_t)wm_5afbf0((wl_char *)self, U16(a1), a2, a3))
+TC_HOOK0(H_WM5AFC90, "wm_5afc90", 1, return (intptr_t)wm_5afc90((wl_char *)self))
+TC_HOOK0(H_WM5AFF00, "wm_5aff00", 0, wm_5aff00((wl_char *)self); return 0)
+TC_HOOK(H_WM5AFF20, "wm_5aff20", 2, 1, return (intptr_t)wm_5aff20((wl_char *)self, (char *)a1, (char *)a2))
+TC_HOOK(H_WM5AFFE0, "wm_5affe0", 2, 1, return (intptr_t)wm_5affe0((wl_char *)self, (char *)a1, a2))
+TC_HOOK(H_WM5B01E0, "wm_5b01e0", 1, 0, wm_5b01e0((wl_char *)self, a1); return 0)
+TC_HOOK(H_WM5B0260, "wm_5b0260", 1, 1, return (intptr_t)wm_5b0260((wl_char *)self, a1))
+TC_HOOK(H_WM5B0280, "wm_5b0280", 1, 1, return (intptr_t)wm_5b0280((wl_char *)self, (OSVERSIONINFOA *)a1))
+ST_HOOK(H_WM5B0390, "wm_5b0390", 2, 1, return (intptr_t)wm_5b0390((int32_t *)a1, (int32_t *)a2))
+ST_HOOK(H_WM5B03E0, "wm_5b03e0", 2, 1, return (intptr_t)wm_5b03e0((uint16_t *)a1, (uint16_t *)a2))
+TC_HOOK(H_WM5B0450, "wm_5b0450", 2, 1, return (intptr_t)wm_5b0450((wl_char *)self, (char *)a1, (uint16_t *)a2))
+ST_HOOK(H_WM5B0890, "wm_5b0890", 3, 1, return (intptr_t)wm_5b0890((char *)a1, a2, a3))
+TC_HOOK(H_WM5B0C60, "wm_5b0c60", 2, 1, return (intptr_t)wm_5b0c60((wl_char *)self, (char *)a1, (char *)a2))
+TC_HOOK(H_WM5B0CE0, "wm_5b0ce0", 2, 1, return (intptr_t)wm_5b0ce0((wl_char *)self, (char *)a1, (char *)a2))
+TC_HOOK(H_WM5B0D70, "wm_5b0d70", 2, 1, return (intptr_t)wm_5b0d70((wl_char *)self, a1, (char *)a2))
+TC_HOOK(H_WM5B0DD0, "wm_5b0dd0", 2, 1, return (intptr_t)wm_5b0dd0((wl_char *)self, (char *)a1, a2))
+TC_HOOK(H_WM5B0EE0, "wm_5b0ee0", 1, 1, return (intptr_t)wm_5b0ee0((wl_char *)self, a1))
+ST_HOOK0(H_WM5B1030, "wm_5b1030", 1, return (intptr_t)wm_5b1030())
+ST_HOOK0(H_WM5B10D0, "wm_5b10d0", 0, wm_5b10d0(); return 0)
+TC_HOOK0(H_WM5B14C0, "wm_5b14c0", 0, wm_5b14c0((wl_char *)self); return 0)
+TC_HOOK(H_WM5B5A60, "wm_5b5a60", 1, 1, return (intptr_t)wm_5b5a60((wl_char *)self, (char *)a1))
+TC_HOOK0(H_WM5B5A90, "wm_5b5a90", 1, return (intptr_t)wm_5b5a90((wl_char *)self))
+ST_HOOK(H_WM5B5AC0, "wm_5b5ac0", 1, 1, return (intptr_t)wm_5b5ac0(a1))
+ST_HOOK(H_WM5B5AF0, "wm_5b5af0", 1, 1, return (intptr_t)wm_5b5af0(a1))
+ST_HOOK(H_WM5B5D50, "wm_5b5d50", 1, 1, return (intptr_t)wm_5b5d50(a1))
+ST_HOOK(H_WM5B5D90, "wm_5b5d90", 2, 1, return (intptr_t)wm_5b5d90(a1, a2))
+ST_HOOK(H_WM5B5DC0, "wm_5b5dc0", 3, 1, return (intptr_t)wm_5b5dc0(a1, a2, a3))
+ST_HOOK(H_WM5B5EF0, "wm_5b5ef0", 5, 1, return (intptr_t)wm_5b5ef0(a1, a2, a3, a4, a5))
+ST_HOOK(H_WM5B5F50, "wm_5b5f50", 4, 1, return (intptr_t)wm_5b5f50(a1, a2, a3, a4))
 /* (wire.py: new modules' hook rows go above this line) */
 /* the chapter scripts' file / sound / DirectX-free callees (src/script_helpers.c; 0x4a5e40 0x4cbfb0 0x4cbfd0 0x4d6490
  * read their caller's ecx: thiscall wrappers) */
@@ -5125,8 +5170,9 @@ void rh_hooks_install(void)
     /* Port code reaches a REPLACED function through its engine-call slot (bound to retail's VA) or an RC_ call too —
      * not only through retail's call sites: those land on the hook's wrapper (retail's convention) as well.  Before,
      * a ported caller of a ported callee ran retail's (the room loop's render 0x48c150 never ran as port code). */
-    for (int i = 0; i < H_N && g_nrep < 1024; i++)
+    for (int i = 0; i < H_N; i++)
         if (H[i].mode == 2 && H[i].va) {
+            if (g_nrep == REP_MAX) rh_fatal("more than %d REPLACE hooks: raise REP_MAX", REP_MAX);
             int k = g_nrep++;
             while (k && g_rep_va[k - 1] > H[i].va) { g_rep_va[k] = g_rep_va[k - 1]; g_rep_w[k] = g_rep_w[k - 1]; k--; }
             g_rep_va[k] = H[i].va; g_rep_w[k] = H[i].wrapper;

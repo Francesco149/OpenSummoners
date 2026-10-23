@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 979,
-  "unported": 596,
+  "ported": 1004,
+  "unported": 571,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 1228,
-  "pct_touched": 79.3,
+  "touched": 1253,
+  "pct_touched": 80.9,
   "pct_tested": 15.7,
-  "engine_proper_touched": 1215,
+  "engine_proper_touched": 1240,
   "bytes_total": 1776526,
-  "bytes_touched": 1137619,
-  "pct_bytes_touched": 64.0
+  "bytes_touched": 1144134,
+  "pct_bytes_touched": 64.4
  },
  "orphan_refs": [],
  "functions": [
@@ -12564,152 +12564,190 @@
    "name": "sub_5AFB00",
    "size": 129,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/win_app.h"
+   ]
   },
   {
    "va": "0x5afb90",
    "name": "sub_5AFB90",
    "size": 96,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/win_app.h"
+   ]
   },
   {
    "va": "0x5afbf0",
    "name": "sub_5AFBF0",
    "size": 146,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/win_app.h"
+   ]
   },
   {
    "va": "0x5afc90",
    "name": "sub_5AFC90",
    "size": 623,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/win_app.h"
+   ]
   },
   {
    "va": "0x5aff00",
    "name": "sub_5AFF00",
    "size": 26,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/win_app.h"
+   ]
   },
   {
    "va": "0x5aff20",
    "name": "sub_5AFF20",
    "size": 186,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/win_app.h"
+   ]
   },
   {
    "va": "0x5affe0",
    "name": "sub_5AFFE0",
    "size": 409,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/win_app.h"
+   ]
   },
   {
    "va": "0x5b01e0",
    "name": "sub_5B01E0",
    "size": 124,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/win_app.h"
+   ]
   },
   {
    "va": "0x5b0260",
    "name": "sub_5B0260",
    "size": 30,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/win_app.h"
+   ]
   },
   {
    "va": "0x5b0280",
    "name": "sub_5B0280",
    "size": 264,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/win_app.h"
+   ]
   },
   {
    "va": "0x5b0390",
    "name": "sub_5B0390",
    "size": 66,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/win_app.h"
+   ]
   },
   {
    "va": "0x5b03e0",
    "name": "sub_5B03E0",
    "size": 112,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/win_app.h"
+   ]
   },
   {
    "va": "0x5b0450",
    "name": "sub_5B0450",
    "size": 1075,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/win_app.h"
+   ]
   },
   {
    "va": "0x5b0890",
    "name": "sub_5B0890",
    "size": 961,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/win_app.h"
+   ]
   },
   {
    "va": "0x5b0c60",
    "name": "sub_5B0C60",
    "size": 128,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/win_app.h"
+   ]
   },
   {
    "va": "0x5b0ce0",
    "name": "sub_5B0CE0",
    "size": 131,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/win_app.h"
+   ]
   },
   {
    "va": "0x5b0d70",
    "name": "sub_5B0D70",
    "size": 82,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/win_app.h"
+   ]
   },
   {
    "va": "0x5b0dd0",
    "name": "sub_5B0DD0",
    "size": 267,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/win_app.h"
+   ]
   },
   {
    "va": "0x5b0ee0",
    "name": "sub_5B0EE0",
    "size": 331,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/win_app.h"
+   ]
   },
   {
    "va": "0x5b1030",
@@ -12722,6 +12760,7 @@
     "src/app_pump.h",
     "src/title_scene.c",
     "src/title_scene.h",
+    "src/win_app.h",
     "src/wnd_proc.h"
    ]
   },
@@ -12730,8 +12769,10 @@
    "name": "sub_5B10D0",
    "size": 520,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/win_app.h"
+   ]
   },
   {
    "va": "0x5b12e0",
@@ -12740,6 +12781,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/win_app.h",
     "src/wnd_proc.c",
     "src/wnd_proc.h"
    ]
@@ -12751,6 +12793,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/win_app.h",
     "src/wnd_proc.h",
     "src/wnd_proc_win32.c"
    ]
@@ -13014,16 +13057,20 @@
    "name": "sub_5B5A60",
    "size": 42,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/win_app.h"
+   ]
   },
   {
    "va": "0x5b5a90",
    "name": "sub_5B5A90",
    "size": 33,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/win_app.h"
+   ]
   },
   {
    "va": "0x5b5ac0",
@@ -13032,6 +13079,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/win_app.h",
     "src/zdd.h",
     "src/zdd_win32.c"
    ]
@@ -13041,16 +13089,20 @@
    "name": "sub_5B5AF0",
    "size": 595,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/win_app.h"
+   ]
   },
   {
    "va": "0x5b5d50",
    "name": "sub_5B5D50",
    "size": 52,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/win_app.h"
+   ]
   },
   {
    "va": "0x5b5d90",
@@ -13060,7 +13112,8 @@
    "status": "tested",
    "src": [
     "src/asset_register.c",
-    "src/asset_register.h"
+    "src/asset_register.h",
+    "src/win_app.h"
    ]
   },
   {
@@ -13070,7 +13123,8 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/main.c"
+    "src/main.c",
+    "src/win_app.h"
    ]
   },
   {
@@ -13088,8 +13142,10 @@
    "name": "sub_5B5EF0",
    "size": 87,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/win_app.h"
+   ]
   },
   {
    "va": "0x5b5f50",
@@ -13099,7 +13155,8 @@
    "status": "tested",
    "src": [
     "src/asset_register.c",
-    "src/asset_register.h"
+    "src/asset_register.h",
+    "src/win_app.h"
    ]
   },
   {

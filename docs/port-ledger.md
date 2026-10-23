@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **1228** (79.3% of engine-proper) — tested 249, ported 979
-- code bytes touched: **64.0%** (1,137,619 / 1,776,526 B of engine-proper)
-- unported: **596**
+- touched: **1253** (80.9% of engine-proper) — tested 249, ported 1004
+- code bytes touched: **64.4%** (1,144,134 / 1,776,526 B of engine-proper)
+- unported: **571**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -180,13 +180,13 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x59f2c0 | sub_59F2C0 | 3522 | game_map.c, game_map.h, game_world.c (+5) |
 | 0x5a00c0 | sub_5A00C0 | 13690 | map_data.h |
 | 0x5a4770 | sub_5A4770 | 45963 | app_pump.h, main.c |
-| 0x5b1030 | sub_5B1030 | 156 | app_pump.c, app_pump.h, title_scene.c (+2) |
-| 0x5b12e0 | sub_5B12E0 | 441 | wnd_proc.c, wnd_proc.h |
-| 0x5b14c0 | sub_5B14C0 | 287 | wnd_proc.h, wnd_proc_win32.c |
-| 0x5b5ac0 | zdd_busy_wait_ms_5B5AC0 | 39 | zdd.h, zdd_win32.c |
-| 0x5b5d90 | sub_5B5D90 | 33 | asset_register.c, asset_register.h |
-| 0x5b5dc0 | sub_5B5DC0 | 214 | main.c |
-| 0x5b5f50 | sub_5B5F50 | 71 | asset_register.c, asset_register.h |
+| 0x5b1030 | sub_5B1030 | 156 | app_pump.c, app_pump.h, title_scene.c (+3) |
+| 0x5b12e0 | sub_5B12E0 | 441 | win_app.h, wnd_proc.c, wnd_proc.h |
+| 0x5b14c0 | sub_5B14C0 | 287 | win_app.h, wnd_proc.h, wnd_proc_win32.c |
+| 0x5b5ac0 | zdd_busy_wait_ms_5B5AC0 | 39 | win_app.h, zdd.h, zdd_win32.c |
+| 0x5b5d90 | sub_5B5D90 | 33 | asset_register.c, asset_register.h, win_app.h |
+| 0x5b5dc0 | sub_5B5DC0 | 214 | main.c, win_app.h |
+| 0x5b5f50 | sub_5B5F50 | 71 | asset_register.c, asset_register.h, win_app.h |
 | 0x5b62a0 | sub_5B62A0 | 94 | file_stream.h, map_data.h |
 | 0x5b6340 | sub_5B6340 | 198 | file_stream.h, map_data.c, map_data.h |
 | 0x5b6e70 | unknown_libname_2 | 9 | bitmap_session.h, frame_load.h |
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (979) — reimplemented, no host test yet
+## ported (1004) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -1105,6 +1105,26 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5a4200 | sub_5A4200 | 276 | scene_loop.h |
 | 0x5a4460 | sub_5A4460 | 30 | scene_loop.h |
 | 0x5a4480 | sub_5A4480 | 312 | scene_loop.h |
+| 0x5afb00 | sub_5AFB00 | 129 | win_app.h |
+| 0x5afb90 | sub_5AFB90 | 96 | win_app.h |
+| 0x5afbf0 | sub_5AFBF0 | 146 | win_app.h |
+| 0x5afc90 | sub_5AFC90 | 623 | win_app.h |
+| 0x5aff00 | sub_5AFF00 | 26 | win_app.h |
+| 0x5aff20 | sub_5AFF20 | 186 | win_app.h |
+| 0x5affe0 | sub_5AFFE0 | 409 | win_app.h |
+| 0x5b01e0 | sub_5B01E0 | 124 | win_app.h |
+| 0x5b0260 | sub_5B0260 | 30 | win_app.h |
+| 0x5b0280 | sub_5B0280 | 264 | win_app.h |
+| 0x5b0390 | sub_5B0390 | 66 | win_app.h |
+| 0x5b03e0 | sub_5B03E0 | 112 | win_app.h |
+| 0x5b0450 | sub_5B0450 | 1075 | win_app.h |
+| 0x5b0890 | sub_5B0890 | 961 | win_app.h |
+| 0x5b0c60 | sub_5B0C60 | 128 | win_app.h |
+| 0x5b0ce0 | sub_5B0CE0 | 131 | win_app.h |
+| 0x5b0d70 | sub_5B0D70 | 82 | win_app.h |
+| 0x5b0dd0 | sub_5B0DD0 | 267 | win_app.h |
+| 0x5b0ee0 | sub_5B0EE0 | 331 | win_app.h |
+| 0x5b10d0 | sub_5B10D0 | 520 | win_app.h |
 | 0x5b15e0 | sub_5B15E0 | 1124 | char_attack.h |
 | 0x5b1aa0 | sub_5B1AA0 | 405 | arche_pose.h |
 | 0x5b1c50 | sub_5B1C50 | 699 | char_attack.h |
@@ -1128,7 +1148,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b5600 | sub_5B5600 | 701 | hud_view.h |
 | 0x5b58c0 | sub_5B58C0 | 204 | hud_view.h |
 | 0x5b5990 | sub_5B5990 | 202 | char_state.h |
+| 0x5b5a60 | sub_5B5A60 | 42 | win_app.h |
+| 0x5b5a90 | sub_5B5A90 | 33 | win_app.h |
+| 0x5b5af0 | sub_5B5AF0 | 595 | win_app.h |
+| 0x5b5d50 | sub_5B5D50 | 52 | win_app.h |
 | 0x5b5eb0 | sub_5B5EB0 | 59 | render_platform.h |
+| 0x5b5ef0 | sub_5B5EF0 | 87 | win_app.h |
 | 0x5b6060 | sub_5B6060 | 53 | file_stream.h |
 | 0x5b60d0 | sub_5B60D0 | 5 | file_stream.h |
 | 0x5b60e0 | sub_5B60E0 | 202 | file_stream.h |

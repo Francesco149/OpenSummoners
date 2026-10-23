@@ -448,13 +448,31 @@ def word_args(f):
     return "".join(out)
 
 
+# Win32 calls returning an UNSIGNED word (DWORD / UINT / ATOM / COLORREF / SIZE_T): retail compares their results
+# unsigned (0x5b1030's `last - GetTickCount() < 5` is a `jnb`) — a signed return turned a wrapped difference true
+API_UNSIGNED = {"GetTickCount", "timeGetTime", "GetLastError", "GetModuleFileNameA", "GetFileVersionInfoSizeA",
+                "FormatMessageA", "GetTempPathA", "GetSystemDirectoryA", "GetWindowsDirectoryA", "GetCurrentDirectoryA",
+                "GetFileSize", "SetFilePointer", "GetFileAttributesA", "WaitForSingleObject", "GetSystemPaletteEntries",
+                "GetPaletteEntries", "RegisterClassA", "RegisterClassExA", "GetVersion", "GetCurrentProcessId",
+                "GetCurrentThreadId", "SizeofResource", "GetPrivateProfileIntA", "GetPrivateProfileStringA", "GetPixel",
+                "SetTextColor", "SetBkColor", "GetTextColor", "GetBkColor", "timeBeginPeriod", "timeEndPeriod",
+                "ResumeThread", "SuspendThread", "GetEnvironmentVariableA", "MsgWaitForMultipleObjects", "SleepEx",
+                "GetQueueStatus", "SetTimer", "GetDoubleClickTime", "GetCaretBlinkTime", "MapVirtualKeyA",
+                "GetKeyboardType", "GetLogicalDrives", "WaitForMultipleObjects", "GetFullPathNameA",
+                "GetShortPathNameA", "GetLongPathNameA", "SetErrorMode", "GetSysColor", "RealizePalette",
+                "SetPaletteEntries", "GetNearestColor", "SetTextAlign", "GetTextAlign", "SetDIBitsToDevice",
+                "timeGetDevCaps", "joyGetNumDevs", "joyGetPosEx", "waveOutGetNumDevs", "mmioDescend", "mmioClose",
+                "mmioAscend"}
+
+
 def api_decls():
     out = []
     for n, k in sorted(API_USED.items()):
+        rt = "uint32_t" if n in API_UNSIGNED else "intptr_t"
         if n in API_VARARG:
-            out.append(f"typedef intptr_t (*api_{n}_t)(intptr_t, ...);   /* {n}: cdecl, variadic */")
+            out.append(f"typedef {rt} (*api_{n}_t)(intptr_t, ...);   /* {n}: cdecl, variadic */")
         else:
-            out.append(f"typedef intptr_t (__attribute__((stdcall)) *api_{n}_t)({', '.join(['intptr_t'] * k) or 'void'});")
+            out.append(f"typedef {rt} (__attribute__((stdcall)) *api_{n}_t)({', '.join(['intptr_t'] * k) or 'void'});")
         out.append(f'#define API_{n} ((api_{n}_t)g_eng.api("{n}"))')
     return "\n".join(out)
 
@@ -615,7 +633,7 @@ WIN_INT = {"HDC", "HGDIOBJ", "HWND", "HBITMAP", "HFONT", "HBRUSH", "HPEN", "HAND
 WIN_UINT = {"UINT", "DWORD", "COLORREF", "WPARAM", "ULONG", "SIZE_T"}   # ... unsigned
 WIN_STRUCT = {"POINT", "RECT", "SIZE", "BITMAPINFOHEADER", "BITMAPINFO", "RGBQUAD", "PALETTEENTRY", "LOGFONTA",
               "TEXTMETRICA", "BITMAP", "MSG", "PAINTSTRUCT", "SYSTEMTIME", "MMCKINFO", "WAVEFORMATEX", "WNDCLASSA",
-              "OSVERSIONINFOA", "LOGBRUSH", "LOGFONTA"}   # kept as <windows.h>'s own
+              "OSVERSIONINFOA", "LOGBRUSH", "LOGFONTA", "struct tm"}   # kept as <windows.h>'s own
 WORD_SHELLS = ("paint_ctx", "input_dev", "input_mgr", "zdm", "log_singleton")   # wnd_proc.h's shells: passed through as words
 SHELL_SIZE = {"input_dev": 12, "paint_ctx": 0x170, "log_singleton": 0x504}   # ... IDA's sizes for them (knowledge pack decls)
 SHELL_ARRAYS = {"log_singleton": {"path": 0x404}}   # ... their array members (an address, not a load)
@@ -643,6 +661,9 @@ def map_type(t):
     if t.replace("*", "").strip() in WIN_ALIAS:
         st = t.count("*"); a = WIN_ALIAS[t.replace("*", "").strip()]
         return a + (" " + "*" * st if st else "")
+    if t.replace("*", "").strip() == "struct tm":   # the CRT's (localtime): the same 9 ints in both CRTs
+        st = t.count("*")
+        return "struct tm" + (" " + "*" * st if st else "")
     if t.startswith("cls_") or t.startswith("struct ") or t.startswith("_UNKNOWN"):
         n = t.count("*")
         if n >= 2:   # a pointer to class pointers: a table of 4-byte slots
@@ -786,7 +807,8 @@ def convert(text, names, widths, this):
                    lambda m: f"((uint8_t *)({n}__f) + 0x{gsv.get(int(m.group(1), 16), int(m.group(1), 16)):x})", s)
     # a global struct's members, by offset (its _padNNN shells are named by offset; the log singleton's path: +0x404)
     s = re.sub(r"\bstru_(?!8A6B60\b)([0-9A-F]{6})\._pad([0-9a-f]{3})\b", lambda m: f"((uint8_t *)D(0x{int(m.group(1), 16):x}) + 0x{m.group(2)})", s)
-    s = re.sub(r"(?<!fopen\()\bstru_8A9530\.path\b", "((char *)D(0x8a9530) + 0x404)", s)   # (the inlined log's fopen: collapsed below)
+    s = re.sub(r"(?<!fopen\()\bstru_8A9530\.path\b", "((char *)D(0x8a9530) + 0x404)", s)
+    s = re.sub(r"\bstru_([0-9A-F]{6})\.path\b", lambda m: f"((char *)D(0x{int(m.group(1), 16):x}) + 0x404)", s)   # (another log singleton: 0x8a6620)   # (the inlined log's fopen: collapsed below)
     s = s.replace("Concurrency::details::_ReaderWriterLock::_ReaderWriterLock(", "sub_5A4760(")   # (FLIRT's name for a 16-byte retail ctor)
     s = re.sub(r"\bunknown_libname_2\(", "sub_5B6E70(", s)   # (FLIRT's name for the engine's bitmap session ctor)
     s = re.sub(r"\((cls_\w+)\)(?=[\w(])", "", s)   # IDA's by-value class cast of an expression
@@ -880,9 +902,10 @@ def convert(text, names, widths, this):
         for t, f in (("_DWORD", "F32"), ("int", "F32"), ("_WORD", "F16"), ("__int16", "S16"), ("unsigned __int16", "F16"),
                      ("_BYTE", "F8"), ("char", "F8"), ("unsigned __int8", "F8"), ("unsigned int", "FU32"), ("_UNKNOWN \\*", "F32")):
             s = re.sub(r"\*\(%s \*\)\(%s \+ (\d+)\)" % (t, inner), lambda m, f=f: accx(f, m.group(1), m.group(2)), s)
-            s = re.sub(r"\*\(%s \*\)(\w+->field_[0-9A-F]+)\b(?!\s*[\[(])" % t, r"%s(\1, 0)" % f, s)   # (the field's deref)
+            s = re.sub(r"\*\(%s \*\)(\w+(?:->\w+)+)\b(?!\s*[\[(])" % t, r"%s(\1, 0)" % f, s)   # (the member's deref)
             s = re.sub(r"\*\(%s \*\)(\w+)\b(?!\s*[\[(]|\s*->)" % t, r"%s(\1, 0)" % f, s)
-            s = re.sub(r"\*\(%s \*\)\(%s\)" % (t, inner), r"%s((\1), 0)" % f, s)
+            s = re.sub(r"\*\(%s \*\)(\(%s\)(?:->\w+)+)\b(?!\s*[\[(])" % (t, inner), r"%s(\1, 0)" % f, s)   # (a member's deref)
+            s = re.sub(r"\*\(%s \*\)\(%s\)(?!\s*->)" % (t, inner), r"%s((\1), 0)" % f, s)
         s = re.sub(r"(?<!\*)\*\((?:_UNKNOWN|void|cls_\w+|_DWORD|int|_WORD|_BYTE|char|__int16|unsigned __int16) \*\*\)\(%s\)" % inner, r"F32((\1), 0)", s)
     for v, (cls, n) in CLSIDX.items():   # a class pointer's `v + k` as a value moves by whole objects (0x5642e0's v9 + 1)
         if n > 1:
@@ -923,6 +946,8 @@ def convert(text, names, widths, this):
     s = re.sub(r"\(?(F32\((?:[^()]|\([^()]*\))*\))\)?->field_([0-9A-F]+)", lambda m: f"F32({m.group(1)}, 0x{int(m.group(2), 16):x})", s)   # (*pp)->field
     s = re.sub(r"\*\*\(_DWORD \*\*\)&stru_8A6B60\._pad000\[800\]", "CFG()", s)
     s = re.sub(r"(?<!\*)\*\((?:_DWORD|int|cls_\w+) \*\*\)\(%s \+ (\d+)\)" % r"((?:[^()]|\((?:[^()]|\([^()]*\))*\))+?)", r"F32(\1, \2)", s)
+    s = re.sub(r"\(int\)&loc_([0-9A-F]{6})\b|(?<![\w.])&loc_([0-9A-F]{6})\b", lambda m: f"0x{int(m.group(1) or m.group(2), 16):x}", s)   # an
+    # immediate IDA took for a code address (0x5749b0's colour 0x40c040)
     s = s.replace("rand_draw_5BF505()", "rnd()")
     s = s.replace("p_cls_40BE00", "W")
     s = re.sub(r"\*\(_DWORD \*\)&stru_8A6B60\._pad000\[(\d+)\]", r"SYS32(\1)", s)
@@ -1373,6 +1398,7 @@ def main():
         funcs = [word_args(f) for f in funcs]
     if WINH[0] or any(re.search(r"\b(%s)\b" % "|".join(WIN_STRUCT), f) for f in funcs):
         print("#include <windows.h>")
+        print("#include <time.h>")
     print("\n".join(f'#include "{h}"' for h in sorted(KBH)))
     print("\n".join(f'#include "{h}"' for h in sorted({PROTO_HDR[n] for n in USED if n in PROTO_HDR})))
     print(PROLOGUE)
