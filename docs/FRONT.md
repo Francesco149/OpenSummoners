@@ -108,7 +108,7 @@
   | the SHOTS (per-part tick, init, the 96-band pickups, the room loop's band-64 tick + 30 helpers; decomp2c) | `0x4710c0` `0x55d140` `0x46da00` `0x590230` (+ `0x445ce0`..`0x55f150`) | 562@64 / 13 / 11,481 / 562; helpers 226,320 (`0x476550`) 13,958 12,503 5,292 | 0 |
   | the BEHAVIOUR layer: every slot of the AI tick `0x47b990` + callees (skill pick by range, attack windows, approach / retreat / leash, target checks, the path follower; decomp2c) | `0x47ecd0` `0x47adb0` `0x47ae00` `0x441f50` … (60) | 10,375 / 8,987 / 8,023 / 5,628 / 5,529 / 5,388 / 3,679 … (34 hooks with calls) | 0 |
   | the INTEGRATOR's reached handlers (monsters' skill bodies) + the ITEM / SKILL EFFECT + its value (decomp2c) | `0x455d80` `0x44d2e0` `0x4512d0` `0x4466b0` `0x467260` `0x456c60` / `0x5b3b00` `0x5b28a0` | 112,293@8 / 31,853@8 / 24,751@8 / 4 / 3 / – / 1 / 1 | 0 |
-  | the CHAPTER SCRIPTS the corpus reaches (34 of 35; decomp2c, unported callees as retail's own via `g_eng.retail`; `0x49f7c0` converted but OFF: rh-errands-items diverges from f7835) | `0x4d7d80` `0x4dc510` … `0x4c45a0` (~240 KB) | REPLACE (nested frame loops) | – |
+  | the CHAPTER SCRIPTS the corpus reaches (35; decomp2c, callees bound to their ports; `0x49f7c0` on since 2026-10-23: its book record) + the later chapters' STORY SCRIPTS (`src/story_scripts.c`, 48 incl. helpers, UNVERIFIED: unreached) | `0x4d7d80` `0x4dc510` … `0x4c45a0` (~240 KB) | REPLACE (nested frame loops) | – |
   | the chapter scripts' file / sound / DirectX-free callees (scene / script commands, flag table, runner getters; decomp2c; the scripts now call them directly) | `0x401d80` `0x402030` `0x4020a0` … `0x5b4330` (50) | 91 shadow calls over 11 functions (`0x41efe0` 17, `0x4a63d0` 64, …); 39 unreached = UNVERIFIED (header lists them) | 0 |
   | the TITLE and its menus (decomp2c): the title drive, splash + title menu, New Game options, Options, the load screen, sparkles / compositor | `0x562ea0` `0x56aea0` `0x564780` `0x568de0` `0x566a80` … (59) | REPLACE (30 entry hooks; title / options / new-game / load flows of the corpus) | – |
   | the render's PLATFORM layer (decomp2c): surface DC get / release, lock / unlock, the blits (onto / keyed / clipped / rects), the software ALPHA blender `0x5bd680`, the surface cache (create / free / color key), Polyline | `0x5b9b70` `0x5b9bf0` `0x5bd550` `0x5bd680` `0x5b94e0` `0x5b8b40` … (23) | REPLACE (20 entry hooks: every blit of the corpus; the render gate) | – |
@@ -149,8 +149,10 @@
      REGENERATED: the older decomp2c modules re-converted with today's converter (`tools/ida/decomp2c_regen.py`,
      hand finishes kept; their RC_ calls now bind to the new ports; latent bugs — `*(T *)v->field` precedence,
      unsigned Win32 returns, offset-only arrays, class-pointer `++` in for headers, `trailer`'s byte — fixed in
-     place); hybrid PASS 9/9 Windows + wine.  Left: the later chapters' STORY SCRIPTS 0x4e1d10..0x546670 (~430 KB,
-     unreached).  rhost: by-address functions (window
+     place); hybrid PASS 9/9 Windows + wine.  The later chapters' STORY SCRIPTS 0x4e1d10..0x546670 are port code
+     too (`src/story_scripts.c`, UNVERIFIED: unreached), and chapter script 0x49f7c0 is on again (its argument to
+     the book reader is retail's book RECORD, not a host copy of the title).  Ledger: 98.0% of engine functions
+     touched, 100.0% of code bytes; frontier = 3 small leaves.  rhost: by-address functions (window
      procedures, atexit, callbacks, jmp-thunk targets) take an ENTRY PATCH under REPLACE (game memory keeps retail's
      address); 3 stack-address slots joined `volatile.enold.txt` (re-blessed).
   000000. (2026-10-17 afternoon) coverage over the corpus (`rhost.py coverage`): 1,068 of 1,550 game functions reached;
@@ -185,8 +187,8 @@
      0x5752e0 0x57b280: ~75 KB, boot-time); a targeted (sampled) shadow verify of the regenerated modules; `_DWORD` is unsigned in IDA but
      signed in decomp2c's prologue (check before relying on `>>` / `<` of a `_DWORD` load).
   0000. (2026-10-16 evening) the shots, the behaviour layer, the integrator's reached handlers + the item / skill
-     effect + 34 chapter scripts run as port code; the hybrid gate holds at every 600-frame sample (wine).  Open:
-     chapter script `0x49f7c0` (errands f7835: 12-byte records at 0x20b60398.. differ).  Next: the integrator's
+     effect + 34 chapter scripts run as port code; the hybrid gate holds at every 600-frame sample (wine).  (Was
+     open: chapter script `0x49f7c0` (errands f7835) — CLOSED 2026-10-23, see item 0000000.)  Next: the integrator's
      UNREACHED handlers (`0x4539b0` 8.7 KB, `0x456d30`, `0x452730`, … — a recording that reaches them first); the
      chapter scripts' I/O-touching callees (`0x41a430` `0x41c390` `0x408730` `0x40a5d0` `0x41d4a0` …, still `RC_`); the scene loop's `0x561560` /
      `0x561d20` (file I/O underneath: keep the overlay in mind);

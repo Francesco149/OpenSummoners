@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **1467** (94.9% of engine-proper) — tested 249, ported 1218
-- code bytes touched: **76.0%** (1,349,368 / 1,776,526 B of engine-proper)
-- unported: **357**
+- touched: **1515** (98.0% of engine-proper) — tested 249, ported 1266
+- code bytes touched: **100.0%** (1,775,963 / 1,776,526 B of engine-proper)
+- unported: **309**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (1218) — reimplemented, no host test yet
+## ported (1266) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -1046,13 +1046,61 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4dc510 | sub_4DC510 | 21461 | chapter_scripts.h |
 | 0x4e1950 | sub_4E1950 | 135 | scene_loop.h |
 | 0x4e19e0 | sub_4E19E0 | 811 | chapter_scripts.h |
+| 0x4e1d10 | sub_4E1D10 | 1685 | story_scripts.h |
+| 0x4e23d0 | sub_4E23D0 | 13606 | story_scripts.h |
+| 0x4e5950 | sub_4E5950 | 66 | story_scripts.h |
 | 0x4e6030 | sub_4E6030 | 54 | party_member.h |
 | 0x4e6070 | sub_4E6070 | 299 | party_member.h |
 | 0x4e61a0 | sub_4E61A0 | 33 | scene_loop.h |
 | 0x4e61d0 | sub_4E61D0 | 817 | menu_helpers.h |
 | 0x4e6520 | sub_4E6520 | 817 | menu_helpers.h |
 | 0x4e6870 | sub_4E6870 | 84 | menu_helpers.h |
+| 0x4e68d0 | sub_4E68D0 | 393 | story_scripts.h |
+| 0x4e6a60 | sub_4E6A60 | 15415 | story_scripts.h |
+| 0x4ea6f0 | sub_4EA6F0 | 30 | story_scripts.h |
+| 0x4ea710 | sub_4EA710 | 153 | story_scripts.h |
+| 0x4ea7b0 | sub_4EA7B0 | 15468 | story_scripts.h |
+| 0x4ee490 | sub_4EE490 | 497 | story_scripts.h |
+| 0x4ee690 | sub_4EE690 | 3574 | story_scripts.h |
+| 0x4ef4e0 | sub_4EF4E0 | 9352 | story_scripts.h |
+| 0x4f19e0 | sub_4F19E0 | 20437 | story_scripts.h |
+| 0x4f69c0 | sub_4F69C0 | 25 | story_scripts.h |
+| 0x4f69e0 | sub_4F69E0 | 33 | story_scripts.h |
+| 0x4f6a10 | sub_4F6A10 | 14027 | story_scripts.h |
+| 0x4fa2a0 | sub_4FA2A0 | 18188 | story_scripts.h |
+| 0x4fea60 | sub_4FEA60 | 472 | story_scripts.h |
+| 0x4fec40 | sub_4FEC40 | 17841 | story_scripts.h |
+| 0x5034b0 | sub_5034B0 | 18747 | story_scripts.h |
+| 0x507e70 | sub_507E70 | 32899 | story_scripts.h |
+| 0x50ffe0 | sub_50FFE0 | 248 | story_scripts.h |
+| 0x5100e0 | sub_5100E0 | 20 | story_scripts.h |
+| 0x510100 | sub_510100 | 22636 | story_scripts.h |
+| 0x515a00 | sub_515A00 | 18142 | story_scripts.h |
+| 0x51a1d0 | sub_51A1D0 | 32877 | story_scripts.h |
+| 0x522310 | sub_522310 | 3316 | story_scripts.h |
+| 0x523010 | sub_523010 | 743 | story_scripts.h |
+| 0x523300 | sub_523300 | 9965 | story_scripts.h |
 | 0x525ab0 | sub_525AB0 | 45 | char_hit.h |
+| 0x525ae0 | sub_525AE0 | 899 | story_scripts.h |
+| 0x525e70 | sub_525E70 | 40515 | story_scripts.h |
+| 0x52fd80 | sub_52FD80 | 767 | story_scripts.h |
+| 0x530080 | sub_530080 | 13474 | story_scripts.h |
+| 0x533570 | sub_533570 | 4 | story_scripts.h |
+| 0x533580 | sub_533580 | 8094 | story_scripts.h |
+| 0x535520 | sub_535520 | 3936 | story_scripts.h |
+| 0x536480 | sub_536480 | 4023 | story_scripts.h |
+| 0x537440 | sub_537440 | 10805 | story_scripts.h |
+| 0x539e80 | sub_539E80 | 19641 | story_scripts.h |
+| 0x53ebe0 | sub_53EBE0 | 37 | story_scripts.h |
+| 0x53ec10 | sub_53EC10 | 13 | story_scripts.h |
+| 0x53ec20 | sub_53EC20 | 23 | story_scripts.h |
+| 0x53ec40 | sub_53EC40 | 5788 | story_scripts.h |
+| 0x5402e0 | sub_5402E0 | 25033 | story_scripts.h |
+| 0x546580 | sub_546580 | 201 | story_scripts.h |
+| 0x546670 | sub_546670 | 22187 | story_scripts.h |
+| 0x54be50 | sub_54BE50 | 60 | story_scripts.h |
+| 0x54be90 | sub_54BE90 | 59 | story_scripts.h |
+| 0x54bed0 | sub_54BED0 | 181 | story_scripts.h |
 | 0x54bf90 | sub_54BF90 | 30 | room_load.h |
 | 0x54bfb0 | sub_54BFB0 | 801 | world_alloc.c, world_alloc.h |
 | 0x54c2e0 | sub_54C2E0 | 217 | world_alloc.h |

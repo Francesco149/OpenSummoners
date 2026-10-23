@@ -71,6 +71,7 @@
 #include "ai_skill.h"
 #include "script_io.h"
 #include "frame_load.h"
+#include "story_scripts.h"
 #include "engine_rest.h"
 #include "leftovers.h"
 #include "title_extra.h"
@@ -508,6 +509,30 @@ typedef struct {
     X(H_EL49EEA0, "el_49eea0", 0x49eea0u) X(H_EL4C5AF0, "el_4c5af0", 0x4c5af0u) X(H_EL4CC0E0, "el_4cc0e0", 0x4cc0e0u) \
     X(H_EL54ED80, "el_54ed80", 0x54ed80u) X(H_EL5534D0, "el_5534d0", 0x5534d0u) X(H_EL556E50, "el_556e50", 0x556e50u) \
     X(H_EL55FDB0, "el_55fdb0", 0x55fdb0u) \
+    X(H_CHS4E1D10, "chs_4e1d10", 0x4e1d10u) X(H_CHS4E23D0, "chs_4e23d0", 0x4e23d0u) \
+    X(H_CHS4E5950, "chs_4e5950", 0x4e5950u) X(H_CHS4E68D0, "chs_4e68d0", 0x4e68d0u) \
+    X(H_CHS4E6A60, "chs_4e6a60", 0x4e6a60u) X(H_CHS4EA6F0, "chs_4ea6f0", 0x4ea6f0u) \
+    X(H_CHS4EA710, "chs_4ea710", 0x4ea710u) X(H_CHS4EA7B0, "chs_4ea7b0", 0x4ea7b0u) \
+    X(H_CHS4EE490, "chs_4ee490", 0x4ee490u) X(H_CHS4EE690, "chs_4ee690", 0x4ee690u) \
+    X(H_CHS4EF4E0, "chs_4ef4e0", 0x4ef4e0u) X(H_CHS4F19E0, "chs_4f19e0", 0x4f19e0u) \
+    X(H_CHS4F69C0, "chs_4f69c0", 0x4f69c0u) X(H_CHS4F69E0, "chs_4f69e0", 0x4f69e0u) \
+    X(H_CHS4F6A10, "chs_4f6a10", 0x4f6a10u) X(H_CHS4FA2A0, "chs_4fa2a0", 0x4fa2a0u) \
+    X(H_CHS4FEA60, "chs_4fea60", 0x4fea60u) X(H_CHS4FEC40, "chs_4fec40", 0x4fec40u) \
+    X(H_CHS5034B0, "chs_5034b0", 0x5034b0u) X(H_CHS507E70, "chs_507e70", 0x507e70u) \
+    X(H_CHS50FFE0, "chs_50ffe0", 0x50ffe0u) X(H_CHS5100E0, "chs_5100e0", 0x5100e0u) \
+    X(H_CHS510100, "chs_510100", 0x510100u) X(H_CHS515A00, "chs_515a00", 0x515a00u) \
+    X(H_CHS51A1D0, "chs_51a1d0", 0x51a1d0u) X(H_CHS522310, "chs_522310", 0x522310u) \
+    X(H_CHS523010, "chs_523010", 0x523010u) X(H_CHS523300, "chs_523300", 0x523300u) \
+    X(H_CHS525AE0, "chs_525ae0", 0x525ae0u) X(H_CHS525E70, "chs_525e70", 0x525e70u) \
+    X(H_CHS52FD80, "chs_52fd80", 0x52fd80u) X(H_CHS530080, "chs_530080", 0x530080u) \
+    X(H_CHS533570, "chs_533570", 0x533570u) X(H_CHS533580, "chs_533580", 0x533580u) \
+    X(H_CHS535520, "chs_535520", 0x535520u) X(H_CHS536480, "chs_536480", 0x536480u) \
+    X(H_CHS537440, "chs_537440", 0x537440u) X(H_CHS539E80, "chs_539e80", 0x539e80u) \
+    X(H_CHS53EBE0, "chs_53ebe0", 0x53ebe0u) X(H_CHS53EC10, "chs_53ec10", 0x53ec10u) \
+    X(H_CHS53EC20, "chs_53ec20", 0x53ec20u) X(H_CHS53EC40, "chs_53ec40", 0x53ec40u) \
+    X(H_CHS5402E0, "chs_5402e0", 0x5402e0u) X(H_CHS546580, "chs_546580", 0x546580u) \
+    X(H_CHS546670, "chs_546670", 0x546670u) X(H_CHS54BE50, "chs_54be50", 0x54be50u) \
+    X(H_CHS54BE90, "chs_54be90", 0x54be90u) X(H_CHS54BED0, "chs_54bed0", 0x54bed0u) \
     /* (wire.py: new modules' rows go above this line) */ \
     X(H_SC401D80, "sc_401d80", 0x401d80u) X(H_SC402030, "sc_402030", 0x402030u) X(H_SC4020A0, "sc_4020a0", 0x4020a0u) \
     X(H_SC4024E0, "sc_4024e0", 0x4024e0u) X(H_SC402610, "sc_402610", 0x402610u) X(H_SC402F40, "sc_402f40", 0x402f40u) \
@@ -2445,6 +2470,8 @@ static int __attribute__((thiscall)) gd_49bf90(void *d, intptr_t v) { GUARD("the
 #define EV_GUARD(ev, what) if ((ev)->mode != 3 && (ev)->mode != 4) { GUARD(what) }
 #define H_CS_FIRST H_CS4D7D80
 #define H_CS_LAST H_CS4C45A0
+#define H_ST_FIRST H_CHS4E1D10   /* the later chapters' story scripts (src/story_scripts.c) */
+#define H_ST_LAST H_CHS54BED0
 #define REP_MAX 4096
 static uint32_t g_rep_va[REP_MAX]; static void *g_rep_w[REP_MAX]; static int g_nrep;   /* the REPLACE hooks, by VA */
 /* decomp2c's RC_ calls: retail is mapped in place — a function a hook REPLACES: its wrapper (the port) */
@@ -2464,6 +2491,8 @@ static int rh_script_call(uint32_t va, wl_event *ev)
     EV_GUARD(ev, "a chapter script (mode != 3/4)")
     for (int i = H_CS_FIRST; i <= H_CS_LAST; i++)   /* a ported chapter script whose hook replaces: the port's */
         if (H[i].va == va && H[i].mode == 2) { H[i].calls++; return chs_find(va)((wl_char *)ev); }
+    for (int i = H_ST_FIRST; i <= H_ST_LAST; i++)   /* ... and a ported story script */
+        if (H[i].va == va && H[i].mode == 2 && story_find(va)) { H[i].calls++; return story_find(va)((wl_char *)ev); }
     return ((eng_tc0)(uintptr_t)va)(ev);
 }
 static int __attribute__((thiscall)) gd_439690(void *rl, intptr_t ev);   /* (below: it dispatches to scene_run) */
@@ -5086,6 +5115,55 @@ ST_HOOK0(H_EL54ED80, "el_54ed80", 1, return (intptr_t)el_54ed80())
 TC_HOOK(H_EL5534D0, "el_5534d0", 3, 1, return (intptr_t)el_5534d0((wl_char *)self, a1, a2, a3))
 ST_HOOK(H_EL556E50, "el_556e50", 5, 0, el_556e50(a1, a2, a3, a4, a5); return 0)
 TC_HOOK0(H_EL55FDB0, "el_55fdb0", 0, el_55fdb0((wl_char *)self); return 0)
+/* the later chapters' story scripts + helpers (src/story_scripts.c): UNVERIFIED (unreached), REPLACE only; the script engine's by-VA calls reach the scripts through rh_script_call */
+TC_HOOK0(H_CHS4E1D10, "chs_4e1d10", 1, return (intptr_t)chs_4e1d10((wl_char *)self))
+TC_HOOK0(H_CHS4E23D0, "chs_4e23d0", 1, return (intptr_t)chs_4e23d0((wl_char *)self))
+TC_HOOK0(H_CHS4E5950, "chs_4e5950", 1, return (intptr_t)chs_4e5950((wl_char *)self))
+TC_HOOK0(H_CHS4E68D0, "chs_4e68d0", 1, return (intptr_t)chs_4e68d0((wl_char *)self))
+TC_HOOK0(H_CHS4E6A60, "chs_4e6a60", 1, return (intptr_t)chs_4e6a60((wl_char *)self))
+TC_HOOK(H_CHS4EA6F0, "chs_4ea6f0", 1, 1, return (intptr_t)chs_4ea6f0((wl_char *)self, a1))
+TC_HOOK(H_CHS4EA710, "chs_4ea710", 1, 1, return (intptr_t)chs_4ea710((wl_char *)self, a1))
+TC_HOOK0(H_CHS4EA7B0, "chs_4ea7b0", 1, return (intptr_t)chs_4ea7b0((wl_char *)self))
+TC_HOOK(H_CHS4EE490, "chs_4ee490", 2, 1, return (intptr_t)chs_4ee490((wl_char *)self, a1, a2))
+TC_HOOK0(H_CHS4EE690, "chs_4ee690", 1, return (intptr_t)chs_4ee690((wl_char *)self))
+TC_HOOK0(H_CHS4EF4E0, "chs_4ef4e0", 1, return (intptr_t)chs_4ef4e0((wl_char *)self))
+TC_HOOK0(H_CHS4F19E0, "chs_4f19e0", 1, return (intptr_t)chs_4f19e0((wl_char *)self))
+TC_HOOK(H_CHS4F69C0, "chs_4f69c0", 1, 0, chs_4f69c0((wl_char *)self, a1); return 0)
+TC_HOOK(H_CHS4F69E0, "chs_4f69e0", 3, 1, return (intptr_t)chs_4f69e0((wl_char *)self, a1, a2, a3))
+TC_HOOK0(H_CHS4F6A10, "chs_4f6a10", 1, return (intptr_t)chs_4f6a10((wl_char *)self))
+TC_HOOK0(H_CHS4FA2A0, "chs_4fa2a0", 1, return (intptr_t)chs_4fa2a0((wl_char *)self))
+TC_HOOK(H_CHS4FEA60, "chs_4fea60", 1, 1, return (intptr_t)chs_4fea60((wl_char *)self, a1))
+TC_HOOK0(H_CHS4FEC40, "chs_4fec40", 1, return (intptr_t)chs_4fec40((wl_char *)self))
+TC_HOOK0(H_CHS5034B0, "chs_5034b0", 1, return (intptr_t)chs_5034b0((wl_char *)self))
+TC_HOOK0(H_CHS507E70, "chs_507e70", 1, return (intptr_t)chs_507e70((wl_char *)self))
+TC_HOOK(H_CHS50FFE0, "chs_50ffe0", 1, 1, return (intptr_t)chs_50ffe0((wl_char *)self, U16(a1)))
+TC_HOOK0(H_CHS5100E0, "chs_5100e0", 1, return (intptr_t)chs_5100e0((wl_char *)self))
+TC_HOOK0(H_CHS510100, "chs_510100", 1, return (intptr_t)chs_510100((wl_char *)self))
+TC_HOOK0(H_CHS515A00, "chs_515a00", 1, return (intptr_t)chs_515a00((wl_char *)self))
+TC_HOOK0(H_CHS51A1D0, "chs_51a1d0", 1, return (intptr_t)chs_51a1d0((wl_char *)self))
+TC_HOOK0(H_CHS522310, "chs_522310", 1, return (intptr_t)chs_522310((wl_char *)self))
+TC_HOOK0(H_CHS523010, "chs_523010", 1, return (intptr_t)chs_523010((wl_char *)self))
+TC_HOOK0(H_CHS523300, "chs_523300", 1, return (intptr_t)chs_523300((wl_char *)self))
+TC_HOOK0(H_CHS525AE0, "chs_525ae0", 1, return (intptr_t)chs_525ae0((wl_char *)self))
+TC_HOOK0(H_CHS525E70, "chs_525e70", 1, return (intptr_t)chs_525e70((wl_char *)self))
+TC_HOOK(H_CHS52FD80, "chs_52fd80", 3, 1, return (intptr_t)chs_52fd80((wl_char *)self, a1, a2, a3))
+TC_HOOK0(H_CHS530080, "chs_530080", 1, return (intptr_t)chs_530080((wl_char *)self))
+TC_HOOK0(H_CHS533570, "chs_533570", 1, return (intptr_t)chs_533570((wl_char *)self))
+TC_HOOK0(H_CHS533580, "chs_533580", 1, return (intptr_t)chs_533580((wl_char *)self))
+TC_HOOK0(H_CHS535520, "chs_535520", 1, return (intptr_t)chs_535520((wl_char *)self))
+TC_HOOK0(H_CHS536480, "chs_536480", 1, return (intptr_t)chs_536480((wl_char *)self))
+TC_HOOK0(H_CHS537440, "chs_537440", 1, return (intptr_t)chs_537440((wl_char *)self))
+TC_HOOK0(H_CHS539E80, "chs_539e80", 1, return (intptr_t)chs_539e80((wl_char *)self))
+TC_HOOK(H_CHS53EBE0, "chs_53ebe0", 3, 1, return (intptr_t)chs_53ebe0((intptr_t)self, a1, a2, a3))
+TC_HOOK(H_CHS53EC10, "chs_53ec10", 1, 1, return (intptr_t)chs_53ec10((wl_char *)self, a1))
+TC_HOOK(H_CHS53EC20, "chs_53ec20", 2, 1, return (intptr_t)chs_53ec20((wl_char *)self, a1, a2))
+TC_HOOK0(H_CHS53EC40, "chs_53ec40", 1, return (intptr_t)chs_53ec40((wl_char *)self))
+TC_HOOK0(H_CHS5402E0, "chs_5402e0", 1, return (intptr_t)chs_5402e0((wl_char *)self))
+TC_HOOK(H_CHS546580, "chs_546580", 3, 1, return (intptr_t)chs_546580((wl_char *)self, a1, a2, a3))
+TC_HOOK0(H_CHS546670, "chs_546670", 1, return (intptr_t)chs_546670((wl_char *)self))
+TC_HOOK(H_CHS54BE50, "chs_54be50", 6, 0, chs_54be50((wl_char *)self, a1, a2, a3, a4, a5, a6); return 0)
+TC_HOOK(H_CHS54BE90, "chs_54be90", 1, 1, return (intptr_t)chs_54be90((wl_char *)self, a1))
+TC_HOOK(H_CHS54BED0, "chs_54bed0", 2, 1, return (intptr_t)chs_54bed0((wl_char *)self, a1, (int16_t)a2))
 /* (wire.py: new modules' hook rows go above this line) */
 /* the chapter scripts' file / sound / DirectX-free callees (src/script_helpers.c; 0x4a5e40 0x4cbfb0 0x4cbfd0 0x4d6490
  * read their caller's ecx: thiscall wrappers) */
@@ -5505,7 +5583,7 @@ void rh_hooks_install(void)
         if ((h == &H[H_RLOOP] || h == &H[H_REPOLL] || h == &H[H_LROOM] || h == &H[H_SLOOP] || h == &H[H_MPACE] || h == &H[H_MRUN] ||
              h == &H[H_UM_PAGES] || h == &H[H_ST_DEP] || h == &H[H_ST_WD] || h == &H[H_ST_RUN] || h == &H[H_IFIND] ||
              h == &H[H_FURN] || h == &H[H_UM_PCLOSE] || h == &H[H_SC_YN] || h == &H[H_IGIVE] || h == &H[H_BOOK] || h == &H[H_SSETFREE] ||
-             (h >= &H[H_CS_FIRST] && h <= &H[H_CS_LAST])) && h->mode == 1)
+             (h >= &H[H_CS_FIRST] && h <= &H[H_CS_LAST]) || (h >= &H[H_ST_FIRST] && h <= &H[H_ST_LAST])) && h->mode == 1)
             rh_fatal("%s: replace only (it runs a room / repolls DirectInput)", h->name);
         if (h == &H[H_MAP_DECODE]) {
             if (h->mode == 2) rh_fatal("map_decode: shadow only (the port decode needs the recorded resource)");

@@ -14,12 +14,14 @@ REPLACE_ONLY / VERIFY lists in `rhost.py`) → `corpus --check --hook replace:..
 AND `--target wine` (600-frame sem series) → commit.  Debug: `rhost.py run SCEN --dump-at F` + `rhs.py A B` (state
 diff), `--extra="--watch-write VA@F"` (who writes), `--trap VA` (retail code only).
 
-- **Coverage:** 94.9% of engine functions touched (ledger), 76% of code bytes; the hybrid gate replaces retail with
-  1,271 port functions.  Left: the later chapters' STORY SCRIPTS 0x4e1d10..0x546670 (~430 KB, unreached; they need a
-  second script range in `rh_script_call` + a `story_find`), tiny CRT static-init thunks, the map decode's inlined
-  helpers 0x58c8c0..0x58cb30 / 0x54e4f0 (inside the hand ports).
+- **Coverage:** 98.0% of engine functions touched (ledger), 100.0% of code bytes; the hybrid gate replaces retail
+  with ~1,320 port functions.  The later chapters' STORY SCRIPTS are port code (`src/story_scripts.c`, UNVERIFIED:
+  unreached; `story_find` + rhost's second script range H_ST_FIRST..H_ST_LAST).  Left: the frontier's 3 leaves
+  (0x5a4760 16 B, 0x58c8d0 51 B, 0x54e4f0 207 B), tiny CRT static-init thunks.  Every chapter-1 chapter script
+  (35) is on in the hybrid set (0x49f7c0 since its book-record fix).
 - **UNVERIFIED modules** (unreached by the corpus; compile-checked, REPLACE-wired): menu_screens, menu_helpers,
-  char_types, char_handlers2, actor_behave, sjis_text, gamepad, ending, title_extra (but 0x40fe00), engine_rest.  A new
+  char_types, char_handlers2, actor_behave, sjis_text, gamepad, ending, title_extra (but 0x40fe00), engine_rest,
+  story_scripts.  A new
   recording that reaches them verifies them for free (the hybrid gate already replaces retail with them).
 - **decomp2c traps met** (each now a converter rule; see PROGRESS 2026-10-23): member-deref precedence, unsigned Win32
   returns, offset-only arrays, `trailer`'s byte, class-pointer `++` anywhere, `this + <sum>`, by-address functions

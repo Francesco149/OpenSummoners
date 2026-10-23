@@ -43,6 +43,11 @@ specific commits where relevant.
   addresses (fixed: both forms), and an unused `FILE *` / `SYSTEMTIME` local dragged `<windows.h>` into host-built
   modules (now a plain word; `<windows.h>` only when the final text keeps a Win32 struct).  The host suite links the
   chapter scripts, whose calls now reach mingw-only ports: `tests/host_stubs.c` (abort stubs, never run).
+- The later chapters' STORY SCRIPTS as port code (`src/story_scripts.{c,h}`): 0x4e1d10..0x546670 + the helpers
+  past it (48 functions, ~430 KB of retail), a decomp2c first pass; 30 scripts behind `story_find(va)` (the script
+  engine's by-VA dispatch: rhost's `rh_script_call` takes a second range H_ST_FIRST..H_ST_LAST), REPLACE-only.
+  UNVERIFIED — the corpus (chapter 1) reaches none of them; the hybrid gate carries them (calls=0).  Ledger: 98.0%
+  of engine functions touched, 100.0% of code bytes; the frontier is 3 small leaves (0x5a4760, 0x58c8d0, 0x54e4f0).
 - **Chapter script 0x49f7c0 CLOSED** (off since 2026-10-16: rh-errands-items diverged from f7835).  Bisected by state
   dumps every frame f7825..f7850: f7835 is the first difference — base has a BOOK's text block ("Magical Girl
   Merrin…"), the port run is late.  The cause: IDA prints the book reader 0x40dbc0's argument as `(int)"Magical

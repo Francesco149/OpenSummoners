@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 1218,
-  "unported": 357,
+  "ported": 1266,
+  "unported": 309,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 1467,
-  "pct_touched": 94.9,
+  "touched": 1515,
+  "pct_touched": 98.0,
   "pct_tested": 15.7,
-  "engine_proper_touched": 1454,
+  "engine_proper_touched": 1502,
   "bytes_total": 1776526,
-  "bytes_touched": 1349368,
-  "pct_bytes_touched": 76.0
+  "bytes_touched": 1775963,
+  "pct_bytes_touched": 100.0
  },
  "orphan_refs": [],
  "functions": [
@@ -9058,24 +9058,30 @@
    "name": "sub_4E1D10",
    "size": 1685,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x4e23d0",
    "name": "sub_4E23D0",
    "size": 13606,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x4e5950",
    "name": "sub_4E5950",
    "size": 66,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x4e59a0",
@@ -9153,200 +9159,250 @@
    "name": "sub_4E68D0",
    "size": 393,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x4e6a60",
    "name": "sub_4E6A60",
    "size": 15415,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x4ea6f0",
    "name": "sub_4EA6F0",
    "size": 30,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x4ea710",
    "name": "sub_4EA710",
    "size": 153,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x4ea7b0",
    "name": "sub_4EA7B0",
    "size": 15468,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x4ee490",
    "name": "sub_4EE490",
    "size": 497,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x4ee690",
    "name": "sub_4EE690",
    "size": 3574,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x4ef4e0",
    "name": "sub_4EF4E0",
    "size": 9352,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x4f19e0",
    "name": "sub_4F19E0",
    "size": 20437,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x4f69c0",
    "name": "sub_4F69C0",
    "size": 25,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x4f69e0",
    "name": "sub_4F69E0",
    "size": 33,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x4f6a10",
    "name": "sub_4F6A10",
    "size": 14027,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x4fa2a0",
    "name": "sub_4FA2A0",
    "size": 18188,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x4fea60",
    "name": "sub_4FEA60",
    "size": 472,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x4fec40",
    "name": "sub_4FEC40",
    "size": 17841,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x5034b0",
    "name": "sub_5034B0",
    "size": 18747,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x507e70",
    "name": "sub_507E70",
    "size": 32899,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x50ffe0",
    "name": "sub_50FFE0",
    "size": 248,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x5100e0",
    "name": "sub_5100E0",
    "size": 20,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x510100",
    "name": "sub_510100",
    "size": 22636,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x515a00",
    "name": "sub_515A00",
    "size": 18142,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x51a1d0",
    "name": "sub_51A1D0",
    "size": 32877,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x522310",
    "name": "sub_522310",
    "size": 3316,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x523010",
    "name": "sub_523010",
    "size": 743,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x523300",
    "name": "sub_523300",
    "size": 9965,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x525ab0",
@@ -9363,160 +9419,200 @@
    "name": "sub_525AE0",
    "size": 899,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x525e70",
    "name": "sub_525E70",
    "size": 40515,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x52fd80",
    "name": "sub_52FD80",
    "size": 767,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x530080",
    "name": "sub_530080",
    "size": 13474,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x533570",
    "name": "sub_533570",
    "size": 4,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x533580",
    "name": "sub_533580",
    "size": 8094,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x535520",
    "name": "sub_535520",
    "size": 3936,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x536480",
    "name": "sub_536480",
    "size": 4023,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x537440",
    "name": "sub_537440",
    "size": 10805,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x539e80",
    "name": "sub_539E80",
    "size": 19641,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x53ebe0",
    "name": "sub_53EBE0",
    "size": 37,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x53ec10",
    "name": "sub_53EC10",
    "size": 13,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x53ec20",
    "name": "sub_53EC20",
    "size": 23,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x53ec40",
    "name": "sub_53EC40",
    "size": 5788,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x5402e0",
    "name": "sub_5402E0",
    "size": 25033,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x546580",
    "name": "sub_546580",
    "size": 201,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x546670",
    "name": "sub_546670",
    "size": 22187,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x54be50",
    "name": "sub_54BE50",
    "size": 60,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x54be90",
    "name": "sub_54BE90",
    "size": 59,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x54bed0",
    "name": "sub_54BED0",
    "size": 181,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/story_scripts.h"
+   ]
   },
   {
    "va": "0x54bf90",
