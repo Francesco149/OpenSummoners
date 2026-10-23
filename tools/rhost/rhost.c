@@ -160,6 +160,14 @@ int redirect_calls_chain(uint32_t va, void *hook)
  * [inc dword [counter]] [pushad; pushfd; call pre; popfd; popad] jmp orig
  * Lives at a fixed VA (deterministic: retail .text holds rel32s to it). */
 void *g_rh_flip_stub, *g_rh_easer_stub;
+/* the Flip's REPLACE (zd_5b8fc0): rhost's stub owns every Flip call site (pre_flip, then `jmp 0x5b8fc0`) — retarget
+ * that jmp (pushad 60 / pushfd 9C / call E8 rel32 / popfd 9D / popad 61 / jmp E9 rel32: the jmp at +9) */
+void rh_flip_retarget(void *fn)
+{
+    uint8_t *s = g_rh_flip_stub;
+    if (!s || s[0] != 0x60 || s[9] != 0xE9) rh_fatal("flip stub: unexpected layout");
+    *(int32_t *)(s + 10) = (int32_t)((uint32_t)(uintptr_t)fn - ((uint32_t)(uintptr_t)s + 14));
+}
 static void *make_stub(volatile uint32_t *counter, void (*pre)(void), uint32_t orig)
 {
     if (!g_stub_top) {

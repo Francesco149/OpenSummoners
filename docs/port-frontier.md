@@ -243,7 +243,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x565b00 | 528 | 1 | 0 | ✓ |
 | 0x568780 | 554 | 1 | 0 | ✓ |
 | 0x56a670 | 1011 | 1 | 3 |  |
-| 0x5624c0 | 1355 | 1 | 3 |  |
+| 0x5624c0 | 1355 | 1 | 2 |  |
 
 ### master sprite-group register + audio/music init + anim pump (10)
 

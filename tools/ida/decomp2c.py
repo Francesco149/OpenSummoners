@@ -376,7 +376,7 @@ def kb_names():
 # rhost's virtual clock / file overlay stay under them — the host CRT would bypass both
 CRT_REDIRECT = ("time", "localtime", "gmtime", "mktime", "strftime", "clock", "fopen", "fclose", "fprintf", "fread",
                 "fwrite", "fseek", "ftell", "fgets", "fputs", "fflush", "remove", "rename", "getenv", "_findfirst",
-                "_findnext", "_findclose", "_mkdir", "_access")
+                "_findnext", "_findclose", "_mkdir", "_access", "fscanf", "fgetc", "ungetc")
 CRT_USED = {}
 
 
@@ -614,7 +614,8 @@ WIN_INT = {"HDC", "HGDIOBJ", "HWND", "HBITMAP", "HFONT", "HBRUSH", "HPEN", "HAND
            "LPARAM", "LRESULT", "HRESULT"}   # word-sized Win32 types (signed)
 WIN_UINT = {"UINT", "DWORD", "COLORREF", "WPARAM", "ULONG", "SIZE_T"}   # ... unsigned
 WIN_STRUCT = {"POINT", "RECT", "SIZE", "BITMAPINFOHEADER", "BITMAPINFO", "RGBQUAD", "PALETTEENTRY", "LOGFONTA",
-              "TEXTMETRICA", "BITMAP", "MSG", "PAINTSTRUCT", "SYSTEMTIME", "MMCKINFO", "WAVEFORMATEX"}   # kept as <windows.h>'s own
+              "TEXTMETRICA", "BITMAP", "MSG", "PAINTSTRUCT", "SYSTEMTIME", "MMCKINFO", "WAVEFORMATEX", "WNDCLASSA",
+              "OSVERSIONINFOA", "LOGBRUSH", "LOGFONTA"}   # kept as <windows.h>'s own
 WORD_SHELLS = ("paint_ctx", "input_dev", "input_mgr", "zdm", "log_singleton")   # wnd_proc.h's shells: passed through as words
 SHELL_SIZE = {"input_dev": 12, "paint_ctx": 0x170, "log_singleton": 0x504}   # ... IDA's sizes for them (knowledge pack decls)
 SHELL_ARRAYS = {"log_singleton": {"path": 0x404}}   # ... their array members (an address, not a load)
@@ -624,6 +625,8 @@ SHELL_FIELDS = {"paint_ctx": {"zdd_device": 0x2c, "blit_x": 0x138, "blit_y": 0x1
 WIN_ALIAS = {"struct tagRECT": "RECT", "tagRECT": "RECT", "struct tagPOINT": "POINT", "tagPOINT": "POINT",
              "struct _SYSTEMTIME": "SYSTEMTIME", "_SYSTEMTIME": "SYSTEMTIME",
              "struct _MMCKINFO": "MMCKINFO", "_MMCKINFO": "MMCKINFO", "LPMMCKINFO": "MMCKINFO *",
+             "struct tagMSG": "MSG", "tagMSG": "MSG", "LPMSG": "MSG *", "struct tagWNDCLASSA": "WNDCLASSA",
+             "tagWNDCLASSA": "WNDCLASSA", "struct tagLOGBRUSH": "LOGBRUSH", "tagLOGBRUSH": "LOGBRUSH", "struct tagLOGFONTA": "LOGFONTA", "struct _OSVERSIONINFOA": "OSVERSIONINFOA", "LPOSVERSIONINFOA": "OSVERSIONINFOA *",
              "LPDIRECTSOUND": "void *", "LPDIRECTSOUNDBUFFER": "void *", "LPDIRECTINPUT7A": "void *",
              "LPDIRECTDRAW7": "void *", "LPDIRECTDRAWSURFACE7": "void *",
              "struct tagSIZE": "SIZE",
@@ -680,7 +683,28 @@ RESERVED = ("c", "self", "W", "D", "rnd")   # the converter's own names: an IDA 
 INDEXED = set()   # the dword_ / word_ / byte_ tables a function indexes (an array: its bare name is its address)
 
 
+NAMED_DWORDS = {"hInstance": 0x8a6b38}   # named word globals IDA types by their API use
+GLOBAL_CLS = {"g_app_state": (0x8a9b64, "cls_5624C0")}   # KB-named class-pointer globals (the export has no type for them)
+
+
+def global_cls(text):
+    """`G[k].field_X` / `G->field_X` of a class-pointer global: the field's load at its real offset; bare `G`: the pointer"""
+    for g, (va, cls) in GLOBAL_CLS.items():
+        if not re.search(r"\b%s\b" % g, text):
+            continue
+        size, fs, _ = class_layout(cls)
+        W_ = {1: "_BYTE", 2: "_WORD", 4: "_DWORD", 8: "__int64"}
+        def fld(k, nom):
+            off, w = fs.get(nom, (nom, 4))
+            return f"*({W_.get(w, '_DWORD')} *)((char *)(*(int *)&dword_{va:X}) + {k * size + off})"
+        text = re.sub(r"\b%s\[(\d+)\]\.field_([0-9A-F]+)\b" % g, lambda m: fld(int(m.group(1)), int(m.group(2), 16)), text)
+        text = re.sub(r"\b%s->field_([0-9A-F]+)\b" % g, lambda m: fld(0, int(m.group(1), 16)), text)
+        text = re.sub(r"\b%s\b" % g, f"(*(int *)&dword_{va:X})", text)
+    return text
+
+
 def convert(text, names, widths, this):
+    text = global_cls(text)
     INDEXED.clear()
     INDEXED.update(re.findall(r"\b((?:dword|word|byte)_[0-9A-F]{6})\s*\[", text))
     INDEXED.update(asm_offset_only(EDITION[0], CURVA[0], set(re.findall(r"\b(?:dword|word|byte)_[0-9A-F]{6}\b", text))))
@@ -910,6 +934,12 @@ def convert(text, names, widths, this):
     for kind, ct in (("dword", "int32_t"), ("word", "uint16_t"), ("byte", "uint8_t")):   # an array into a pointer local:
         s = re.sub(r"\b(\w+) = %s_([0-9A-F]{6});" % kind,                               # its address (0x560a40's v12)
                    lambda m, ct=ct: f"{m.group(1)} = ({ct} *)D(0x{int(m.group(2), 16):x});" if m.group(1) in PTRVARS else m.group(0), s)
+    for name, va in NAMED_DWORDS.items():   # named word globals (`::hInstance` where a parameter shadows it)
+        if name in DECLNAMES:
+            continue
+        s = re.sub(r"::%s\b" % name, f"(*(intptr_t *)D(0x{va:x}))", s)
+        if not re.search(r"\b%s\b(?=\s*[,)])|\b%s\b" % (name, name), head):
+            s = re.sub(r"(?<![\w.>:])%s\b" % name, f"(*(intptr_t *)D(0x{va:x}))", s)
     for name, va in SYMS.items():
         if not re.search(r"\b%s\b" % re.escape(name), s) or name.startswith(("sub_", "p_cls_")) or name in ("Format", "Buffer", "stru_8A6B60") \
                 or re.search(r"\b%s\b" % re.escape(name), head) or name in DECLNAMES:   # (a1..: a parameter only when in the head)
@@ -930,6 +960,9 @@ def convert(text, names, widths, this):
             # a global IDA named after the API parameter it feeds (SubBlock "\\", Mode "a", OutputString "\n", msg):
             # its bytes are a C string — the name is the string's address
             s = re.sub(r"(?<![\w.&:])%s\b(?!\s*[\[.(]|\s*->)" % re.escape(name), f"((char *)D(0x{va:x}))", s)
+        elif name == "trailer":   # IDA's `char trailer` (the empty string's byte): `&trailer` is its address (above),
+            # bare `trailer` its byte (0x5b0890's `Filename[0] = trailer`: `mov al, trailer`)
+            s = re.sub(r"(?<![\w.&])trailer\b(?!\s*[\[.])", f"F8(D(0x{va:x}), 0)", s)
         elif re.match(r"^(a[A-Z0-9]\w*|trailer|stru_\w+|unk_\w+|off_\w+|asc_\w+)$", name):
             if TYPED[0] and re.match(r"^a[A-Z0-9]", name):   # a string: indexable (--typed passes words anyway)
                 s = re.sub(r"(?<![\w.&])%s\b(?!\s*[.])" % re.escape(name), f"((char *)D(0x{va:x}))", s)
@@ -1331,6 +1364,9 @@ def main():
             fnames_ida.add(fl[2])
     def cbref_(m):
         return cbref(m) if m.group(0) in fnames_ida and not re.match(r"(cls|dword|word|byte|unk|off|stru|asc|flt|dbl)_", m.group(0)) else m.group(0)
+    BARE_FN = {"DialogFunc": 0x4013c0}   # engine functions IDA names without their VA (the launcher's dialog procedure)
+    funcs = [re.sub(r"(?<![\w.&])(%s)\b(?!\s*\()" % "|".join(BARE_FN), lambda m: cbref(re.match(r"(.*)", "%06X" % BARE_FN[m.group(1)])), f)
+             for f in funcs]
     funcs = ["\n".join(l if l.startswith("/* 0x") else re.sub(r"(?<![\w.&])[A-Za-z]\w*?_([0-9A-F]{6})\b(?![\s@]*[(\[@])", cbref_, l)
                        for l in f.split("\n")) for f in funcs]
     if TYPED[0]:

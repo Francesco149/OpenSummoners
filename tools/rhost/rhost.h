@@ -81,6 +81,7 @@ extern volatile uint32_t g_ticks;      /* easer (sim tick) calls */
 /* the stubs retail's flip / easer call sites now call (the virtual clock, the tick count): ported
  * code that stands in for a caller (the room loop) calls these to stay identical */
 extern void *g_rh_flip_stub, *g_rh_easer_stub;
+void rh_flip_retarget(void *fn);
 extern FILE *g_log;
 void rh_log(const char *fmt, ...);
 void rh_fatal(const char *fmt, ...);

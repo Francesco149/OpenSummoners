@@ -7,15 +7,15 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 978,
-  "unported": 597,
+  "ported": 979,
+  "unported": 596,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 1227,
-  "pct_touched": 79.2,
+  "touched": 1228,
+  "pct_touched": 79.3,
   "pct_tested": 15.7,
-  "engine_proper_touched": 1214,
+  "engine_proper_touched": 1215,
   "bytes_total": 1776526,
-  "bytes_touched": 1137583,
+  "bytes_touched": 1137619,
   "pct_bytes_touched": 64.0
  },
  "orphan_refs": [],
@@ -13737,7 +13737,8 @@
    "status": "tested",
    "src": [
     "src/main.c",
-    "src/zdd.h"
+    "src/zdd.h",
+    "src/zdd_dev.h"
    ]
   },
   {
@@ -13748,7 +13749,8 @@
    "status": "tested",
    "src": [
     "src/zdd.c",
-    "src/zdd.h"
+    "src/zdd.h",
+    "src/zdd_dev.h"
    ]
   },
   {
@@ -13758,7 +13760,8 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/zdd.h"
+    "src/zdd.h",
+    "src/zdd_dev.h"
    ]
   },
   {
@@ -13768,7 +13771,8 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/zdd.h"
+    "src/zdd.h",
+    "src/zdd_dev.h"
    ]
   },
   {
@@ -13779,7 +13783,8 @@
    "status": "tested",
    "src": [
     "src/zdd.c",
-    "src/zdd.h"
+    "src/zdd.h",
+    "src/zdd_dev.h"
    ]
   },
   {
@@ -13791,6 +13796,7 @@
    "src": [
     "src/zdd.c",
     "src/zdd.h",
+    "src/zdd_dev.h",
     "src/zdd_win32.c"
    ]
   },
@@ -13802,6 +13808,7 @@
    "status": "tested",
    "src": [
     "src/zdd.h",
+    "src/zdd_dev.h",
     "src/zdd_win32.c"
    ]
   },
@@ -13814,6 +13821,7 @@
    "src": [
     "src/cs_dispatch.c",
     "src/zdd.h",
+    "src/zdd_dev.h",
     "src/zdd_win32.c"
    ]
   },
@@ -13825,6 +13833,7 @@
    "status": "tested",
    "src": [
     "src/zdd.h",
+    "src/zdd_dev.h",
     "src/zdd_win32.c"
    ]
   },
@@ -13837,6 +13846,7 @@
    "src": [
     "src/main.c",
     "src/zdd.h",
+    "src/zdd_dev.h",
     "src/zdd_win32.c"
    ]
   },
@@ -13849,6 +13859,7 @@
    "src": [
     "src/zdd.c",
     "src/zdd.h",
+    "src/zdd_dev.h",
     "src/zdd_win32.c"
    ]
   },
@@ -13860,7 +13871,8 @@
    "status": "tested",
    "src": [
     "src/pixel_drawer.c",
-    "src/pixel_drawer.h"
+    "src/pixel_drawer.h",
+    "src/zdd_dev.h"
    ]
   },
   {
@@ -13908,7 +13920,8 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/zdd.h"
+    "src/zdd.h",
+    "src/zdd_dev.h"
    ]
   },
   {
@@ -13919,7 +13932,8 @@
    "status": "tested",
    "src": [
     "src/cs_dispatch.c",
-    "src/zdd.h"
+    "src/zdd.h",
+    "src/zdd_dev.h"
    ]
   },
   {
@@ -13930,6 +13944,7 @@
    "status": "tested",
    "src": [
     "src/zdd.h",
+    "src/zdd_dev.h",
     "src/zdd_win32.c"
    ]
   },
@@ -13941,7 +13956,8 @@
    "status": "tested",
    "src": [
     "src/zdd.c",
-    "src/zdd.h"
+    "src/zdd.h",
+    "src/zdd_dev.h"
    ]
   },
   {
@@ -13961,6 +13977,7 @@
     "src/title_sink.h",
     "src/zdd.c",
     "src/zdd.h",
+    "src/zdd_dev.h",
     "src/zdd_win32.c"
    ]
   },
@@ -13976,6 +13993,7 @@
     "src/wnd_proc_win32.c",
     "src/zdd.c",
     "src/zdd.h",
+    "src/zdd_dev.h",
     "src/zdd_win32.c"
    ]
   },
@@ -13986,7 +14004,8 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/zdd.h"
+    "src/zdd.h",
+    "src/zdd_dev.h"
    ]
   },
   {
@@ -13996,7 +14015,8 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/zdd.h"
+    "src/zdd.h",
+    "src/zdd_dev.h"
    ]
   },
   {
@@ -14062,7 +14082,8 @@
     "src/main.c",
     "src/osr_format.h",
     "src/zdd.c",
-    "src/zdd.h"
+    "src/zdd.h",
+    "src/zdd_dev.h"
    ]
   },
   {
@@ -14174,6 +14195,7 @@
    "status": "tested",
    "src": [
     "src/zdd.h",
+    "src/zdd_dev.h",
     "src/zdd_win32.c"
    ]
   },
@@ -15223,7 +15245,8 @@
    "status": "tested",
    "src": [
     "src/pixel_drawer.c",
-    "src/pixel_drawer.h"
+    "src/pixel_drawer.h",
+    "src/zdd_dev.h"
    ]
   },
   {
@@ -15234,7 +15257,8 @@
    "status": "tested",
    "src": [
     "src/pixel_drawer.c",
-    "src/pixel_drawer.h"
+    "src/pixel_drawer.h",
+    "src/zdd_dev.h"
    ]
   },
   {
@@ -15245,7 +15269,8 @@
    "status": "tested",
    "src": [
     "src/pixel_drawer.c",
-    "src/pixel_drawer.h"
+    "src/pixel_drawer.h",
+    "src/zdd_dev.h"
    ]
   },
   {
@@ -15256,7 +15281,8 @@
    "status": "tested",
    "src": [
     "src/pixel_drawer.c",
-    "src/pixel_drawer.h"
+    "src/pixel_drawer.h",
+    "src/zdd_dev.h"
    ]
   },
   {
@@ -15267,7 +15293,8 @@
    "status": "tested",
    "src": [
     "src/pixel_drawer.c",
-    "src/pixel_drawer.h"
+    "src/pixel_drawer.h",
+    "src/zdd_dev.h"
    ]
   },
   {
@@ -15278,7 +15305,8 @@
    "status": "tested",
    "src": [
     "src/pixel_drawer.c",
-    "src/pixel_drawer.h"
+    "src/pixel_drawer.h",
+    "src/zdd_dev.h"
    ]
   },
   {
@@ -15289,7 +15317,8 @@
    "status": "tested",
    "src": [
     "src/pixel_drawer.c",
-    "src/pixel_drawer.h"
+    "src/pixel_drawer.h",
+    "src/zdd_dev.h"
    ]
   },
   {
@@ -15297,8 +15326,10 @@
    "name": "sub_5BD520",
    "size": 36,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/zdd_dev.h"
+   ]
   },
   {
    "va": "0x5bd550",

@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **1227** (79.2% of engine-proper) — tested 249, ported 978
-- code bytes touched: **64.0%** (1,137,583 / 1,776,526 B of engine-proper)
-- unported: **597**
+- touched: **1228** (79.3% of engine-proper) — tested 249, ported 979
+- code bytes touched: **64.0%** (1,137,619 / 1,776,526 B of engine-proper)
+- unported: **596**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -203,34 +203,34 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b7b90 | sub_5B7B90 | 53 | bitmap_session.h, frame_load.h |
 | 0x5b7bd0 | sub_5B7BD0 | 53 | asset_register.c, bitmap_session.c, bitmap_session.h (+1) |
 | 0x5b7c10 | sub_5B7C10 | 186 | bitmap_session.c, bitmap_session.h, frame_load.h |
-| 0x5b7ee0 | sub_5B7EE0 | 153 | main.c, zdd.h |
-| 0x5b7f80 | zdd_ctor_5B7F80 | 94 | zdd.c, zdd.h |
-| 0x5b7fe0 | sub_5B7FE0 | 90 | zdd.h |
-| 0x5b8040 | sub_5B8040 | 139 | zdd.h |
-| 0x5b80d0 | sub_5B80D0 | 826 | zdd.c, zdd.h |
-| 0x5b8480 | zdd_create_primary_surface_5B8480 | 1088 | zdd.c, zdd.h, zdd_win32.c |
-| 0x5b88c0 | zdd_directdraw_create_ex_5B88C0 | 57 | zdd.h, zdd_win32.c |
-| 0x5b8900 | zdd_set_display_mode_5B8900 | 74 | cs_dispatch.c, zdd.h, zdd_win32.c |
-| 0x5b8950 | zdd_get_display_mode_5B8950 | 126 | zdd.h, zdd_win32.c |
-| 0x5b89d0 | zdd_set_coop_level_5B89D0 | 71 | main.c, zdd.h, zdd_win32.c |
-| 0x5b8a20 | sub_5B8A20 | 181 | zdd.c, zdd.h, zdd_win32.c |
-| 0x5b8ae0 | pd_format_get_masks_5B8AE0 | 30 | pixel_drawer.c, pixel_drawer.h |
+| 0x5b7ee0 | sub_5B7EE0 | 153 | main.c, zdd.h, zdd_dev.h |
+| 0x5b7f80 | zdd_ctor_5B7F80 | 94 | zdd.c, zdd.h, zdd_dev.h |
+| 0x5b7fe0 | sub_5B7FE0 | 90 | zdd.h, zdd_dev.h |
+| 0x5b8040 | sub_5B8040 | 139 | zdd.h, zdd_dev.h |
+| 0x5b80d0 | sub_5B80D0 | 826 | zdd.c, zdd.h, zdd_dev.h |
+| 0x5b8480 | zdd_create_primary_surface_5B8480 | 1088 | zdd.c, zdd.h, zdd_dev.h (+1) |
+| 0x5b88c0 | zdd_directdraw_create_ex_5B88C0 | 57 | zdd.h, zdd_dev.h, zdd_win32.c |
+| 0x5b8900 | zdd_set_display_mode_5B8900 | 74 | cs_dispatch.c, zdd.h, zdd_dev.h (+1) |
+| 0x5b8950 | zdd_get_display_mode_5B8950 | 126 | zdd.h, zdd_dev.h, zdd_win32.c |
+| 0x5b89d0 | zdd_set_coop_level_5B89D0 | 71 | main.c, zdd.h, zdd_dev.h (+1) |
+| 0x5b8a20 | sub_5B8A20 | 181 | zdd.c, zdd.h, zdd_dev.h (+1) |
+| 0x5b8ae0 | pd_format_get_masks_5B8AE0 | 30 | pixel_drawer.c, pixel_drawer.h, zdd_dev.h |
 | 0x5b8b00 | zdd_color_convert_5B8B00 | 59 | render_platform.h, zdd.c, zdd.h |
 | 0x5b8b40 | sub_5B8B40 | 184 | cs_dispatch.c, render_platform.h, zdd.c (+1) |
 | 0x5b8c00 | zdd_create_surface_5B8C00 | 372 | render_platform.h, zdd.c, zdd.h (+1) |
-| 0x5b8da0 | sub_5B8DA0 | 33 | zdd.h |
-| 0x5b8dd0 | sub_5B8DD0 | 33 | cs_dispatch.c, zdd.h |
-| 0x5b8e00 | sub_5B8E00 | 157 | zdd.h, zdd_win32.c |
-| 0x5b8ea0 | zdd_object_upscale_16bpp_5B8EA0 | 285 | zdd.c, zdd.h |
-| 0x5b8fc0 | flip_5B8FC0 | 335 | call_trace.h, game_drive.h, main.c (+8) |
-| 0x5b9130 | sub_5B9130 | 151 | main.c, wnd_proc.h, wnd_proc_win32.c (+3) |
-| 0x5b91d0 | sub_5B91D0 | 109 | zdd.h |
-| 0x5b9240 | sub_5B9240 | 60 | zdd.h |
+| 0x5b8da0 | sub_5B8DA0 | 33 | zdd.h, zdd_dev.h |
+| 0x5b8dd0 | sub_5B8DD0 | 33 | cs_dispatch.c, zdd.h, zdd_dev.h |
+| 0x5b8e00 | sub_5B8E00 | 157 | zdd.h, zdd_dev.h, zdd_win32.c |
+| 0x5b8ea0 | zdd_object_upscale_16bpp_5B8EA0 | 285 | zdd.c, zdd.h, zdd_dev.h |
+| 0x5b8fc0 | flip_5B8FC0 | 335 | call_trace.h, game_drive.h, main.c (+9) |
+| 0x5b9130 | sub_5B9130 | 151 | main.c, wnd_proc.h, wnd_proc_win32.c (+4) |
+| 0x5b91d0 | sub_5B91D0 | 109 | zdd.h, zdd_dev.h |
+| 0x5b9240 | sub_5B9240 | 60 | zdd.h, zdd_dev.h |
 | 0x5b9280 | sub_5B9280 | 203 | frame_load.h, zdd.c, zdd.h |
 | 0x5b9350 | sub_5B9350 | 50 | render_platform.h, zdd.c, zdd.h |
 | 0x5b9390 | title_frame_free_5B9390 | 75 | asset_register.c, asset_register.h, cs_dispatch.c (+5) |
 | 0x5b93e0 | zdd_object_local_free_5B93E0 | 42 | render_platform.h, zdd.h, zdd_win32.c |
-| 0x5b9410 | zdd_object_clear_5B9410 | 49 | main.c, osr_format.h, zdd.c (+1) |
+| 0x5b9410 | zdd_object_clear_5B9410 | 49 | main.c, osr_format.h, zdd.c (+2) |
 | 0x5b9490 | sub_5B9490 | 63 | render_platform.h, zdd.c, zdd.h (+1) |
 | 0x5b94d0 | sub_5B94D0 | 15 | render_platform.h, zdd.c, zdd.h (+1) |
 | 0x5b94e0 | sub_5B94E0 | 29 | render_platform.h, wnd_proc.h, zdd.c (+2) |
@@ -238,7 +238,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b9520 | sub_5B9520 | 157 | render_platform.h, zdd.c, zdd.h (+1) |
 | 0x5b95c0 | sub_5B95C0 | 110 | render_platform.h, zdd.c, zdd.h |
 | 0x5b9630 | sub_5B9630 | 268 | frame_load.h, zdd.c, zdd.h |
-| 0x5b9740 | zdd_get_attached_surface_5B9740 | 153 | zdd.h, zdd_win32.c |
+| 0x5b9740 | zdd_get_attached_surface_5B9740 | 153 | zdd.h, zdd_dev.h, zdd_win32.c |
 | 0x5b97e0 | sub_5B97E0 | 66 | render_platform.h, zdd.c, zdd.h |
 | 0x5b9830 | zdd_surface_set_color_key_5B9830 | 138 | render_platform.h, zdd.c, zdd.h (+1) |
 | 0x5b98c0 | sub_5B98C0 | 73 | render_platform.h, zdd.c, zdd.h |
@@ -255,13 +255,13 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5bae30 | sub_5BAE30 | 60 | sound_dev.h, wnd_proc.h |
 | 0x5bae70 | sub_5BAE70 | 30 | sound_dev.h, wnd_proc.h |
 | 0x5bbd20 | sub_5BBD20 | 140 | sound_dev.h, wnd_proc.h, wnd_proc_win32.c |
-| 0x5bcff0 | sub_5BCFF0 | 42 | pixel_drawer.c, pixel_drawer.h |
-| 0x5bd020 | pd_channel_init_5BD020 | 26 | pixel_drawer.c, pixel_drawer.h |
-| 0x5bd040 | build_lut_small_5BD040 | 801 | pixel_drawer.c, pixel_drawer.h |
-| 0x5bd380 | pd_channel_mask_to_shift_5BD380 | 39 | pixel_drawer.c, pixel_drawer.h |
-| 0x5bd3b0 | pd_blend_set_color_5BD3B0 | 30 | pixel_drawer.c, pixel_drawer.h |
-| 0x5bd3d0 | pd_blend_commit_5BD3D0 | 241 | pixel_drawer.c, pixel_drawer.h |
-| 0x5bd4d0 | pd_blend_init_5BD4D0 | 71 | pixel_drawer.c, pixel_drawer.h |
+| 0x5bcff0 | sub_5BCFF0 | 42 | pixel_drawer.c, pixel_drawer.h, zdd_dev.h |
+| 0x5bd020 | pd_channel_init_5BD020 | 26 | pixel_drawer.c, pixel_drawer.h, zdd_dev.h |
+| 0x5bd040 | build_lut_small_5BD040 | 801 | pixel_drawer.c, pixel_drawer.h, zdd_dev.h |
+| 0x5bd380 | pd_channel_mask_to_shift_5BD380 | 39 | pixel_drawer.c, pixel_drawer.h, zdd_dev.h |
+| 0x5bd3b0 | pd_blend_set_color_5BD3B0 | 30 | pixel_drawer.c, pixel_drawer.h, zdd_dev.h |
+| 0x5bd3d0 | pd_blend_commit_5BD3D0 | 241 | pixel_drawer.c, pixel_drawer.h, zdd_dev.h |
+| 0x5bd4d0 | pd_blend_init_5BD4D0 | 71 | pixel_drawer.c, pixel_drawer.h, zdd_dev.h |
 | 0x5bd550 | blt_alpha_5BD550 | 302 | hud.h, main.c, map_present.c (+8) |
 | 0x5bd680 | sub_5BD680 | 1072 | render_platform.h, zdd.c, zdd.h |
 | 0x5bef0e | ??3@YAXPAX@Z | 11 | asset_register.c, asset_register.h, cs_dispatch.c (+4) |
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (978) — reimplemented, no host test yet
+## ported (979) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -1250,6 +1250,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5bcf30 | sub_5BCF30 | 104 | sound_dev.h |
 | 0x5bcfa0 | sub_5BCFA0 | 4 | sound_dev.h |
 | 0x5bcfb0 | sub_5BCFB0 | 49 | sound_dev.h |
+| 0x5bd520 | sub_5BD520 | 36 | zdd_dev.h |
 | 0x5bf3ee | emit_last_error_line_5BF3EE | 82 | cs_dispatch_win32.c |
 | 0x5bf440 | _fclose | 86 | cs_dispatch_win32.c |
 | 0x5bf496 | _fprintf | 50 | cs_dispatch_win32.c |

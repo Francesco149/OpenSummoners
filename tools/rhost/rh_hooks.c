@@ -71,6 +71,7 @@
 #include "ai_skill.h"
 #include "script_io.h"
 #include "frame_load.h"
+#include "zdd_dev.h"
 #include "sound_dev.h"
 #include "input_dev.h"
 #include "file_stream.h"
@@ -387,6 +388,16 @@ typedef struct {
     X(H_SD5BCB30, "sd_5bcb30", 0x5bcb30u) X(H_SD5BCB80, "sd_5bcb80", 0x5bcb80u) X(H_SD5BCDF0, "sd_5bcdf0", 0x5bcdf0u) \
     X(H_SD5BCE40, "sd_5bce40", 0x5bce40u) X(H_SD5BCE80, "sd_5bce80", 0x5bce80u) X(H_SD5BCEB0, "sd_5bceb0", 0x5bceb0u) \
     X(H_SD5BCF30, "sd_5bcf30", 0x5bcf30u) X(H_SD5BCFA0, "sd_5bcfa0", 0x5bcfa0u) X(H_SD5BCFB0, "sd_5bcfb0", 0x5bcfb0u) \
+    X(H_ZD5B7EE0, "zd_5b7ee0", 0x5b7ee0u) X(H_ZD5B7F80, "zd_5b7f80", 0x5b7f80u) X(H_ZD5B7FE0, "zd_5b7fe0", 0x5b7fe0u) \
+    X(H_ZD5B8040, "zd_5b8040", 0x5b8040u) X(H_ZD5B80D0, "zd_5b80d0", 0x5b80d0u) X(H_ZD5B8480, "zd_5b8480", 0x5b8480u) \
+    X(H_ZD5B88C0, "zd_5b88c0", 0x5b88c0u) X(H_ZD5B8900, "zd_5b8900", 0x5b8900u) X(H_ZD5B8950, "zd_5b8950", 0x5b8950u) \
+    X(H_ZD5B89D0, "zd_5b89d0", 0x5b89d0u) X(H_ZD5B8A20, "zd_5b8a20", 0x5b8a20u) X(H_ZD5B8AE0, "zd_5b8ae0", 0x5b8ae0u) \
+    X(H_ZD5B8DA0, "zd_5b8da0", 0x5b8da0u) X(H_ZD5B8DD0, "zd_5b8dd0", 0x5b8dd0u) X(H_ZD5B8E00, "zd_5b8e00", 0x5b8e00u) \
+    X(H_ZD5B8EA0, "zd_5b8ea0", 0x5b8ea0u) X(H_ZD5B8FC0, "zd_5b8fc0", 0x5b8fc0u) X(H_ZD5B9130, "zd_5b9130", 0x5b9130u) \
+    X(H_ZD5B91D0, "zd_5b91d0", 0x5b91d0u) X(H_ZD5B9240, "zd_5b9240", 0x5b9240u) X(H_ZD5B9410, "zd_5b9410", 0x5b9410u) \
+    X(H_ZD5B9740, "zd_5b9740", 0x5b9740u) X(H_ZD5BCFF0, "zd_5bcff0", 0x5bcff0u) X(H_ZD5BD020, "zd_5bd020", 0x5bd020u) \
+    X(H_ZD5BD040, "zd_5bd040", 0x5bd040u) X(H_ZD5BD380, "zd_5bd380", 0x5bd380u) X(H_ZD5BD3B0, "zd_5bd3b0", 0x5bd3b0u) \
+    X(H_ZD5BD3D0, "zd_5bd3d0", 0x5bd3d0u) X(H_ZD5BD4D0, "zd_5bd4d0", 0x5bd4d0u) X(H_ZD5BD520, "zd_5bd520", 0x5bd520u) \
     /* (wire.py: new modules' rows go above this line) */ \
     X(H_SC401D80, "sc_401d80", 0x401d80u) X(H_SC402030, "sc_402030", 0x402030u) X(H_SC4020A0, "sc_4020a0", 0x4020a0u) \
     X(H_SC4024E0, "sc_4024e0", 0x4024e0u) X(H_SC402610, "sc_402610", 0x402610u) X(H_SC402F40, "sc_402f40", 0x402f40u) \
@@ -4643,6 +4654,37 @@ TC_HOOK(H_SD5BCEB0, "sd_5bceb0", 1, 1, return (intptr_t)sd_5bceb0((wl_char *)sel
 TC_HOOK(H_SD5BCF30, "sd_5bcf30", 1, 1, return (intptr_t)sd_5bcf30((wl_char *)self, U16(a1)))
 TC_HOOK0(H_SD5BCFA0, "sd_5bcfa0", 1, return (intptr_t)sd_5bcfa0((wl_char *)self))
 TC_HOOK(H_SD5BCFB0, "sd_5bcfb0", 3, 1, return (intptr_t)sd_5bcfb0((wl_char *)self, a1, a2, a3))
+/* the DirectDraw device layer + the blend LUT set-up (src/zdd_dev.c; decomp2c): REPLACE only (COM calls; the Flip through rhost's flip stub) */
+ST_HOOK(H_ZD5B7EE0, "zd_5b7ee0", 1, 1, return (intptr_t)zd_5b7ee0((intptr_t *)a1))
+TC_HOOK0(H_ZD5B7F80, "zd_5b7f80", 1, return (intptr_t)zd_5b7f80((wl_char *)self))
+TC_HOOK0(H_ZD5B7FE0, "zd_5b7fe0", 0, zd_5b7fe0((wl_char *)self); return 0)
+TC_HOOK0(H_ZD5B8040, "zd_5b8040", 1, return (intptr_t)zd_5b8040((wl_char *)self))
+TC_HOOK(H_ZD5B80D0, "zd_5b80d0", 3, 0, zd_5b80d0((wl_char *)self, (char *)a1, (char *)a2, a3); return 0)
+TC_HOOK(H_ZD5B8480, "zd_5b8480", 6, 1, return (intptr_t)zd_5b8480((wl_char *)self, a1, a2, a3, a4, a5, (void *)a6))
+TC_HOOK0(H_ZD5B88C0, "zd_5b88c0", 1, return (intptr_t)zd_5b88c0((wl_char *)self))
+TC_HOOK(H_ZD5B8900, "zd_5b8900", 4, 1, return (intptr_t)zd_5b8900((wl_char *)self, a1, a2, a3, a4))
+TC_HOOK(H_ZD5B8950, "zd_5b8950", 3, 1, return (intptr_t)zd_5b8950((wl_char *)self, (int32_t *)a1, (int32_t *)a2, (int32_t *)a3))
+TC_HOOK(H_ZD5B89D0, "zd_5b89d0", 2, 1, return (intptr_t)zd_5b89d0((wl_char *)self, a1, a2))
+TC_HOOK(H_ZD5B8A20, "zd_5b8a20", 1, 1, return (intptr_t)zd_5b8a20((wl_char *)self, (int32_t *)a1))
+TC_HOOK(H_ZD5B8AE0, "zd_5b8ae0", 3, 1, return (intptr_t)zd_5b8ae0((wl_char *)self, (int32_t *)a1, (int32_t *)a2, (int32_t *)a3))
+TC_HOOK0(H_ZD5B8DA0, "zd_5b8da0", 1, return (intptr_t)zd_5b8da0((wl_char *)self))
+TC_HOOK0(H_ZD5B8DD0, "zd_5b8dd0", 1, return (intptr_t)zd_5b8dd0((wl_char *)self))
+TC_HOOK0(H_ZD5B8E00, "zd_5b8e00", 1, return (intptr_t)zd_5b8e00((wl_char *)self))
+ST_HOOK(H_ZD5B8EA0, "zd_5b8ea0", 3, 1, return (intptr_t)zd_5b8ea0(a1, a2, a3))
+TC_HOOK(H_ZD5B8FC0, "zd_5b8fc0", 1, 0, zd_5b8fc0((wl_char *)self, a1); return 0)
+TC_HOOK(H_ZD5B9130, "zd_5b9130", 1, 1, return (intptr_t)zd_5b9130((wl_char *)self, a1))
+TC_HOOK0(H_ZD5B91D0, "zd_5b91d0", 1, return (intptr_t)zd_5b91d0((wl_char *)self))
+TC_HOOK0(H_ZD5B9240, "zd_5b9240", 1, return (intptr_t)zd_5b9240((wl_char *)self))
+TC_HOOK0(H_ZD5B9410, "zd_5b9410", 1, return (intptr_t)zd_5b9410((wl_char *)self))
+TC_HOOK(H_ZD5B9740, "zd_5b9740", 4, 1, return (intptr_t)zd_5b9740((wl_char *)self, a1, a2, a3, a4))
+ST_HOOK(H_ZD5BCFF0, "zd_5bcff0", 1, 0, zd_5bcff0(a1); return 0)
+ST_HOOK(H_ZD5BD020, "zd_5bd020", 1, 1, return (intptr_t)zd_5bd020(a1))
+TC_HOOK(H_ZD5BD040, "zd_5bd040", 2, 1, return (intptr_t)zd_5bd040((wl_char *)self, a1, a2))
+ST_HOOK(H_ZD5BD380, "zd_5bd380", 1, 1, return (intptr_t)zd_5bd380(a1))
+TC_HOOK(H_ZD5BD3B0, "zd_5bd3b0", 3, 1, return (intptr_t)zd_5bd3b0((wl_char *)self, (int16_t)a1, (int16_t)a2, (int16_t)a3))
+TC_HOOK(H_ZD5BD3D0, "zd_5bd3d0", 1, 1, return (intptr_t)zd_5bd3d0((wl_char *)self, (int32_t *)a1))
+TC_HOOK0(H_ZD5BD4D0, "zd_5bd4d0", 1, return (intptr_t)zd_5bd4d0((wl_char *)self))
+TC_HOOK0(H_ZD5BD520, "zd_5bd520", 0, zd_5bd520((wl_char *)self); return 0)
 /* (wire.py: new modules' hook rows go above this line) */
 /* the chapter scripts' file / sound / DirectX-free callees (src/script_helpers.c; 0x4a5e40 0x4cbfb0 0x4cbfd0 0x4d6490
  * read their caller's ecx: thiscall wrappers) */
@@ -5070,6 +5112,12 @@ void rh_hooks_install(void)
         }
         if (h == &H[H_MLOAD] && g_mload_sites) { rh_log("hook %s:%s: sites already on the recorder\n", mode, name); continue; }
         if (h == &H[H_MLOAD]) g_mload_sites = 1;
+        if (h->va == 0x5b8fc0u) {   /* the Flip: rhost's flip stub owns its call sites — retarget the stub's jmp */
+            if (h->mode != 2) rh_fatal("%s: replace only (rhost's flip stub owns the Flip's call sites)", h->name);
+            rh_flip_retarget(h->wrapper);
+            rh_log("hook %s:%s @%08x: the flip stub's jmp\n", mode, name, h->va);
+            continue;
+        }
         int n = redirect_calls_chain(h->va, h->wrapper);
         rh_log("hook %s:%s @%08x every=%u: %d call sites\n", mode, name, h->va, every, n);
         if (!n) rh_fatal("hook %s: no direct call sites", name);
