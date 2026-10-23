@@ -104,6 +104,7 @@
 #include "ui_run.h"
 #include "glyph_text.h"
 #include "engine_calls.h"
+#include "msvc_crt.h"
 
 typedef struct {
     const char *name; uint32_t va; void *wrapper;
@@ -494,8 +495,9 @@ typedef struct {
     X(H_TS59E9E0, "ts_59e9e0", 0x59e9e0u) \
     X(H_LO479960, "lo_479960", 0x479960u) X(H_LO479A10, "lo_479a10", 0x479a10u) X(H_LO479DE0, "lo_479de0", 0x479de0u) \
     X(H_LO406440, "lo_406440", 0x406440u) X(H_LO401140, "lo_401140", 0x401140u) X(H_LO4011B0, "lo_4011b0", 0x4011b0u) X(H_LO401210, "lo_401210", 0x401210u) \
-    X(H_LO4013A0, "lo_4013a0", 0x4013a0u) X(H_LO401730, "lo_401730", 0x401730u) \
-    X(H_SI401030, "si_401030", 0x401030u) X(H_SI401060, "si_401060", 0x401060u) X(H_SI401090, "si_401090", 0x401090u) X(H_SI4010C0, "si_4010c0", 0x4010c0u) X(H_SI4010F0, "si_4010f0", 0x4010f0u) X(H_SI401130, "si_401130", 0x401130u) X(H_SI4011A0, "si_4011a0", 0x4011a0u) X(H_SI401360, "si_401360", 0x401360u) X(H_SI401390, "si_401390", 0x401390u) X(H_SI5B5FA0, "si_5b5fa0", 0x5b5fa0u) X(H_SI5B5FD0, "si_5b5fd0", 0x5b5fd0u) X(H_SI5B6000, "si_5b6000", 0x5b6000u) X(H_SI5B6030, "si_5b6030", 0x5b6030u) X(H_SI5B60A0, "si_5b60a0", 0x5b60a0u) \
+    X(H_LO4013A0, "lo_4013a0", 0x4013a0u) X(H_LO4013C0, "lo_4013c0", 0x4013c0u) X(H_LO401730, "lo_401730", 0x401730u) \
+    X(H_SI401000, "si_401000", 0x401000u) X(H_SI401120, "si_401120", 0x401120u) X(H_EL54C5E0, "el_54c5e0", 0x54c5e0u) \
+    X(H_EL5851A0, "el_5851a0", 0x5851a0u) X(H_INPUT_DTOR, "input_dtor", 0x4017a0u) X(H_SI401030, "si_401030", 0x401030u) X(H_SI401060, "si_401060", 0x401060u) X(H_SI401090, "si_401090", 0x401090u) X(H_SI4010C0, "si_4010c0", 0x4010c0u) X(H_SI4010F0, "si_4010f0", 0x4010f0u) X(H_SI401130, "si_401130", 0x401130u) X(H_SI4011A0, "si_4011a0", 0x4011a0u) X(H_SI401360, "si_401360", 0x401360u) X(H_SI401390, "si_401390", 0x401390u) X(H_SI5B5FA0, "si_5b5fa0", 0x5b5fa0u) X(H_SI5B5FD0, "si_5b5fd0", 0x5b5fd0u) X(H_SI5B6000, "si_5b6000", 0x5b6000u) X(H_SI5B6030, "si_5b6030", 0x5b6030u) X(H_SI5B60A0, "si_5b60a0", 0x5b60a0u) \
     X(H_LO5A4760, "lo_5a4760", 0x5a4760u) X(H_LO58C8D0, "lo_58c8d0", 0x58c8d0u) X(H_LO54E4F0, "lo_54e4f0", 0x54e4f0u) \
     X(H_EL401DF0, "el_401df0", 0x401df0u) X(H_EL402890, "el_402890", 0x402890u) X(H_EL407F30, "el_407f30", 0x407f30u) \
     X(H_EL40A2E0, "el_40a2e0", 0x40a2e0u) X(H_EL40AC90, "el_40ac90", 0x40ac90u) X(H_EL415AE0, "el_415ae0", 0x415ae0u) \
@@ -555,7 +557,15 @@ typedef struct {
     X(H_SC4CC470, "sc_4cc470", 0x4cc470u) X(H_SC4CCA20, "sc_4cca20", 0x4cca20u) X(H_SC4CCA50, "sc_4cca50", 0x4cca50u) \
     X(H_SC4D6490, "sc_4d6490", 0x4d6490u) X(H_SC5B4330, "sc_5b4330", 0x5b4330u) \
     X(H_BOOK, "book_read", 0x40dbc0u) X(H_SSETFREE, "sprite_set_free", 0x410300u) \
-    X(H_CINIT, "char_init", 0x41f200u)
+    X(H_CINIT, "char_init", 0x41f200u) \
+    X(H_CRT_NEW, "crt_new", 0x5bf00du) X(H_CRT_DELETE, "crt_delete", 0x5bef0eu) X(H_CRT_ATEXIT, "crt_atexit", 0x5beecdu) \
+    X(H_CRT_EXIT, "crt_exit", 0x5bf5dbu) X(H_CRT_FOPEN, "crt_fopen", 0x5bf4e8u) X(H_CRT_FCLOSE, "crt_fclose", 0x5bf440u) \
+    X(H_CRT_FPRINTF, "crt_fprintf", 0x5bf496u) X(H_CRT_FSCANF, "crt_fscanf", 0x5c08f1u) X(H_CRT_FSEEK, "crt_fseek", 0x5c0865u) \
+    X(H_CRT_TIME, "crt_time", 0x5bf6dfu) X(H_CRT_LOCALTIME, "crt_localtime", 0x5c00ccu) \
+    X(H_CRT_STRFTIME, "crt_strftime", 0x5bf865u) X(H_CRT_SETLOCALE, "crt_setlocale", 0x5c022cu) \
+    X(H_CRT_SPRINTF, "crt_sprintf", 0x5bf3eeu) X(H_CRT_ITOA, "crt_itoa", 0x5c0907u)
+#define H_CRT_FIRST H_CRT_NEW
+#define H_CRT_LAST H_CRT_ITOA
 #define CDEF_ENUM(id, n, va) id,
 
 static hook_t H[];
@@ -5077,7 +5087,16 @@ TC_HOOK(H_LO406440, "lo_406440", 2, 1, return (intptr_t)lo_406440((wl_char *)sel
 ST_HOOK0(H_LO401140, "lo_401140", 1, return (intptr_t)lo_401140())
 ST_HOOK0(H_LO4011B0, "lo_4011b0", 1, return (intptr_t)lo_4011b0())
 ST_HOOK(H_LO401210, "lo_401210", 4, 1, return (intptr_t)lo_401210((int32_t)a1, (uint32_t)a2, (uint32_t)a3, (int32_t)a4))
+/* the launcher's DLGPROC (by address: DialogBoxParamA) — rhost emulates the dialog; --live shows it */
+ST_HOOK(H_LO4013C0, "lo_4013c0", 4, 1, return (intptr_t)lo_4013c0((int32_t)a1, (uint32_t)a2, (uint32_t)a3, (int32_t)a4))
 /* the CRT static initializers (src/static_init.c): _initterm calls the thunks by address */
+ST_HOOK0(H_SI401000, "si_401000", 0, si_401000(); return 0)
+/* reached only BY ADDRESS: the atexit'd destructor 0x401120, the vector ctor / dtor iterators' element callbacks
+ * (MSVC's `eh vector constructor iterator' calls them thiscall: ecx = the element) */
+ST_HOOK0(H_SI401120, "si_401120", 0, si_401120(); return 0)
+TC_HOOK0(H_EL54C5E0, "el_54c5e0", 0, el_54c5e0((wl_char *)self); return 0)
+TC_HOOK0(H_EL5851A0, "el_5851a0", 0, el_5851a0((wl_char *)self); return 0)
+TC_HOOK0(H_INPUT_DTOR, "input_dtor", 0, input_dtor((uint8_t *)self); return 0)
 ST_HOOK0(H_SI401030, "si_401030", 0, si_401030(); return 0)
 ST_HOOK0(H_SI401060, "si_401060", 0, si_401060(); return 0)
 ST_HOOK0(H_SI401090, "si_401090", 0, si_401090(); return 0)
@@ -5266,6 +5285,29 @@ static intptr_t __attribute__((stdcall)) H_UT_KTOK_w(char *s, const void *e)
     return r;
 }
 #define CDEF_ROW(id, n, va) [id] = { n, va, (void *)id##_w, 0, 1, 0, 0, 0, 0, "" },
+
+/* the MSVC CRT (src/msvc_crt.c): --standalone only, REPLACE (rh_hooks_install).  Retail's own cdecl conventions; the
+ * varargs entries format through the port's v-forms */
+#define CRT_CALL(ID) H[ID].calls++;
+static void *__cdecl H_CRT_NEW_w(uint32_t n) { CRT_CALL(H_CRT_NEW) return crt_new(n); }
+static void __cdecl H_CRT_DELETE_w(void *p) { CRT_CALL(H_CRT_DELETE) crt_delete(p); }
+static int32_t __cdecl H_CRT_ATEXIT_w(uint32_t fn) { CRT_CALL(H_CRT_ATEXIT) return crt_atexit(fn); }
+static void __cdecl H_CRT_EXIT_w(int32_t code) { CRT_CALL(H_CRT_EXIT) crt_exit(code); }
+static void *__cdecl H_CRT_FOPEN_w(const char *n, const char *m) { CRT_CALL(H_CRT_FOPEN) return crt_fopen(n, m); }
+static int32_t __cdecl H_CRT_FCLOSE_w(void *f) { CRT_CALL(H_CRT_FCLOSE) return crt_fclose(f); }
+static int32_t __cdecl H_CRT_FPRINTF_w(void *f, const char *fmt, ...)
+{ CRT_CALL(H_CRT_FPRINTF) va_list ap; va_start(ap, fmt); int32_t r = crt_vfprintf(f, fmt, ap); va_end(ap); return r; }
+static int32_t __cdecl H_CRT_FSCANF_w(void *f, const char *fmt, ...)
+{ CRT_CALL(H_CRT_FSCANF) va_list ap; va_start(ap, fmt); int32_t r = crt_vfscanf(f, fmt, ap); va_end(ap); return r; }
+static int32_t __cdecl H_CRT_FSEEK_w(void *f, int32_t off, int32_t org) { CRT_CALL(H_CRT_FSEEK) return crt_fseek(f, off, org); }
+static int32_t __cdecl H_CRT_TIME_w(int32_t *t) { CRT_CALL(H_CRT_TIME) return crt_time(t); }
+static crt_tm *__cdecl H_CRT_LOCALTIME_w(const int32_t *t) { CRT_CALL(H_CRT_LOCALTIME) return crt_localtime(t); }
+static uint32_t __cdecl H_CRT_STRFTIME_w(char *b, uint32_t n, const char *f, const crt_tm *tm)
+{ CRT_CALL(H_CRT_STRFTIME) return crt_strftime(b, n, f, tm); }
+static char *__cdecl H_CRT_SETLOCALE_w(int32_t c, const char *l) { CRT_CALL(H_CRT_SETLOCALE) return crt_setlocale(c, l); }
+static int32_t __cdecl H_CRT_SPRINTF_w(char *b, const char *fmt, ...)
+{ CRT_CALL(H_CRT_SPRINTF) va_list ap; va_start(ap, fmt); int32_t r = crt_vsprintf(b, fmt, ap); va_end(ap); return r; }
+static char *__cdecl H_CRT_ITOA_w(int32_t v, char *b, int32_t r) { CRT_CALL(H_CRT_ITOA) return crt_itoa(v, b, r); }
 
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
@@ -5541,6 +5583,34 @@ static void bind_engine_calls(void)
     *(void **)&g_eng.h49bf90 = (void *)gd_49bf90;
 }
 
+/* --standalone: the retail code range holds INT3 (retail_copy_data) and, at every replaced function's entry, a 5-byte
+ * `jmp rel32` to its port wrapper — written here, never copied from the file */
+#define SA_MAX 4096
+static rh_thunk_t g_sa[SA_MAX]; static int g_nsa;
+static void sa_thunk(uint32_t va, void *to, const char *name)
+{
+    for (int i = 0; i < g_nsa; i++)
+        if (g_sa[i].va == va) {
+            if (g_sa[i].target != to) rh_fatal("standalone: %s and %s share the entry %08x", g_sa[i].name, name, va);
+            return;
+        }
+    if (va < RT_TEXT_LO || va + 5 > RT_TEXT_LO + RT_TEXT_SZ) rh_fatal("standalone: %s at %08x is outside the code range", name, va);
+    if (g_nsa == SA_MAX) rh_fatal("standalone: more than %d thunks", SA_MAX);
+    uint8_t *e = (uint8_t *)(uintptr_t)va;
+    e[0] = 0xE9; *(int32_t *)(e + 1) = (int32_t)((uint32_t)(uintptr_t)to - (va + 5));
+    g_sa[g_nsa].va = va; g_sa[g_nsa].target = to; g_sa[g_nsa++].name = name;
+}
+static int sa_cmp(const void *a, const void *b) { uint32_t x = ((const rh_thunk_t *)a)->va, y = ((const rh_thunk_t *)b)->va; return x < y ? -1 : x > y; }
+static void sa_thunks_check(void)
+{
+    qsort(g_sa, (size_t)g_nsa, sizeof *g_sa, sa_cmp);
+    for (int i = 1; i < g_nsa; i++)
+        if (g_sa[i].va - g_sa[i - 1].va < 5)
+            rh_fatal("standalone: thunks %s %08x / %s %08x overlap", g_sa[i - 1].name, g_sa[i - 1].va, g_sa[i].name, g_sa[i].va);
+    rh_log("standalone: %d entry thunks into port code\n", g_nsa);
+}
+int rh_hooks_thunks(const rh_thunk_t **out) { *out = g_sa; return g_nsa; }
+
 void rh_hooks_install(void)
 {
     if (!strcmp(g_ed->tag, "enold")) bind_engine_calls();
@@ -5580,9 +5650,11 @@ void rh_hooks_install(void)
         H[H_PHDEL].va = H[H_FORM].va = H[H_FOLLOW].va = H[H_ASTATE].va = H[H_PTINT].va = H[H_MLOAD].va =
         H[H_SFREE].va = H[H_SFREEALL].va = H[H_SGRADED].va = H[H_PSWAP].va = H[H_POPULATE].va = H[H_SINIT].va = H[H_SETH].va = H[H_DINIT].va = H[H_SNDFREE].va = 0;
     if (strcmp(g_ed->tag, "enold")) for (int i = H_CD_SKFIND; i <= H_SLOOP; i++) H[i].va = 0;
-    if (!O.hooks) return;
+    const char *spec = O.hooks ? O.hooks : O.standalone ? g_sa_spec : NULL;
+    if (!spec) return;
     char *b;
-    if (O.hooks[0] == '@') {   /* the spec from a file: every mode's command line stays short (rhost.py) */
+    if (spec != O.hooks) b = strdup(spec);
+    else if (O.hooks[0] == '@') {   /* the spec from a file: every mode's command line stays short (rhost.py) */
         FILE *f = fopen(O.hooks + 1, "rb");
         if (!f) rh_fatal("hook spec %s: cannot open", O.hooks + 1);
         fseek(f, 0, SEEK_END); long n = ftell(f); fseek(f, 0, SEEK_SET);
@@ -5590,7 +5662,7 @@ void rh_hooks_install(void)
         if (!b || fread(b, 1, (size_t)n, f) != (size_t)n) rh_fatal("hook spec %s: read failed", O.hooks + 1);
         b[n] = 0; fclose(f);
         while (n && (b[n - 1] == '\n' || b[n - 1] == '\r')) b[--n] = 0;
-        if (!n) { free(b); return; }   /* a pure run */
+        if (!n) { free(b); if (!O.standalone) return; b = strdup(g_sa_spec); }   /* a pure run (standalone: the built-in set) */
     } else b = strdup(O.hooks);   /* (a fixed 4 KB buffer silently dropped the tail of a long spec) */
     if (!b) rh_fatal("hook spec: out of memory");
     for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {
@@ -5609,6 +5681,16 @@ void rh_hooks_install(void)
              h == &H[H_FURN] || h == &H[H_UM_PCLOSE] || h == &H[H_SC_YN] || h == &H[H_IGIVE] || h == &H[H_BOOK] || h == &H[H_SSETFREE] ||
              (h >= &H[H_CS_FIRST] && h <= &H[H_CS_LAST]) || (h >= &H[H_ST_FIRST] && h <= &H[H_ST_LAST])) && h->mode == 1)
             rh_fatal("%s: replace only (it runs a room / repolls DirectInput)", h->name);
+        if (h >= &H[H_CRT_FIRST] && h <= &H[H_CRT_LAST] && (!O.standalone || h->mode != 2))
+            rh_fatal("%s: --standalone REPLACE only (the port CRT's heap / streams are its own: mixed with retail's CRT "
+                     "they would cross)", h->name);
+        if (O.standalone) {   /* no retail code: a jmp thunk at the entry is the only way in (calls, slots, by address) */
+            if (h->mode != 2) rh_fatal("%s: --standalone runs no retail code to shadow", h->name);
+            void *to = h->wrapper;
+            if (h->va == 0x5b8fc0u) { rh_flip_retarget(h->wrapper); to = g_rh_flip_stub; }   /* the frame's accounting */
+            sa_thunk(h->va, to, h->name);
+            continue;
+        }
         if (h == &H[H_MAP_DECODE]) {
             if (h->mode == 2) rh_fatal("map_decode: shadow only (the port decode needs the recorded resource)");
             if (!g_mload_sites) { rh_log("hook map_decode: parse recorder %d call sites\n", redirect_calls(0x587970u, w_mload)); g_mload_sites = 1; }
@@ -5623,7 +5705,7 @@ void rh_hooks_install(void)
         }
         /* reached BY ADDRESS too (a window procedure, the atexit shutdown, the EnumDevices callback): the port stores
          * retail's address there, so REPLACE also patches the entry with a jmp to the wrapper (the body is dead) */
-        static const uint32_t BYADDR[] = { 0x5b12e0u, 0x5b10d0u, 0x5ba200u,
+        static const uint32_t BYADDR[] = { 0x5b12e0u, 0x5b10d0u, 0x5ba200u, 0x401000u, 0x401120u, 0x54c5e0u, 0x5851a0u, 0x4017a0u, 0x4013c0u,
                                            0x401140u, 0x4011b0u, 0x4013a0u, 0x401210u,
                                            /* the CRT's static initializers (_initterm's table) */
                                            0x401030u, 0x401060u, 0x401090u, 0x4010c0u, 0x4010f0u, 0x401130u, 0x4011a0u,
@@ -5639,6 +5721,7 @@ void rh_hooks_install(void)
         rh_log("hook %s:%s @%08x every=%u: %d call sites\n", mode, name, h->va, every, n);
         if (!n && !(byaddr && h->mode == 2)) rh_fatal("hook %s: no direct call sites", name);
     }
+    if (O.standalone) sa_thunks_check();
     /* Port code reaches a REPLACED function through its engine-call slot (bound to retail's VA) or an RC_ call too —
      * not only through retail's call sites: those land on the hook's wrapper (retail's convention) as well.  Before,
      * a ported caller of a ported callee ran retail's (the room loop's render 0x48c150 never ran as port code). */

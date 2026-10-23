@@ -73,6 +73,11 @@ typedef struct {
     uint32_t stall_wall_ms;     /* watchdog: no Flip for this long (wall) → RESULT status=stalled */
     uint32_t trap_max;          /* --trap: log the first N hits (default 50) */
     uint32_t scrub_kb;          /* zero this much dead stack after each external call (0 = off) */
+    int standalone;             /* --standalone: NO retail code — the data sections only (code range INT3 + a jmp thunk
+                                 * into the port at every replaced VA), the port CRT (src/msvc_crt.c) as the entry */
+    int no_launcher;            /* --no-launcher (--live): the launcher's Windowed+Launch emulated, as rhost always does */
+    int live;                   /* --live: the real platform (clock, input, sound, window, launcher, saves in the game
+                                 * dir) instead of the deterministic stand-ins — playing, not replaying */
 } rh_opts_t;
 
 extern rh_opts_t O;
@@ -184,3 +189,7 @@ int rh_fb_hash(uint64_t *out);   /* the back buffer's pixels, hashed; 0 = no bac
 /* rh_hooks.c */
 void rh_hooks_install(void);
 void rh_hooks_report(void);
+/* --standalone: the jmp thunks rh_hooks_install wrote into the (INT3-filled) retail code range */
+typedef struct { uint32_t va; void *target; const char *name; } rh_thunk_t;
+int  rh_hooks_thunks(const rh_thunk_t **out);
+extern const char g_sa_spec[];   /* the standalone's hook set (build.sh: rhost.py's hybrid set + the CRT) */

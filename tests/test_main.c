@@ -1149,6 +1149,12 @@ struct test_case {
     X(dialogue_reopen)                                         \
     X(dialogue_close_step)                                     \
     X(dialogue_portrait_fadeout)                               \
+    X(crt_itoa_radix_and_sign)                                \
+    X(crt_gmtime_epoch_leap_and_year_end)                     \
+    X(crt_localtime_zone_and_usa_dst)                         \
+    X(crt_loctotime_inverts_localtime)                        \
+    X(crt_strftime_save_stamp_and_names)                      \
+    X(crt_sprintf_formats)                                    \
 
 #define X(n) extern int test_##n(void);
 TESTS

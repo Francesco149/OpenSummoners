@@ -5,8 +5,16 @@
  * key state 0x5ba4c0, the joystick state 0x5ba650) and the getters (event id / data / key down 0x5ba3a0..0x5ba520).
  * See input_dev.h.
  *
- * A FIRST PASS through tools/ida/decomp2c.py (--typed --zero-locals); no hand finish. */
+ * A FIRST PASS through tools/ida/decomp2c.py (--typed --zero-locals); the data formats hand-finished (below).
+ *
+ * The data formats: retail's c_dfDIKeyboard 0x850ec0 / c_dfDIJoystick 0x850ef0 come from the DirectInput SDK's
+ * dinput.lib, whose object arrays MSVC linked INTO .text (0x5bdae0 / 0x5beb50) — the port passes the SDK's own
+ * (mingw's libdinput: the same 256 / 44 objects, GUIDs, offsets, types, flags — compared 2026-10-23), so nothing here
+ * reads retail's code section (the standalone maps none of it; real DirectInput walks the arrays).  A regeneration
+ * must keep 0x5ba410 / 0x5ba540. */
 #include "input_dev.h"
+
+#include <dinput.h>
 
 #include <stddef.h>
 #include <stdint.h>
@@ -487,7 +495,7 @@ int32_t id_5ba410(wl_char *self, int32_t a2)
   }
   else
   {
-    v6 = (*(int (__stdcall **)(int, void *))(*(_DWORD *)*v3 + 44))(*v3, D(0x850ec0));
+    v6 = (*(int (__stdcall **)(int, void *))(*(_DWORD *)*v3 + 44))(*v3, (void *)&c_dfDIKeyboard);   /* retail 0x850ec0 (SDK data) */
     if ( v6 != 0 )
     {
       id_5b9e30(F32(c, 0x0), ((char *)D(0x8a4bfc)), ((char *)D(0x8a4c10)), v6);
@@ -560,7 +568,7 @@ int32_t id_5ba540(wl_char *self, int32_t a2, int32_t a3)
   }
   else
   {
-    v7 = (*(int (__stdcall **)(int, void *))(*(_DWORD *)*v4 + 44))(*v4, D(0x850ef0));
+    v7 = (*(int (__stdcall **)(int, void *))(*(_DWORD *)*v4 + 44))(*v4, (void *)&c_dfDIJoystick);   /* retail 0x850ef0 (SDK data) */
     if ( v7 != 0 )
     {
       id_5b9e30(F32(c, 0x0), ((char *)D(0x8a4bfc)), ((char *)D(0x8a4c10)), v7);

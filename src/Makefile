@@ -27,7 +27,7 @@ CFLAGS  ?= -std=c11 -O2 -g \
 LDFLAGS ?= -static-libgcc
 LIBS    ?= -lwinmm -lgdi32 -luser32 -lkernel32 \
            -ladvapi32 -lshell32 -lole32 \
-           -lddraw -ldxguid
+           -lddraw -ldinput -ldxguid
 
 SRCS := $(wildcard *.c)
 

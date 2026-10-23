@@ -94,6 +94,7 @@ def cmd_stage(a=None):
     # deployed as oss-rhost.exe: openrecet's stage does `Get-Process rhost | Stop-Process` (by
     # NAME) — a shared `rhost.exe` name let a sibling restage kill our in-flight batch mid-run
     scp(os.path.join(BUILD, "rhost.exe"), f"{WIN}:C:/oss-rhost/bin/{WEXE}")
+    scp(os.path.join(BUILD, "opensummoners-standalone.exe"), f"{WIN}:C:/oss-rhost/bin/opensummoners-standalone.exe")
     for f in ("runner.ps1", "install-runner.ps1", "stage-game.ps1"):
         scp(os.path.join(HERE, "win", f), f"{WIN}:C:/oss-rhost/{f}")
     print("staged", BUILD, "->", WROOT)
@@ -251,6 +252,8 @@ def rhost_args(a, run_win, trace_win, edition):
             args += [flag, str(v)]
     if getattr(a, "fb_hash", False):
         args += ["--fb-hash"]
+    if getattr(a, "standalone", False):
+        args += ["--standalone"]
     if getattr(a, "coverage_file", None):
         args += ["--coverage", f"{run_win}\\coverage_in.txt"]
     if getattr(a, "show", False):
@@ -444,6 +447,8 @@ def print_results(results, names):
 
 # ---------------------------------------------------------------- commands
 def cmd_run(a):
+    if a.hybrid and a.standalone:
+        sys.exit("--standalone carries its own hook set (the hybrid one + the CRT): drop --hybrid")
     if a.hybrid:    # every ported function REPLACING retail (as corpus --hybrid)
         hs = hybrid_hooks()
         a.hook = ",".join(["replace:" + h for h in hs] + ([a.hook] if a.hook else []))
@@ -543,6 +548,11 @@ def fb_series(log):
 
 def cmd_corpus(a):
     names = all_scenarios(a.only)
+    if getattr(a, "standalone", False):   # the standalone is EN-old only (the port's edition)
+        skip = [n for n in names if (trace_meta(os.path.join(SCEN, n, "trace.jsonl")).get("edition") or "enold") != "enold"]
+        if skip:
+            print(f"standalone: EN-old only — skipping {', '.join(skip)}")
+        names = [n for n in names if n not in skip]
     if a.bless or a.check:
         a.fb_hash = True   # the render gate: every presented frame's pixels, chained (expected "fb" / "fb_series")
     if getattr(a, "hybrid", False):     # the hybrid gate: every ported function REPLACES retail
@@ -560,6 +570,12 @@ def cmd_corpus(a):
     done = sum(1 for n in names if res.get(n, {}).get("complete") == "1")
     print(f"CORPUS: {done}/{len(names)} complete; results in {bdir}")
     keys = ("frame", "tick", "rng", "state_sem", "fb")
+    if getattr(a, "standalone", False):
+        # the standalone vs pure retail: frame / tick / RNG / every presented frame's pixels.  Not the state hashes:
+        # the port CRT's heap places blocks elsewhere (PORT-DEBT(crt-heap)), so every pointer differs
+        if a.bless:
+            sys.exit("--standalone checks against the pure-retail expected.json: no --bless")
+        keys = ("frame", "tick", "rng", "fb")
     bad = 0
     for n in names:
         ep = os.path.join(SCEN, n, "expected.json" if getattr(a, "target", "win") == "win" else f"expected.{a.target}.json")
@@ -579,7 +595,7 @@ def cmd_corpus(a):
             ff = next((f for f in sorted(ef, key=int) if f in fbs and fbs[f] != ef[f]), None)
             if ff is not None:   # the earliest sampled frame by which a presented frame's pixels differ
                 diff[f"fb@f{ff}"] = (ef[ff], fbs[ff])
-            es = exp.get("sem_series") or {}
+            es = {} if getattr(a, "standalone", False) else exp.get("sem_series") or {}
             first = next((f for f in sorted(es, key=int) if f in series and series[f] != es[f]), None)
             if first is not None:   # the earliest frame whose state differs (+ how many sampled frames differ)
                 nd = sum(1 for f in es if f in series and series[f] != es[f])
@@ -665,7 +681,7 @@ VERIFY_HOOKS = ["rand", "input_poll", "mover_v", "sweep_h", "ent_move_h", "ent_m
                 "sv_55f620", "sv_561bf0", "sv_561cf0", "sv_560530", "sv_41cfd0",
                 "ai_479f90", "si_409520", "si_41d4a0", "si_40a2a0", "lo_5a4760", "lo_58c8d0", "lo_54e4f0@256"]
 # REPLACE-only hooks (a whole room per call / DirectInput): proven by `corpus --check --hook replace:…`
-REPLACE_ONLY_HOOKS = ["si_401030", "si_401060", "si_401090", "si_4010c0", "si_4010f0", "si_401130", "si_4011a0", "si_401360", "si_401390", "si_5b5fa0", "si_5b5fd0", "si_5b6000", "si_5b6030", "si_5b60a0",
+REPLACE_ONLY_HOOKS = ["si_401000", "si_401120", "el_54c5e0", "el_5851a0", "input_dtor", "si_401030", "si_401060", "si_401090", "si_4010c0", "si_4010f0", "si_401130", "si_4011a0", "si_401360", "si_401390", "si_5b5fa0", "si_5b5fd0", "si_5b6000", "si_5b6030", "si_5b60a0",
                       "chs_49f7c0", "chs_4d7d80", "chs_4dc510", "chs_4d64f0", "chs_4cd6d0", "chs_4d13a0", "chs_4ccc90", "chs_4c6b40", "chs_4e19e0", "chs_49d930", "chs_4a0c90", "chs_4a6b80", "chs_4ac6d0", "chs_4a66a0", "chs_4a5fa0", "chs_4ae150", "chs_4ae420", "chs_4afdb0", "chs_4b3b20", "chs_4b3c70", "chs_4b4d40", "chs_4bbef0", "chs_4bd2e0", "chs_4bd6b0", "chs_4bd820", "chs_4bdf90", "chs_4bdbe0", "chs_4be220", "chs_4c1a30", "chs_4c1c20", "chs_4c2310", "chs_4c29c0", "chs_4c2dc0", "chs_4c3ee0", "chs_4c45a0",
                       "rd_417c40", "rd_418470", "rd_43e250", "rd_48c150", "rd_48c820", "rd_491820", "rd_494e10", "rd_495dc0", "rd_495e40", "rd_4961e0", "rd_496240",
                       "rp_5b5eb0", "rp_5b8b40", "rp_5b9350", "rp_5b9390", "rp_5b95c0", "rp_5b97e0", "rp_5b9830", "rp_5b98c0", "rp_5b9450", "rp_5b9490", "rp_5b94d0", "rp_5b94e0", "rp_5b9500", "rp_5b9520", "rp_5b9a40", "rp_5b9ae0", "rp_5b9b70", "rp_5b9bf0", "rp_5bd550", "rp_5bd680",
@@ -675,7 +691,7 @@ REPLACE_ONLY_HOOKS = ["si_401030", "si_401060", "si_401090", "si_4010c0", "si_40
                       "si_408730", "si_40a340", "si_41a160", "si_408b90", "si_40a5d0",
                       "chs_4e1d10", "chs_4e23d0", "chs_4e5950", "chs_4e68d0", "chs_4e6a60", "chs_4ea6f0", "chs_4ea710", "chs_4ea7b0", "chs_4ee490", "chs_4ee690", "chs_4ef4e0", "chs_4f19e0", "chs_4f69c0", "chs_4f69e0", "chs_4f6a10", "chs_4fa2a0", "chs_4fea60", "chs_4fec40", "chs_5034b0", "chs_507e70", "chs_50ffe0", "chs_5100e0", "chs_510100", "chs_515a00", "chs_51a1d0", "chs_522310", "chs_523010", "chs_523300", "chs_525ae0", "chs_525e70", "chs_52fd80", "chs_530080", "chs_533570", "chs_533580", "chs_535520", "chs_536480", "chs_537440", "chs_539e80", "chs_53ebe0", "chs_53ec10", "chs_53ec20", "chs_53ec40", "chs_5402e0", "chs_546580", "chs_546670", "chs_54be50", "chs_54be90", "chs_54bed0",
                       "el_401df0", "el_402890", "el_407f30", "el_40a2e0", "el_40ac90", "el_415ae0", "el_4192f0", "el_419980", "el_41b470", "el_41c390", "el_41cb10", "el_41db30", "el_41dba0", "el_41e070", "el_41e4c0", "el_41f0c0", "el_426110", "el_438970", "el_43c1b0", "el_43d4b0", "el_43d540", "el_43d830", "el_43dd30", "el_43e010", "el_441de0", "el_4428f0", "el_44bf60", "el_4675c0", "el_467750", "el_468970", "el_479ca0", "el_47a300", "el_47a420", "el_47a7f0", "el_49d330", "el_49eea0", "el_4c5af0", "el_4cc0e0", "el_54ed80", "el_5534d0", "el_556e50", "el_55fdb0",
-                      "lo_479960", "lo_479a10", "lo_479de0", "lo_406440", "lo_401140", "lo_4011b0", "lo_401210", "lo_4013a0", "lo_401730",
+                      "lo_479960", "lo_479a10", "lo_479de0", "lo_406440", "lo_401140", "lo_4011b0", "lo_401210", "lo_4013a0", "lo_4013c0", "lo_401730",
                       "ts_40fe00", "ts_410250", "ts_54c530", "ts_55ff80", "ts_5612f0", "ts_5640b0", "ts_564110", "ts_565b00", "ts_566300", "ts_568780", "ts_569220", "ts_56a270", "ts_56a450", "ts_56a670", "ts_56aa70", "ts_56ad50", "ts_56d620", "ts_56dd80", "ts_583fe0", "ts_584400", "ts_584420", "ts_584550", "ts_5846f0", "ts_584710", "ts_585260", "ts_585400", "ts_585530", "ts_585590", "ts_585810", "ts_585ae0", "ts_585e70", "ts_59d160", "ts_59d690", "ts_59d900", "ts_59dc60", "ts_59df50", "ts_59e1d0", "ts_59e230", "ts_59e5d0", "ts_59e9e0",
                       "en_410090", "en_49bf90", "en_5646c0", "en_56c640", "en_56c900", "en_56dbb0", "en_5a00c0", "en_5a3670", "en_5a3870", "en_5a4320", "en_5a4440", "en_5a45c0",
                       "gp_468b10", "gp_46cb40", "gp_46cd10",
@@ -699,6 +715,9 @@ REPLACE_ONLY_HOOKS = ["si_401030", "si_401060", "si_401090", "si_4010c0", "si_40
                       "menu_party_close", "msg_pages", "storage_deposit", "storage_withdraw", "storage_run",
                       "item_find", "furniture_search", "scene_yes_no", "item_give", "book_read", "sprite_set_free"]   # (their shadows skip: the grid's 2.9 MB block moves the arena commit)
 SHADOW_ONLY_HOOKS = ["map_decode"]     # its REPLACE form is the load_room port (the decode needs the recorded resource)
+# the MSVC CRT the game calls (src/msvc_crt.c): --standalone only (its heap / streams are the port's own)
+CRT_HOOKS = ["crt_new", "crt_delete", "crt_atexit", "crt_exit", "crt_fopen", "crt_fclose", "crt_fprintf", "crt_fscanf",
+             "crt_fseek", "crt_time", "crt_localtime", "crt_strftime", "crt_setlocale", "crt_sprintf", "crt_itoa"]
 # name@N = shadow every Nth call (the full-state shadows cost ~10-20 ms per compared call)
 
 
@@ -916,6 +935,16 @@ def hybrid_hooks():
     return [h for h in dict.fromkeys([h.split("@")[0] for h in VERIFY_HOOKS] + REPLACE_ONLY_HOOKS) if h not in SHADOW_ONLY_HOOKS]
 
 
+def standalone_hooks():
+    """the standalone's hook set: every hybrid port + the CRT (compiled into rhost.exe / opensummoners-standalone.exe
+    by build.sh as g_sa_spec)"""
+    return hybrid_hooks() + CRT_HOOKS
+
+
+def cmd_standalone_spec(a):
+    print(",".join("replace:" + h for h in standalone_hooks()))
+
+
 def cmd_hookbisect(a):
     """which REPLACE hook makes SCEN diverge from pure retail by --frames?  One batch per round: a pure
     reference + N groups of the candidates (each group replaced alone); the diverging groups split again
@@ -1029,6 +1058,8 @@ def main():
         p.add_argument("--log-every", type=int)
         p.add_argument("--stall-ms", type=int)
         p.add_argument("--fb-hash", action="store_true", help="chain a hash of every Flip's back buffer (RESULT fb=; the render gate)")
+        p.add_argument("--standalone", action="store_true",
+                       help="NO retail code: data sections only, every port + the port CRT (the built-in hook set)")
         p.add_argument("--edition", choices=sorted(EXES))
         p.add_argument("--show", action="store_true")
         p.add_argument("-j", "--jobs", type=int, default=8)
@@ -1037,6 +1068,7 @@ def main():
                        help="win = the Windows box (pixel + speed truth); wine = local headless (logic oracle)")
         p.add_argument("--wine-timeout", type=int, default=1800)
     sub.add_parser("build").set_defaults(fn=cmd_build)
+    sub.add_parser("standalone-spec", help="the standalone's hook spec (build.sh embeds it)").set_defaults(fn=cmd_standalone_spec)
     sub.add_parser("stage").set_defaults(fn=cmd_stage)
     sub.add_parser("setup").set_defaults(fn=cmd_setup)
     p = sub.add_parser("run"); p.add_argument("scenarios", nargs="+"); p.add_argument("--hybrid", action="store_true", help="every ported function REPLACES retail (as corpus --hybrid)"); common(p); p.set_defaults(fn=cmd_run)

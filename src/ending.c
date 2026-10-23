@@ -261,7 +261,9 @@ int32_t en_49bf90(wl_char *self, int32_t a2)
       v7 = *v5 - 8;
       if ( v7 <= 0x18 )
       {
-        switch ( ((uint8_t *)D(0x49c150))[v7] )
+        /* MSVC's switch index table 0x49c150 (compiler layout inside .text, not data): *v5 = 8 / 12 / 16 / 20 / 32 ->
+         * cases 0..4, every other value in 8..32 -> 5 */
+        switch ( v7 == 0 ? 0 : v7 == 4 ? 1 : v7 == 8 ? 2 : v7 == 12 ? 3 : v7 == 24 ? 4 : 5 )
         {
           case 0:
             v9 = (intptr_t)((uint8_t *)c + 104);

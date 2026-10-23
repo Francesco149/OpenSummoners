@@ -367,6 +367,25 @@ _EXE = {}
 EXE_PATHS = {"enold": "vendor/unpacked/sotes.unpacked.exe", "ense-en": "vendor/unpacked/sotes_en.unpacked.exe"}
 
 
+def text_range(edition=None):
+    """[lo, hi) of the retail image's code section (.text)"""
+    import struct
+    ed = edition or EDITION[0]
+    try:
+        d = open(os.path.join(REPO, EXE_PATHS.get(ed, "")), "rb").read(4096)
+    except OSError:
+        return (0, 0)
+    pe = struct.unpack_from("<I", d, 0x3c)[0]
+    ns, osz = struct.unpack_from("<H", d, pe + 6)[0], struct.unpack_from("<H", d, pe + 20)[0]
+    base = struct.unpack_from("<I", d, pe + 24 + 28)[0]
+    for i in range(ns):
+        o = pe + 24 + osz + 40 * i
+        vs, rva = struct.unpack_from("<II", d, o + 8)
+        if struct.unpack_from("<I", d, o + 36)[0] & 0x20:   # IMAGE_SCN_CNT_CODE
+            return (base + rva, base + rva + vs)
+    return (0, 0)
+
+
 def exe_read(va, n, edition=None):
     """n bytes of the retail image at va (the PE's section table), or b"" """
     ed = edition or EDITION[0]
@@ -1572,6 +1591,17 @@ def main():
     if TYPED[0]:
         funcs = [word_args(f) for f in funcs]
     funcs = [unused_win_locals(f) for f in funcs]
+    # the standalone maps no retail code: a D(va) inside .text that is no function entry reads CODE bytes as data (MSVC's
+    # switch index tables, `switch ( byte_49C150[v7] )`) — refused: decode it into the switch by hand (src/ending.c)
+    tlo, thi = text_range(a.edition)
+    entries = {int(l[:8], 16) for l in open(os.path.join(IDA, a.edition, "functions_ida.tsv")) if re.match(r"^[0-9a-f]{8}\t", l)}
+    def text_guard(f):
+        bad = sorted({int(v, 16) for v in re.findall(r"\bD\(0x([0-9a-f]+)u?\)", f) if tlo <= int(v, 16) < thi and int(v, 16) not in entries})
+        for v in bad:
+            print(f"decomp2c: reads retail .text as data at 0x{v:x} — decode it (a switch index table?)", file=sys.stderr)
+        return "".join(f'#error "decomp2c: reads retail .text as data at 0x{v:x} (an MSVC switch index table?): decode it into '
+                       f'the switch"\n' for v in bad) + f
+    funcs = [text_guard(f) for f in funcs]
     if any(re.search(r"\b(%s)\b" % "|".join(WIN_STRUCT), f) for f in funcs):   # a module that keeps a <windows.h> struct
         print("#include <windows.h>")
         print("#include <stdio.h>")

@@ -11,11 +11,15 @@
 
 #include "engine_calls.h"
 #include "leftovers.h"
+#include "win_app.h"
 
 #define DBL(va) (*(double *)g_eng.data(va))
 #define CRT_atexit ((intptr_t (*)(intptr_t))g_eng.retail(0x5beecdu))   /* retail's CRT atexit (cdecl) */
 
-/* the degree <-> radian constants (0x8a9a38 / 0x8a9b90: pi / 180) */
+/* the degree <-> radian constants (0x8a9a38 / 0x8a9b90: pi / 180).  0x8a9a38 is the table's FIRST entry, 0x401000
+ * (a jmp to 0x401010): IDA defines no function there, so rhost's coverage never trapped it (the hybrid ran it as retail
+ * code until 2026-10-23) */
+void si_401010(void) { DBL(0x8a9a38) = DBL(0x5cc288) * DBL(0x850d60); }
 void si_401040(void) { DBL(0x8a6b28) = DBL(0x8a9a38) * DBL(0x850d68); }   /*  90 */
 void si_401070(void) { DBL(0x8a6618) = DBL(0x8a9a38) * DBL(0x850d70); }   /* -90 */
 void si_4010a0(void) { DBL(0x8a6b48) = DBL(0x8a9a38) * DBL(0x850d78); }   /*  180 */
@@ -28,10 +32,11 @@ void si_5b60b0(void) { DBL(0x8a9b80) = DBL(0x8a9b90) * DBL(0x850d80); }
 
 /* the object at 0x8a6b50 (its +0 cleared) and its destructor 0x401120 (ecx = it, jmp 0x5b5a90) at exit */
 void si_401100(void) { *(int32_t *)g_eng.data(0x8a6b50) = 0; }
+void si_401120(void) { wm_5b5a90((wl_char *)g_eng.data(0x8a6b50)); }
 int32_t si_4010f0(void)
 {
     si_401100();
-    return (int32_t)CRT_atexit((intptr_t)g_eng.retail(0x401120u));
+    return (int32_t)CRT_atexit((intptr_t)g_eng.data(0x401120u));   /* si_401120 by address: retail's onexit table holds the VA */
 }
 
 /* the system singleton's pump fields: byte +0x324, dwords +0x34c / +0x350 */
@@ -44,6 +49,7 @@ int32_t si_401370(void)
 }
 
 /* the thunks */
+void    si_401000(void) { si_401010(); }
 void    si_401030(void) { si_401040(); }
 void    si_401060(void) { si_401070(); }
 void    si_401090(void) { si_4010a0(); }
