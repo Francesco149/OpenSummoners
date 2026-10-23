@@ -131,6 +131,8 @@ def ecx_in(edition, va, size):
 
 
 _SIZES = {}
+_CALLS = {}   # (edition, caller) -> {callee: [asm line index of each call]}
+_JTARGETS = {}   # (edition, caller, callee) -> the jump targets asm_ecx scans
 FMAPS = []   # per module function: (va, ARRAYS, FRAMEVARS, FRAMECLS) — the stack locals by ebp offset
 
 
@@ -142,21 +144,24 @@ def asm_calls(edition, caller, callee):
     i = idx.get(caller)
     if i is None:
         return [], lines
-    out = []
-    if edition not in _SIZES:
-        _SIZES[edition] = {int(x.split("\t")[0], 16): int(x.split("\t")[1]) for x in open(os.path.join(IDA, edition, "functions_ida.tsv"))
-                           if re.match(r"^[0-9a-f]{8}\t\d+", x)}
-    end = caller + _SIZES[edition].get(caller, 0)
-    while i < len(lines):
-        m = re.match(r"^([0-9a-f]{8})\s+(\w+)\s*(.*)$", lines[i])
-        if m and int(m.group(1), 16) >= end:
-            break
-        if m and m.group(2) == "call":
-            cm = re.match(r"\s*(?:sub_([0-9A-F]+)|[A-Za-z_]\w*?_([0-9A-F]{6}))\b", m.group(3))
-            if cm and int(cm.group(1) or cm.group(2), 16) == callee:
-                out.append(i)
-        i += 1
-    return out, lines
+    key = (edition, caller)
+    if key not in _CALLS:   # (once per caller: every callee's call lines — a big script asks per call site)
+        if edition not in _SIZES:
+            _SIZES[edition] = {int(x.split("\t")[0], 16): int(x.split("\t")[1]) for x in open(os.path.join(IDA, edition, "functions_ida.tsv"))
+                               if re.match(r"^[0-9a-f]{8}\t\d+", x)}
+        end = caller + _SIZES[edition].get(caller, 0)
+        by = {}
+        while i < len(lines):
+            m = re.match(r"^([0-9a-f]{8})\s+(\w+)\s*(.*)$", lines[i])
+            if m and int(m.group(1), 16) >= end:
+                break
+            if m and m.group(2) == "call":
+                cm = re.match(r"\s*(?:sub_([0-9A-F]+)|[A-Za-z_]\w*?_([0-9A-F]{6}))\b", m.group(3))
+                if cm:
+                    by.setdefault(int(cm.group(1) or cm.group(2), 16), []).append(i)
+            i += 1
+        _CALLS[key] = by
+    return list(_CALLS[key].get(callee, [])), lines
 
 
 def asm_named_offset_only(edition, va, name):
@@ -235,11 +240,15 @@ def asm_ecx(edition, fmap, callee, occ, c_count):
     calls, lines = asm_calls(edition, fmap[0], callee)
     if len(calls) != c_count or occ >= len(calls):
         return None
-    targets = set()
-    for ln in lines[calls[0] - 400 if calls[0] > 400 else 0:calls[-1]]:
-        jm = re.match(r"^[0-9a-f]{8}\s+j\w+\s+(?:short\s+)?loc_([0-9A-F]+)", ln)
-        if jm:
-            targets.add(int(jm.group(1), 16))
+    jk = (edition, fmap[0], callee)
+    if jk not in _JTARGETS:   # (the same window for every occurrence of this callee)
+        targets = set()
+        for ln in lines[calls[0] - 400 if calls[0] > 400 else 0:calls[-1]]:
+            jm = re.match(r"^[0-9a-f]{8}\s+j\w+\s+(?:short\s+)?loc_([0-9A-F]+)", ln)
+            if jm:
+                targets.add(int(jm.group(1), 16))
+        _JTARGETS[jk] = targets
+    targets = _JTARGETS[jk]
     i = calls[occ] - 1
     for _ in range(24):
         m = re.match(r"^([0-9a-f]{8})\s+(\w+)\s*(.*?)(?:;.*)?$", lines[i])
@@ -577,9 +586,16 @@ def class_widths(edition, cls):
     return {}
 
 
+_SRC = {}
+
+
 def extract(edition, va):
-    src = open(os.path.join(IDA, edition, "all_ida.c"), errors="replace").read()
-    m = re.search(r"\n([^\n;]*\b\w*?_%X(?:@<\w+>)?\([^;{]*?\)\n\{.*?\n\})" % va, src, re.S)   # sub_X or a KB name_X
+    if edition not in _SRC:
+        _SRC[edition] = open(os.path.join(IDA, edition, "all_ida.c"), errors="replace").read()
+    src = _SRC[edition]
+    pat = re.compile(r"\n([^\n;]*\b\w*?_%X(?:@<\w+>)?\([^;{]*?\)\n\{.*?\n\})" % va, re.S)   # sub_X or a KB name_X
+    h = src.find(" @ 0x%08x " % va)   # (the export's `===== name @ 0x00VA` header: the definition follows it)
+    m = (pat.search(src, h) if h >= 0 else None) or pat.search(src)
     if not m:   # a FLIRT name without the VA (unknown_libname_2): the export's `===== name @ 0x00VA` header
         m = re.search(r"\n/\* ===== \S+ @ 0x%08x [^\n]*\n(?://[^\n]*\n)*([^\n;]*\([^;{]*?\)\n\{.*?\n\})" % va, src, re.S)
     if not m:
@@ -1101,7 +1117,10 @@ def convert(text, names, widths, this):
         s = re.sub(r"::%s\b" % name, f"(*(intptr_t *)D(0x{va:x}))", s)
         if not re.search(r"\b%s\b(?=\s*[,)])|\b%s\b" % (name, name), head):
             s = re.sub(r"(?<![\w.>:])%s\b" % name, f"(*(intptr_t *)D(0x{va:x}))", s)
-    for name, va in SYMS.items():
+    toks = set(re.findall(r"\w+", s))   # (SYMS' names are \w+: only those in the text can match — the loop below
+    for name, va in SYMS.items():        # used to compile + scan ~9,600 patterns per function, ~60% of a module's time)
+        if name not in toks:
+            continue
         if not re.search(r"\b%s\b" % re.escape(name), s) or name.startswith(("sub_", "p_cls_")) or name in ("Buffer", "stru_8A6B60") \
                 or re.search(r"\b%s\b" % re.escape(name), head) or name in DECLNAMES:   # (a1..: a parameter only when in the head)
             continue

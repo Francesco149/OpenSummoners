@@ -43,6 +43,13 @@ specific commits where relevant.
   addresses (fixed: both forms), and an unused `FILE *` / `SYSTEMTIME` local dragged `<windows.h>` into host-built
   modules (now a plain word; `<windows.h>` only when the final text keeps a Win32 struct).  The host suite links the
   chapter scripts, whose calls now reach mingw-only ports: `tests/host_stubs.c` (abort stubs, never run).
+- WALL-CLOCK audit (USER: "the longest sessions"), measured then fixed: decomp2c compiled + scanned a regex per data
+  symbol (~9,600) per function — the story scripts' pass ~15 min → 108 s (byte-identical), a 27-module dry regen
+  54 s; it also rescanned the caller's asm per call site and re-read the 10 MB decompile per function (memoized).
+  rhost's build.sh compiled serially and recompiled rh_hooks.c (~30 s) in every link of the SizeOfImage pad loop:
+  75–125 s after any src edit → 12 s warm / 64 s cold (parallel TUs, objects keyed by their preprocessed source).
+  `verify --hooks NAME` kept a bare name's every=1 over the list's `@N` (a hot shadow stalled): fixed.  Lessons in
+  `docs/AGENT-WORKFLOW.md`.
 - The later chapters' STORY SCRIPTS as port code (`src/story_scripts.{c,h}`): 0x4e1d10..0x546670 + the helpers
   past it (48 functions, ~430 KB of retail), a decomp2c first pass; 30 scripts behind `story_find(va)` (the script
   engine's by-VA dispatch: rhost's `rh_script_call` takes a second range H_ST_FIRST..H_ST_LAST), REPLACE-only.

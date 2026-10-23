@@ -701,7 +701,8 @@ SHADOW_ONLY_HOOKS = ["map_decode"]     # its REPLACE form is the load_room port 
 def cmd_verify(a):
     names = all_scenarios(a.only)
     want = {h.split("@")[0]: h for h in (a.hooks or "").split(",") if h}   # `name@N` overrides the sampling
-    hooks = [want.get(h.split("@")[0], h) for h in VERIFY_HOOKS if not want or h.split("@")[0] in want]
+    hooks = [want[h.split("@")[0]] if "@" in want.get(h.split("@")[0], "") else h   # (a bare name keeps the list's @N)
+             for h in VERIFY_HOOKS if not want or h.split("@")[0] in want]
     a.hook = ",".join("shadow:" + h for h in hooks)
     runs = resolve_runs(names, a)
     k = max(1, a.split)

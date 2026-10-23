@@ -170,6 +170,8 @@ state hash; ~830–1000 fps; no Frida, no pins. Editions: `enold` (port target) 
   the sheet lacks, publish a human-verifiable proof under `docs/proofs/`.
 - **Single-TU compile, full rebuild every time** — one `gcc` per output binary, all `.c`
   passed directly, no `.o`/`.d`. C compiles sub-second here; the simplicity is free.
+  **Exception: rhost's `build.sh`** (generated modules: story_scripts ~40 s, rh_hooks.c ~30 s at -O2) — every TU in
+  parallel, objects cached by a hash of the PREPROCESSED source + flags (no stale-dependency risk): warm 12 s.
 - **Build EVERYTHING before you push — `bash tools/ci/build_all.sh` (MANDATORY; not just
   `make -C src`).** `res_explorer` AND `osr_view` LINK the port's own `src/*.c`, so a new
   `src/` dependency silently DRIFTS them — `party.c` gaining a `base_stat_table.c` dep broke
