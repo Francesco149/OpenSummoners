@@ -27,6 +27,8 @@ IDA = os.environ.get("IDA_DIR", "/mnt/ephemeral/opensummoners/decompiled-ida")
 
 
 OVERRIDES = {0x4766a0: "view_box_visible", 0x490b90: "view_project"}   # ported functions whose header line is not a `FUN_ name` table
+NOBIND = {0x5b8fc0, 0x43d1d0}   # the Flip and the camera easer: always through RC_ (rhost's stubs step the frame count /
+                                # virtual clock there; a direct call to the ported Flip ran a loading loop off the clock)
 
 
 def rhost_modules():
@@ -55,6 +57,8 @@ def port_names():
             va, n = int(m.group(2), 16), m.group(1)
             if va in names and names[va] != n and n in protos:
                 names[va] = n
+    for va in NOBIND:
+        names.pop(va, None)
     return names
 
 
@@ -376,7 +380,8 @@ def kb_names():
 # rhost's virtual clock / file overlay stay under them — the host CRT would bypass both
 CRT_REDIRECT = ("time", "localtime", "gmtime", "mktime", "strftime", "clock", "fopen", "fclose", "fprintf", "fread",
                 "fwrite", "fseek", "ftell", "fgets", "fputs", "fflush", "remove", "rename", "getenv", "_findfirst",
-                "_findnext", "_findclose", "_mkdir", "_access", "fscanf", "fgetc", "ungetc")
+                "_findnext", "_findclose", "_mkdir", "_access", "fscanf", "fgetc", "ungetc", "setlocale", "atexit",
+                "_setmbcp", "_onexit", "srand")
 CRT_USED = {}
 
 
@@ -633,18 +638,19 @@ WIN_INT = {"HDC", "HGDIOBJ", "HWND", "HBITMAP", "HFONT", "HBRUSH", "HPEN", "HAND
 WIN_UINT = {"UINT", "DWORD", "COLORREF", "WPARAM", "ULONG", "SIZE_T"}   # ... unsigned
 WIN_STRUCT = {"POINT", "RECT", "SIZE", "BITMAPINFOHEADER", "BITMAPINFO", "RGBQUAD", "PALETTEENTRY", "LOGFONTA",
               "TEXTMETRICA", "BITMAP", "MSG", "PAINTSTRUCT", "SYSTEMTIME", "MMCKINFO", "WAVEFORMATEX", "WNDCLASSA",
-              "OSVERSIONINFOA", "LOGBRUSH", "LOGFONTA", "struct tm"}   # kept as <windows.h>'s own
+              "OSVERSIONINFOA", "LOGBRUSH", "LOGFONTA", "struct tm", "WNDCLASSEXA"}   # kept as <windows.h>'s own
 WORD_SHELLS = ("paint_ctx", "input_dev", "input_mgr", "zdm", "log_singleton")   # wnd_proc.h's shells: passed through as words
 SHELL_SIZE = {"input_dev": 12, "paint_ctx": 0x170, "log_singleton": 0x504}   # ... IDA's sizes for them (knowledge pack decls)
 SHELL_ARRAYS = {"log_singleton": {"path": 0x404}}   # ... their array members (an address, not a load)
 SHELL_FIELDS = {"paint_ctx": {"zdd_device": 0x2c, "blit_x": 0x138, "blit_y": 0x13c, "blit_w": 0x140, "blit_h": 0x144,
                               "state": 0x164, "back_ctx": 0x16c},
-                "input_dev": {"dev_obj": 0x4, "acquired": 0x8}}   # (wnd_proc.h's pinned offsets)
+                "input_dev": {"dev_obj": 0x4, "acquired": 0x8},
+                "input_mgr": {"zdm_ptr": 0x2884}}   # (wnd_proc.h's pinned offsets; 0x58ffa0's `input_mgr *this` is the system object)
 WIN_ALIAS = {"struct tagRECT": "RECT", "tagRECT": "RECT", "struct tagPOINT": "POINT", "tagPOINT": "POINT",
              "struct _SYSTEMTIME": "SYSTEMTIME", "_SYSTEMTIME": "SYSTEMTIME",
              "struct _MMCKINFO": "MMCKINFO", "_MMCKINFO": "MMCKINFO", "LPMMCKINFO": "MMCKINFO *",
              "struct tagMSG": "MSG", "tagMSG": "MSG", "LPMSG": "MSG *", "struct tagWNDCLASSA": "WNDCLASSA",
-             "tagWNDCLASSA": "WNDCLASSA", "struct tagLOGBRUSH": "LOGBRUSH", "tagLOGBRUSH": "LOGBRUSH", "struct tagLOGFONTA": "LOGFONTA", "struct _OSVERSIONINFOA": "OSVERSIONINFOA", "LPOSVERSIONINFOA": "OSVERSIONINFOA *",
+             "tagWNDCLASSA": "WNDCLASSA", "struct tagWNDCLASSEXA": "WNDCLASSEXA", "tagWNDCLASSEXA": "WNDCLASSEXA", "struct tagLOGBRUSH": "LOGBRUSH", "tagLOGBRUSH": "LOGBRUSH", "struct tagLOGFONTA": "LOGFONTA", "struct _OSVERSIONINFOA": "OSVERSIONINFOA", "LPOSVERSIONINFOA": "OSVERSIONINFOA *",
              "LPDIRECTSOUND": "void *", "LPDIRECTSOUNDBUFFER": "void *", "LPDIRECTINPUT7A": "void *",
              "LPDIRECTDRAW7": "void *", "LPDIRECTDRAWSURFACE7": "void *",
              "struct tagSIZE": "SIZE",
@@ -934,7 +940,8 @@ def convert(text, names, widths, this):
         s = re.sub(r"(?<=[=(,!&|<>?:]\s)\*%s\b(?!\s*[\[(])|(?<=[=(,!])\*%s\b(?!\s*[\[(])" % (v, v), f"F32({v}, 0)", s)
     for v in CLSPTR:   # a class pointer kept as an integer: its unary deref is a dword load (but `*v->field_X` derefs
         # the FIELD: `->` binds tighter — 0x5b8ea0's `*(_DWORD *)a1->field_8`)
-        s = re.sub(r"(?<=[=(,!&|<>?:]\s)\*%s\b(?!\s*->)|(?<=[=(,!])\*%s\b(?!\s*->)" % (v, v), f"F32({v}, 0)", s)
+        s = re.sub(r"(?<=[=(,!&|<>?:]\s)\*%s\b(?!\s*->|\+\+|--)|(?<=[=(,!])\*%s\b(?!\s*->|\+\+|--)" % (v, v), f"F32({v}, 0)", s)   # (`*v9++`: the
+        # pointer advances — a `cls **` local is an intptr_t *: kept as C)
         s = re.sub(r"(?m)^(\s*)\*%s\b(?=\s*=[^=])" % v, lambda m: f"{m.group(1)}F32({v}, 0)", s)   # `*v3 = 0;` (a store)
     def vfld(m):
         cl = CLSTYPE.get(m.group(1))
@@ -948,6 +955,8 @@ def convert(text, names, widths, this):
     s = re.sub(r"(?<!\*)\*\((?:_DWORD|int|cls_\w+) \*\*\)\(%s \+ (\d+)\)" % r"((?:[^()]|\((?:[^()]|\([^()]*\))*\))+?)", r"F32(\1, \2)", s)
     s = re.sub(r"\(int\)&loc_([0-9A-F]{6})\b|(?<![\w.])&loc_([0-9A-F]{6})\b", lambda m: f"0x{int(m.group(1) or m.group(2), 16):x}", s)   # an
     # immediate IDA took for a code address (0x5749b0's colour 0x40c040)
+    s = re.sub(r"\b(\w+)\[0\]\.gap([0-9A-F]+)\[(\d+)\]", lambda m: f"F8({m.group(1)}, 0x{int(m.group(2), 16) + int(m.group(3)):x})", s)   # an
+    # element 0 of a class-typed stack array: its byte at +N + i (0x5a4770's `v88[0].gap0[0] = 0`)
     s = s.replace("rand_draw_5BF505()", "rnd()")
     s = s.replace("p_cls_40BE00", "W")
     s = re.sub(r"\*\(_DWORD \*\)&stru_8A6B60\._pad000\[(\d+)\]", r"SYS32(\1)", s)
@@ -1066,6 +1075,10 @@ def convert(text, names, widths, this):
         s = re.sub(r"\b%s\(%s\)" % (part, fa), lambda m, acc=acc, add=add: f"{acc}({m.group(2)}, {m.group(3)}{f' + {add}' if add else ''})", s)
     s = re.sub(r"(\+\+|--)HIDWORD\((\w+)\)", lambda m: f"(({m.group(2)}) {'+' if m.group(1) == '++' else '-'}= 0x100000000ll)", s)
     s = re.sub(r"(\+\+|--)LOWORD\(((?:[^()]|\([^()]*\))+)\)", lambda m: f"SETLO({m.group(2)}, (uint16_t)({m.group(2)}) {'+' if m.group(1) == '++' else '-'} 1)", s)
+    for part, (acc, add) in (("LOWORD", ("F16", 0)), ("HIWORD", ("F16", 2)), ("LOBYTE", ("F8", 0)), ("BYTE1", ("F8", 1)),
+                             ("BYTE2", ("F8", 2)), ("HIBYTE", ("F8", 3))):   # a part of a word global: the narrower store
+        s = re.sub(r"\b%s\(\(\*\((?:intptr_t|int32_t|uint32_t|int) \*\)D\((0x[0-9a-f]+)\)\)\)" % part,
+                   lambda m, acc=acc, add=add: f"{acc}(D({m.group(1)}), {add})", s)
     SETS = {"LOWORD": "SETLO", "HIWORD": "SETHI", "LOBYTE": "SETLB", "BYTE1": "SETB1", "LODWORD": "SETLODW", "HIDWORD": "SETHIDW"}
     out, pos = [], 0
     for m in re.finditer(r"\b(LOWORD|HIWORD|LOBYTE|BYTE1|LODWORD|HIDWORD)\((\w+|\w+\[[^\[\]]+\])\) = ", s):
@@ -1171,7 +1184,7 @@ typedef char CHAR;
 
 def signature(head, name):
     """IDA header -> (C signature of the port function `name`, the param prologue)"""
-    m = re.match(r"\s*(.*?)\s*(?:__thiscall|__stdcall|__fastcall|__cdecl|__userpurge|__usercall)?\s*\b\w*?_[0-9A-F]+(?:@<\w+>)?\((.*)\)\s*$", head)
+    m = re.match(r"\s*(.*?)\s*(?:__thiscall|__stdcall|__fastcall|__cdecl|__userpurge|__usercall)?\s*\b(?:\w*?_[0-9A-F]+|[A-Za-z_]\w*@\d+|DialogFunc|WinMain)(?:@<\w+>)?\((.*)\)\s*$", head)
     ret, params = m.group(1).replace("__thiscall", "").replace("__stdcall", "").strip(), re.sub(r"@<\w+>", "", m.group(2))
     ret = ("void" if ret == "void" else "double" if ret in ("long double", "double", "float")   # st0
            else "int64_t" if "__int64" in ret else "int32_t")                                    # edx:eax

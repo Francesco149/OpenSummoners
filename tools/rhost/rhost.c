@@ -798,7 +798,7 @@ static int uninit_fix_install(void)
 
 /* ---- engine hooks ---- */
 typedef void (__cdecl *srand_t)(unsigned);
-static void __cdecl my_srand(unsigned s)
+void __cdecl my_srand(unsigned s)
 {
     rh_log("srand(%08x) -> pinned %08x (frame %u)\n", s, O.has_seed ? O.seed : s, g_frame);
     ((srand_t)(uintptr_t)g_ed->srand)(O.has_seed ? O.seed : s);

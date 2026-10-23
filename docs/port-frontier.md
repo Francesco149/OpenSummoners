@@ -7,8 +7,8 @@ own engine callees ported, so it can land today with zero new dependencies. Sort
 
 For the *forward* port path (the title-menu scene runner and what it calls) and the semantic milestone order, see `ROADMAP.md` — some of that path isn't yet reachable from ported code so won't appear here.
 
-- frontier functions: **155**
-- of those, zero-dependency **leaves: 100** (recommended order below)
+- frontier functions: **149**
+- of those, zero-dependency **leaves: 94** (recommended order below)
 
 ## Leaf shortlist — portable today (top 40 by ported-caller count)
 
@@ -20,10 +20,7 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x55fdb0 | 461 | 3 | cutscene dispatcher + sprite copy + tilemap collision + camera |
 | 0x4c5af0 | 770 | 3 | scene-event dispatch (narrative scripting) + party/inventory |
 | 0x5a4760 | 16 | 2 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
-| 0x579860 | 131 | 2 | master sprite-group register + audio/music init + anim pump |
 | 0x5646c0 | 180 | 2 | title + gameplay scene runners + engine init + options + input init |
-| 0x579680 | 191 | 2 | master sprite-group register + audio/music init + anim pump |
-| 0x579740 | 285 | 2 | master sprite-group register + audio/music init + anim pump |
 | 0x4cc0e0 | 360 | 2 | scene-event dispatch (narrative scripting) + party/inventory |
 | 0x4190d0 | 470 | 2 | menu/dialog controller + char init + shop/NPC + save path |
 | 0x5a3670 | 499 | 2 | launcher config parse + spell fx + bitmap/ZDD render + RNG |
@@ -48,12 +45,15 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x54e4f0 | 207 | 1 | cutscene dispatcher + sprite copy + tilemap collision + camera |
 | 0x56d620 | 237 | 1 | title + gameplay scene runners + engine init + options + input init |
 | 0x445e50 | 246 | 1 | entity per-frame FSM + action handlers + dialog + skills |
-| 0x583ee0 | 248 | 1 | master sprite-group register + audio/music init + anim pump |
 | 0x56dd80 | 254 | 1 | title + gameplay scene runners + engine init + options + input init |
-| 0x5798f0 | 259 | 1 | master sprite-group register + audio/music init + anim pump |
 | 0x441de0 | 274 | 1 | entity per-frame FSM + action handlers + dialog + skills |
 | 0x47a300 | 278 | 1 | battle phase controller + NPC AI + particle fx + damage UI |
 | 0x584420 | 292 | 1 | master sprite-group register + audio/music init + anim pump |
+| 0x43c1b0 | 302 | 1 | battle scenario init + turn engine + input poll + save mgr |
+| 0x41e4c0 | 307 | 1 | menu/dialog controller + char init + shop/NPC + save path |
+| 0x47a7f0 | 376 | 1 | battle phase controller + NPC AI + particle fx + damage UI |
+| 0x4675c0 | 387 | 1 | master dialogue runner + action/frame dispatch + sprite batch |
+| 0x4e68d0 | 393 | 1 | narrative scene FSM + dungeon/encounter driver (sparse) |
 
 ## Full frontier by address band
 
@@ -245,19 +245,13 @@ For the *forward* port path (the title-menu scene runner and what it calls) and 
 | 0x568780 | 554 | 1 | 0 | ✓ |
 | 0x56a670 | 1011 | 1 | 3 |  |
 
-### master sprite-group register + audio/music init + anim pump (10)
+### master sprite-group register + audio/music init + anim pump (4)
 
 | VA | size | ported callers | unported deps | leaf |
 |----|-----:|---------------:|--------------:|:----:|
-| 0x579860 | 131 | 2 | 0 | ✓ |
-| 0x579680 | 191 | 2 | 0 | ✓ |
-| 0x579740 | 285 | 2 | 0 | ✓ |
 | 0x584400 | 19 | 1 | 0 | ✓ |
 | 0x58c8d0 | 51 | 1 | 0 | ✓ |
-| 0x583ee0 | 248 | 1 | 0 | ✓ |
-| 0x5798f0 | 259 | 1 | 0 | ✓ |
 | 0x584420 | 292 | 1 | 0 | ✓ |
-| 0x583c90 | 580 | 1 | 0 | ✓ |
 | 0x583fe0 | 979 | 1 | 8 |  |
 
 ### inventory/menu + audio cue mgr + render dispatch + scene load (11)

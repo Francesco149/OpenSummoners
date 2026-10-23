@@ -82,6 +82,7 @@ extern volatile uint32_t g_ticks;      /* easer (sim tick) calls */
  * code that stands in for a caller (the room loop) calls these to stay identical */
 extern void *g_rh_flip_stub, *g_rh_easer_stub;
 void rh_flip_retarget(void *fn);
+void __cdecl my_srand(unsigned s);   /* the pinned srand (retail's srand call site; port RC_ calls too) */
 extern FILE *g_log;
 void rh_log(const char *fmt, ...);
 void rh_fatal(const char *fmt, ...);

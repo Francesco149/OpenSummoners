@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 1004,
-  "unported": 571,
+  "ported": 1010,
+  "unported": 565,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 1253,
-  "pct_touched": 80.9,
+  "touched": 1259,
+  "pct_touched": 81.3,
   "pct_tested": 15.7,
-  "engine_proper_touched": 1240,
+  "engine_proper_touched": 1246,
   "bytes_total": 1776526,
-  "bytes_touched": 1144134,
-  "pct_bytes_touched": 64.4
+  "bytes_touched": 1145828,
+  "pct_bytes_touched": 64.5
  },
  "orphan_refs": [],
  "functions": [
@@ -10265,6 +10265,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/asset_load.h",
     "src/asset_register.c",
     "src/asset_register.h"
    ]
@@ -10933,6 +10934,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/asset_load.h",
     "src/asset_register.c",
     "src/asset_register.h"
    ]
@@ -10944,6 +10946,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/asset_load.h",
     "src/asset_register.c",
     "src/asset_register.h"
    ]
@@ -10955,6 +10958,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/asset_load.h",
     "src/asset_register.c",
     "src/asset_register.h",
     "src/main.c"
@@ -10967,6 +10971,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/asset_load.h",
     "src/main.c"
    ]
   },
@@ -10975,32 +10980,40 @@
    "name": "sub_579680",
    "size": 191,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/asset_load.h"
+   ]
   },
   {
    "va": "0x579740",
    "name": "sub_579740",
    "size": 285,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/asset_load.h"
+   ]
   },
   {
    "va": "0x579860",
    "name": "sub_579860",
    "size": 131,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/asset_load.h"
+   ]
   },
   {
    "va": "0x5798f0",
    "name": "sub_5798F0",
    "size": 259,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/asset_load.h"
+   ]
   },
   {
    "va": "0x579a00",
@@ -11009,6 +11022,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/asset_load.h",
     "src/asset_register.c",
     "src/asset_register.h"
    ]
@@ -11020,6 +11034,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/asset_load.h",
     "src/asset_register.c",
     "src/asset_register.h"
    ]
@@ -11031,6 +11046,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/asset_load.h",
     "src/asset_register.c",
     "src/asset_register.h"
    ]
@@ -11042,6 +11058,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/asset_load.h",
     "src/asset_register.c",
     "src/asset_register.h"
    ]
@@ -11053,6 +11070,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/asset_load.h",
     "src/asset_register.c",
     "src/asset_register.h"
    ]
@@ -11064,6 +11082,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/asset_load.h",
     "src/asset_register.c",
     "src/asset_register.h"
    ]
@@ -11075,6 +11094,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/asset_load.h",
     "src/asset_register.c",
     "src/asset_register.h"
    ]
@@ -11086,6 +11106,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/asset_load.h",
     "src/asset_register.c",
     "src/asset_register.h"
    ]
@@ -11097,6 +11118,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/asset_load.h",
     "src/asset_register.c",
     "src/asset_register.h"
    ]
@@ -11108,6 +11130,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/asset_load.h",
     "src/asset_register.c",
     "src/asset_register.h"
    ]
@@ -11119,6 +11142,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/asset_load.h",
     "src/asset_register.c",
     "src/asset_register.h"
    ]
@@ -11130,6 +11154,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/asset_load.h",
     "src/asset_register.c",
     "src/asset_register.h"
    ]
@@ -11141,6 +11166,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/asset_load.h",
     "src/asset_register.c",
     "src/asset_register.h"
    ]
@@ -11152,6 +11178,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/asset_load.h",
     "src/cs_dispatch.c",
     "src/cs_dispatch.h",
     "src/main.c",
@@ -11164,16 +11191,20 @@
    "name": "sub_583C90",
    "size": 580,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/asset_load.h"
+   ]
   },
   {
    "va": "0x583ee0",
    "name": "sub_583EE0",
    "size": 248,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/asset_load.h"
+   ]
   },
   {
    "va": "0x583fe0",

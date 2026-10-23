@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **1253** (80.9% of engine-proper) — tested 249, ported 1004
-- code bytes touched: **64.4%** (1,144,134 / 1,776,526 B of engine-proper)
-- unported: **571**
+- touched: **1259** (81.3% of engine-proper) — tested 249, ported 1010
+- code bytes touched: **64.5%** (1,145,828 / 1,776,526 B of engine-proper)
+- unported: **565**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -129,7 +129,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x562210 | _WinMain@16 | 688 | app_pump.h, rng.h |
 | 0x562a10 | sub_562A10 | 92 | asset_register.c, asset_register.h, title_menu.h |
 | 0x562ea0 | build_title_drive_562EA0 | 4062 | app_flow.c, app_flow.h, asset_register.c (+11) |
-| 0x563ef0 | sub_563EF0 | 445 | asset_register.c, asset_register.h |
+| 0x563ef0 | sub_563EF0 | 445 | asset_load.h, asset_register.c, asset_register.h |
 | 0x564160 | sub_564160 | 376 | newgame_drive.c, newgame_drive.h, title_menu.h |
 | 0x564780 | sub_564780 | 4067 | newgame_drive.c, newgame_drive.h, newgame_menu.c (+5) |
 | 0x5657f0 | newgame_picker_dispatch_5657F0 | 31 | newgame_drive.c, newgame_picker.c, newgame_picker.h (+1) |
@@ -151,24 +151,24 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x56c930 | menu_owner_transition_step_56C930 | 607 | menu_list.c, menu_list.h, title_menu.h |
 | 0x56cd20 | sub_56CD20 | 2275 | main.c, prologue_drive.c, prologue_drive.h (+3) |
 | 0x56dc20 | sub_56DC20 | 344 | main.c, title_menu.h |
-| 0x56e190 | sub_56E190 | 26411 | asset_register.c, asset_register.h |
-| 0x5748c0 | sub_5748C0 | 237 | asset_register.c, asset_register.h |
-| 0x5749b0 | sub_5749B0 | 2342 | asset_register.c, asset_register.h, main.c |
-| 0x5752e0 | sub_5752E0 | 17310 | main.c |
-| 0x579a00 | sub_579A00 | 451 | asset_register.c, asset_register.h |
-| 0x579bd0 | sub_579BD0 | 741 | asset_register.c, asset_register.h |
-| 0x579ec0 | sub_579EC0 | 126 | asset_register.c, asset_register.h |
-| 0x579f40 | sub_579F40 | 214 | asset_register.c, asset_register.h |
-| 0x57a030 | sub_57A030 | 340 | asset_register.c, asset_register.h |
-| 0x57a1a0 | sub_57A1A0 | 189 | asset_register.c, asset_register.h |
-| 0x57a260 | sub_57A260 | 195 | asset_register.c, asset_register.h |
-| 0x57a330 | ar_run_palette_ramp_57A330 | 3919 | asset_register.c, asset_register.h |
-| 0x57b280 | sub_57B280 | 6073 | asset_register.c, asset_register.h |
-| 0x57ca40 | sub_57CA40 | 24884 | asset_register.c, asset_register.h |
-| 0x582b80 | sub_582B80 | 384 | asset_register.c, asset_register.h |
-| 0x582d00 | sub_582D00 | 15 | asset_register.c, asset_register.h |
-| 0x582d10 | sub_582D10 | 379 | asset_register.c, asset_register.h |
-| 0x582e90 | sub_582E90 | 3560 | cs_dispatch.c, cs_dispatch.h, main.c (+2) |
+| 0x56e190 | sub_56E190 | 26411 | asset_load.h, asset_register.c, asset_register.h |
+| 0x5748c0 | sub_5748C0 | 237 | asset_load.h, asset_register.c, asset_register.h |
+| 0x5749b0 | sub_5749B0 | 2342 | asset_load.h, asset_register.c, asset_register.h (+1) |
+| 0x5752e0 | sub_5752E0 | 17310 | asset_load.h, main.c |
+| 0x579a00 | sub_579A00 | 451 | asset_load.h, asset_register.c, asset_register.h |
+| 0x579bd0 | sub_579BD0 | 741 | asset_load.h, asset_register.c, asset_register.h |
+| 0x579ec0 | sub_579EC0 | 126 | asset_load.h, asset_register.c, asset_register.h |
+| 0x579f40 | sub_579F40 | 214 | asset_load.h, asset_register.c, asset_register.h |
+| 0x57a030 | sub_57A030 | 340 | asset_load.h, asset_register.c, asset_register.h |
+| 0x57a1a0 | sub_57A1A0 | 189 | asset_load.h, asset_register.c, asset_register.h |
+| 0x57a260 | sub_57A260 | 195 | asset_load.h, asset_register.c, asset_register.h |
+| 0x57a330 | ar_run_palette_ramp_57A330 | 3919 | asset_load.h, asset_register.c, asset_register.h |
+| 0x57b280 | sub_57B280 | 6073 | asset_load.h, asset_register.c, asset_register.h |
+| 0x57ca40 | sub_57CA40 | 24884 | asset_load.h, asset_register.c, asset_register.h |
+| 0x582b80 | sub_582B80 | 384 | asset_load.h, asset_register.c, asset_register.h |
+| 0x582d00 | sub_582D00 | 15 | asset_load.h, asset_register.c, asset_register.h |
+| 0x582d10 | sub_582D10 | 379 | asset_load.h, asset_register.c, asset_register.h |
+| 0x582e90 | sub_582E90 | 3560 | asset_load.h, cs_dispatch.c, cs_dispatch.h (+3) |
 | 0x585000 | gw_cross_reference_585000 | 413 | game_world.c, game_world.h, scene_loop.h (+2) |
 | 0x586010 | load_room_586010 | 6133 | asset_register.c, asset_register.h, game_world.h (+4) |
 | 0x587970 | sub_587970 | 866 | main.c, map_data.c, map_data.h (+5) |
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (1004) — reimplemented, no host test yet
+## ported (1010) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -1031,6 +1031,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x56ded0 | sub_56DED0 | 61 | title_menu.h |
 | 0x56df10 | sub_56DF10 | 203 | sprite_slot.h |
 | 0x56dfe0 | sub_56DFE0 | 417 | title_menu.h |
+| 0x579680 | sub_579680 | 191 | asset_load.h |
+| 0x579740 | sub_579740 | 285 | asset_load.h |
+| 0x579860 | sub_579860 | 131 | asset_load.h |
+| 0x5798f0 | sub_5798F0 | 259 | asset_load.h |
+| 0x583c90 | sub_583C90 | 580 | asset_load.h |
+| 0x583ee0 | sub_583EE0 | 248 | asset_load.h |
 | 0x5851e0 | sub_5851E0 | 114 | scene_loop.h |
 | 0x585f00 | sub_585F00 | 258 | scene_loop.h |
 | 0x5878a0 | sub_5878A0 | 207 | room_load.h |

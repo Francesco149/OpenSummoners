@@ -71,6 +71,7 @@
 #include "ai_skill.h"
 #include "script_io.h"
 #include "frame_load.h"
+#include "asset_load.h"
 #include "win_app.h"
 #include "zdd_dev.h"
 #include "sound_dev.h"
@@ -410,6 +411,15 @@ typedef struct {
     X(H_WM5B5AC0, "wm_5b5ac0", 0x5b5ac0u) X(H_WM5B5AF0, "wm_5b5af0", 0x5b5af0u) X(H_WM5B5D50, "wm_5b5d50", 0x5b5d50u) \
     X(H_WM5B5D90, "wm_5b5d90", 0x5b5d90u) X(H_WM5B5DC0, "wm_5b5dc0", 0x5b5dc0u) X(H_WM5B5EF0, "wm_5b5ef0", 0x5b5ef0u) \
     X(H_WM5B5F50, "wm_5b5f50", 0x5b5f50u) \
+    X(H_AL56E190, "al_56e190", 0x56e190u) X(H_AL57CA40, "al_57ca40", 0x57ca40u) X(H_AL5752E0, "al_5752e0", 0x5752e0u) \
+    X(H_AL57B280, "al_57b280", 0x57b280u) X(H_AL57A330, "al_57a330", 0x57a330u) X(H_AL582E90, "al_582e90", 0x582e90u) \
+    X(H_AL5749B0, "al_5749b0", 0x5749b0u) X(H_AL5748C0, "al_5748c0", 0x5748c0u) X(H_AL579680, "al_579680", 0x579680u) \
+    X(H_AL579740, "al_579740", 0x579740u) X(H_AL579860, "al_579860", 0x579860u) X(H_AL5798F0, "al_5798f0", 0x5798f0u) \
+    X(H_AL579A00, "al_579a00", 0x579a00u) X(H_AL579BD0, "al_579bd0", 0x579bd0u) X(H_AL579EC0, "al_579ec0", 0x579ec0u) \
+    X(H_AL579F40, "al_579f40", 0x579f40u) X(H_AL57A030, "al_57a030", 0x57a030u) X(H_AL57A1A0, "al_57a1a0", 0x57a1a0u) \
+    X(H_AL57A260, "al_57a260", 0x57a260u) X(H_AL582B80, "al_582b80", 0x582b80u) X(H_AL582D00, "al_582d00", 0x582d00u) \
+    X(H_AL582D10, "al_582d10", 0x582d10u) X(H_AL583C90, "al_583c90", 0x583c90u) X(H_AL583EE0, "al_583ee0", 0x583ee0u) \
+    X(H_AL563EF0, "al_563ef0", 0x563ef0u) \
     /* (wire.py: new modules' rows go above this line) */ \
     X(H_SC401D80, "sc_401d80", 0x401d80u) X(H_SC402030, "sc_402030", 0x402030u) X(H_SC4020A0, "sc_4020a0", 0x4020a0u) \
     X(H_SC4024E0, "sc_4024e0", 0x4024e0u) X(H_SC402610, "sc_402610", 0x402610u) X(H_SC402F40, "sc_402f40", 0x402f40u) \
@@ -2356,6 +2366,7 @@ static void *rh_retail(uint32_t va)
      * named slots): a ported title loop calling the raw Flip ran 4,553 iterations in 47 frames */
     if (va == 0x5b8fc0u) return g_rh_flip_stub;
     if (va == 0x43d1d0u) return g_rh_easer_stub;
+    if (va == 0x5bf4fbu) return (void *)my_srand;   /* the CRT srand: rhost pins the seed there */
     int lo = 0, hi = g_nrep - 1;
     while (lo <= hi) { int m = (lo + hi) / 2; if (g_rep_va[m] == va) return g_rep_w[m]; if (g_rep_va[m] < va) lo = m + 1; else hi = m - 1; }
     return (void *)(uintptr_t)va;
@@ -4730,6 +4741,32 @@ ST_HOOK(H_WM5B5D90, "wm_5b5d90", 2, 1, return (intptr_t)wm_5b5d90(a1, a2))
 ST_HOOK(H_WM5B5DC0, "wm_5b5dc0", 3, 1, return (intptr_t)wm_5b5dc0(a1, a2, a3))
 ST_HOOK(H_WM5B5EF0, "wm_5b5ef0", 5, 1, return (intptr_t)wm_5b5ef0(a1, a2, a3, a4, a5))
 ST_HOOK(H_WM5B5F50, "wm_5b5f50", 4, 1, return (intptr_t)wm_5b5f50(a1, a2, a3, a4))
+/* the boot asset-group loaders (src/asset_load.c; decomp2c): REPLACE only (resources, surfaces, files) */
+ST_HOOK(H_AL56E190, "al_56e190", 3, 1, return (intptr_t)al_56e190((void *)a1, U16(a2), (void *)a3))
+ST_HOOK(H_AL57CA40, "al_57ca40", 3, 1, return (intptr_t)al_57ca40((void *)a1, U16(a2), (void *)a3))
+ST_HOOK0(H_AL5752E0, "al_5752e0", 0, al_5752e0(); return 0)
+ST_HOOK(H_AL57B280, "al_57b280", 3, 1, return (intptr_t)al_57b280(a1, U16(a2), (void *)a3))
+ST_HOOK(H_AL57A330, "al_57a330", 3, 0, al_57a330((void *)a1, U16(a2), (void *)a3); return 0)
+TC_HOOK0(H_AL582E90, "al_582e90", 1, return (intptr_t)al_582e90((wl_char *)self))
+ST_HOOK(H_AL5749B0, "al_5749b0", 3, 1, return (intptr_t)al_5749b0((void *)a1, U16(a2), (void *)a3))
+TC_HOOK(H_AL5748C0, "al_5748c0", 9, 1, return (intptr_t)al_5748c0((wl_char *)self, (void *)a1, (void *)a2, U16(a3), a4, a5, a6, a7, a8, U16(a9)))
+ST_HOOK(H_AL579680, "al_579680", 1, 1, return (intptr_t)al_579680((char *)a1))
+ST_HOOK(H_AL579740, "al_579740", 6, 1, return (intptr_t)al_579740(a1, U16(a2), a3, a4, a5, a6))
+TC_HOOK(H_AL579860, "al_579860", 2, 1, return (intptr_t)al_579860((wl_char *)self, (char *)a1, (char *)a2))
+TC_HOOK(H_AL5798F0, "al_5798f0", 2, 1, return (intptr_t)al_5798f0((wl_char *)self, (char *)a1, (char *)a2))
+ST_HOOK(H_AL579A00, "al_579a00", 3, 1, return (intptr_t)al_579a00(a1, U16(a2), (void *)a3))
+TC_HOOK(H_AL579BD0, "al_579bd0", 3, 1, return (intptr_t)al_579bd0((intptr_t)self, a1, U16(a2), a3))   /* (IDA __stdcall that reads its caller's ecx) */
+TC_HOOK(H_AL579EC0, "al_579ec0", 1, 0, al_579ec0((wl_char *)self, U16(a1)); return 0)
+ST_HOOK(H_AL579F40, "al_579f40", 3, 1, return (intptr_t)al_579f40(a1, a2, a3))
+TC_HOOK(H_AL57A030, "al_57a030", 4, 0, al_57a030((wl_char *)self, a1, a2, a3, U16(a4)); return 0)
+TC_HOOK(H_AL57A1A0, "al_57a1a0", 4, 0, al_57a1a0((wl_char *)self, a1, a2, U16(a3), U16(a4)); return 0)
+TC_HOOK(H_AL57A260, "al_57a260", 3, 0, al_57a260((wl_char *)self, a1, U16(a2), U16(a3)); return 0)
+TC_HOOK(H_AL582B80, "al_582b80", 1, 1, return (intptr_t)al_582b80((wl_char *)self, (ar_sprite_slot *)a1))
+TC_HOOK0(H_AL582D00, "al_582d00", 0, al_582d00((wl_char *)self); return 0)
+ST_HOOK(H_AL582D10, "al_582d10", 9, 1, return (intptr_t)al_582d10(U16(a1), U16(a2), U16(a3), a4, a5, a6, U16(a7), U16(a8), U16(a9)))
+TC_HOOK(H_AL583C90, "al_583c90", 1, 1, return (intptr_t)al_583c90((wl_char *)self, a1))
+ST_HOOK0(H_AL583EE0, "al_583ee0", 1, return (intptr_t)al_583ee0())
+TC_HOOK(H_AL563EF0, "al_563ef0", 6, 1, return (intptr_t)al_563ef0((wl_char *)self, (void *)a1, (void *)a2, U16(a3), U16(a4), U16(a5), a6))
 /* (wire.py: new modules' hook rows go above this line) */
 /* the chapter scripts' file / sound / DirectX-free callees (src/script_helpers.c; 0x4a5e40 0x4cbfb0 0x4cbfd0 0x4d6490
  * read their caller's ecx: thiscall wrappers) */
