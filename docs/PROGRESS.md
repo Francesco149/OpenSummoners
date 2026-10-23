@@ -43,6 +43,15 @@ specific commits where relevant.
   addresses (fixed: both forms), and an unused `FILE *` / `SYSTEMTIME` local dragged `<windows.h>` into host-built
   modules (now a plain word; `<windows.h>` only when the final text keeps a Win32 struct).  The host suite links the
   chapter scripts, whose calls now reach mingw-only ports: `tests/host_stubs.c` (abort stubs, never run).
+- **Chapter script 0x49f7c0 CLOSED** (off since 2026-10-16: rh-errands-items diverged from f7835).  Bisected by state
+  dumps every frame f7825..f7850: f7835 is the first difference — base has a BOOK's text block ("Magical Girl
+  Merrin…"), the port run is late.  The cause: IDA prints the book reader 0x40dbc0's argument as `(int)"Magical
+  Girl Merrin Part 1/12"`, and decomp2c emitted a host C literal — but the argument is retail's BOOK RECORD (the
+  title at +0, 2052-byte pages from +0x28), so the port's reader paged through host memory past a 30-byte string.
+  decomp2c now resolves an `(int)"text"` to retail's address (the function's data xrefs whose bytes are the text:
+  `D(0x6e7f50)`); all 18 such calls are book reads.  0x49f7c0 is in the hybrid set again.  (Open, minor: under its
+  hook alone, transient `sem`-only windows f2000..f7475 — `semv` equal, gone by the next room — are 4 heap dwords
+  at 0x50254xxx holding pointers into a non-deterministic mapping, 0x130 higher than retail's; not chased.)
 - IDA misreads met: 0x5b7310's and 0x585590's ebx "arguments" (scratch registers, only their low words used);
   0x5bb3d0's mid-body `push esi` taken for an Unlock argument (a phantom a7, every later frame label 4 bytes off);
   0x5752e0 calls the Flip inside its Now Loading loop.

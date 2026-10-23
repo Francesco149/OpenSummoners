@@ -54,8 +54,8 @@ def main():
     old_body = text[body0:]
     spans = sorted((old_body.find(b), old_body.find(b) + len(b), va, n, b) for va, n, b in fs)
     old_pro = old_body[:spans[0][0]]
-    GEN = re.compile(r"^(typedef intptr_t \(.*\*rt_[0-9a-f]{6}\)|#define RC_[0-9a-f]{6} |static inline intptr_t W_\w+\(|"
-                     r"typedef (?:intptr_t|uint32_t) \(.*\*api_\w+_t\)|#define API_\w+ |#define CRT_\w+ |(?:int32_t|int64_t|void) \w+\(.*\);$|"
+    GEN = re.compile(r"^(typedef \w+ \(.*\*rt_[0-9a-f]{6}\)|#define RC_[0-9a-f]{6} |static inline intptr_t W_\w+\(|"
+                     r"typedef \w+ \(.*\*api_\w+_t\)|#define API_\w+ |#define CRT_\w+ |(?:int32_t|int64_t|void) \w+\(.*\);$|"
                      r"#include [<\"])")
     for va, n, _ in fs:   # a kept function keeps its committed prototype (a hand finish's signature, 0x4710c0's)
         if va in keep:

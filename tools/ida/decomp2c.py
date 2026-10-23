@@ -385,6 +385,21 @@ def exe_read(va, n, edition=None):
     return b""
 
 
+_FREFS = {}
+
+
+def func_data_refs(edition, fva):
+    """the data VAs the function at fva references (data_xrefs.tsv)"""
+    if edition not in _FREFS:
+        m = {}
+        for line in open(os.path.join(IDA, edition, "data_xrefs.tsv")):
+            f = line.rstrip("\n").split("\t")
+            if len(f) > 2 and re.match(r"^[0-9a-f]{8}$", f[0]) and re.match(r"^[0-9a-f]{8}$", f[2]):
+                m.setdefault(int(f[2], 16), set()).add(int(f[0], 16))
+        _FREFS[edition] = m
+    return _FREFS[edition].get(fva, set())
+
+
 def is_cstr(va):
     """the image holds a non-empty NUL-terminated text string at va (ASCII / SJIS bytes)"""
     b = exe_read(va, 512)
@@ -797,8 +812,19 @@ def unused_win_locals(f):
     return "\n".join(out)
 
 
+def int_literals(text):
+    """`(int)"text"`: IDA typed the parameter a word — retail passes the ADDRESS of its data, and what follows the
+    text belongs to it (0x40dbc0's book record: the title, then the pages from +0x28).  Retail's own bytes, not a
+    host copy of the title."""
+    def lit(m):
+        raw = m.group(1).encode("latin1").decode("unicode_escape").encode("latin1")
+        hits = [va for va in func_data_refs(EDITION[0], CURVA[0]) if exe_read(va, len(raw) + 1) == raw + b"\0"]
+        return f"D(0x{hits[0]:x})" if len(hits) == 1 else m.group(0)
+    return re.sub(r'\(int\)"((?:[^"\\]|\\.)*)"', lit, text)
+
+
 def convert(text, names, widths, this):
-    text = global_cls(text)
+    text = int_literals(global_cls(text))
     CLS2.clear()
     INDEXED.clear()
     INDEXED.update(re.findall(r"\b((?:dword|word|byte)_[0-9A-F]{6})\s*\[", text))
@@ -1307,7 +1333,7 @@ typedef char CHAR;
 
 def signature(head, name):
     """IDA header -> (C signature of the port function `name`, the param prologue)"""
-    m = re.match(r"\s*(.*?)\s*(?:__thiscall|__stdcall|__fastcall|__cdecl|__userpurge|__usercall)?\s*\b(?:\w*?_[0-9A-F]+|[A-Za-z_]\w*@\d+|DialogFunc|WinMain)(?:@<\w+>)?\((.*)\)\s*$", head)
+    m = re.match(r"\s*(.*?)\s*(?:__thiscall|__stdcall|__fastcall|__cdecl|__userpurge|__usercall)?\s*\b(?:\w*?_[0-9A-F]+|[A-Za-z_]\w*@\d+|DialogFunc|WinMain|(?:\w+::)+~?\w+)(?:@<\w+>)?\((.*)\)\s*$", head)   # (a FLIRT C++ name: 0x5a4760's `Concurrency::...::_ReaderWriterLock`)
     ret, params = m.group(1).replace("__thiscall", "").replace("__stdcall", "").strip(), re.sub(r"@<\w+>", "", m.group(2))
     ret = ("void" if ret == "void" else "double" if ret in ("long double", "double", "float")   # st0
            else "int64_t" if "__int64" in ret else "int32_t")                                    # edx:eax

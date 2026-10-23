@@ -1,8 +1,7 @@
 /*
  * chapter_scripts.{c,h} — the CHAPTER SCRIPTS the corpus reaches, on the retail layout (verified inside retail
  * by the hybrid gate: they run nested frame loops, so REPLACE only).  The script engine (src/script_engine.c)
- * runs `chs_find(va)` when the script is ported, else retail's by VA.  0x49f7c0 is converted but NOT enabled
- * (rhost: not in the hybrid set): it diverges on rh-errands-items from f7835 — open.
+ * runs `chs_find(va)` when the script is ported, else retail's by VA.
  *
  *   FUN_004d7d80  chs_4d7d80    FUN_004dc510  chs_4dc510    FUN_004d64f0  chs_4d64f0
  *   FUN_004cd6d0  chs_4cd6d0    FUN_004d13a0  chs_4d13a0    FUN_004ccc90  chs_4ccc90

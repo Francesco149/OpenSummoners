@@ -57,6 +57,27 @@ static intptr_t rnd(void) { return (intptr_t)rng_rand(); }
 #include "sound_fx.h"
 #include "ui_core.h"
 #include "ui_menu.h"
+#include "actor_update.h"
+#include "char_def.h"
+#include "char_state.h"
+#include "engine_rest.h"
+#include "entity_life.h"
+#include "gimmick.h"
+#include "npc_ai.h"
+#include "particle_init.h"
+#include "party_member.h"
+#include "room_load.h"
+#include "room_loop.h"
+#include "save_game.h"
+#include "scene_cmd.h"
+#include "scene_loop.h"
+#include "script_engine.h"
+#include "script_helpers.h"
+#include "script_io.h"
+#include "sound_dev.h"
+#include "sound_fx.h"
+#include "ui_core.h"
+#include "ui_menu.h"
 #pragma GCC optimize ("no-strict-aliasing")
 #pragma GCC diagnostic ignored "-Wint-conversion"
 #pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
@@ -283,10 +304,6 @@ int32_t chs_4c29c0(wl_char *self);
 int32_t chs_4c2dc0(wl_char *self);
 int32_t chs_4c3ee0(wl_char *self);
 int32_t chs_4c45a0(wl_char *self);
-typedef void (__attribute__((thiscall)) *rt_40a5d0)(intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t);   /* 0x40a5d0 thiscall: unported, retail's */
-typedef void (__attribute__((stdcall)) *rt_49d330)(intptr_t, intptr_t);   /* 0x49d330 stdcall: unported, retail's */
-typedef void (__attribute__((thiscall)) *rt_4cc0e0)(intptr_t, intptr_t);   /* 0x4cc0e0 thiscall: unported, retail's */
-typedef void (__attribute__((thiscall)) *rt_5bbcd0)(intptr_t, intptr_t);   /* 0x5bbcd0 thiscall: unported, retail's */
 
 /* 0x4d7d80: int __thiscall sub_4D7D80(cls_401D40 *this) */
 int32_t chs_4d7d80(wl_char *self)
@@ -17930,7 +17947,7 @@ LABEL_617:
     v3 = W_script_wait(c);
     if ( v3 == 6 )
       return v3;
-    if ( W_book_read(c, (int)"Magical Girl Merrin Part 2/12") == 6 )
+    if ( W_book_read(c, D(0x6fc018)) == 6 )
       return 6;
     goto LABEL_327;
   }
@@ -18841,7 +18858,7 @@ LABEL_626:
     v3 = W_script_wait(c);
     if ( v3 == 6 )
       return v3;
-    if ( W_book_read(c, (int)"Prank Magic Encyclopedia") == 6 )
+    if ( W_book_read(c, D(0x828bd0)) == 6 )
       return 6;
 LABEL_327:
     *(_DWORD *)&GAP(c, 0x300, 636) = 10;
@@ -19827,7 +19844,7 @@ LABEL_196:
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      if ( W_book_read(c, (int)"Magical Girl Merrin Part 1/12") == 6 )
+      if ( W_book_read(c, D(0x6e7f50)) == 6 )
         return 6;
       *(_DWORD *)&GAP(c, 0x300, 636) = 10;
       F32(c, 0x20) = 6;
@@ -22318,7 +22335,7 @@ LABEL_384:
               v3 = W_script_wait(c);
               if ( v3 == 6 )
                 return v3;
-              if ( W_book_read(c, (int)"The Elm: Myth & Mystery") != 6 )
+              if ( W_book_read(c, D(0x7d88b0)) != 6 )
                 goto LABEL_491;
               return 6;
             case 0xDB7D168u:
@@ -22369,7 +22386,7 @@ LABEL_384:
               v3 = W_script_wait(c);
               if ( v3 == 6 )
                 return v3;
-              if ( W_book_read(c, (int)"Ancient Renoria, the Vanished Kingdom") != 6 )
+              if ( W_book_read(c, D(0x7ec978)) != 6 )
                 goto LABEL_491;
               return 6;
             case 0xDB7D169u:
@@ -22417,7 +22434,7 @@ LABEL_384:
               v3 = W_script_wait(c);
               if ( v3 == 6 )
                 return v3;
-              if ( W_book_read(c, (int)"Elemental Stones & Magic") != 6 )
+              if ( W_book_read(c, D(0x800a40)) != 6 )
                 goto LABEL_491;
               return 6;
             case 0xDB7D16Au:
@@ -22473,7 +22490,7 @@ LABEL_419:
               v3 = W_script_wait(c);
               if ( v3 == 6 )
                 return v3;
-              if ( W_book_read(c, (int)"The Achievements of Minasa-Ratis") != 6 )
+              if ( W_book_read(c, D(0x814b08)) != 6 )
                 goto LABEL_491;
               return 6;
             default:
@@ -22799,7 +22816,7 @@ LABEL_137:
               v3 = W_script_wait(c);
               if ( v3 == 6 )
                 return v3;
-              if ( W_book_read(c, (int)"Magical Girl Merrin Part 4/12") != 6 )
+              if ( W_book_read(c, D(0x7241a8)) != 6 )
               {
 LABEL_491:
                 W_scene_pause(c, 10);
@@ -24107,7 +24124,7 @@ LABEL_209:
   v3 = W_script_wait(c);
   if ( v3 == 6 )
     return v3;
-  if ( W_book_read(c, (int)"Magical Girl Merrin Part 3/12") == 6 )
+  if ( W_book_read(c, D(0x7100e0)) == 6 )
     return 6;
   *(_DWORD *)&GAP(c, 0x300, 636) = 10;
   F32(c, 0x20) = 6;
@@ -25131,7 +25148,7 @@ int32_t chs_4ae420(wl_char *self)
               v3 = W_script_wait(c);
               if ( v3 == 6 )
                 return v3;
-              if ( W_book_read(c, (int)"Magical Girl Merrin Part 8/12") == 6 )
+              if ( W_book_read(c, D(0x7744c8)) == 6 )
                 return 6;
               *(_DWORD *)&GAP(c, 0x300, 636) = 10;
               F32(c, 0x20) = 6;
@@ -28010,7 +28027,7 @@ LABEL_24:
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
-        if ( W_book_read(c, (int)"Magical Girl Merrin Part 5/12") == 6 )
+        if ( W_book_read(c, D(0x738270)) == 6 )
           return 6;
         *(_DWORD *)&GAP(c, 0x300, 636) = 10;
         F32(c, 0x20) = 6;
@@ -31452,7 +31469,7 @@ LABEL_14:
       v2 = W_script_wait(c);
       if ( v2 == 6 )
         return v2;
-      if ( W_book_read(c, (int)"Magical Girl Merrin Part 6/12") == 6 )
+      if ( W_book_read(c, D(0x74c338)) == 6 )
         return 6;
 LABEL_758:
       *(_DWORD *)&GAP(c, 0x300, 636) = 10;
@@ -32658,7 +32675,7 @@ LABEL_453:
       v2 = W_script_wait(c);
       if ( v2 == 6 )
         return v2;
-      if ( W_book_read(c, (int)"Sexy Adventurer Monthly") == 6 )
+      if ( W_book_read(c, D(0x83cc98)) == 6 )
         return 6;
       goto LABEL_758;
     }
@@ -33192,7 +33209,7 @@ LABEL_63:
             v2 = W_script_wait(c);
             if ( v2 != 6 )
             {
-              if ( W_book_read(c, (int)"Magical Girl Merrin Part 7/12") == 6 )
+              if ( W_book_read(c, D(0x760400)) == 6 )
                 return 6;
               *(_DWORD *)&GAP(c, 0x300, 636) = 10;
               F32(c, 0x20) = 6;
@@ -35291,7 +35308,7 @@ LABEL_499:
       v2 = W_script_wait(c);
       if ( v2 == 6 )
         return v2;
-      if ( W_book_read(c, (int)"Magical Girl Merrin Part 10/12") == 6 )
+      if ( W_book_read(c, D(0x79c658)) == 6 )
         return 6;
     }
     else
@@ -35793,7 +35810,7 @@ LABEL_511:
       v2 = W_script_wait(c);
       if ( v2 == 6 )
         return v2;
-      if ( W_book_read(c, (int)"Magical Girl Merrin Part 9/12") == 6 )
+      if ( W_book_read(c, D(0x788590)) == 6 )
         return 6;
     }
     *(_DWORD *)&GAP(c, 0x300, 636) = 10;
@@ -37830,7 +37847,7 @@ int32_t chs_4c2dc0(wl_char *self)
         v2 = W_script_wait(c);
         if ( v2 == 6 )
           return v2;
-        if ( W_book_read(c, (int)"Magical Girl Merrin Part 11/12") == 6 )
+        if ( W_book_read(c, D(0x7b0720)) == 6 )
           return 6;
         *(_DWORD *)&GAP(c, 0x300, 636) = 10;
         F32(c, 0x20) = 6;
@@ -38658,7 +38675,7 @@ int32_t chs_4c3ee0(wl_char *self)
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      result = W_book_read(c, (int)"Magical Girl Merrin Part 12/12");
+      result = W_book_read(c, D(0x7c47e8));
       if ( result == 6 )
         return result;
       *(_DWORD *)&GAP(c, 0x300, 636) = 10;
