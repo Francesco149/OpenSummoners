@@ -18,9 +18,8 @@ specific commits where relevant.
   A scan of all_ida.c for the same shape: no other.  Then: frame / tick / RNG / fb equal to pure retail, only the
   end `state_sem` off — rhs.py: 0 non-pointer dwords; the scenario reaches system-pointer slots the volatile list
   never saw.  `det rh-early-game -n 3 --calibrate`: PASS, +1,229 slots (32,330 → 33,559); every scenario re-blessed
-  (only `state_sem` moved).  Hybrid gate PASS 10/10 on Windows.  Wine: rh-early-game's whole 600-frame series
-  (230 samples, semv + fb) and end semv matched pure under the pre-calibration mask (stricter: fewer masked bytes);
-  the other scenarios re-checked under the new mask (series + end).  Shadow verify of the 9 newly reached shadow
+  (only `state_sem` moved).  Hybrid gate PASS 10/10 on Windows AND wine (series + end, the new mask; rh-early-game's
+  230-sample series also matched under the pre-calibration mask, which masks fewer bytes).  Shadow verify of the 9 newly reached shadow
   hooks: 1,299 calls, 0 div.
 - rhost footgun: two wine batches can't overlap (a batch's start runs `wineserver -k`); a retail crash under wine
   can hang in `winedbg --auto` (README).
