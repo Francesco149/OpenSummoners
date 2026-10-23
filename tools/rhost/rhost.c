@@ -81,13 +81,22 @@ static IMAGE_IMPORT_DESCRIPTOR *imports(void)
 }
 static uint32_t *iat_slot(const char *name)
 {
+    /* the imports retail takes by ORDINAL, by their export name (port code asks by name: g_eng.api) */
+    static const struct { const char *name, *dll; int ord; } ORD[] = { { "DirectSoundCreate", "DSOUND.dll", 1 } };
     for (IMAGE_IMPORT_DESCRIPTOR *d = imports(); d->Name; d++) {
         IMAGE_THUNK_DATA32 *ilt = (void *)(0x400000 + (d->OriginalFirstThunk ? d->OriginalFirstThunk : d->FirstThunk));
         IMAGE_THUNK_DATA32 *iat = (void *)(0x400000 + d->FirstThunk);
-        for (; ilt->u1.AddressOfData; ilt++, iat++)
-            if (!(ilt->u1.Ordinal & IMAGE_ORDINAL_FLAG32) &&
-                !strcmp((char *)((IMAGE_IMPORT_BY_NAME *)(0x400000 + ilt->u1.AddressOfData))->Name, name))
-                return (uint32_t *)&iat->u1.Function;
+        for (; ilt->u1.AddressOfData; ilt++, iat++) {
+            if (!(ilt->u1.Ordinal & IMAGE_ORDINAL_FLAG32)) {
+                if (!strcmp((char *)((IMAGE_IMPORT_BY_NAME *)(0x400000 + ilt->u1.AddressOfData))->Name, name))
+                    return (uint32_t *)&iat->u1.Function;
+                continue;
+            }
+            for (size_t k = 0; k < sizeof ORD / sizeof ORD[0]; k++)
+                if (!strcmp(ORD[k].name, name) && !_stricmp((const char *)(0x400000 + d->Name), ORD[k].dll) &&
+                    (int)(ilt->u1.Ordinal & 0xffff) == ORD[k].ord)
+                    return (uint32_t *)&iat->u1.Function;
+        }
     }
     return NULL;
 }

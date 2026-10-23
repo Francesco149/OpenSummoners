@@ -70,6 +70,10 @@
 #include "save_game.h"
 #include "ai_skill.h"
 #include "script_io.h"
+#include "frame_load.h"
+#include "sound_dev.h"
+#include "input_dev.h"
+#include "file_stream.h"
 #include "chapter_scripts.h"
 #include "room_tick.h"
 #include "ui_core.h"
@@ -332,6 +336,58 @@ typedef struct {
     X(H_SI408730, "si_408730", 0x408730u) X(H_SI409520, "si_409520", 0x409520u) X(H_SI40A340, "si_40a340", 0x40a340u) \
     X(H_SI41A160, "si_41a160", 0x41a160u) X(H_SI41D4A0, "si_41d4a0", 0x41d4a0u) X(H_SI40A2A0, "si_40a2a0", 0x40a2a0u) \
     X(H_SI408B90, "si_408b90", 0x408b90u) X(H_SI40A5D0, "si_40a5d0", 0x40a5d0u) \
+    X(H_FL4178E0, "fl_4178e0", 0x4178e0u) X(H_FL4184A0, "fl_4184a0", 0x4184a0u) X(H_FL4188B0, "fl_4188b0", 0x4188b0u) \
+    X(H_FL499850, "fl_499850", 0x499850u) X(H_BS5B6E40, "bs_5b6e40", 0x5b6e40u) X(H_BS5B6E70, "bs_5b6e70", 0x5b6e70u) \
+    X(H_BS5B6E80, "bs_5b6e80", 0x5b6e80u) X(H_BS5B6E90, "bs_5b6e90", 0x5b6e90u) X(H_BS5B6EB0, "bs_5b6eb0", 0x5b6eb0u) \
+    X(H_BS5B6EC0, "bs_5b6ec0", 0x5b6ec0u) X(H_BS5B6EE0, "bs_5b6ee0", 0x5b6ee0u) X(H_BS5B6EF0, "bs_5b6ef0", 0x5b6ef0u) \
+    X(H_BS5B6F00, "bs_5b6f00", 0x5b6f00u) X(H_BS5B6F10, "bs_5b6f10", 0x5b6f10u) X(H_BS5B6F30, "bs_5b6f30", 0x5b6f30u) \
+    X(H_BS5B6F80, "bs_5b6f80", 0x5b6f80u) X(H_BS5B71F0, "bs_5b71f0", 0x5b71f0u) X(H_BS5B7270, "bs_5b7270", 0x5b7270u) \
+    X(H_BS5B7310, "bs_5b7310", 0x5b7310u) X(H_BS5B74F0, "bs_5b74f0", 0x5b74f0u) X(H_BS5B7620, "bs_5b7620", 0x5b7620u) \
+    X(H_BS5B7800, "bs_5b7800", 0x5b7800u) X(H_BS5B7970, "bs_5b7970", 0x5b7970u) X(H_BS5B7B90, "bs_5b7b90", 0x5b7b90u) \
+    X(H_BS5B7BD0, "bs_5b7bd0", 0x5b7bd0u) X(H_BS5B7C10, "bs_5b7c10", 0x5b7c10u) X(H_BS5B7CD0, "bs_5b7cd0", 0x5b7cd0u) \
+    X(H_BS5B9280, "bs_5b9280", 0x5b9280u) X(H_BS5B9630, "bs_5b9630", 0x5b9630u) X(H_BS5B9910, "bs_5b9910", 0x5b9910u) \
+    X(H_BS5BA390, "bs_5ba390", 0x5ba390u) \
+    X(H_FS5B6060, "fs_5b6060", 0x5b6060u) X(H_FS5B60D0, "fs_5b60d0", 0x5b60d0u) X(H_FS5B60E0, "fs_5b60e0", 0x5b60e0u) \
+    X(H_FS5B61B0, "fs_5b61b0", 0x5b61b0u) X(H_FS5B6200, "fs_5b6200", 0x5b6200u) X(H_FS5B6250, "fs_5b6250", 0x5b6250u) \
+    X(H_FS5B62A0, "fs_5b62a0", 0x5b62a0u) X(H_FS5B6340, "fs_5b6340", 0x5b6340u) X(H_FS5B6410, "fs_5b6410", 0x5b6410u) \
+    X(H_FS5B64B0, "fs_5b64b0", 0x5b64b0u) X(H_FS5B64E0, "fs_5b64e0", 0x5b64e0u) X(H_FS5B64F0, "fs_5b64f0", 0x5b64f0u) \
+    X(H_FS5B6520, "fs_5b6520", 0x5b6520u) X(H_FS5B6580, "fs_5b6580", 0x5b6580u) X(H_FS5B65A0, "fs_5b65a0", 0x5b65a0u) \
+    X(H_FS5B65B0, "fs_5b65b0", 0x5b65b0u) X(H_FS5B6630, "fs_5b6630", 0x5b6630u) X(H_FS5B6650, "fs_5b6650", 0x5b6650u) \
+    X(H_FS5B66A0, "fs_5b66a0", 0x5b66a0u) X(H_FS5B66B0, "fs_5b66b0", 0x5b66b0u) X(H_FS5B66F0, "fs_5b66f0", 0x5b66f0u) \
+    X(H_FS5B67C0, "fs_5b67c0", 0x5b67c0u) X(H_FS5B6890, "fs_5b6890", 0x5b6890u) X(H_FS5B68F0, "fs_5b68f0", 0x5b68f0u) \
+    X(H_FS5B6940, "fs_5b6940", 0x5b6940u) X(H_FS5B6990, "fs_5b6990", 0x5b6990u) X(H_FS5B6BC0, "fs_5b6bc0", 0x5b6bc0u) \
+    X(H_FS5B6DB0, "fs_5b6db0", 0x5b6db0u) \
+    X(H_ID5B9CF0, "id_5b9cf0", 0x5b9cf0u) X(H_ID5B9D90, "id_5b9d90", 0x5b9d90u) X(H_ID5B9DE0, "id_5b9de0", 0x5b9de0u) \
+    X(H_ID5B9E30, "id_5b9e30", 0x5b9e30u) X(H_ID5B9F80, "id_5b9f80", 0x5b9f80u) X(H_ID5B9FC0, "id_5b9fc0", 0x5b9fc0u) \
+    X(H_ID5BA070, "id_5ba070", 0x5ba070u) X(H_ID5BA120, "id_5ba120", 0x5ba120u) X(H_ID5BA1C0, "id_5ba1c0", 0x5ba1c0u) \
+    X(H_ID5BA220, "id_5ba220", 0x5ba220u) X(H_ID5BA240, "id_5ba240", 0x5ba240u) \
+    X(H_ID5BA290, "id_5ba290", 0x5ba290u) X(H_ID5BA2B0, "id_5ba2b0", 0x5ba2b0u) X(H_ID5BA2D0, "id_5ba2d0", 0x5ba2d0u) \
+    X(H_ID5BA330, "id_5ba330", 0x5ba330u) X(H_ID5BA3A0, "id_5ba3a0", 0x5ba3a0u) X(H_ID5BA3B0, "id_5ba3b0", 0x5ba3b0u) \
+    X(H_ID5BA3D0, "id_5ba3d0", 0x5ba3d0u) X(H_ID5BA3F0, "id_5ba3f0", 0x5ba3f0u) X(H_ID5BA410, "id_5ba410", 0x5ba410u) \
+    X(H_ID5BA4C0, "id_5ba4c0", 0x5ba4c0u) X(H_ID5BA520, "id_5ba520", 0x5ba520u) X(H_ID5BA540, "id_5ba540", 0x5ba540u) \
+    X(H_ID5BA650, "id_5ba650", 0x5ba650u) X(H_ID5BA6A0, "id_5ba6a0", 0x5ba6a0u) \
+    X(H_SD5BA740, "sd_5ba740", 0x5ba740u) X(H_SD5BA7E0, "sd_5ba7e0", 0x5ba7e0u) X(H_SD5BA820, "sd_5ba820", 0x5ba820u) \
+    X(H_SD5BA850, "sd_5ba850", 0x5ba850u) X(H_SD5BA860, "sd_5ba860", 0x5ba860u) X(H_SD5BA9A0, "sd_5ba9a0", 0x5ba9a0u) \
+    X(H_SD5BAA60, "sd_5baa60", 0x5baa60u) X(H_SD5BAA80, "sd_5baa80", 0x5baa80u) X(H_SD5BAAA0, "sd_5baaa0", 0x5baaa0u) \
+    X(H_SD5BAB10, "sd_5bab10", 0x5bab10u) X(H_SD5BAD20, "sd_5bad20", 0x5bad20u) X(H_SD5BAD40, "sd_5bad40", 0x5bad40u) \
+    X(H_SD5BAD60, "sd_5bad60", 0x5bad60u) X(H_SD5BAD80, "sd_5bad80", 0x5bad80u) X(H_SD5BADD0, "sd_5badd0", 0x5badd0u) \
+    X(H_SD5BAE00, "sd_5bae00", 0x5bae00u) X(H_SD5BAE30, "sd_5bae30", 0x5bae30u) X(H_SD5BAE70, "sd_5bae70", 0x5bae70u) \
+    X(H_SD5BAE90, "sd_5bae90", 0x5bae90u) X(H_SD5BAEC0, "sd_5baec0", 0x5baec0u) X(H_SD5BAED0, "sd_5baed0", 0x5baed0u) \
+    X(H_SD5BAFA0, "sd_5bafa0", 0x5bafa0u) X(H_SD5BAFE0, "sd_5bafe0", 0x5bafe0u) X(H_SD5BB040, "sd_5bb040", 0x5bb040u) \
+    X(H_SD5BB180, "sd_5bb180", 0x5bb180u) X(H_SD5BB250, "sd_5bb250", 0x5bb250u) X(H_SD5BB2F0, "sd_5bb2f0", 0x5bb2f0u) \
+    X(H_SD5BB380, "sd_5bb380", 0x5bb380u) X(H_SD5BB3A0, "sd_5bb3a0", 0x5bb3a0u) X(H_SD5BB3D0, "sd_5bb3d0", 0x5bb3d0u) \
+    X(H_SD5BB5C0, "sd_5bb5c0", 0x5bb5c0u) X(H_SD5BB610, "sd_5bb610", 0x5bb610u) X(H_SD5BB740, "sd_5bb740", 0x5bb740u) \
+    X(H_SD5BB870, "sd_5bb870", 0x5bb870u) X(H_SD5BB880, "sd_5bb880", 0x5bb880u) X(H_SD5BB890, "sd_5bb890", 0x5bb890u) \
+    X(H_SD5BB8C0, "sd_5bb8c0", 0x5bb8c0u) X(H_SD5BB8E0, "sd_5bb8e0", 0x5bb8e0u) X(H_SD5BB8F0, "sd_5bb8f0", 0x5bb8f0u) \
+    X(H_SD5BB930, "sd_5bb930", 0x5bb930u) X(H_SD5BB9B0, "sd_5bb9b0", 0x5bb9b0u) X(H_SD5BBB10, "sd_5bbb10", 0x5bbb10u) \
+    X(H_SD5BBB50, "sd_5bbb50", 0x5bbb50u) X(H_SD5BBC20, "sd_5bbc20", 0x5bbc20u) X(H_SD5BBC60, "sd_5bbc60", 0x5bbc60u) \
+    X(H_SD5BBC90, "sd_5bbc90", 0x5bbc90u) X(H_SD5BBCD0, "sd_5bbcd0", 0x5bbcd0u) X(H_SD5BBD20, "sd_5bbd20", 0x5bbd20u) \
+    X(H_SD5BBDB0, "sd_5bbdb0", 0x5bbdb0u) X(H_SD5BBE20, "sd_5bbe20", 0x5bbe20u) X(H_SD5BBEB0, "sd_5bbeb0", 0x5bbeb0u) \
+    X(H_SD5BC0C0, "sd_5bc0c0", 0x5bc0c0u) X(H_SD5BC150, "sd_5bc150", 0x5bc150u) X(H_SD5BC7C0, "sd_5bc7c0", 0x5bc7c0u) \
+    X(H_SD5BCB30, "sd_5bcb30", 0x5bcb30u) X(H_SD5BCB80, "sd_5bcb80", 0x5bcb80u) X(H_SD5BCDF0, "sd_5bcdf0", 0x5bcdf0u) \
+    X(H_SD5BCE40, "sd_5bce40", 0x5bce40u) X(H_SD5BCE80, "sd_5bce80", 0x5bce80u) X(H_SD5BCEB0, "sd_5bceb0", 0x5bceb0u) \
+    X(H_SD5BCF30, "sd_5bcf30", 0x5bcf30u) X(H_SD5BCFA0, "sd_5bcfa0", 0x5bcfa0u) X(H_SD5BCFB0, "sd_5bcfb0", 0x5bcfb0u) \
+    /* (wire.py: new modules' rows go above this line) */ \
     X(H_SC401D80, "sc_401d80", 0x401d80u) X(H_SC402030, "sc_402030", 0x402030u) X(H_SC4020A0, "sc_4020a0", 0x4020a0u) \
     X(H_SC4024E0, "sc_4024e0", 0x4024e0u) X(H_SC402610, "sc_402610", 0x402610u) X(H_SC402F40, "sc_402f40", 0x402f40u) \
     X(H_SC406500, "sc_406500", 0x406500u) X(H_SC406AB0, "sc_406ab0", 0x406ab0u) X(H_SC406C70, "sc_406c70", 0x406c70u) \
@@ -3487,6 +3543,12 @@ static int __attribute__((noinline)) full_shadow_gx(hook_t *h, const char *name,
     static void ID##_p(void *c) { gx_ctx *x = c; port_world(); x->rp = ID##_port(x->self); }         \
     static intptr_t __attribute__((thiscall)) ID##_w(void *self)                                     \
     { hook_t *h = &H[ID]; gx_ctx x = { self, { 0 }, 0, 0 }; GX_TAIL(ID, NAME, CMP) }
+/* TC_HOOK0 with an int64 (edx:eax) return (the music positions 0x5bae70 / 0x5bae90): REPLACE, else retail's */
+#define TC_HOOK0_64(ID, NAME, PORT)                                                                  \
+    typedef int64_t (__attribute__((thiscall)) *ID##_t)(void *);                                     \
+    static int64_t __attribute__((thiscall)) ID##_w(void *self)                                      \
+    { hook_t *h = &H[ID]; if (h->mode == 2) { h->calls++; port_world(); PORT; }                      \
+      return ((ID##_t)(uintptr_t)H[ID].va)(self); }
 #define ST_HOOK(ID, NAME, N, CMP, PORT)                                                              \
     typedef intptr_t (__attribute__((stdcall)) *ID##_t)(GP##N);                                      \
     static intptr_t ID##_port(GP##N) { PORT; }                                                      \
@@ -4429,6 +4491,159 @@ TC_HOOK(H_SI41D4A0, "si_41d4a0", 2, 1, return (intptr_t)si_41d4a0((wl_char *)sel
 TC_HOOK(H_SI40A2A0, "si_40a2a0", 1, 1, return (intptr_t)si_40a2a0((wl_char *)self, a1))
 TC_HOOK(H_SI408B90, "si_408b90", 3, 0, si_408b90((wl_char *)self, (char *)a1, a2, (char *)a3); return 0)
 TC_HOOK(H_SI40A5D0, "si_40a5d0", 5, 0, si_40a5d0((wl_char *)self, a1, a2, a3, a4, a5); return 0)
+/* the sprite-frame loaders + the bitmap session (src/frame_load.c; decomp2c): REPLACE only (LocalAlloc / resources /
+ * surfaces) */
+TC_HOOK(H_FL4178E0, "fl_4178e0", 1, 1, return (intptr_t)fl_4178e0((wl_char *)self, (void *)a1))
+TC_HOOK(H_FL4184A0, "fl_4184a0", 1, 0, fl_4184a0((wl_char *)self, a1); return 0)
+TC_HOOK(H_FL4188B0, "fl_4188b0", 5, 1, return (intptr_t)fl_4188b0((wl_char *)self, U16(a1), (bitmap_session *)a2, a3, a4, a5))
+ST_HOOK(H_FL499850, "fl_499850", 1, 0, fl_499850(a1); return 0)
+ST_HOOK(H_BS5B6E40, "bs_5b6e40", 2, 1, return (intptr_t)bs_5b6e40(a1, a2))
+TC_HOOK0(H_BS5B6E70, "bs_5b6e70", 1, bs_5b6e70((wl_char *)self); return (intptr_t)self)   /* (a ctor: eax = this, WinMain uses it) */
+TC_HOOK0(H_BS5B6E80, "bs_5b6e80", 0, bs_5b6e80((wl_char *)self); return 0)
+TC_HOOK0(H_BS5B6E90, "bs_5b6e90", 0, bs_5b6e90((wl_char *)self); return 0)
+TC_HOOK0(H_BS5B6EB0, "bs_5b6eb0", 1, return (intptr_t)bs_5b6eb0((wl_char *)self))
+TC_HOOK0(H_BS5B6EC0, "bs_5b6ec0", 1, return (intptr_t)bs_5b6ec0((wl_char *)self))
+TC_HOOK0(H_BS5B6EE0, "bs_5b6ee0", 1, return (intptr_t)bs_5b6ee0((wl_char *)self))
+TC_HOOK0(H_BS5B6EF0, "bs_5b6ef0", 1, return (intptr_t)bs_5b6ef0((wl_char *)self))
+TC_HOOK0(H_BS5B6F00, "bs_5b6f00", 1, return (intptr_t)bs_5b6f00((wl_char *)self))
+TC_HOOK(H_BS5B6F10, "bs_5b6f10", 1, 0, bs_5b6f10((wl_char *)self, U16(a1)); return 0)
+TC_HOOK(H_BS5B6F30, "bs_5b6f30", 9, 1, return (intptr_t)bs_5b6f30((wl_char *)self, a1, a2, a3, a4, a5, a6, a7, a8, a9))
+TC_HOOK(H_BS5B6F80, "bs_5b6f80", 6, 1, return (intptr_t)bs_5b6f80((wl_char *)self, a1, a2, a3, a4, a5, (int32_t *)a6))
+TC_HOOK(H_BS5B71F0, "bs_5b71f0", 3, 1, return (intptr_t)bs_5b71f0((wl_char *)self, a1, a2, U16(a3)))
+TC_HOOK0(H_BS5B7270, "bs_5b7270", 1, return (intptr_t)bs_5b7270((wl_char *)self))
+TC_HOOK(H_BS5B7310, "bs_5b7310", 3, 1, return (intptr_t)bs_5b7310((wl_char *)self, 0, (uint8_t *)a1, a2, a3))   /* (__userpurge: ebx = scratch, 3 stack args) */
+TC_HOOK(H_BS5B74F0, "bs_5b74f0", 2, 1, return (intptr_t)bs_5b74f0((wl_char *)self, a1, a2))
+TC_HOOK(H_BS5B7620, "bs_5b7620", 3, 1, return (intptr_t)bs_5b7620((wl_char *)self, (char *)a1, a2, a3))
+TC_HOOK(H_BS5B7800, "bs_5b7800", 4, 1, return (intptr_t)bs_5b7800((wl_char *)self, (void *)a1, a2, (void *)a3, a4))
+TC_HOOK(H_BS5B7970, "bs_5b7970", 3, 1, return (intptr_t)bs_5b7970((wl_char *)self, (char *)a1, a2, a3))
+TC_HOOK(H_BS5B7B90, "bs_5b7b90", 1, 0, bs_5b7b90((wl_char *)self, (void *)a1); return 0)
+TC_HOOK(H_BS5B7BD0, "bs_5b7bd0", 1, 1, return (intptr_t)bs_5b7bd0((wl_char *)self, a1))
+ST_HOOK(H_BS5B7C10, "bs_5b7c10", 3, 1, return (intptr_t)bs_5b7c10(a1, a2, (uint32_t *)a3))
+ST_HOOK(H_BS5B7CD0, "bs_5b7cd0", 3, 1, return (intptr_t)bs_5b7cd0(a1, (int32_t *)a2, (int32_t *)a3))
+TC_HOOK(H_BS5B9280, "bs_5b9280", 10, 1, return (intptr_t)bs_5b9280((wl_char *)self, (int32_t *)a1, a2, a3, a4, a5, a6, a7, a8, a9, a10))
+TC_HOOK(H_BS5B9630, "bs_5b9630", 10, 1, return (intptr_t)bs_5b9630((wl_char *)self, (bitmap_session *)a1, a2, a3, a4, a5, a6, a7, a8, a9, (int32_t *)a10))
+TC_HOOK(H_BS5B9910, "bs_5b9910", 7, 1, return (intptr_t)bs_5b9910((wl_char *)self, (bitmap_session *)a1, a2, a3, a4, a5, a6, a7))
+TC_HOOK0(H_BS5BA390, "bs_5ba390", 1, return (intptr_t)bs_5ba390((wl_char *)self))
+/* the file layer + the memory bank (src/file_stream.c; decomp2c): REPLACE only (files / heap blocks) */
+TC_HOOK0(H_FS5B6060, "fs_5b6060", 1, return (intptr_t)fs_5b6060((wl_char *)self))
+TC_HOOK0(H_FS5B60D0, "fs_5b60d0", 1, return (intptr_t)fs_5b60d0((wl_char *)self))
+TC_HOOK(H_FS5B60E0, "fs_5b60e0", 2, 1, return (intptr_t)fs_5b60e0((wl_char *)self, (char *)a1, a2))
+TC_HOOK(H_FS5B61B0, "fs_5b61b0", 1, 1, return (intptr_t)fs_5b61b0((wl_char *)self, (char *)a1))
+TC_HOOK(H_FS5B6200, "fs_5b6200", 1, 1, return (intptr_t)fs_5b6200((wl_char *)self, a1))
+TC_HOOK(H_FS5B6250, "fs_5b6250", 1, 1, return (intptr_t)fs_5b6250((wl_char *)self, a1))
+TC_HOOK(H_FS5B62A0, "fs_5b62a0", 2, 1, return (intptr_t)fs_5b62a0((wl_char *)self, a1, U16(a2)))
+TC_HOOK(H_FS5B6340, "fs_5b6340", 2, 1, return (intptr_t)fs_5b6340((wl_char *)self, a1, a2))
+TC_HOOK(H_FS5B6410, "fs_5b6410", 2, 1, return (intptr_t)fs_5b6410((wl_char *)self, a1, a2))
+TC_HOOK0(H_FS5B64B0, "fs_5b64b0", 1, return (intptr_t)fs_5b64b0((wl_char *)self))
+TC_HOOK0(H_FS5B64E0, "fs_5b64e0", 1, return (intptr_t)fs_5b64e0((wl_char *)self))
+TC_HOOK0(H_FS5B64F0, "fs_5b64f0", 1, return (intptr_t)fs_5b64f0((wl_char *)self))
+TC_HOOK(H_FS5B6520, "fs_5b6520", 1, 1, return (intptr_t)fs_5b6520((wl_char *)self, (char *)a1))
+TC_HOOK0(H_FS5B6580, "fs_5b6580", 1, return (intptr_t)fs_5b6580((wl_char *)self))
+TC_HOOK0(H_FS5B65A0, "fs_5b65a0", 1, return (intptr_t)fs_5b65a0((wl_char *)self))
+TC_HOOK(H_FS5B65B0, "fs_5b65b0", 2, 1, return (intptr_t)fs_5b65b0((wl_char *)self, a1, a2))
+TC_HOOK0(H_FS5B6630, "fs_5b6630", 1, return (intptr_t)fs_5b6630((wl_char *)self))
+TC_HOOK0(H_FS5B6650, "fs_5b6650", 1, return (intptr_t)fs_5b6650((wl_char *)self))
+TC_HOOK0(H_FS5B66A0, "fs_5b66a0", 1, return (intptr_t)fs_5b66a0((wl_char *)self))
+TC_HOOK0(H_FS5B66B0, "fs_5b66b0", 1, return (intptr_t)fs_5b66b0((wl_char *)self))
+TC_HOOK(H_FS5B66F0, "fs_5b66f0", 1, 1, return (intptr_t)fs_5b66f0((wl_char *)self, a1))
+TC_HOOK(H_FS5B67C0, "fs_5b67c0", 4, 1, return (intptr_t)fs_5b67c0((wl_char *)self, a1, a2, a3, a4))
+TC_HOOK(H_FS5B6890, "fs_5b6890", 2, 1, return (intptr_t)fs_5b6890((wl_char *)self, a1, a2))
+TC_HOOK(H_FS5B68F0, "fs_5b68f0", 2, 1, return (intptr_t)fs_5b68f0((wl_char *)self, a1, a2))
+TC_HOOK0(H_FS5B6940, "fs_5b6940", 0, fs_5b6940((wl_char *)self); return 0)
+TC_HOOK(H_FS5B6990, "fs_5b6990", 2, 1, return (intptr_t)fs_5b6990((wl_char *)self, (char *)a1, a2))
+TC_HOOK(H_FS5B6BC0, "fs_5b6bc0", 1, 1, return (intptr_t)fs_5b6bc0((wl_char *)self, (char *)a1))
+TC_HOOK(H_FS5B6DB0, "fs_5b6db0", 1, 1, return (intptr_t)fs_5b6db0((wl_char *)self, a1))
+/* the DirectInput device layer (src/input_dev.c; decomp2c): REPLACE only (COM calls into rhost's fake DirectInput7) */
+ST_HOOK(H_ID5B9CF0, "id_5b9cf0", 2, 1, return (intptr_t)id_5b9cf0((intptr_t *)a1, a2))
+TC_HOOK0(H_ID5B9D90, "id_5b9d90", 1, return (intptr_t)id_5b9d90((wl_char *)self))
+TC_HOOK0(H_ID5B9DE0, "id_5b9de0", 0, id_5b9de0((wl_char *)self); return 0)
+TC_HOOK(H_ID5B9E30, "id_5b9e30", 3, 0, id_5b9e30((wl_char *)self, (char *)a1, (char *)a2, a3); return 0)
+TC_HOOK(H_ID5B9F80, "id_5b9f80", 1, 1, return (intptr_t)id_5b9f80((wl_char *)self, a1))
+TC_HOOK(H_ID5B9FC0, "id_5b9fc0", 2, 1, return (intptr_t)id_5b9fc0((wl_char *)self, (int32_t *)a1, a2))
+TC_HOOK(H_ID5BA070, "id_5ba070", 3, 1, return (intptr_t)id_5ba070((wl_char *)self, (int32_t *)a1, a2, a3))
+TC_HOOK(H_ID5BA120, "id_5ba120", 3, 1, return (intptr_t)id_5ba120((wl_char *)self, (int32_t *)a1, a2, a3))
+TC_HOOK(H_ID5BA1C0, "id_5ba1c0", 1, 1, return (intptr_t)id_5ba1c0((wl_char *)self, (void *)a1))
+TC_HOOK(H_ID5BA220, "id_5ba220", 1, 1, return (intptr_t)id_5ba220((wl_char *)self, a1))
+TC_HOOK0(H_ID5BA240, "id_5ba240", 1, return (intptr_t)id_5ba240((wl_char *)self))
+TC_HOOK0(H_ID5BA290, "id_5ba290", 1, return (intptr_t)id_5ba290((wl_char *)self))
+TC_HOOK0(H_ID5BA2B0, "id_5ba2b0", 1, return (intptr_t)id_5ba2b0((wl_char *)self))
+TC_HOOK0(H_ID5BA2D0, "id_5ba2d0", 1, return (intptr_t)id_5ba2d0((wl_char *)self))
+TC_HOOK(H_ID5BA330, "id_5ba330", 1, 1, return (intptr_t)id_5ba330((wl_char *)self, a1))
+TC_HOOK(H_ID5BA3A0, "id_5ba3a0", 1, 1, return (intptr_t)id_5ba3a0((wl_char *)self, a1))
+TC_HOOK(H_ID5BA3B0, "id_5ba3b0", 1, 1, return (intptr_t)id_5ba3b0((wl_char *)self, a1))
+TC_HOOK(H_ID5BA3D0, "id_5ba3d0", 1, 1, return (intptr_t)id_5ba3d0((wl_char *)self, a1))
+TC_HOOK(H_ID5BA3F0, "id_5ba3f0", 1, 1, return (intptr_t)id_5ba3f0((wl_char *)self, a1))
+TC_HOOK(H_ID5BA410, "id_5ba410", 1, 1, return (intptr_t)id_5ba410((wl_char *)self, a1))
+TC_HOOK0(H_ID5BA4C0, "id_5ba4c0", 1, return (intptr_t)id_5ba4c0((wl_char *)self))
+TC_HOOK(H_ID5BA520, "id_5ba520", 1, 1, return (intptr_t)id_5ba520((wl_char *)self, (uint8_t)a1))
+TC_HOOK(H_ID5BA540, "id_5ba540", 2, 1, return (intptr_t)id_5ba540((wl_char *)self, a1, a2))
+TC_HOOK0(H_ID5BA650, "id_5ba650", 1, return (intptr_t)id_5ba650((wl_char *)self))
+TC_HOOK(H_ID5BA6A0, "id_5ba6a0", 1, 1, return (intptr_t)id_5ba6a0((wl_char *)self, a1))
+/* the sound layer + the music manager (src/sound_dev.c; decomp2c): REPLACE only (COM calls into rhost's fake DirectSound / its FilterGraph) */
+ST_HOOK(H_SD5BA740, "sd_5ba740", 1, 1, return (intptr_t)sd_5ba740((char **)a1))
+TC_HOOK0(H_SD5BA7E0, "sd_5ba7e0", 1, return (intptr_t)sd_5ba7e0((wl_char *)self))
+TC_HOOK0(H_SD5BA820, "sd_5ba820", 0, sd_5ba820((wl_char *)self); return 0)
+ST_HOOK0(H_SD5BA850, "sd_5ba850", 1, return (intptr_t)sd_5ba850())
+TC_HOOK(H_SD5BA860, "sd_5ba860", 3, 0, sd_5ba860((wl_char *)self, (char *)a1, (char *)a2, a3); return 0)
+TC_HOOK(H_SD5BA9A0, "sd_5ba9a0", 2, 1, return (intptr_t)sd_5ba9a0((wl_char *)self, (int32_t *)a1, (char *)a2))
+TC_HOOK(H_SD5BAA60, "sd_5baa60", 1, 1, return (intptr_t)sd_5baa60((wl_char *)self, (int32_t *)a1))
+TC_HOOK0(H_SD5BAA80, "sd_5baa80", 1, return (intptr_t)sd_5baa80((wl_char *)self))
+TC_HOOK(H_SD5BAAA0, "sd_5baaa0", 1, 1, return (intptr_t)sd_5baaa0((wl_char *)self, (char *)a1))
+TC_HOOK0(H_SD5BAB10, "sd_5bab10", 1, return (intptr_t)sd_5bab10((wl_char *)self))
+TC_HOOK0(H_SD5BAD20, "sd_5bad20", 1, return (intptr_t)sd_5bad20((wl_char *)self))
+TC_HOOK0(H_SD5BAD40, "sd_5bad40", 1, return (intptr_t)sd_5bad40((wl_char *)self))
+TC_HOOK0(H_SD5BAD60, "sd_5bad60", 1, return (intptr_t)sd_5bad60((wl_char *)self))
+TC_HOOK0(H_SD5BAD80, "sd_5bad80", 1, return (intptr_t)sd_5bad80((wl_char *)self))
+TC_HOOK(H_SD5BADD0, "sd_5badd0", 1, 1, return (intptr_t)sd_5badd0((wl_char *)self, a1))
+TC_HOOK(H_SD5BAE00, "sd_5bae00", 1, 1, return (intptr_t)sd_5bae00((wl_char *)self, a1))
+TC_HOOK(H_SD5BAE30, "sd_5bae30", 2, 1, return (intptr_t)sd_5bae30((wl_char *)self, a1, a2))
+TC_HOOK0_64(H_SD5BAE70, "sd_5bae70", return sd_5bae70((wl_char *)self))
+TC_HOOK0_64(H_SD5BAE90, "sd_5bae90", return sd_5bae90((wl_char *)self))
+TC_HOOK0(H_SD5BAEC0, "sd_5baec0", 1, return (intptr_t)sd_5baec0((wl_char *)self))
+TC_HOOK(H_SD5BAED0, "sd_5baed0", 2, 1, return (intptr_t)sd_5baed0((wl_char *)self, (char **)a1, a2))
+TC_HOOK0(H_SD5BAFA0, "sd_5bafa0", 1, return (intptr_t)sd_5bafa0((wl_char *)self))
+TC_HOOK0(H_SD5BAFE0, "sd_5bafe0", 0, sd_5bafe0((wl_char *)self); return 0)
+TC_HOOK(H_SD5BB040, "sd_5bb040", 3, 0, sd_5bb040((wl_char *)self, (char *)a1, (char *)a2, a3); return 0)
+TC_HOOK(H_SD5BB180, "sd_5bb180", 1, 1, return (intptr_t)sd_5bb180((wl_char *)self, a1))
+TC_HOOK(H_SD5BB250, "sd_5bb250", 5, 1, return (intptr_t)sd_5bb250((wl_char *)self, (int32_t *)a1, a2, a3, a4, a5))
+TC_HOOK(H_SD5BB2F0, "sd_5bb2f0", 2, 1, return (intptr_t)sd_5bb2f0((wl_char *)self, (int32_t *)a1, a2))
+TC_HOOK(H_SD5BB380, "sd_5bb380", 1, 1, return (intptr_t)sd_5bb380((wl_char *)self, a1))
+TC_HOOK0(H_SD5BB3A0, "sd_5bb3a0", 1, return (intptr_t)sd_5bb3a0((wl_char *)self))
+TC_HOOK(H_SD5BB3D0, "sd_5bb3d0", 6, 1, return (intptr_t)sd_5bb3d0((int32_t *)self, (char *)a1, a2, U16(a3), a4, (char **)a5, a6))   /* (__userpurge in IDA: ecx + 6 stack args) */
+TC_HOOK(H_SD5BB5C0, "sd_5bb5c0", 2, 1, return (intptr_t)sd_5bb5c0((wl_char *)self, (int32_t *)a1, a2))
+ST_HOOK(H_SD5BB610, "sd_5bb610", 4, 1, return (intptr_t)sd_5bb610((char *)a1, (char *)a2, (int32_t *)a3, (intptr_t *)a4))
+ST_HOOK(H_SD5BB740, "sd_5bb740", 5, 1, return (intptr_t)sd_5bb740(a1, U16(a2), (int32_t *)a3, (int32_t *)a4, (uint32_t *)a5))
+TC_HOOK(H_SD5BB870, "sd_5bb870", 1, 1, return (intptr_t)sd_5bb870((wl_char *)self, a1))
+TC_HOOK(H_SD5BB880, "sd_5bb880", 1, 1, return (intptr_t)sd_5bb880((wl_char *)self, a1))
+TC_HOOK(H_SD5BB890, "sd_5bb890", 1, 1, return (intptr_t)sd_5bb890((wl_char *)self, a1))
+TC_HOOK0(H_SD5BB8C0, "sd_5bb8c0", 1, return (intptr_t)sd_5bb8c0((wl_char *)self))
+TC_HOOK0(H_SD5BB8E0, "sd_5bb8e0", 1, return (intptr_t)sd_5bb8e0((wl_char *)self))
+TC_HOOK(H_SD5BB8F0, "sd_5bb8f0", 1, 1, return (intptr_t)sd_5bb8f0((wl_char *)self, a1))
+TC_HOOK(H_SD5BB930, "sd_5bb930", 1, 1, return (intptr_t)sd_5bb930((wl_char *)self, a1))
+TC_HOOK(H_SD5BB9B0, "sd_5bb9b0", 2, 1, return (intptr_t)sd_5bb9b0((wl_char *)self, a1, a2))
+TC_HOOK0(H_SD5BBB10, "sd_5bbb10", 1, return (intptr_t)sd_5bbb10((wl_char *)self))
+TC_HOOK0(H_SD5BBB50, "sd_5bbb50", 0, sd_5bbb50((wl_char *)self); return 0)
+TC_HOOK0(H_SD5BBC20, "sd_5bbc20", 1, return (intptr_t)sd_5bbc20((wl_char *)self))
+TC_HOOK(H_SD5BBC60, "sd_5bbc60", 1, 1, return (intptr_t)sd_5bbc60((wl_char *)self, U16(a1)))
+TC_HOOK(H_SD5BBC90, "sd_5bbc90", 1, 1, return (intptr_t)sd_5bbc90((wl_char *)self, U16(a1)))
+TC_HOOK(H_SD5BBCD0, "sd_5bbcd0", 1, 0, sd_5bbcd0((wl_char *)self, a1); return 0)
+TC_HOOK(H_SD5BBD20, "sd_5bbd20", 1, 0, sd_5bbd20((wl_char *)self, a1); return 0)
+TC_HOOK(H_SD5BBDB0, "sd_5bbdb0", 2, 1, return (intptr_t)sd_5bbdb0((wl_char *)self, a1, a2))
+TC_HOOK(H_SD5BBE20, "sd_5bbe20", 1, 1, return (intptr_t)sd_5bbe20((wl_char *)self, a1))
+TC_HOOK(H_SD5BBEB0, "sd_5bbeb0", 2, 1, return (intptr_t)sd_5bbeb0((wl_char *)self, (int16_t)a1, (int16_t)a2))
+TC_HOOK0(H_SD5BC0C0, "sd_5bc0c0", 0, sd_5bc0c0((wl_char *)self); return 0)
+TC_HOOK(H_SD5BC150, "sd_5bc150", 4, 1, return (intptr_t)sd_5bc150((wl_char *)self, a1, a2, (char *)a3, (char *)a4))
+TC_HOOK(H_SD5BC7C0, "sd_5bc7c0", 12, 1, return (intptr_t)sd_5bc7c0((wl_char *)self, U16(a1), a2, a3, (char *)a4, (char *)a5, a6, a7, a8, a9, a10, a11, a12))
+TC_HOOK0(H_SD5BCB30, "sd_5bcb30", 1, return (intptr_t)sd_5bcb30((wl_char *)self))
+TC_HOOK(H_SD5BCB80, "sd_5bcb80", 5, 1, return (intptr_t)sd_5bcb80((wl_char *)self, a1, a2, a3, a4, a5))
+TC_HOOK(H_SD5BCDF0, "sd_5bcdf0", 1, 1, return (intptr_t)sd_5bcdf0((wl_char *)self, U16(a1)))
+TC_HOOK(H_SD5BCE40, "sd_5bce40", 1, 1, return (intptr_t)sd_5bce40((wl_char *)self, a1))
+TC_HOOK(H_SD5BCE80, "sd_5bce80", 1, 1, return (intptr_t)sd_5bce80((wl_char *)self, U16(a1)))
+TC_HOOK(H_SD5BCEB0, "sd_5bceb0", 1, 1, return (intptr_t)sd_5bceb0((wl_char *)self, a1))
+TC_HOOK(H_SD5BCF30, "sd_5bcf30", 1, 1, return (intptr_t)sd_5bcf30((wl_char *)self, U16(a1)))
+TC_HOOK0(H_SD5BCFA0, "sd_5bcfa0", 1, return (intptr_t)sd_5bcfa0((wl_char *)self))
+TC_HOOK(H_SD5BCFB0, "sd_5bcfb0", 3, 1, return (intptr_t)sd_5bcfb0((wl_char *)self, a1, a2, a3))
+/* (wire.py: new modules' hook rows go above this line) */
 /* the chapter scripts' file / sound / DirectX-free callees (src/script_helpers.c; 0x4a5e40 0x4cbfb0 0x4cbfd0 0x4d6490
  * read their caller's ecx: thiscall wrappers) */
 ST_HOOK(H_SC401D80, "sc_401d80", 3, 1, return (intptr_t)sc_401d80(a1, a2, a3))

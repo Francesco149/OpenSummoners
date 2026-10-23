@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **1107** (71.4% of engine-proper) — tested 249, ported 858
-- code bytes touched: **63.1%** (1,120,249 / 1,776,526 B of engine-proper)
-- unported: **717**
+- touched: **1227** (79.2% of engine-proper) — tested 249, ported 978
+- code bytes touched: **64.0%** (1,137,583 / 1,776,526 B of engine-proper)
+- unported: **597**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -43,14 +43,14 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x412c10 | sub_412C10 | 46 | obj_container.c, obj_container.h, ui_core.h |
 | 0x414080 | sub_414080 | 63 | obj_container.c, obj_container.h, ui_core.h |
 | 0x417870 | sub_417870 | 106 | map_decode.h, sprite_slot.h |
-| 0x4178e0 | sub_4178E0 | 194 | asset_register.c, asset_register.h, bitmap_session.c (+1) |
+| 0x4178e0 | sub_4178E0 | 194 | asset_register.c, asset_register.h, bitmap_session.c (+2) |
 | 0x4179b0 | sub_4179B0 | 415 | asset_register.c, asset_register.h, sprite_slot.h (+1) |
 | 0x417b50 | sub_417B50 | 109 | asset_register.c, asset_register.h, sprite_slot.h |
 | 0x417bc0 | ar_pal_swap_table_for_va_417BC0 | 123 | asset_register.c, asset_register.h, sprite_slot.h |
 | 0x417c40 | game_arm_parallax_grade_417C40 | 1625 | actor_render.h, actor_spawn.c, color_grade.c (+3) |
 | 0x418470 | sub_418470 | 40 | asset_register.c, asset_register.h, color_grade.h (+5) |
-| 0x4184a0 | sub_4184A0 | 1035 | asset_register.c, asset_register.h, bitmap_session.h (+1) |
-| 0x4188b0 | sub_4188B0 | 891 | asset_register.c, asset_register.h |
+| 0x4184a0 | sub_4184A0 | 1035 | asset_register.c, asset_register.h, bitmap_session.h (+2) |
+| 0x4188b0 | sub_4188B0 | 891 | asset_register.c, asset_register.h, frame_load.h |
 | 0x4192b0 | sub_4192B0 | 52 | menu_list.c, menu_list.h, newgame_picker.c (+1) |
 | 0x419900 | picker_seek_value_419900 | 128 | newgame_picker.c, newgame_picker.h, title_menu.h |
 | 0x426110 | sub_426110 | 610 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
@@ -187,22 +187,22 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b5d90 | sub_5B5D90 | 33 | asset_register.c, asset_register.h |
 | 0x5b5dc0 | sub_5B5DC0 | 214 | main.c |
 | 0x5b5f50 | sub_5B5F50 | 71 | asset_register.c, asset_register.h |
-| 0x5b62a0 | sub_5B62A0 | 94 | map_data.h |
-| 0x5b6340 | sub_5B6340 | 198 | map_data.c, map_data.h |
-| 0x5b6e70 | unknown_libname_2 | 9 | bitmap_session.h |
-| 0x5b6e80 | sub_5B6E80 | 5 | bitmap_session.h |
-| 0x5b6e90 | sub_5B6E90 | 24 | bitmap_session.h |
-| 0x5b6f00 | sub_5B6F00 | 7 | bitmap_session.c, bitmap_session.h |
-| 0x5b6f10 | sub_5B6F10 | 26 | bitmap_session.h |
-| 0x5b6f80 | sub_5B6F80 | 623 | bitmap_session.c, bitmap_session.h |
-| 0x5b71f0 | sub_5B71F0 | 117 | bitmap_session.c, bitmap_session.h, bitmap_session_win32.c |
-| 0x5b7270 | sub_5B7270 | 158 | bitmap_session.h |
-| 0x5b7310 | sub_5B7310 | 469 | bitmap_session.c, bitmap_session.h |
-| 0x5b74f0 | sub_5B74F0 | 293 | bitmap_session.h |
-| 0x5b7800 | sub_5B7800 | 359 | asset_register.h, bitmap_session.c, bitmap_session.h |
-| 0x5b7b90 | sub_5B7B90 | 53 | bitmap_session.h |
-| 0x5b7bd0 | sub_5B7BD0 | 53 | asset_register.c, bitmap_session.c, bitmap_session.h |
-| 0x5b7c10 | sub_5B7C10 | 186 | bitmap_session.c, bitmap_session.h |
+| 0x5b62a0 | sub_5B62A0 | 94 | file_stream.h, map_data.h |
+| 0x5b6340 | sub_5B6340 | 198 | file_stream.h, map_data.c, map_data.h |
+| 0x5b6e70 | unknown_libname_2 | 9 | bitmap_session.h, frame_load.h |
+| 0x5b6e80 | sub_5B6E80 | 5 | bitmap_session.h, frame_load.h |
+| 0x5b6e90 | sub_5B6E90 | 24 | bitmap_session.h, frame_load.h |
+| 0x5b6f00 | sub_5B6F00 | 7 | bitmap_session.c, bitmap_session.h, frame_load.h |
+| 0x5b6f10 | sub_5B6F10 | 26 | bitmap_session.h, frame_load.h |
+| 0x5b6f80 | sub_5B6F80 | 623 | bitmap_session.c, bitmap_session.h, frame_load.h |
+| 0x5b71f0 | sub_5B71F0 | 117 | bitmap_session.c, bitmap_session.h, bitmap_session_win32.c (+1) |
+| 0x5b7270 | sub_5B7270 | 158 | bitmap_session.h, frame_load.h |
+| 0x5b7310 | sub_5B7310 | 469 | bitmap_session.c, bitmap_session.h, frame_load.h |
+| 0x5b74f0 | sub_5B74F0 | 293 | bitmap_session.h, frame_load.h |
+| 0x5b7800 | sub_5B7800 | 359 | asset_register.h, bitmap_session.c, bitmap_session.h (+1) |
+| 0x5b7b90 | sub_5B7B90 | 53 | bitmap_session.h, frame_load.h |
+| 0x5b7bd0 | sub_5B7BD0 | 53 | asset_register.c, bitmap_session.c, bitmap_session.h (+1) |
+| 0x5b7c10 | sub_5B7C10 | 186 | bitmap_session.c, bitmap_session.h, frame_load.h |
 | 0x5b7ee0 | sub_5B7EE0 | 153 | main.c, zdd.h |
 | 0x5b7f80 | zdd_ctor_5B7F80 | 94 | zdd.c, zdd.h |
 | 0x5b7fe0 | sub_5B7FE0 | 90 | zdd.h |
@@ -226,7 +226,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b9130 | sub_5B9130 | 151 | main.c, wnd_proc.h, wnd_proc_win32.c (+3) |
 | 0x5b91d0 | sub_5B91D0 | 109 | zdd.h |
 | 0x5b9240 | sub_5B9240 | 60 | zdd.h |
-| 0x5b9280 | sub_5B9280 | 203 | zdd.c, zdd.h |
+| 0x5b9280 | sub_5B9280 | 203 | frame_load.h, zdd.c, zdd.h |
 | 0x5b9350 | sub_5B9350 | 50 | render_platform.h, zdd.c, zdd.h |
 | 0x5b9390 | title_frame_free_5B9390 | 75 | asset_register.c, asset_register.h, cs_dispatch.c (+5) |
 | 0x5b93e0 | zdd_object_local_free_5B93E0 | 42 | render_platform.h, zdd.h, zdd_win32.c |
@@ -237,24 +237,24 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b9500 | sub_5B9500 | 17 | render_platform.h, wnd_proc.h, zdd.c (+2) |
 | 0x5b9520 | sub_5B9520 | 157 | render_platform.h, zdd.c, zdd.h (+1) |
 | 0x5b95c0 | sub_5B95C0 | 110 | render_platform.h, zdd.c, zdd.h |
-| 0x5b9630 | sub_5B9630 | 268 | zdd.c, zdd.h |
+| 0x5b9630 | sub_5B9630 | 268 | frame_load.h, zdd.c, zdd.h |
 | 0x5b9740 | zdd_get_attached_surface_5B9740 | 153 | zdd.h, zdd_win32.c |
 | 0x5b97e0 | sub_5B97E0 | 66 | render_platform.h, zdd.c, zdd.h |
 | 0x5b9830 | zdd_surface_set_color_key_5B9830 | 138 | render_platform.h, zdd.c, zdd.h (+1) |
 | 0x5b98c0 | sub_5B98C0 | 73 | render_platform.h, zdd.c, zdd.h |
-| 0x5b9910 | sub_5B9910 | 291 | zdd.c, zdd.h |
+| 0x5b9910 | sub_5B9910 | 291 | frame_load.h, zdd.c, zdd.h |
 | 0x5b9a40 | blt_onto_5B9A40 | 112 | main.c, parallax.h, render_platform.h (+3) |
 | 0x5b9ab0 | sub_5B9AB0 | 10 | zdd.h |
 | 0x5b9ac0 | sub_5B9AC0 | 22 | zdd.c, zdd.h |
 | 0x5b9ae0 | blt_rects_5B9AE0 | 140 | render_platform.h, zdd.c, zdd.h |
 | 0x5b9b70 | blt_keyed_5B9B70 | 122 | hud.h, main.c, map_present.c (+5) |
 | 0x5b9bf0 | blt_clipped_5B9BF0 | 256 | main.c, map_present.c, map_present.h (+4) |
-| 0x5ba290 | sub_5BA290 | 30 | wnd_proc.h, wnd_proc_win32.c |
-| 0x5bad20 | sub_5BAD20 | 26 | wnd_proc.h |
-| 0x5bad40 | sub_5BAD40 | 26 | wnd_proc.h |
-| 0x5bae30 | sub_5BAE30 | 60 | wnd_proc.h |
-| 0x5bae70 | sub_5BAE70 | 30 | wnd_proc.h |
-| 0x5bbd20 | sub_5BBD20 | 140 | wnd_proc.h, wnd_proc_win32.c |
+| 0x5ba290 | sub_5BA290 | 30 | input_dev.h, wnd_proc.h, wnd_proc_win32.c |
+| 0x5bad20 | sub_5BAD20 | 26 | sound_dev.h, wnd_proc.h |
+| 0x5bad40 | sub_5BAD40 | 26 | sound_dev.h, wnd_proc.h |
+| 0x5bae30 | sub_5BAE30 | 60 | sound_dev.h, wnd_proc.h |
+| 0x5bae70 | sub_5BAE70 | 30 | sound_dev.h, wnd_proc.h |
+| 0x5bbd20 | sub_5BBD20 | 140 | sound_dev.h, wnd_proc.h, wnd_proc_win32.c |
 | 0x5bcff0 | sub_5BCFF0 | 42 | pixel_drawer.c, pixel_drawer.h |
 | 0x5bd020 | pd_channel_init_5BD020 | 26 | pixel_drawer.c, pixel_drawer.h |
 | 0x5bd040 | build_lut_small_5BD040 | 801 | pixel_drawer.c, pixel_drawer.h |
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (858) — reimplemented, no host test yet
+## ported (978) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -828,6 +828,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x499100 | sub_499100 | 1118 | render_draw.h |
 | 0x499670 | sub_499670 | 316 | render_draw.h |
 | 0x4997b0 | sub_4997B0 | 150 | render_draw.h |
+| 0x499850 | sub_499850 | 596 | frame_load.h |
 | 0x49a050 | sub_49A050 | 13 | sprite_slot.h |
 | 0x49a060 | sub_49A060 | 651 | ui_run.h |
 | 0x49a2f0 | sub_49A2F0 | 76 | ui_run.h |
@@ -1128,8 +1129,127 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b58c0 | sub_5B58C0 | 204 | hud_view.h |
 | 0x5b5990 | sub_5B5990 | 202 | char_state.h |
 | 0x5b5eb0 | sub_5B5EB0 | 59 | render_platform.h |
+| 0x5b6060 | sub_5B6060 | 53 | file_stream.h |
+| 0x5b60d0 | sub_5B60D0 | 5 | file_stream.h |
+| 0x5b60e0 | sub_5B60E0 | 202 | file_stream.h |
+| 0x5b61b0 | sub_5B61B0 | 68 | file_stream.h |
+| 0x5b6200 | sub_5B6200 | 78 | file_stream.h |
+| 0x5b6250 | sub_5B6250 | 78 | file_stream.h |
 | 0x5b6300 | sub_5B6300 | 60 | scene_loop.h |
+| 0x5b6410 | sub_5B6410 | 160 | file_stream.h |
+| 0x5b64b0 | sub_5B64B0 | 47 | file_stream.h |
+| 0x5b64e0 | sub_5B64E0 | 14 | file_stream.h |
+| 0x5b64f0 | sub_5B64F0 | 38 | file_stream.h |
+| 0x5b6520 | sub_5B6520 | 87 | file_stream.h |
+| 0x5b6580 | sub_5B6580 | 28 | file_stream.h |
+| 0x5b65a0 | sub_5B65A0 | 5 | file_stream.h |
+| 0x5b65b0 | sub_5B65B0 | 127 | file_stream.h |
+| 0x5b6630 | sub_5B6630 | 23 | file_stream.h |
+| 0x5b6650 | sub_5B6650 | 74 | file_stream.h |
+| 0x5b66a0 | sub_5B66A0 | 14 | file_stream.h |
+| 0x5b66b0 | sub_5B66B0 | 61 | file_stream.h |
+| 0x5b66f0 | sub_5B66F0 | 202 | file_stream.h |
+| 0x5b67c0 | sub_5B67C0 | 202 | file_stream.h |
+| 0x5b6890 | sub_5B6890 | 94 | file_stream.h |
+| 0x5b68f0 | sub_5B68F0 | 67 | file_stream.h |
+| 0x5b6940 | sub_5B6940 | 76 | file_stream.h |
+| 0x5b6990 | sub_5B6990 | 560 | file_stream.h |
+| 0x5b6bc0 | sub_5B6BC0 | 491 | file_stream.h |
+| 0x5b6db0 | sub_5B6DB0 | 129 | file_stream.h |
+| 0x5b6e40 | sub_5B6E40 | 35 | frame_load.h |
+| 0x5b6eb0 | sub_5B6EB0 | 3 | frame_load.h |
+| 0x5b6ec0 | sub_5B6EC0 | 21 | frame_load.h |
+| 0x5b6ee0 | sub_5B6EE0 | 4 | frame_load.h |
+| 0x5b6ef0 | sub_5B6EF0 | 4 | frame_load.h |
+| 0x5b6f30 | sub_5B6F30 | 75 | frame_load.h |
+| 0x5b7620 | sub_5B7620 | 478 | frame_load.h |
+| 0x5b7970 | sub_5B7970 | 539 | frame_load.h |
+| 0x5b7cd0 | sub_5B7CD0 | 522 | frame_load.h |
 | 0x5b9450 | sub_5B9450 | 52 | render_platform.h |
+| 0x5b9cf0 | sub_5B9CF0 | 159 | input_dev.h |
+| 0x5b9d90 | sub_5B9D90 | 67 | input_dev.h |
+| 0x5b9de0 | sub_5B9DE0 | 73 | input_dev.h |
+| 0x5b9e30 | sub_5B9E30 | 323 | input_dev.h |
+| 0x5b9f80 | sub_5B9F80 | 63 | input_dev.h |
+| 0x5b9fc0 | sub_5B9FC0 | 164 | input_dev.h |
+| 0x5ba070 | sub_5BA070 | 169 | input_dev.h |
+| 0x5ba120 | sub_5BA120 | 154 | input_dev.h |
+| 0x5ba1c0 | sub_5BA1C0 | 56 | input_dev.h |
+| 0x5ba200 | sub_5BA200 | 17 | input_dev.h |
+| 0x5ba220 | sub_5BA220 | 30 | input_dev.h |
+| 0x5ba240 | sub_5BA240 | 70 | input_dev.h |
+| 0x5ba2b0 | sub_5BA2B0 | 21 | input_dev.h |
+| 0x5ba2d0 | sub_5BA2D0 | 95 | input_dev.h |
+| 0x5ba330 | sub_5BA330 | 88 | input_dev.h |
+| 0x5ba390 | sub_5BA390 | 4 | frame_load.h |
+| 0x5ba3a0 | sub_5BA3A0 | 16 | input_dev.h |
+| 0x5ba3b0 | sub_5BA3B0 | 17 | input_dev.h |
+| 0x5ba3d0 | sub_5BA3D0 | 22 | input_dev.h |
+| 0x5ba3f0 | sub_5BA3F0 | 17 | input_dev.h |
+| 0x5ba410 | sub_5BA410 | 176 | input_dev.h |
+| 0x5ba4c0 | sub_5BA4C0 | 84 | input_dev.h |
+| 0x5ba520 | sub_5BA520 | 21 | input_dev.h |
+| 0x5ba540 | sub_5BA540 | 270 | input_dev.h |
+| 0x5ba650 | sub_5BA650 | 78 | input_dev.h |
+| 0x5ba6a0 | sub_5BA6A0 | 150 | input_dev.h |
+| 0x5ba740 | sub_5BA740 | 153 | sound_dev.h |
+| 0x5ba7e0 | sub_5BA7E0 | 54 | sound_dev.h |
+| 0x5ba820 | sub_5BA820 | 47 | sound_dev.h |
+| 0x5ba850 | sub_5BA850 | 6 | sound_dev.h |
+| 0x5ba860 | sub_5BA860 | 320 | sound_dev.h |
+| 0x5ba9a0 | sub_5BA9A0 | 177 | sound_dev.h |
+| 0x5baa60 | sub_5BAA60 | 27 | sound_dev.h |
+| 0x5baa80 | sub_5BAA80 | 17 | sound_dev.h |
+| 0x5baaa0 | sub_5BAAA0 | 104 | sound_dev.h |
+| 0x5bab10 | sub_5BAB10 | 515 | sound_dev.h |
+| 0x5bad60 | sub_5BAD60 | 26 | sound_dev.h |
+| 0x5bad80 | sub_5BAD80 | 73 | sound_dev.h |
+| 0x5badd0 | sub_5BADD0 | 35 | sound_dev.h |
+| 0x5bae00 | sub_5BAE00 | 35 | sound_dev.h |
+| 0x5bae90 | sub_5BAE90 | 35 | sound_dev.h |
+| 0x5baec0 | sub_5BAEC0 | 11 | sound_dev.h |
+| 0x5baed0 | sub_5BAED0 | 193 | sound_dev.h |
+| 0x5bafa0 | sub_5BAFA0 | 59 | sound_dev.h |
+| 0x5bafe0 | sub_5BAFE0 | 90 | sound_dev.h |
+| 0x5bb040 | sub_5BB040 | 320 | sound_dev.h |
+| 0x5bb180 | sub_5BB180 | 200 | sound_dev.h |
+| 0x5bb250 | sub_5BB250 | 150 | sound_dev.h |
+| 0x5bb2f0 | sub_5BB2F0 | 140 | sound_dev.h |
+| 0x5bb380 | sub_5BB380 | 24 | sound_dev.h |
+| 0x5bb3a0 | sub_5BB3A0 | 39 | sound_dev.h |
+| 0x5bb3d0 | sub_5BB3D0 | 494 | sound_dev.h |
+| 0x5bb5c0 | sub_5BB5C0 | 67 | sound_dev.h |
+| 0x5bb610 | sub_5BB610 | 297 | sound_dev.h |
+| 0x5bb740 | sub_5BB740 | 292 | sound_dev.h |
+| 0x5bb870 | sub_5BB870 | 16 | sound_dev.h |
+| 0x5bb880 | sub_5BB880 | 16 | sound_dev.h |
+| 0x5bb890 | sub_5BB890 | 40 | sound_dev.h |
+| 0x5bb8c0 | sub_5BB8C0 | 31 | sound_dev.h |
+| 0x5bb8e0 | sub_5BB8E0 | 9 | sound_dev.h |
+| 0x5bb8f0 | sub_5BB8F0 | 52 | sound_dev.h |
+| 0x5bb930 | sub_5BB930 | 120 | sound_dev.h |
+| 0x5bb9b0 | sub_5BB9B0 | 342 | sound_dev.h |
+| 0x5bbb10 | sub_5BBB10 | 56 | sound_dev.h |
+| 0x5bbb50 | sub_5BBB50 | 201 | sound_dev.h |
+| 0x5bbc20 | sub_5BBC20 | 57 | sound_dev.h |
+| 0x5bbc60 | sub_5BBC60 | 45 | sound_dev.h |
+| 0x5bbc90 | sub_5BBC90 | 55 | sound_dev.h |
+| 0x5bbcd0 | sub_5BBCD0 | 72 | sound_dev.h |
+| 0x5bbdb0 | sub_5BBDB0 | 102 | sound_dev.h |
+| 0x5bbe20 | sub_5BBE20 | 135 | sound_dev.h |
+| 0x5bbeb0 | sub_5BBEB0 | 527 | sound_dev.h |
+| 0x5bc0c0 | sub_5BC0C0 | 143 | sound_dev.h |
+| 0x5bc150 | sub_5BC150 | 1639 | sound_dev.h |
+| 0x5bc7c0 | sub_5BC7C0 | 880 | sound_dev.h |
+| 0x5bcb30 | sub_5BCB30 | 70 | sound_dev.h |
+| 0x5bcb80 | sub_5BCB80 | 611 | sound_dev.h |
+| 0x5bcdf0 | sub_5BCDF0 | 66 | sound_dev.h |
+| 0x5bce40 | sub_5BCE40 | 60 | sound_dev.h |
+| 0x5bce80 | sub_5BCE80 | 43 | sound_dev.h |
+| 0x5bceb0 | sub_5BCEB0 | 125 | sound_dev.h |
+| 0x5bcf30 | sub_5BCF30 | 104 | sound_dev.h |
+| 0x5bcfa0 | sub_5BCFA0 | 4 | sound_dev.h |
+| 0x5bcfb0 | sub_5BCFB0 | 49 | sound_dev.h |
 | 0x5bf3ee | emit_last_error_line_5BF3EE | 82 | cs_dispatch_win32.c |
 | 0x5bf440 | _fclose | 86 | cs_dispatch_win32.c |
 | 0x5bf496 | _fprintf | 50 | cs_dispatch_win32.c |
