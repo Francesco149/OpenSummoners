@@ -53,6 +53,38 @@ static intptr_t rnd(void) { return (intptr_t)rng_rand(); }
 #include "win_main.h"
 #include "world_alloc.h"
 #include "zdd_dev.h"
+#include "asset_register.h"
+#include "char_def.h"
+#include "char_hit.h"
+#include "char_integrate.h"
+#include "ending.h"
+#include "entity_life.h"
+#include "event.h"
+#include "field_menu.h"
+#include "frame_load.h"
+#include "input_dev.h"
+#include "menu_helpers.h"
+#include "party_member.h"
+#include "render_draw.h"
+#include "render_platform.h"
+#include "room_load.h"
+#include "room_loop.h"
+#include "save_game.h"
+#include "scene_loop.h"
+#include "script_helpers.h"
+#include "script_io.h"
+#include "sound_dev.h"
+#include "sound_fx.h"
+#include "sprite_slot.h"
+#include "title_menu.h"
+#include "ui_core.h"
+#include "ui_menu.h"
+#include "ui_run.h"
+#include "ui_text.h"
+#include "win_app.h"
+#include "win_main.h"
+#include "world_alloc.h"
+#include "zdd_dev.h"
 #pragma GCC optimize ("no-strict-aliasing")
 #pragma GCC diagnostic ignored "-Wint-conversion"
 #pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
@@ -250,10 +282,6 @@ static inline intptr_t W_world_free(intptr_t a0, ...) { world_free((wl_world *)a
 static inline intptr_t W_zd_5b9410(intptr_t a0, ...) { return (intptr_t)zd_5b9410((wl_char *)a0); }
 typedef intptr_t (__attribute__((thiscall)) *rt_43c110)(intptr_t, intptr_t, intptr_t);   /* 0x43c110 thiscall: unported, retail's */
 #define RC_43c110 ((rt_43c110)g_eng.retail(0x43c110u))
-typedef intptr_t (__attribute__((thiscall)) *rt_54c5e0)(intptr_t);   /* 0x54c5e0 thiscall: unported, retail's */
-#define RC_54c5e0 ((rt_54c5e0)g_eng.retail(0x54c5e0u))
-typedef intptr_t (__attribute__((thiscall)) *rt_5851a0)(intptr_t);   /* 0x5851a0 thiscall: unported, retail's */
-#define RC_5851a0 ((rt_5851a0)g_eng.retail(0x5851a0u))
 typedef intptr_t (__attribute__((thiscall)) *rt_5b8fc0)(intptr_t, intptr_t);   /* 0x5b8fc0 thiscall: unported, retail's */
 #define RC_5b8fc0 ((rt_5b8fc0)g_eng.retail(0x5b8fc0u))
 typedef uint32_t (__attribute__((stdcall)) *api_GetTickCount_t)(void);
@@ -495,7 +523,7 @@ int32_t ts_54c530(wl_char *self, char a2)
 
   if ( (a2 & 2) != 0 )
   {
-    eh_vec_dtor(c, 0x4120u, *((int32_t *)c - 1), (void *)((intptr_t)g_eng.retail(0x54c5e0u)));
+    eh_vec_dtor(c, 0x4120u, *((int32_t *)c - 1), (void *)((intptr_t)D(0x54c5e0) /* el_54c5e0 by address */));
     if ( (a2 & 1) != 0 )
       g_eng.op_delete((void *)(uint8_t *)c - 4);
     return (uint8_t *)c - 4;
@@ -3356,8 +3384,8 @@ int32_t ts_584710(wl_char *self)
       v10 + 1,
       0x4120u,
       2,
-      (void *)((intptr_t)g_eng.retail(0x5851a0u)),
-      (void *)((intptr_t)g_eng.retail(0x54c5e0u)));
+      (void *)((intptr_t)D(0x5851a0) /* el_5851a0 by address */),
+      (void *)((intptr_t)D(0x54c5e0) /* el_54c5e0 by address */));
   }
   else
   {
@@ -4747,8 +4775,8 @@ LABEL_9:
         v6 + 1,
         0x4120u,
         2,
-        (void *)((intptr_t)g_eng.retail(0x5851a0u)),
-        (void *)((intptr_t)g_eng.retail(0x54c5e0u)));
+        (void *)((intptr_t)D(0x5851a0) /* el_5851a0 by address */),
+        (void *)((intptr_t)D(0x54c5e0) /* el_54c5e0 by address */));
     }
     else
     {
@@ -5052,8 +5080,8 @@ int32_t ts_59e230(wl_char *self)
       v5 + 1,
       0x4120u,
       2,
-      (void *)((intptr_t)g_eng.retail(0x5851a0u)),
-      (void *)((intptr_t)g_eng.retail(0x54c5e0u)));
+      (void *)((intptr_t)D(0x5851a0) /* el_5851a0 by address */),
+      (void *)((intptr_t)D(0x54c5e0) /* el_54c5e0 by address */));
     v7 = v6;
     v3 = (intptr_t *)(*v16__f);
   }
@@ -5221,8 +5249,8 @@ int32_t ts_59e5d0(wl_char *self, int16_t a2)
         v11 + 1,
         0x4120u,
         2,
-        (void *)((intptr_t)g_eng.retail(0x5851a0u)),
-        (void *)((intptr_t)g_eng.retail(0x54c5e0u)));
+        (void *)((intptr_t)D(0x5851a0) /* el_5851a0 by address */),
+        (void *)((intptr_t)D(0x54c5e0) /* el_54c5e0 by address */));
     }
     else
     {
@@ -5268,8 +5296,8 @@ int32_t ts_59e5d0(wl_char *self, int16_t a2)
       v7 + 1,
       0x4120u,
       2,
-      (void *)((intptr_t)g_eng.retail(0x5851a0u)),
-      (void *)((intptr_t)g_eng.retail(0x54c5e0u)));
+      (void *)((intptr_t)D(0x5851a0) /* el_5851a0 by address */),
+      (void *)((intptr_t)D(0x54c5e0) /* el_54c5e0 by address */));
   }
   else
   {

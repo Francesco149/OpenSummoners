@@ -36,6 +36,27 @@ static intptr_t rnd(void) { return (intptr_t)rng_rand(); }
 #include "sound_fx.h"
 #include "ui_core.h"
 #include "ui_menu.h"
+#include "actor_update.h"
+#include "char_def.h"
+#include "char_state.h"
+#include "engine_rest.h"
+#include "entity_life.h"
+#include "gimmick.h"
+#include "npc_ai.h"
+#include "particle_init.h"
+#include "party_member.h"
+#include "room_load.h"
+#include "room_loop.h"
+#include "save_game.h"
+#include "scene_cmd.h"
+#include "scene_loop.h"
+#include "script_engine.h"
+#include "script_helpers.h"
+#include "script_io.h"
+#include "sound_dev.h"
+#include "sound_fx.h"
+#include "ui_core.h"
+#include "ui_menu.h"
 #pragma GCC optimize ("no-strict-aliasing")
 #pragma GCC diagnostic ignored "-Wint-conversion"
 #pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
@@ -67,15 +88,33 @@ static inline int32_t abs32(int32_t x) { return x < 0 ? (int32_t)(0u - (uint32_t
 #include <stdbool.h>
 #endif
 typedef int32_t _DWORD;
+typedef uint8_t _UNKNOWN;   /* IDA's untyped byte (casts: `(_UNKNOWN *)p`) */
+typedef uint8_t _BOOL1;
+typedef uint16_t _BOOL2;
+typedef int32_t _BOOL4;
 typedef uint16_t _WORD;
 typedef uint8_t _BYTE;
 typedef uint64_t _QWORD;
 #define GAP(p, o, i) F8(p, (o) + (i))   /* IDA's gapN[i]: the byte at +N + i */
 #define qmemcpy memcpy   /* IDA's inline memcpy */
+static inline void *memset32(void *d, uint32_t v, size_t n) { uint32_t *p = d; while (n--) *p++ = v; return d; }   /* IDA's rep stosd */
+static inline void eh_vec_ctor(intptr_t p, uint32_t size, int32_t n, void *ctor, void *dtor)   /* MSVC's `eh vector */
+{                                                                                             /* constructor iterator' */
+    typedef void (__attribute__((thiscall)) *c_t)(void *);
+    (void)dtor;
+    for (int32_t i = 0; i < n; i++) ((c_t)ctor)((void *)(p + (intptr_t)size * i));
+}
+static inline void eh_vec_dtor(intptr_t p, uint32_t size, int32_t n, void *dtor)   /* MSVC's `eh vector destructor iterator': */
+{                                                                                  /* the elements' dtors, last first */
+    typedef void (__attribute__((thiscall)) *d_t)(void *);
+    p += (intptr_t)size * n;
+    while (--n >= 0) { p -= size; ((d_t)dtor)((void *)p); }
+}
 typedef char CHAR;
 #define SETLO(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff0000u) | (uint16_t)(v)))
 #define SETHI(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffu) | ((uint32_t)(uint16_t)(v) << 16)))
 #define SETLB(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffff00u) | (uint8_t)(v)))
+#define SETB1(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff00ffu) | ((uint32_t)(uint8_t)(v) << 8)))
 #define SETLODW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffff00000000ull) | (uint32_t)(v)))
 #define SETHIDW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffffull) | ((uint64_t)(uint32_t)(v) << 32)))
 #define F32(p, o) (*(int32_t *)((uint8_t *)(intptr_t)(p) + (o)))
@@ -96,6 +135,10 @@ static inline intptr_t W_char_party_mode_set(intptr_t a0, intptr_t a1, ...) { ch
 static inline intptr_t W_char_release(intptr_t a0, ...) { char_release((wl_char *)a0); return 0; }
 static inline intptr_t W_char_stats_init(intptr_t a0, intptr_t a1, intptr_t a2, ...) { char_stats_init((uint8_t *)a0, (int32_t)a1, (int32_t)a2); return 0; }
 static inline intptr_t W_char_unload(intptr_t a0, ...) { char_unload((wl_char *)a0); return 0; }
+static inline intptr_t W_el_41c390(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, intptr_t a7, intptr_t a8, intptr_t a9, ...) { return (intptr_t)el_41c390((wl_char *)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3, (int32_t)a4, (char *)a5, (int32_t)a6, (int32_t)a7, (int32_t)a8, (int32_t)a9); }
+static inline intptr_t W_el_49d330(intptr_t a0, intptr_t a1, ...) { el_49d330((int32_t)a0, (int32_t)a1); return 0; }
+static inline intptr_t W_el_49eea0(intptr_t a0, intptr_t a1, intptr_t a2, ...) { return (intptr_t)el_49eea0((wl_char *)a0, (int32_t)a1, (int32_t)a2); }
+static inline intptr_t W_el_4cc0e0(intptr_t a0, intptr_t a1, ...) { el_4cc0e0((wl_char *)a0, (int32_t)a1); return 0; }
 static inline intptr_t W_item_give(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, ...) { return (intptr_t)item_give((wl_event *)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3, (int32_t *)a4); }
 static inline intptr_t W_member_skills_learn(intptr_t a0, intptr_t a1, intptr_t a2, ...) { member_skills_learn((wl_pslot *)a0, (int32_t)a1, (int32_t)a2); return 0; }
 static inline intptr_t W_part_left(intptr_t a0, intptr_t a1, ...) { return (intptr_t)part_left((const wl_entity *)a0, (uint16_t)a1); }
@@ -103,7 +146,7 @@ static inline intptr_t W_pslot_by_id(intptr_t a0, intptr_t a1, intptr_t a2, ...)
 static inline intptr_t W_pslot_code(intptr_t a0, ...) { return (intptr_t)pslot_code((const wl_pslot *)a0); }
 static inline intptr_t W_pslot_heal(intptr_t a0, intptr_t a1, ...) { pslot_heal((wl_pslot *)a0, (int32_t)a1); return 0; }
 static inline intptr_t W_room_bgm_restart(intptr_t a0, intptr_t a1, intptr_t a2, ...) { room_bgm_restart((wl_roomloop *)a0, (int32_t)a1, (int32_t)a2); return 0; }
-static inline intptr_t W_room_formation(intptr_t a0, ...) { room_formation((wl_room *)a0); return 0; }
+static inline intptr_t W_room_formation(intptr_t a0, ...) { return (intptr_t)room_formation((wl_room *)a0); }
 static inline intptr_t W_room_item_add(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, ...) { return (intptr_t)room_item_add((wl_room *)a0, (int32_t)a1, (uint16_t *)a2, (int32_t)a3, (uint8_t)a4, (int32_t)a5); }
 static inline intptr_t W_room_item_count(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, ...) { return (intptr_t)room_item_count((const wl_room *)a0, (int32_t)a1, (uint16_t *)a2, (int32_t)a3); }
 static inline intptr_t W_room_member_add(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, ...) { return (intptr_t)room_member_add((wl_room *)a0, (uint16_t)a1, (int32_t)a2, (int32_t)a3, (int32_t)a4, (int32_t)a5, (int32_t)a6); }
@@ -188,40 +231,23 @@ static inline intptr_t W_script_leader(intptr_t a0, ...) { return (intptr_t)scri
 static inline intptr_t W_script_party_cast(intptr_t a0, ...) { script_party_cast((wl_event *)a0); return 0; }
 static inline intptr_t W_script_switch(intptr_t a0, intptr_t a1, ...) { return (intptr_t)script_switch((int32_t)a0, (int32_t)a1); }
 static inline intptr_t W_script_wait(intptr_t a0, ...) { return (intptr_t)script_wait((wl_event *)a0); }
+static inline intptr_t W_sd_5bbc20(intptr_t a0, ...) { return (intptr_t)sd_5bbc20((wl_char *)a0); }
+static inline intptr_t W_sd_5bbc60(intptr_t a0, intptr_t a1, ...) { return (intptr_t)sd_5bbc60((wl_char *)a0, (uint16_t)a1); }
+static inline intptr_t W_sd_5bbc90(intptr_t a0, intptr_t a1, ...) { return (intptr_t)sd_5bbc90((wl_char *)a0, (uint16_t)a1); }
+static inline intptr_t W_sd_5bbcd0(intptr_t a0, intptr_t a1, ...) { sd_5bbcd0((wl_char *)a0, (int32_t)a1); return 0; }
+static inline intptr_t W_sd_5bcb80(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, ...) { return (intptr_t)sd_5bcb80((wl_char *)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3, (int32_t)a4, (int32_t)a5); }
 static inline intptr_t W_sfx_place(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, ...) { return (intptr_t)sfx_place((const wl_entity *)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3, (const wl_body *)a4, (int32_t *)a5, (int32_t *)a6); }
 static inline intptr_t W_sfx_play_at(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, ...) { return (intptr_t)sfx_play_at((wl_entity *)a0, (int32_t)a1, (uint16_t)a2, (int32_t)a3, (int32_t)a4, (int32_t)a5); }
 static inline intptr_t W_shop_run(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, ...) { return (intptr_t)shop_run((wl_event *)a0, (const int32_t *)a1, (int32_t)a2, (int32_t)a3); }
+static inline intptr_t W_si_408730(intptr_t a0, intptr_t a1, ...) { return (intptr_t)si_408730((wl_char *)a0, (int32_t)a1); }
+static inline intptr_t W_si_40a5d0(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, ...) { si_40a5d0((wl_char *)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3, (int32_t)a4, (int32_t)a5); return 0; }
+static inline intptr_t W_si_41a160(intptr_t a0, ...) { return (intptr_t)si_41a160((wl_char *)a0); }
+static inline intptr_t W_si_41d4a0(intptr_t a0, intptr_t a1, intptr_t a2, ...) { return (intptr_t)si_41d4a0((wl_char *)a0, (int32_t)a1, (int32_t)a2); }
 static inline intptr_t W_skill_row_find(intptr_t a0, ...) { return (intptr_t)skill_row_find((int32_t)a0); }
+static inline intptr_t W_sv_41a430(intptr_t a0, intptr_t a1, intptr_t a2, ...) { return (intptr_t)sv_41a430((wl_char *)a0, (int32_t)a1, (int32_t)a2); }
 static inline intptr_t W_vpool_load(intptr_t a0, ...) { return (intptr_t)vpool_load((wl_vpool *)a0); }
 static inline intptr_t W_vpool_take(intptr_t a0, intptr_t a1, ...) { return (intptr_t)vpool_take((wl_vpool *)a0, (int32_t)a1); }
-typedef intptr_t (__attribute__((thiscall)) *rt_408730)(intptr_t, intptr_t);   /* 0x408730 thiscall: unported, retail's */
-#define RC_408730 ((rt_408730)g_eng.retail(0x408730u))
-typedef void (__attribute__((thiscall)) *rt_40a5d0)(intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t);   /* 0x40a5d0 thiscall: unported, retail's */
-#define RC_40a5d0 ((rt_40a5d0)g_eng.retail(0x40a5d0u))
-typedef intptr_t (__attribute__((thiscall)) *rt_41a160)(intptr_t);   /* 0x41a160 thiscall: unported, retail's */
-#define RC_41a160 ((rt_41a160)g_eng.retail(0x41a160u))
-typedef intptr_t (__attribute__((thiscall)) *rt_41a430)(intptr_t, intptr_t, intptr_t);   /* 0x41a430 thiscall: unported, retail's */
-#define RC_41a430 ((rt_41a430)g_eng.retail(0x41a430u))
-typedef intptr_t (__attribute__((thiscall)) *rt_41c390)(intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t);   /* 0x41c390 thiscall: unported, retail's */
-#define RC_41c390 ((rt_41c390)g_eng.retail(0x41c390u))
-typedef intptr_t (__attribute__((thiscall)) *rt_41d4a0)(intptr_t, intptr_t, intptr_t);   /* 0x41d4a0 thiscall: unported, retail's */
-#define RC_41d4a0 ((rt_41d4a0)g_eng.retail(0x41d4a0u))
-typedef void (__attribute__((stdcall)) *rt_49d330)(intptr_t, intptr_t);   /* 0x49d330 stdcall: unported, retail's */
-#define RC_49d330 ((rt_49d330)g_eng.retail(0x49d330u))
-typedef intptr_t (__attribute__((thiscall)) *rt_49eea0)(intptr_t, intptr_t, intptr_t);   /* 0x49eea0 thiscall: unported, retail's */
-#define RC_49eea0 ((rt_49eea0)g_eng.retail(0x49eea0u))
-typedef void (__attribute__((thiscall)) *rt_4cc0e0)(intptr_t, intptr_t);   /* 0x4cc0e0 thiscall: unported, retail's */
-#define RC_4cc0e0 ((rt_4cc0e0)g_eng.retail(0x4cc0e0u))
-typedef intptr_t (__attribute__((thiscall)) *rt_5bbc20)(intptr_t);   /* 0x5bbc20 thiscall: unported, retail's */
-#define RC_5bbc20 ((rt_5bbc20)g_eng.retail(0x5bbc20u))
-typedef intptr_t (__attribute__((thiscall)) *rt_5bbc60)(intptr_t, intptr_t);   /* 0x5bbc60 thiscall: unported, retail's */
-#define RC_5bbc60 ((rt_5bbc60)g_eng.retail(0x5bbc60u))
-typedef intptr_t (__attribute__((thiscall)) *rt_5bbc90)(intptr_t, intptr_t);   /* 0x5bbc90 thiscall: unported, retail's */
-#define RC_5bbc90 ((rt_5bbc90)g_eng.retail(0x5bbc90u))
-typedef void (__attribute__((thiscall)) *rt_5bbcd0)(intptr_t, intptr_t);   /* 0x5bbcd0 thiscall: unported, retail's */
-#define RC_5bbcd0 ((rt_5bbcd0)g_eng.retail(0x5bbcd0u))
-typedef intptr_t (__attribute__((thiscall)) *rt_5bcb80)(intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t);   /* 0x5bcb80 thiscall: unported, retail's */
-#define RC_5bcb80 ((rt_5bcb80)g_eng.retail(0x5bcb80u))
+
 int32_t chs_4d7d80(wl_char *self);
 int32_t chs_4dc510(wl_char *self);
 int32_t chs_4d64f0(wl_char *self);
@@ -257,6 +283,10 @@ int32_t chs_4c29c0(wl_char *self);
 int32_t chs_4c2dc0(wl_char *self);
 int32_t chs_4c3ee0(wl_char *self);
 int32_t chs_4c45a0(wl_char *self);
+typedef void (__attribute__((thiscall)) *rt_40a5d0)(intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t);   /* 0x40a5d0 thiscall: unported, retail's */
+typedef void (__attribute__((stdcall)) *rt_49d330)(intptr_t, intptr_t);   /* 0x49d330 stdcall: unported, retail's */
+typedef void (__attribute__((thiscall)) *rt_4cc0e0)(intptr_t, intptr_t);   /* 0x4cc0e0 thiscall: unported, retail's */
+typedef void (__attribute__((thiscall)) *rt_5bbcd0)(intptr_t, intptr_t);   /* 0x5bbcd0 thiscall: unported, retail's */
 
 /* 0x4d7d80: int __thiscall sub_4D7D80(cls_401D40 *this) */
 int32_t chs_4d7d80(wl_char *self)
@@ -762,7 +792,7 @@ int32_t chs_4d7d80(wl_char *self)
           F32(v68, 0xd8) = 0;
           F16(v68, 0xdc) = 0;
           SETLO(v69, W_bgm_pick(v68));
-          RC_40a5d0((int)((intptr_t)g_eng.sys), v69, 1, 0, 20, 1);
+          W_si_40a5d0((int)((intptr_t)g_eng.sys), v69, 1, 0, 20, 1);
           F32(c, 0x40) = 1;
           F32(c, 0x5c) = 0;
           F32(c, 0x44) = 128000;
@@ -944,7 +974,7 @@ int32_t chs_4d7d80(wl_char *self)
             F32(v53, 0xd8) = 0;
             F16(v53, 0xdc) = 0;
             SETLO(v54, W_bgm_pick(v53));
-            RC_40a5d0((int)((intptr_t)g_eng.sys), v54, 1, 0, 20, 1);
+            W_si_40a5d0((int)((intptr_t)g_eng.sys), v54, 1, 0, 20, 1);
             if ( W_scene_party_stance(c, 0, F32(c, 0x8)) == 0 || (v3 = W_script_wait(c)) != 6 )
             {
               v55 = W_actor_by_handle(100000101);
@@ -1118,7 +1148,7 @@ LABEL_141:
       F32(v35, 0xd8) = 0;
       F16(v35, 0xdc) = 0;
       SETLO(v36, W_bgm_pick(v35));
-      RC_40a5d0((int)((intptr_t)g_eng.sys), v36, 1, 0, 20, 1);
+      W_si_40a5d0((int)((intptr_t)g_eng.sys), v36, 1, 0, 20, 1);
       if ( W_scene_party_stance(c, 0, F32(c, 0x8)) != 0 )
       {
         v3 = W_script_wait(c);
@@ -1222,7 +1252,7 @@ LABEL_141:
       if ( v3 == 6 )
         return v3;
       F32(c, 0x2e4) = 1;
-      RC_40a5d0((int)((intptr_t)g_eng.sys), 0, 0, 0, 0, 1);
+      W_si_40a5d0((int)((intptr_t)g_eng.sys), 0, 0, 0, 0, 1);
       v45 = F32(c, 0x0);
       F32(v45, 216) = 1;
       F16(v45, 220) = 0;
@@ -1282,7 +1312,7 @@ LABEL_81:
       W_scene_next_event(c, 230140, 106, 1);
       v3 = 2;
       W_sc_402030(c);
-      result = RC_41a430(c, 0, 0);
+      result = W_sv_41a430(c, 0, 0);
       if ( result != 6 )
       {
 LABEL_214:
@@ -1322,7 +1352,7 @@ LABEL_214:
           F32(v94, 0xd8) = 0;
           F16(v94, 0xdc) = 0;
           SETLO(v95, W_bgm_pick(v94));
-          RC_40a5d0((int)((intptr_t)g_eng.sys), v95, 1, 0, 20, 1);
+          W_si_40a5d0((int)((intptr_t)g_eng.sys), v95, 1, 0, 20, 1);
           *(_DWORD *)&GAP(c, 0x300, 636) = 50;
           F32(c, 0x20) = 6;
           v3 = W_script_wait(c);
@@ -3769,7 +3799,7 @@ LABEL_26:
               F32(v37, 0xd8) = 0;
               F16(v37, 0xdc) = 0;
               SETLO(v38, W_bgm_pick(v37));
-              RC_40a5d0((int)((intptr_t)g_eng.sys), v38, 1, 0, 20, 1);
+              W_si_40a5d0((int)((intptr_t)g_eng.sys), v38, 1, 0, 20, 1);
               v39 = W_script_leader(c);
               F32(c, 0x4c) = 0;
               F32(c, 0x5c) = v39;
@@ -3803,7 +3833,7 @@ LABEL_26:
                       v41 = (intptr_t *)W_vpool_take(SYS32(992), 0);
                       if ( v41 != 0 )
                       {
-                        g_eng.dsb_volume_5bb870(F32(v41, 0), F32(CFG(), 360) - 2000);
+                        g_eng.dsb_volume_5bb870(*v41, F32(CFG(), 360) - 2000);
                         g_eng.dsb_freq_5bb890(*v41, 0);
                         g_eng.dsb_play_5bb8c0(*v41);
                       }
@@ -3859,7 +3889,7 @@ LABEL_26:
             F32(v46, 0xd8) = 0;
             F16(v46, 0xdc) = 0;
             SETLO(v47, W_bgm_pick(v46));
-            RC_40a5d0((int)((intptr_t)g_eng.sys), v47, 1, 0, 20, 1);
+            W_si_40a5d0((int)((intptr_t)g_eng.sys), v47, 1, 0, 20, 1);
             v48 = W_script_leader(c);
             F32(c, 0x4c) = 0;
             F32(c, 0x5c) = v48;
@@ -4027,7 +4057,7 @@ LABEL_217:
           F32(v66, 0xd8) = 0;
           F16(v66, 0xdc) = 0;
           SETLO(v67, W_bgm_pick(v66));
-          RC_40a5d0((int)((intptr_t)g_eng.sys), v67, 1, 0, 20, 1);
+          W_si_40a5d0((int)((intptr_t)g_eng.sys), v67, 1, 0, 20, 1);
           v68 = W_script_leader(c);
           F32(c, 0x4c) = 0;
           F32(c, 0x5c) = v68;
@@ -4126,7 +4156,7 @@ LABEL_217:
           if ( v3 == 6 )
             return v3;
           F32(c, 0x1c) = 0;
-          RC_40a5d0((int)((intptr_t)g_eng.sys), 0, 0, 0, 0, 1);
+          W_si_40a5d0((int)((intptr_t)g_eng.sys), 0, 0, 0, 0, 1);
           v81 = F32(c, 0x0);
           F32(v81, 216) = 1;
           F16(v81, 220) = 0;
@@ -4175,17 +4205,17 @@ LABEL_217:
           *(_DWORD *)&F16(c, 0x2ec) = 1;
           if ( SYS32(0x2884) != 0
             && F32(CFG(), 372) != 0
-            && (!RC_5bbc60(SYS32(0x2884), 0x11u)
-             || RC_5bbc90(SYS32(0x2884), 0x11u) != 0) )
+            && (!W_sd_5bbc60(SYS32(0x2884), 0x11u)
+             || W_sd_5bbc90(SYS32(0x2884), 0x11u) != 0) )
           {
             F16(D(0x8a93e8), 0) = 17;
-            RC_5bbcd0(SYS32(0x2884), 20);
-            if ( RC_5bbc20(SYS32(0x2884)) != 0 )
+            W_sd_5bbcd0(SYS32(0x2884), 20);
+            if ( W_sd_5bbc20(SYS32(0x2884)) != 0 )
             {
-              if ( RC_5bcb80(SYS32(0x2884), 17, 1, 0, 0, 0) != 0 )
+              if ( W_sd_5bcb80(SYS32(0x2884), 17, 1, 0, 0, 0) != 0 )
                 goto LABEL_193;
             }
-            else if ( RC_5bcb80(SYS32(0x2884), 17, 1, 0, 0, 0) != 0 )
+            else if ( W_sd_5bcb80(SYS32(0x2884), 17, 1, 0, 0, 0) != 0 )
             {
               goto LABEL_193;
             }
@@ -4246,7 +4276,7 @@ LABEL_193:
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
-          (*v206__f) = RC_41a160(c);
+          (*v206__f) = W_si_41a160(c);
           v94 = 8;
           v95 = F32(c, 0x8) + 16432;
           break;
@@ -4277,7 +4307,7 @@ LABEL_209:
               W_scene_next_event(c, 210140, 101, 3);
               v3 = 2;
               W_sc_402030(c);
-              result = RC_41a430(c, 0, 0);
+              result = W_sv_41a430(c, 0, 0);
               if ( result == 6 )
                 return result;
               if ( W_actor_by_handle(100000101) != 0 )
@@ -5573,7 +5603,7 @@ LABEL_568:
                                                                               v3 = W_script_wait(c);
                                                                               if ( v3 != 6 )
                                                                               {
-                                                                                RC_41d4a0(c, 100000102, 0);
+                                                                                W_si_41d4a0(c, 100000102, 0);
                                                                                 W_script_flag_set(c, 101100116, 1, 0);
                                                                                 goto LABEL_585;
                                                                               }
@@ -5742,7 +5772,7 @@ LABEL_568:
                                                     if ( v3 != 6 )
                                                     {
                                                       F32(c, 0x2e4) = 1;
-                                                      RC_40a5d0((int)((intptr_t)g_eng.sys), 0, 0, 0, 0, 1);
+                                                      W_si_40a5d0((int)((intptr_t)g_eng.sys), 0, 0, 0, 0, 1);
                                                       v162 = F32(c, 0x0);
                                                       F32(v162, 216) = 1;
                                                       F16(v162, 220) = 0;
@@ -5855,7 +5885,7 @@ LABEL_568:
       else if ( v108 == 220 && W_script_flag(c, 101100113) == 10 )
       {
         W_script_begin(c);
-        RC_4cc0e0((int)((intptr_t)g_eng.sys), 1);
+        W_el_4cc0e0((int)((intptr_t)g_eng.sys), 1);
         W_sc_4cca50(F32(c, 0x0), 1, 0);
         v109 = W_script_leader(c);
         W_scene_camera(c, v109, 0, 0, 800);
@@ -5916,7 +5946,7 @@ LABEL_568:
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
-        RC_40a5d0((int)((intptr_t)g_eng.sys), 13, 1, 0, 0, 1);
+        W_si_40a5d0((int)((intptr_t)g_eng.sys), 13, 1, 0, 0, 1);
         W_sc_4cca50(F32(c, 0x0), 1, 13);
         W_scene_msg_rec(c, 0, 100000101, D(0x86f030), 0, 1, 1, 0, 11, 0, 0);
         v3 = W_script_wait(c);
@@ -5960,7 +5990,7 @@ LABEL_568:
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
-        v3 = RC_41a160(c);
+        v3 = W_si_41a160(c);
         W_room_party_heal(F32(c, 0x8), 1);
         if ( v3 != 0 )
           return v3;
@@ -5973,7 +6003,7 @@ LABEL_568:
         W_scene_next_event(c, 210140, 102, 3);
         v3 = 2;
         W_sc_402030(c);
-        result = RC_41a430(c, 0, 0);
+        result = W_sv_41a430(c, 0, 0);
         if ( result != 6 )
           goto LABEL_585;
         return result;
@@ -6197,7 +6227,7 @@ int32_t chs_4d64f0(wl_char *self)
         F32(v80, 0xd8) = 0;
         F16(v80, 0xdc) = 0;
         SETLO(v81, W_bgm_pick(v80));
-        RC_40a5d0((int)((intptr_t)g_eng.sys), v81, 1, 0, 20, 1);
+        W_si_40a5d0((int)((intptr_t)g_eng.sys), v81, 1, 0, 20, 1);
         v82 = W_script_leader(c);
         F32(c, 0x4c) = 0;
         F32(c, 0x5c) = v82;
@@ -6406,7 +6436,7 @@ LABEL_19:
     if ( v12 != 5 )
       return v3;
     W_script_begin(c);
-    RC_40a5d0((int)((intptr_t)g_eng.sys), 0, 0, 0, 0, 1);
+    W_si_40a5d0((int)((intptr_t)g_eng.sys), 0, 0, 0, 0, 1);
     v13 = F32(c, 0x0);
     F32(v13, 216) = 1;
     F16(v13, 220) = 0;
@@ -6422,7 +6452,7 @@ LABEL_19:
     v3 = W_script_wait(c);
     if ( v3 == 6 )
       return v3;
-    result = RC_408730(c, 0);
+    result = W_si_408730(c, 0);
     if ( result != 0 )
       return result;
     F32(c, 0x6c) = 1;
@@ -6573,17 +6603,17 @@ LABEL_19:
     *(_DWORD *)&GAP(W, 10148 + 0x0, 4) = 1;
     if ( SYS32(0x2884) != 0
       && F32(CFG(), 372) != 0
-      && (!RC_5bbc60(SYS32(0x2884), 0xEu)
-       || RC_5bbc90(SYS32(0x2884), 0xEu) != 0) )
+      && (!W_sd_5bbc60(SYS32(0x2884), 0xEu)
+       || W_sd_5bbc90(SYS32(0x2884), 0xEu) != 0) )
     {
       F16(D(0x8a93e8), 0) = 14;
-      RC_5bbcd0(SYS32(0x2884), 20);
-      if ( RC_5bbc20(SYS32(0x2884)) != 0 )
+      W_sd_5bbcd0(SYS32(0x2884), 20);
+      if ( W_sd_5bbc20(SYS32(0x2884)) != 0 )
       {
-        if ( RC_5bcb80(SYS32(0x2884), 14, 1, 0, 0, 0) == 0 )
+        if ( W_sd_5bcb80(SYS32(0x2884), 14, 1, 0, 0, 0) == 0 )
           goto LABEL_60;
       }
-      else if ( RC_5bcb80(SYS32(0x2884), 14, 1, 0, 0, 0) == 0 )
+      else if ( W_sd_5bcb80(SYS32(0x2884), 14, 1, 0, 0, 0) == 0 )
       {
 LABEL_60:
         g_eng.log_fail_406440((const char *)D(0x8a9530), (SYS32(0x2884) + 0x2c), D(0x8a9b6c));
@@ -6668,7 +6698,7 @@ LABEL_77:
                       W_char_stats_init(v47 + 2576, (*v92__f), 1);
                       W_member_skills_learn(v47, (*v92__f), 1);
                       (*v93__f) = 0;
-                      v48 = (int32_t *)D(0x6c0cd0);   /* the table's address (mov ebx, offset dword_6C0CD0) */
+                      v48 = (int32_t *)D(0x6c0cd0);
                       do
                       {
                         if ( v48[174] == 100000102
@@ -6683,7 +6713,7 @@ LABEL_77:
                       W_room_party_level(v44, 1);
 LABEL_84:
                       v49 = 0;
-                      RC_41d4a0(c, 100000102, 0);
+                      W_si_41d4a0(c, 100000102, 0);
                       W_script_flag_set(c, 101100113, 3, 0);
                       W_sc_41e2b0(c, 1);
                       v50 = F32(c, 0x0);
@@ -6798,7 +6828,7 @@ LABEL_115:
                         default:
                           break;
                       }
-                      RC_40a5d0((int)((intptr_t)g_eng.sys), v49, 1, 0, 20, 1);
+                      W_si_40a5d0((int)((intptr_t)g_eng.sys), v49, 1, 0, 20, 1);
                       W_script_end(c);
                       return v3;
                     }
@@ -6814,7 +6844,7 @@ LABEL_115:
   }
   if ( W_script_flag(c, 100100101) != 200 || W_script_flag(c, 101100113) != 2 )
     return v3;
-  RC_40a5d0((int)((intptr_t)g_eng.sys), 0, 0, 0, 0, 1);
+  W_si_40a5d0((int)((intptr_t)g_eng.sys), 0, 0, 0, 0, 1);
   v61 = F32(c, 0x0);
   F32(v61, 216) = 1;
   F16(v61, 220) = 0;
@@ -6885,17 +6915,17 @@ LABEL_115:
     return v3;
   if ( SYS32(0x2884) != 0
     && F32(CFG(), 372) != 0
-    && (!RC_5bbc60(SYS32(0x2884), 0x10u)
-     || RC_5bbc90(SYS32(0x2884), 0x10u) != 0) )
+    && (!W_sd_5bbc60(SYS32(0x2884), 0x10u)
+     || W_sd_5bbc90(SYS32(0x2884), 0x10u) != 0) )
   {
     F16(D(0x8a93e8), 0) = 16;
-    RC_5bbcd0(SYS32(0x2884), 20);
-    if ( RC_5bbc20(SYS32(0x2884)) != 0 )
+    W_sd_5bbcd0(SYS32(0x2884), 20);
+    if ( W_sd_5bbc20(SYS32(0x2884)) != 0 )
     {
-      if ( RC_5bcb80(SYS32(0x2884), 16, 1, 0, 0, 0) == 0 )
+      if ( W_sd_5bcb80(SYS32(0x2884), 16, 1, 0, 0, 0) == 0 )
         g_eng.log_fail_406440((const char *)D(0x8a9530), (SYS32(0x2884) + 0x2c), D(0x8a9b6c));
     }
-    else if ( RC_5bcb80(SYS32(0x2884), 16, 1, 0, 0, 0) == 0 )
+    else if ( W_sd_5bcb80(SYS32(0x2884), 16, 1, 0, 0, 0) == 0 )
     {
       g_eng.h408b90(D(0x8a9530), (SYS32(0x2884) + 0x2c), 0, D(0x8a9b6c));
     }
@@ -6947,17 +6977,17 @@ LABEL_115:
   W_script_end(c);
   if ( SYS32(0x2884) != 0
     && F32(CFG(), 372) != 0
-    && (!RC_5bbc60(SYS32(0x2884), 0x29u)
-     || RC_5bbc90(SYS32(0x2884), 0x29u) != 0) )
+    && (!W_sd_5bbc60(SYS32(0x2884), 0x29u)
+     || W_sd_5bbc90(SYS32(0x2884), 0x29u) != 0) )
   {
     F16(D(0x8a93e8), 0) = 41;
-    RC_5bbcd0(SYS32(0x2884), 20);
-    if ( RC_5bbc20(SYS32(0x2884)) != 0 )
+    W_sd_5bbcd0(SYS32(0x2884), 20);
+    if ( W_sd_5bbc20(SYS32(0x2884)) != 0 )
     {
-      if ( RC_5bcb80(SYS32(0x2884), 41, 1, 0, 0, 0) == 0 )
+      if ( W_sd_5bcb80(SYS32(0x2884), 41, 1, 0, 0, 0) == 0 )
         g_eng.log_fail_406440((const char *)D(0x8a9530), (SYS32(0x2884) + 0x2c), D(0x8a9b6c));
     }
-    else if ( RC_5bcb80(SYS32(0x2884), 41, 1, 0, 0, 0) == 0 )
+    else if ( W_sd_5bcb80(SYS32(0x2884), 41, 1, 0, 0, 0) == 0 )
     {
       g_eng.h408b90(D(0x8a9530), (SYS32(0x2884) + 0x2c), 0, D(0x8a9b6c));
     }
@@ -7280,7 +7310,7 @@ int32_t chs_4cd6d0(wl_char *self)
               F32(v28, 0xd8) = 0;
               F16(v28, 0xdc) = 0;
               SETLO(v29, W_bgm_pick(v28));
-              RC_40a5d0((int)((intptr_t)g_eng.sys), v29, 1, 0, 20, 1);
+              W_si_40a5d0((int)((intptr_t)g_eng.sys), v29, 1, 0, 20, 1);
               v30 = W_script_leader(c);
               F32(c, 0x4c) = 0;
               F32(c, 0x5c) = v30;
@@ -7358,7 +7388,7 @@ int32_t chs_4cd6d0(wl_char *self)
               F32(v34, 0xd8) = 0;
               F16(v34, 0xdc) = 0;
               SETLO(v35, W_bgm_pick(v34));
-              RC_40a5d0((int)((intptr_t)g_eng.sys), v35, 1, 0, 20, 1);
+              W_si_40a5d0((int)((intptr_t)g_eng.sys), v35, 1, 0, 20, 1);
               W_script_end(c);
               return v3;
             default:
@@ -7392,7 +7422,7 @@ LABEL_12:
           F32(v7, 0xd8) = 0;
           F16(v7, 0xdc) = 0;
           SETLO(v8, W_bgm_pick(v7));
-          RC_40a5d0((int)((intptr_t)g_eng.sys), v8, 1, 0, 20, 1);
+          W_si_40a5d0((int)((intptr_t)g_eng.sys), v8, 1, 0, 20, 1);
           F32(c, 0x40) = 1;
           F32(c, 0x5c) = 0;
           F32(c, 0x44) = 128000;
@@ -7743,7 +7773,7 @@ LABEL_260:
                             v3 = W_script_wait(c);
                             if ( v3 != 6 )
                             {
-                              RC_41d4a0(c, 100000102, 0);
+                              W_si_41d4a0(c, 100000102, 0);
                               W_script_flag_set(c, 101100113, 8, 0);
                               W_script_end(c);
                               return v3;
@@ -7810,7 +7840,7 @@ LABEL_260:
                   v127 = (intptr_t *)W_vpool_take(SYS32(1292), 0);
                   if ( v127 != 0 )
                   {
-                    v128 = F32(v127, 0);
+                    v128 = *v127;
                     if ( W_sfx_place(
                            v126,
                            F32(CFG(), 360) - 500,
@@ -7889,7 +7919,7 @@ LABEL_260:
                   v135 = (intptr_t *)W_vpool_take(SYS32(1836), 0);
                   if ( v135 != 0 )
                   {
-                    v136 = F32(v135, 0);
+                    v136 = *v135;
                     if ( W_sfx_place(
                            v134,
                            F32(CFG(), 360) - 500,
@@ -8000,7 +8030,7 @@ LABEL_260:
                   v142 = (intptr_t *)W_vpool_take(SYS32(1192), 0);
                   if ( v142 != 0 )
                   {
-                    v143 = F32(v142, 0);
+                    v143 = *v142;
                     if ( W_sfx_place(
                            v141,
                            F32(CFG(), 360) + 1000,
@@ -8122,7 +8152,7 @@ LABEL_260:
                   v114 = (intptr_t *)(F32(v107, 4 * 1) + v113);
                   if ( v114 != 0 )
                   {
-                    v115 = F32(v114, 0);
+                    v115 = *v114;
                     if ( W_sfx_place(
                            (*v250__f),
                            F32(CFG(), 360) - 500,
@@ -8855,7 +8885,7 @@ LABEL_198:
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      RC_40a5d0((int)((intptr_t)g_eng.sys), 0, 0, 0, 0, 1);
+      W_si_40a5d0((int)((intptr_t)g_eng.sys), 0, 0, 0, 0, 1);
       v158 = F32(c, 0x0);
       F32(v158, 216) = 1;
       F16(v158, 220) = 0;
@@ -8866,17 +8896,17 @@ LABEL_198:
         return v3;
       if ( SYS32(0x2884) != 0
         && F32(CFG(), 372) != 0
-        && (!RC_5bbc60(SYS32(0x2884), 0xEu)
-         || RC_5bbc90(SYS32(0x2884), 0xEu) != 0) )
+        && (!W_sd_5bbc60(SYS32(0x2884), 0xEu)
+         || W_sd_5bbc90(SYS32(0x2884), 0xEu) != 0) )
       {
         F16(D(0x8a93e8), 0) = 14;
-        RC_5bbcd0(SYS32(0x2884), 20);
-        if ( RC_5bbc20(SYS32(0x2884)) != 0 )
+        W_sd_5bbcd0(SYS32(0x2884), 20);
+        if ( W_sd_5bbc20(SYS32(0x2884)) != 0 )
         {
-          if ( RC_5bcb80(SYS32(0x2884), 14, 1, 0, 0, 0) == 0 )
+          if ( W_sd_5bcb80(SYS32(0x2884), 14, 1, 0, 0, 0) == 0 )
             goto LABEL_283;
         }
-        else if ( RC_5bcb80(SYS32(0x2884), 14, 1, 0, 0, 0) == 0 )
+        else if ( W_sd_5bcb80(SYS32(0x2884), 14, 1, 0, 0, 0) == 0 )
         {
 LABEL_283:
           g_eng.log_fail_406440((const char *)D(0x8a9530), (SYS32(0x2884) + 0x2c), D(0x8a9b6c));
@@ -9077,7 +9107,7 @@ LABEL_330:
         default:
           break;
       }
-      RC_40a5d0((int)((intptr_t)g_eng.sys), v176, 1, 1, 20, 1);
+      W_si_40a5d0((int)((intptr_t)g_eng.sys), v176, 1, 1, 20, 1);
       *(_DWORD *)&GAP(c, 0x300, 636) = 50;
       F32(c, 0x20) = 6;
       v3 = W_script_wait(c);
@@ -9155,7 +9185,7 @@ LABEL_330:
             break;
           if ( v194 == 14 )
           {
-            RC_41d4a0(c, 100000102, 0);
+            W_si_41d4a0(c, 100000102, 0);
             W_script_flag_set(c, 100100101, 310, 0);
             W_script_end(c);
             return v3;
@@ -9605,7 +9635,7 @@ int32_t chs_4d13a0(wl_char *self)
             F32(v78, 0xd8) = 0;
             F16(v78, 0xdc) = 0;
             SETLO(v79, W_bgm_pick(v78));
-            RC_40a5d0((int)((intptr_t)g_eng.sys), v79, 1, 0, 20, 1);
+            W_si_40a5d0((int)((intptr_t)g_eng.sys), v79, 1, 0, 20, 1);
             F32(c, 0x30) = 1;
             F32(c, 0x34) = 2;
             F32(c, 0x3c) = 500;
@@ -9815,7 +9845,7 @@ int32_t chs_4d13a0(wl_char *self)
             v3 = W_script_wait(c);
             if ( v3 == 6 )
               return v3;
-            RC_40a5d0((int)((intptr_t)g_eng.sys), 0, 0, 0, 0, 1);
+            W_si_40a5d0((int)((intptr_t)g_eng.sys), 0, 0, 0, 0, 1);
             v110 = F32(c, 0x0);
             F32(v110, 216) = 1;
             F16(v110, 220) = 0;
@@ -9846,17 +9876,17 @@ int32_t chs_4d13a0(wl_char *self)
             F32(c, 0x2e4) = 1;
             if ( SYS32(0x2884) != 0
               && F32(CFG(), 372) != 0
-              && (!RC_5bbc60(SYS32(0x2884), 0xFu)
-               || RC_5bbc90(SYS32(0x2884), 0xFu) != 0) )
+              && (!W_sd_5bbc60(SYS32(0x2884), 0xFu)
+               || W_sd_5bbc90(SYS32(0x2884), 0xFu) != 0) )
             {
               F16(D(0x8a93e8), 0) = 15;
-              RC_5bbcd0(SYS32(0x2884), 20);
-              if ( RC_5bbc20(SYS32(0x2884)) != 0 )
+              W_sd_5bbcd0(SYS32(0x2884), 20);
+              if ( W_sd_5bbc20(SYS32(0x2884)) != 0 )
               {
-                if ( RC_5bcb80(SYS32(0x2884), 15, 1, 0, 0, 0) == 0 )
+                if ( W_sd_5bcb80(SYS32(0x2884), 15, 1, 0, 0, 0) == 0 )
                   g_eng.log_fail_406440((const char *)D(0x8a9530), (SYS32(0x2884) + 0x2c), D(0x8a9b6c));
               }
-              else if ( RC_5bcb80(SYS32(0x2884), 15, 1, 0, 0, 0) == 0 )
+              else if ( W_sd_5bcb80(SYS32(0x2884), 15, 1, 0, 0, 0) == 0 )
               {
                 g_eng.h408b90(D(0x8a9530), (SYS32(0x2884) + 0x2c), 0, D(0x8a9b6c));
               }
@@ -10051,7 +10081,7 @@ int32_t chs_4d13a0(wl_char *self)
               v142 = (intptr_t *)W_vpool_take(SYS32(988), 0);
               if ( v142 != 0 )
               {
-                v143 = F32(v142, 0);
+                v143 = *v142;
                 if ( W_sfx_place(
                        v141,
                        F32(CFG(), 360) + 1000,
@@ -10137,7 +10167,7 @@ int32_t chs_4d13a0(wl_char *self)
             F32(v147, 0xd8) = 0;
             F16(v147, 0xdc) = 0;
             SETLO(v148, W_bgm_pick(v147));
-            RC_40a5d0((int)((intptr_t)g_eng.sys), v148, 1, 0, 20, 1);
+            W_si_40a5d0((int)((intptr_t)g_eng.sys), v148, 1, 0, 20, 1);
             v149 = W_script_leader(c);
             F32(c, 0x4c) = 0;
             F32(c, 0x5c) = v149;
@@ -10456,7 +10486,7 @@ LABEL_415:
         else
         {
           W_script_begin(c);
-          RC_40a5d0((int)((intptr_t)g_eng.sys), 0, 0, 0, 0, 1);
+          W_si_40a5d0((int)((intptr_t)g_eng.sys), 0, 0, 0, 0, 1);
           v190 = F32(c, 0x0);
           F32(v190, 216) = 1;
           F16(v190, 220) = 0;
@@ -10478,17 +10508,17 @@ LABEL_415:
           {
             if ( SYS32(0x2884) != 0
               && F32(CFG(), 372) != 0
-              && (!RC_5bbc60(SYS32(0x2884), 0x17u)
-               || RC_5bbc90(SYS32(0x2884), 0x17u) != 0) )
+              && (!W_sd_5bbc60(SYS32(0x2884), 0x17u)
+               || W_sd_5bbc90(SYS32(0x2884), 0x17u) != 0) )
             {
               F16(D(0x8a93e8), 0) = 23;
-              RC_5bbcd0(SYS32(0x2884), 20);
-              if ( RC_5bbc20(SYS32(0x2884)) != 0 )
+              W_sd_5bbcd0(SYS32(0x2884), 20);
+              if ( W_sd_5bbc20(SYS32(0x2884)) != 0 )
               {
-                if ( RC_5bcb80(SYS32(0x2884), 23, 1, 0, 0, 0) == 0 )
+                if ( W_sd_5bcb80(SYS32(0x2884), 23, 1, 0, 0, 0) == 0 )
                   g_eng.log_fail_406440((const char *)D(0x8a9530), (SYS32(0x2884) + 0x2c), D(0x8a9b6c));
               }
-              else if ( RC_5bcb80(SYS32(0x2884), 23, 1, 0, 0, 0) == 0 )
+              else if ( W_sd_5bcb80(SYS32(0x2884), 23, 1, 0, 0, 0) == 0 )
               {
                 g_eng.h408b90(D(0x8a9530), (SYS32(0x2884) + 0x2c), 0, D(0x8a9b6c));
               }
@@ -11900,7 +11930,7 @@ LABEL_106:
           return v3;
         if ( v21 == 14 )
         {
-          RC_41d4a0(c, 100000102, 0);
+          W_si_41d4a0(c, 100000102, 0);
           W_script_flag_set(c, 101100115, 2, 0);
           W_script_end(c);
           return v3;
@@ -12145,7 +12175,7 @@ int32_t chs_4ccc90(wl_char *self)
         F32(v35, 0xd8) = 0;
         F16(v35, 0xdc) = 0;
         SETLO(v36, W_bgm_pick(v35));
-        RC_40a5d0((int)((intptr_t)g_eng.sys), v36, 1, 0, 20, 1);
+        W_si_40a5d0((int)((intptr_t)g_eng.sys), v36, 1, 0, 20, 1);
         F32(c, 0x30) = 1;
         F32(c, 0x34) = 2;
         F32(c, 0x3c) = 500;
@@ -12227,7 +12257,7 @@ int32_t chs_4ccc90(wl_char *self)
                                 F32(v45, 0xd8) = 0;
                                 F16(v45, 0xdc) = 0;
                                 SETLO(v46, W_bgm_pick(v45));
-                                RC_40a5d0((int)((intptr_t)g_eng.sys), v46, 1, 0, 20, 1);
+                                W_si_40a5d0((int)((intptr_t)g_eng.sys), v46, 1, 0, 20, 1);
                               }
                             }
                           }
@@ -13148,7 +13178,7 @@ LABEL_249:
                             v3 = W_script_wait(c);
                             if ( v3 != 6 )
                             {
-                              RC_41d4a0(c, 100000102, 0);
+                              W_si_41d4a0(c, 100000102, 0);
                               W_script_end(c);
                               W_script_flag_set(c, 101240104, 3, 0);
                               return v3;
@@ -14523,7 +14553,7 @@ LABEL_215:
         if ( W_script_flag(c, 101245103) != 2 )
           return v3;
         W_script_begin(c);
-        RC_4cc0e0((int)((intptr_t)g_eng.sys), 1);
+        W_el_4cc0e0((int)((intptr_t)g_eng.sys), 1);
         W_sc_4cca50(F32(c, 0x0), 1, 0);
         v169 = W_script_leader(c);
         W_scene_camera(c, v169, 0, 0, 800);
@@ -14558,7 +14588,7 @@ LABEL_215:
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
-        RC_40a5d0((int)((intptr_t)g_eng.sys), 13, 1, 0, 0, 1);
+        W_si_40a5d0((int)((intptr_t)g_eng.sys), 13, 1, 0, 0, 1);
         W_sc_4cca50(F32(c, 0x0), 1, 13);
         W_scene_msg_rec(c, 0, 900000028, D(0x8646f0), 0, 1, 1, 0, 0, 0, 0);
         v3 = W_script_wait(c);
@@ -14618,7 +14648,7 @@ LABEL_215:
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
-        RC_4cc0e0((int)((intptr_t)g_eng.sys), 1);
+        W_el_4cc0e0((int)((intptr_t)g_eng.sys), 1);
         W_sc_4cca50(F32(c, 0x0), 1, 0);
         W_script_end(c);
         W_script_flag_set(c, 101245103, 3, 0);
@@ -14629,7 +14659,7 @@ LABEL_215:
         if ( W_script_flag(c, 101245103) != 0 )
           return v3;
         W_script_begin(c);
-        RC_4cc0e0((int)((intptr_t)g_eng.sys), 1);
+        W_el_4cc0e0((int)((intptr_t)g_eng.sys), 1);
         W_sc_4cca50(F32(c, 0x0), 1, 0);
         v167 = W_script_leader(c);
         W_scene_camera(c, v167, 0, 0, 800);
@@ -14693,7 +14723,7 @@ LABEL_215:
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
-          RC_40a5d0((int)((intptr_t)g_eng.sys), 44, 0, 0, 0, 1);
+          W_si_40a5d0((int)((intptr_t)g_eng.sys), 44, 0, 0, 0, 1);
           W_sc_4cca50(F32(c, 0x0), 0, 44);
           W_sc_4bbe00(c, 900000028, 3, 0, 0, 1);
           v3 = W_script_wait(c);
@@ -14704,7 +14734,7 @@ LABEL_215:
           if ( v3 == 6 )
             return v3;
           *(_DWORD *)&F16(c, 0x2ec) = 1;
-          RC_40a5d0((int)((intptr_t)g_eng.sys), 16, 1, 0, 0, 1);
+          W_si_40a5d0((int)((intptr_t)g_eng.sys), 16, 1, 0, 0, 1);
           W_sc_4cca50(F32(c, 0x0), 1, 16);
           W_scene_msg_rec(c, 0, 100000102, D(0x864b58), 0, 1, 1, 0, 8, 0, 1176);
           v3 = W_script_wait(c);
@@ -14781,16 +14811,16 @@ LABEL_215:
           W_script_flag_set(c, 101245104, 1, 1);
         }
         W_script_end(c);
-        RC_40a5d0((int)((intptr_t)g_eng.sys), 5, 1, 0, 0, 1);
+        W_si_40a5d0((int)((intptr_t)g_eng.sys), 5, 1, 0, 0, 1);
         W_sc_4cca50(F32(c, 0x0), 1, 5);
         W_sc_4cca20(F32(c, 0x0), 1, 1);
         W_script_flag_set(c, 101245103, 1, 0);
         return v3;
       case 6:
-        RC_4cc0e0((int)((intptr_t)g_eng.sys), 1);
+        W_el_4cc0e0((int)((intptr_t)g_eng.sys), 1);
         W_sc_4cca50(F32(c, 0x0), 1, 0);
         W_script_begin(c);
-        result = RC_408730(c, 0);
+        result = W_si_408730(c, 0);
         if ( result == 0 )
         {
           W_script_end(c);
@@ -14819,7 +14849,7 @@ LABEL_215:
       if ( v3 == 6 )
         return v3;
       F32(c, 0x1c) = 0;
-      RC_40a5d0((int)((intptr_t)g_eng.sys), 12, 1, 0, 0, 1);
+      W_si_40a5d0((int)((intptr_t)g_eng.sys), 12, 1, 0, 0, 1);
       W_sc_4cca50(F32(c, 0x0), 1, 12);
       W_script_end(c);
       *(_DWORD *)&GAP(W, 0x1030, 4) = 1;
@@ -14893,7 +14923,7 @@ LABEL_215:
       if ( v3 == 6 )
         return v3;
       W_scene_mark(c);
-      RC_4cc0e0((int)((intptr_t)g_eng.sys), 1);
+      W_el_4cc0e0((int)((intptr_t)g_eng.sys), 1);
       W_sc_4cca50(F32(c, 0x0), 1, 0);
       W_scene_pause(c, 100);
       v3 = W_script_wait(c);
@@ -14911,7 +14941,7 @@ LABEL_215:
         if ( v3 == 6 )
           return v3;
       }
-      result = RC_41a430(c, 0, 1);
+      result = W_sv_41a430(c, 0, 1);
       if ( result != 6 )
       {
         result = W_sc_41a3a0(c, 100);
@@ -15070,7 +15100,7 @@ LABEL_215:
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      RC_4cc0e0((int)((intptr_t)g_eng.sys), 1);
+      W_el_4cc0e0((int)((intptr_t)g_eng.sys), 1);
       W_sc_4cca50(F32(c, 0x0), 1, 0);
       W_sc_4cbfb0(c, 900000047, 141);
       W_scene_pause(c, 50);
@@ -15262,7 +15292,7 @@ LABEL_215:
       if ( v3 == 6 )
         return v3;
       F32(c, 0x1c) = 1;
-      RC_40a5d0((int)((intptr_t)g_eng.sys), 17, 1, 0, 0, 1);
+      W_si_40a5d0((int)((intptr_t)g_eng.sys), 17, 1, 0, 0, 1);
       W_sc_4cca50(F32(c, 0x0), 1, 17);
       F16(c, 0x2f0) = 34;
       *(_DWORD *)&F16(c, 0x2f4) = 64;
@@ -15421,8 +15451,8 @@ LABEL_215:
           if ( result != 6 )
           {
             W_room_member_add(F32(c, 0x8), 5u, 0, 1, 100000104, 6, 0);
-            RC_41d4a0(c, 100000104, 0);
-            RC_40a5d0((int)((intptr_t)g_eng.sys), 12, 1, 0, 0, 1);
+            W_si_41d4a0(c, 100000104, 0);
+            W_si_40a5d0((int)((intptr_t)g_eng.sys), 12, 1, 0, 0, 1);
             W_sc_4cca50(F32(c, 0x0), 1, 12);
             W_script_end(c);
             W_sc_439560(c, 900000047);
@@ -15515,21 +15545,21 @@ int32_t chs_4e19e0(wl_char *self)
         F32(v10, 0xd8) = 0;
         F16(v10, 0xdc) = 0;
         SETLO(v11, W_bgm_pick(v10));
-        RC_40a5d0((int)((intptr_t)g_eng.sys), v11, 1, 0, 20, 1);
+        W_si_40a5d0((int)((intptr_t)g_eng.sys), v11, 1, 0, 20, 1);
         W_script_end(c);
         if ( SYS32(0x2884) != 0
           && F32(CFG(), 372) != 0
-          && (!RC_5bbc60(SYS32(0x2884), 0x29u)
-           || RC_5bbc90(SYS32(0x2884), 0x29u) != 0) )
+          && (!W_sd_5bbc60(SYS32(0x2884), 0x29u)
+           || W_sd_5bbc90(SYS32(0x2884), 0x29u) != 0) )
         {
           F16(D(0x8a93e8), 0) = 41;
-          RC_5bbcd0(SYS32(0x2884), 20);
-          if ( RC_5bbc20(SYS32(0x2884)) != 0 )
+          W_sd_5bbcd0(SYS32(0x2884), 20);
+          if ( W_sd_5bbc20(SYS32(0x2884)) != 0 )
           {
-            if ( RC_5bcb80(SYS32(0x2884), 41, 1, 0, 0, 0) == 0 )
+            if ( W_sd_5bcb80(SYS32(0x2884), 41, 1, 0, 0, 0) == 0 )
               goto LABEL_23;
           }
-          else if ( RC_5bcb80(SYS32(0x2884), 41, 1, 0, 0, 0) == 0 )
+          else if ( W_sd_5bcb80(SYS32(0x2884), 41, 1, 0, 0, 0) == 0 )
           {
 LABEL_23:
             g_eng.h408b90(D(0x8a9530), (SYS32(0x2884) + 0x2c), 0, D(0x8a9b6c));
@@ -15575,7 +15605,7 @@ LABEL_23:
         F32(v17, 0xd8) = 0;
         F16(v17, 0xdc) = 0;
         SETLO(v18, W_bgm_pick(v17));
-        RC_40a5d0((int)((intptr_t)g_eng.sys), v18, 1, 0, 20, 1);
+        W_si_40a5d0((int)((intptr_t)g_eng.sys), v18, 1, 0, 20, 1);
         W_script_end(c);
       }
     }
@@ -15662,7 +15692,7 @@ int32_t chs_49d930(wl_char *self)
               v2 = W_script_wait(c);
               if ( v2 != 6 )
               {
-                W_scene_msg(c, 0, F32(c, 0x4), F8(D(0x855560), 0), 0, 1, 0, F8(D(0x855584), 0), 0, 0, 0);
+                W_scene_msg(c, 0, F32(c, 0x4), ((uint8_t *)D(0x855560)), 0, 1, 0, ((uint8_t *)D(0x855584)), 0, 0, 0);
                 v2 = W_script_wait(c);
                 if ( v2 != 6 )
                   W_script_end(c);
@@ -15708,7 +15738,7 @@ int32_t chs_49d930(wl_char *self)
           v2 = W_script_wait(c);
           if ( v2 == 6 )
             return v2;
-          v2 = RC_41c390(
+          v2 = W_el_41c390(
                  c,
                  10,
                  1,
@@ -15758,11 +15788,11 @@ int32_t chs_49d930(wl_char *self)
           v2 = W_script_wait(c);
           if ( v2 == 6 )
             return v2;
-          W_scene_msg(c, 0, F32(c, 0x4), F8(D(0x855688), 0), 0, 1, 1, 0, 0, 0, 0);
+          W_scene_msg(c, 0, F32(c, 0x4), ((uint8_t *)D(0x855688)), 0, 1, 1, 0, 0, 0, 0);
           v2 = W_script_wait(c);
           if ( v2 == 6 )
             return v2;
-          v2 = W_shop_run(c, (int)F32(D(0x6e7cc4), 0), 0, 0);
+          v2 = W_shop_run(c, (int)((int32_t *)D(0x6e7cc4)), 0, 0);
           if ( v2 == 6 )
             return v2;
         }
@@ -15802,7 +15832,7 @@ LABEL_68:
       v2 = W_script_wait(c);
       if ( v2 == 6 )
         return v2;
-      W_scene_msg(c, 0, F32(c, 0x4), F8(D(0x855598), 0), 0, 1, 0, F8(D(0x8555bc), 0), 0, 0, 0);
+      W_scene_msg(c, 0, F32(c, 0x4), ((uint8_t *)D(0x855598)), 0, 1, 0, ((uint8_t *)D(0x8555bc)), 0, 0, 0);
     }
     else
     {
@@ -15843,7 +15873,7 @@ LABEL_68:
             v2 = W_script_wait(c);
             if ( v2 == 6 )
               return v2;
-            W_scene_msg(c, 0, F32(c, 0x4), F8(D(0x85572c), 0), 0, 1, 1, 0, 0, 0, 0);
+            W_scene_msg(c, 0, F32(c, 0x4), ((uint8_t *)D(0x85572c)), 0, 1, 1, 0, 0, 0, 0);
             goto LABEL_66;
           case 0x6902596u:
             W_script_begin(c);
@@ -15878,7 +15908,7 @@ LABEL_68:
             v2 = W_script_wait(c);
             if ( v2 == 6 )
               return v2;
-            W_scene_msg(c, 0, F32(c, 0x4), F8(D(0x85571c), 0), 0, 1, 1, 0, 0, 0, 0);
+            W_scene_msg(c, 0, F32(c, 0x4), ((uint8_t *)D(0x85571c)), 0, 1, 1, 0, 0, 0, 0);
             goto LABEL_66;
           case 0x6902597u:
             W_script_begin(c);
@@ -15913,7 +15943,7 @@ LABEL_68:
             v2 = W_script_wait(c);
             if ( v2 == 6 )
               return v2;
-            W_scene_msg(c, 0, F32(c, 0x4), F8(D(0x8556f0), 0), 0, 1, 1, 0, 0, 0, 0);
+            W_scene_msg(c, 0, F32(c, 0x4), ((uint8_t *)D(0x8556f0)), 0, 1, 1, 0, 0, 0, 0);
             v2 = W_script_wait(c);
             if ( v2 == 6 )
               return v2;
@@ -15952,11 +15982,11 @@ LABEL_68:
             v2 = W_script_wait(c);
             if ( v2 == 6 )
               return v2;
-            W_scene_msg(c, 0, F32(c, 0x4), F8(D(0x855704), 0), 0, 1, 1, 0, 0, 0, 0);
+            W_scene_msg(c, 0, F32(c, 0x4), ((uint8_t *)D(0x855704)), 0, 1, 1, 0, 0, 0, 0);
             v2 = W_script_wait(c);
             if ( v2 == 6 )
               return v2;
-            RC_41d4a0(c, 100000102, 0);
+            W_si_41d4a0(c, 100000102, 0);
             W_script_end(c);
             return v2;
           default:
@@ -15995,7 +16025,7 @@ LABEL_68:
       v2 = W_script_wait(c);
       if ( v2 == 6 )
         return v2;
-      W_scene_msg(c, 0, F32(c, 0x4), F8(D(0x85569c), 0), 0, 1, 1, 0, 0, 0, 0);
+      W_scene_msg(c, 0, F32(c, 0x4), ((uint8_t *)D(0x85569c)), 0, 1, 1, 0, 0, 0, 0);
     }
 LABEL_66:
     v13 = W_script_wait(c);
@@ -18642,7 +18672,7 @@ LABEL_392:
         v3 = W_script_wait(c);
         if ( v3 == 6 )
           return v3;
-        if ( RC_41c390(
+        if ( W_el_41c390(
                c,
                3,
                102,
@@ -19811,7 +19841,7 @@ LABEL_196:
   if ( v52 != 0 )
   {
     if ( v52 == 1 )
-      return RC_49eea0(c, v4, (int)D(0x6e7b68));
+      return W_el_49eea0(c, v4, (int)D(0x6e7b68));
     return v3;
   }
   W_script_begin(c);
@@ -20447,15 +20477,15 @@ int32_t chs_4a6b80(wl_char *self)
   memset(&v317[24], 0, 0x1E8u);
   strcpy(v318, "And The Secret Plan");
   memset(&v318[20], 0, 0x1ECu);
-  v318[512] = D(0x8a9b6c);
+  v318[512] = F8(D(0x8a9b6c), 0);
   memset(&v318[513], 0, 0x1FCu);
   (*v319__f) = 0;
   (*v320__f) = 0;
-  (*v321__f) = D(0x8a9b6c);
+  (*v321__f) = F8(D(0x8a9b6c), 0);
   memset(v322, 0, (511 * sizeof(uint8_t)));
   strcpy(v323, "Army Squad");
   memset(&v323[11], 0, 501);
-  v323[512] = D(0x8a9b6c);
+  v323[512] = F8(D(0x8a9b6c), 0);
   memset(&v323[513], 0, 0x1FCu);
   (*v324__f) = 0;
   (*v325__f) = 0;
@@ -20481,17 +20511,17 @@ int32_t chs_4a6b80(wl_char *self)
   v244[0] = 1;
   strcpy(v337, "Is Looking Pret-ty Goooood");
   memset(&v337[27], 0, 485);
-  v337[512] = D(0x8a9b6c);
+  v337[512] = F8(D(0x8a9b6c), 0);
   memset(&v337[513], 0, 0x1FCu);
   (*v338__f) = 0;
   (*v339__f) = 0;
-  (*v340__f) = D(0x8a9b6c);
+  (*v340__f) = F8(D(0x8a9b6c), 0);
   memset(v341, 0, (511 * sizeof(uint8_t)));
   strcpy(v342, "Needs To Hustle");
   memset(&v342[16], 0, 0x1F0u);
   strcpy(v343, "And The Great Plan");
   memset(&v343[19], 0, 493);
-  v343[512] = D(0x8a9b6c);
+  v343[512] = F8(D(0x8a9b6c), 0);
   memset(&v343[513], 0, 0x1FCu);
   (*v344__f) = 0;
   (*v345__f) = 0;
@@ -22698,7 +22728,7 @@ LABEL_304:
               if ( v3 == 6 )
                 return v3;
               W_scene_mark(c);
-              v84 = RC_41c390(
+              v84 = W_el_41c390(
                       c,
                       0,
                       203,
@@ -24473,7 +24503,7 @@ LABEL_15:
       v24 = (intptr_t *)(v23 + F32(v17, 4 * 1));
       if ( v24 != 0 )
       {
-        g_eng.dsb_volume_5bb870(F32(v24, 0), F32(CFG(), 360));
+        g_eng.dsb_volume_5bb870(*v24, F32(CFG(), 360));
         g_eng.dsb_freq_5bb890(*v24, 0);
         g_eng.dsb_play_5bb8c0(*v24);
       }
@@ -24515,7 +24545,7 @@ LABEL_51:
     if ( v2 == 6 )
       return v2;
   }
-  result = RC_41a430(c, 101, 0);
+  result = W_sv_41a430(c, 101, 0);
   if ( result != 6 )
     goto LABEL_15;
   return result;
@@ -24592,7 +24622,7 @@ int32_t chs_4ae150(wl_char *self)
               if ( W_sc_49cf60(v9) == 0 )
               {
                 v10 = W_actor_by_handle(250210501);
-                RC_49d330(v10, 0);
+                W_el_49d330(v10, 0);
                 return 0;
               }
             }
@@ -25362,7 +25392,7 @@ int32_t chs_4ae420(wl_char *self)
           v3 = W_script_wait(c);
           if ( v3 == 6 )
             return v3;
-          if ( RC_41c390(
+          if ( W_el_41c390(
                  c,
                  7,
                  101,
@@ -25532,7 +25562,7 @@ LABEL_190:
             v3 = W_script_wait(c);
             if ( v3 == 6 )
               return v3;
-            v61 = RC_41c390(
+            v61 = W_el_41c390(
                     c,
                     30,
                     101,
@@ -28345,7 +28375,7 @@ LABEL_448:
       v3 = W_script_wait(c);
       if ( v3 == 6 )
         return v3;
-      v150 = RC_41c390(
+      v150 = W_el_41c390(
                c,
                6,
                101,
@@ -28367,17 +28397,17 @@ LABEL_448:
       if ( W_script_flag(c, 100100101) < 1510 )
       {
         v165 = W_actor_by_handle(270110511);
-        RC_49d330(v165, 0);
+        W_el_49d330(v165, 0);
         (*v189__f) = 0;
       }
       else
       {
         v164 = W_actor_by_handle(270110511);
-        RC_49d330(v164, 1);
+        W_el_49d330(v164, 1);
         (*v189__f) = 1;
       }
       v166 = W_actor_by_handle(270110512);
-      RC_49d330(v166, (*v189__f));
+      W_el_49d330(v166, (*v189__f));
       if ( v2 == 0 )
         return v3;
       v167 = (_DWORD *)W_actor_by_handle(270110101);
@@ -28605,7 +28635,7 @@ LABEL_42:
               if ( W_sc_49cf60(v9) == 0 )
               {
                 v10 = W_actor_by_handle(290205511);
-                RC_49d330(v10, 1);
+                W_el_49d330(v10, 1);
                 return 0;
               }
             }
@@ -29213,7 +29243,7 @@ LABEL_931:
   if ( v6 <= 0x11E352A7 )
   {
     if ( v6 >= 0x11E352A6 )
-      return RC_49eea0(c, v5, (int)D(0x6e7c18));
+      return W_el_49eea0(c, v5, (int)D(0x6e7c18));
     switch ( v6 )
     {
       case 0x11E35115u:
@@ -31109,9 +31139,9 @@ LABEL_14:
       if ( v2 == 6 )
         return v2;
       v324[0] = 0;
-      W_sc_4bbe80(v324, F32(D(0x6e7df4), 0));
+      W_sc_4bbe80(v324, ((int32_t *)D(0x6e7df4)));
       if ( W_script_flag(c, 100100101) >= 1410 )
-        W_sc_4bbe80(v324, F32(D(0x6e7e18), 0));
+        W_sc_4bbe80(v324, ((int32_t *)D(0x6e7e18)));
       if ( D(0x85f754) != 0 )
       {
         W_scene_msg(c, 0, F32(c, 0x4), D(0x85f754), 0, 1, 1, 0, 0, 0, 0);
@@ -31253,9 +31283,9 @@ LABEL_14:
       if ( v2 == 6 )
         return v2;
       v324[0] = 0;
-      W_sc_4bbe80(v324, F32(D(0x6e7e2c), 0));
+      W_sc_4bbe80(v324, ((int32_t *)D(0x6e7e2c)));
       if ( W_script_flag(c, 100100101) >= 1410 )
-        W_sc_4bbe80(v324, F32(D(0x6e7e80), 0));
+        W_sc_4bbe80(v324, ((int32_t *)D(0x6e7e80)));
       if ( D(0x85f538) != 0 )
       {
         W_scene_msg(c, 0, F32(c, 0x4), D(0x85f538), 0, 1, 1, 0, 0, 0, 0);
@@ -31343,9 +31373,9 @@ LABEL_14:
       if ( v2 == 6 )
         return v2;
       v324[0] = 0;
-      W_sc_4bbe80(v324, F32(D(0x6e7dc4), 0));
+      W_sc_4bbe80(v324, ((int32_t *)D(0x6e7dc4)));
       if ( W_script_flag(c, 100100101) >= 1410 )
-        W_sc_4bbe80(v324, F32(D(0x6e7dcc), 0));
+        W_sc_4bbe80(v324, ((int32_t *)D(0x6e7dcc)));
       if ( D(0x85f1d8) != 0 )
       {
         W_scene_msg(c, 0, F32(c, 0x4), D(0x85f1d8), 0, 1, 1, 0, 0, 0, 0);
@@ -31786,7 +31816,7 @@ LABEL_902:
         if ( v6 != 300210105 )
         {
           if ( v6 == 300210501 )
-            return RC_49eea0(c, v5, (int)D(0x6e7b68));
+            return W_el_49eea0(c, v5, (int)D(0x6e7b68));
           return v2;
         }
         W_script_begin(c);
@@ -31845,11 +31875,11 @@ LABEL_902:
       if ( v2 == 6 )
         return v2;
       v324[0] = 0;
-      W_sc_4bbe80(v324, F32(D(0x6e7d80), 0));
+      W_sc_4bbe80(v324, ((int32_t *)D(0x6e7d80)));
       if ( W_script_flag(c, 100100101) >= 1410 )
-        W_sc_4bbe80(v324, F32(D(0x6e7da0), 0));
+        W_sc_4bbe80(v324, ((int32_t *)D(0x6e7da0)));
       if ( W_sc_4a5ea0(c) )
-        W_sc_4bbe80(v324, F32(D(0x6e7dbc), 0));
+        W_sc_4bbe80(v324, ((int32_t *)D(0x6e7dbc)));
       W_scene_msg(c, 0, F32(c, 0x4), D(0x8608bc), 0, 1, 1, 0, 0, 0, 0);
       v2 = W_script_wait(c);
       if ( v2 == 6 )
@@ -32658,7 +32688,7 @@ LABEL_453:
   v2 = W_script_wait(c);
   if ( v2 == 6 )
     return v2;
-  result = RC_41c390(
+  result = W_el_41c390(
              c,
              8,
              101,
@@ -33560,7 +33590,7 @@ int32_t chs_4bd2e0(wl_char *self)
       if ( v3 == 6 )
         return v3;
       v9 = W_actor_by_handle(320140511);
-      RC_49d330(v9, 1);
+      W_el_49d330(v9, 1);
 LABEL_12:
       W_script_end(c);
       return v3;
@@ -33645,7 +33675,7 @@ LABEL_12:
       v21 = (intptr_t *)(F32(v14, 4 * 1) + v20);
       if ( v21 != 0 )
       {
-        g_eng.dsb_volume_5bb870(F32(v21, 0), F32(CFG(), 360));
+        g_eng.dsb_volume_5bb870(*v21, F32(CFG(), 360));
         g_eng.dsb_freq_5bb890(*v21, 0);
         g_eng.dsb_play_5bb8c0(*v21);
       }
@@ -33687,7 +33717,7 @@ LABEL_41:
     if ( v3 == 6 )
       return v3;
   }
-  result = RC_41a430(c, 101, 0);
+  result = W_sv_41a430(c, 101, 0);
   if ( result != 6 )
     goto LABEL_12;
   return result;
@@ -33837,7 +33867,7 @@ int32_t chs_4bd820(wl_char *self)
             v2 = W_script_wait(c);
             if ( v2 != 6 )
             {
-              v2 = RC_41c390(
+              v2 = W_el_41c390(
                      c,
                      30,
                      201,
@@ -33974,9 +34004,9 @@ int32_t chs_4bdf90(wl_char *self)
   if ( v2[1] != 345 || *v2 != 345130 || F32(c, 0x14) != 0 || W_script_flag(c, 100100101) < 1410 )
     return 0;
   v4 = W_actor_by_handle(345130502);
-  RC_49d330(v4, 1);
+  W_el_49d330(v4, 1);
   v5 = W_actor_by_handle(345130501);
-  RC_49d330(v5, 0);
+  W_el_49d330(v5, 0);
   W_script_begin(c);
   F32(c, 0x30) = 1;
   F32(c, 0x34) = 2;
@@ -34107,7 +34137,7 @@ LABEL_37:
     default:
       break;
   }
-  RC_40a5d0((int)((intptr_t)g_eng.sys), v3, 1, 0, 20, 1);
+  W_si_40a5d0((int)((intptr_t)g_eng.sys), v3, 1, 0, 20, 1);
   W_script_end(c);
   return (*v16__f);
 }
@@ -34290,7 +34320,7 @@ LABEL_23:
       v24 = (intptr_t *)(F32(v17, 4 * 1) + v23);
       if ( v24 != 0 )
       {
-        g_eng.dsb_volume_5bb870(F32(v24, 0), F32(CFG(), 360));
+        g_eng.dsb_volume_5bb870(*v24, F32(CFG(), 360));
         g_eng.dsb_freq_5bb890(*v24, 0);
         g_eng.dsb_play_5bb8c0(*v24);
       }
@@ -34329,7 +34359,7 @@ LABEL_51:
     if ( v3 == 6 )
       return v3;
   }
-  result = RC_41a430(c, 101, 0);
+  result = W_sv_41a430(c, 101, 0);
   if ( result != 6 )
     goto LABEL_23;
   return result;
@@ -36324,7 +36354,7 @@ LABEL_13:
         v2 = W_script_wait(c);
         if ( v2 == 6 )
           return v2;
-        if ( RC_41c390(
+        if ( W_el_41c390(
                c,
                16,
                101,
@@ -36909,7 +36939,7 @@ int32_t chs_4c1c20(wl_char *self)
             if ( W_sc_49cf60(v13) == 1 )
             {
               v14 = W_actor_by_handle(400160503);
-              RC_49d330(v14, 0);
+              W_el_49d330(v14, 0);
               return 0;
             }
           }
@@ -36921,9 +36951,9 @@ int32_t chs_4c1c20(wl_char *self)
         if ( W_sc_49cf60(v9) == 1 )
         {
           v10 = W_actor_by_handle(400150504);
-          RC_49d330(v10, 0);
+          W_el_49d330(v10, 0);
           v11 = W_actor_by_handle(400150505);
-          RC_49d330(v11, 0);
+          W_el_49d330(v11, 0);
           return 0;
         }
       }
@@ -36939,7 +36969,7 @@ int32_t chs_4c1c20(wl_char *self)
             if ( W_sc_49cf60(v6) == 1 )
             {
               v7 = W_actor_by_handle(400145501);
-              RC_49d330(v7, 1);
+              W_el_49d330(v7, 1);
               return 0;
             }
           }
@@ -37134,7 +37164,7 @@ LABEL_31:
   v37 = (intptr_t *)W_vpool_take(SYS32(1208), 0);
   if ( v37 != 0 )
   {
-    g_eng.dsb_volume_5bb870(F32(v37, 0), F32(CFG(), 360));
+    g_eng.dsb_volume_5bb870(*v37, F32(CFG(), 360));
     g_eng.dsb_freq_5bb890(*v37, 0);
     g_eng.dsb_play_5bb8c0(*v37);
   }
@@ -37170,7 +37200,7 @@ LABEL_77:
     if ( v2 == 6 )
       return v2;
   }
-  result = RC_41a430(c, 101, 0);
+  result = W_sv_41a430(c, 101, 0);
   if ( result != 6 )
     goto LABEL_31;
   return result;
@@ -37277,7 +37307,7 @@ int32_t chs_4c2310(wl_char *self)
                     if ( W_sc_49cf60(v38) == 1 )
                     {
                       v39 = W_actor_by_handle(410130511);
-                      RC_49d330(v39, 1);
+                      W_el_49d330(v39, 1);
                       return 0;
                     }
                   }
@@ -37450,7 +37480,7 @@ LABEL_39:
       v50 = (intptr_t *)(F32(v43, 4 * 1) + v49);
       if ( v50 != 0 )
       {
-        g_eng.dsb_volume_5bb870(F32(v50, 0), F32(CFG(), 360));
+        g_eng.dsb_volume_5bb870(*v50, F32(CFG(), 360));
         g_eng.dsb_freq_5bb890(*v50, 0);
         g_eng.dsb_play_5bb8c0(*v50);
       }
@@ -37492,7 +37522,7 @@ LABEL_76:
     if ( v3 == 6 )
       return v3;
   }
-  result = RC_41a430(c, 101, 0);
+  result = W_sv_41a430(c, 101, 0);
   if ( result != 6 )
     goto LABEL_39;
   return result;
@@ -37552,7 +37582,7 @@ int32_t chs_4c29c0(wl_char *self)
       else
         (*v31__f) = 2;
       v30 = W_actor_by_handle(420210101);
-      RC_49d330(v30, (*v31__f));
+      W_el_49d330(v30, (*v31__f));
     }
     return v4;
   }
@@ -38035,7 +38065,7 @@ LABEL_149:
     v2 = W_script_wait(c);
     if ( v2 == 6 )
       return v2;
-    if ( RC_41c390(
+    if ( W_el_41c390(
            c,
            28,
            101,
@@ -38464,7 +38494,7 @@ int32_t chs_4c3ee0(wl_char *self)
         F32(v6, 0xd8) = 0;
         F16(v6, 0xdc) = 0;
         SETLO(v7, W_bgm_pick(v6));
-        RC_40a5d0((int)((intptr_t)g_eng.sys), v7, 1, 0, 20, 1);
+        W_si_40a5d0((int)((intptr_t)g_eng.sys), v7, 1, 0, 20, 1);
         W_script_end(c);
         *(_DWORD *)&GAP(W, 0x1030, 4) = 1;
         return v3;
@@ -38492,7 +38522,7 @@ int32_t chs_4c3ee0(wl_char *self)
       F32(v17, 0xd8) = 0;
       F16(v17, 0xdc) = 0;
       SETLO(v18, W_bgm_pick(v17));
-      RC_40a5d0((int)((intptr_t)g_eng.sys), v18, 1, 0, 20, 1);
+      W_si_40a5d0((int)((intptr_t)g_eng.sys), v18, 1, 0, 20, 1);
       W_script_end(c);
       *(_DWORD *)&GAP(W, 0x1030, 4) = 1;
     }
@@ -38689,7 +38719,7 @@ LABEL_38:
   if ( (*v20__f) != 14 )
     goto LABEL_38;
   F32(c, 0x2e4) = 1;
-  result = RC_41c390(c, 0, 101, 1, 0, 0, 0, 0, (int)D(0x854e9c), 0);
+  result = W_el_41c390(c, 0, 101, 1, 0, 0, 0, 0, (int)D(0x854e9c), 0);
   if ( result != 6 )
     goto LABEL_38;
   return result;
@@ -38838,7 +38868,7 @@ int32_t chs_4c45a0(wl_char *self)
           F32(v21, 0xd8) = 0;
           F16(v21, 0xdc) = 0;
           SETLO(v22, W_bgm_pick(v21));
-          RC_40a5d0((int)((intptr_t)g_eng.sys), v22, 1, 0, 20, 1);
+          W_si_40a5d0((int)((intptr_t)g_eng.sys), v22, 1, 0, 20, 1);
           goto LABEL_39;
         }
         return v3;
@@ -38990,7 +39020,7 @@ int32_t chs_4c45a0(wl_char *self)
             v40 = (intptr_t *)(F32(v33, 4 * 1) + v39);
             if ( v40 != 0 )
             {
-              g_eng.dsb_volume_5bb870(F32(v40, 0), F32(CFG(), 360) + 1000);
+              g_eng.dsb_volume_5bb870(*v40, F32(CFG(), 360) + 1000);
               g_eng.dsb_freq_5bb890(*v40, 0);
               g_eng.dsb_play_5bb8c0(*v40);
             }
@@ -39052,7 +39082,7 @@ LABEL_5:
             if ( W_sc_49cf60(v43) == 1 )
             {
               v44 = W_actor_by_handle(450240515);
-              RC_49d330(v44, 0);
+              W_el_49d330(v44, 0);
               return 0;
             }
           }
@@ -39192,7 +39222,7 @@ LABEL_106:
         v59 = (intptr_t *)(F32(v52, 4 * 1) + v58);
         if ( v59 != 0 )
         {
-          g_eng.dsb_volume_5bb870(F32(v59, 0), F32(CFG(), 360));
+          g_eng.dsb_volume_5bb870(*v59, F32(CFG(), 360));
           g_eng.dsb_freq_5bb890(*v59, 0);
           g_eng.dsb_play_5bb8c0(*v59);
         }
@@ -39220,7 +39250,7 @@ LABEL_131:
           if ( D(0x863930) == 0
             || (W_scene_msg(c, 3u, 0, D(0x863930), 0, 1, 0, 0, 0, 0, 0), (v3 = W_script_wait(c)) != 6) )
           {
-            result = RC_41a430(c, 101, 0);
+            result = W_sv_41a430(c, 101, 0);
             if ( result == 6 )
               return result;
 LABEL_39:
@@ -39299,7 +39329,7 @@ LABEL_130:
     goto LABEL_39;
   return result;
 }
-/* unported callees: 0x408730 0x40a5d0 0x41a160 0x41a430 0x41c390 0x41d4a0 0x49d330 0x49eea0 0x4cc0e0 0x5bbc20 0x5bbc60 0x5bbc90 0x5bbcd0 0x5bcb80 */
+
 
 
 chs_fn chs_find(uint32_t va)
@@ -39343,3 +39373,4 @@ chs_fn chs_find(uint32_t va)
     default: return NULL;
     }
 }
+/* unported callees: none */

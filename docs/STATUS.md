@@ -161,6 +161,23 @@ understates how much actual instruction volume is ported.
   ahead, `0x4418e0`, `0x440e40`, `0x441700`, `0x43ee30`, …; scratch bodies from retail's heap via
   `g_eng.op_new`). Hybrid gate with all 12 movement functions replacing retail: PASS.
 - **Next (port side):**
+  0000000. (2026-10-23, an overnight run, no new traces) the PLATFORM LAYER and the program TOP run as port code, and
+     every unreached group outside the story scripts is ported: `frame_load` (frame loaders + bitmap session),
+     `file_stream`, `input_dev` (DirectInput), `sound_dev` (DirectSound + the DirectShow music manager), `zdd_dev`
+     (DirectDraw + the FLIP: rhost's flip stub retargets its jmp), `win_app` (the pump, the window, config),
+     `asset_load` (the boot asset groups), `win_main` (_WinMain + WinMain: under REPLACE the whole program runs from
+     the port's top), `leftovers` (the AI's ring helpers, the logger, the launcher); UNVERIFIED (unreached) batches:
+     `menu_screens` / `menu_helpers` (Status / Items / Abilities / Party Commands, the item use), `char_types` (14
+     per-type inits), `char_handlers2` (18 integrator handlers), `actor_behave`, `sjis_text`, `gamepad`, `ending`,
+     `title_extra` (Options pages, the attract demo, the opening; the input re-poll 0x40fe00 reached), `engine_rest`.
+     Hybrid gate: 1,271 hooks, PASS 9/9 Windows + wine.  Ledger: 94.9% of engine functions touched, 76% of bytes.
+     REGENERATED: the older decomp2c modules re-converted with today's converter (`tools/ida/decomp2c_regen.py`,
+     hand finishes kept; their RC_ calls now bind to the new ports; latent bugs — `*(T *)v->field` precedence,
+     unsigned Win32 returns, offset-only arrays, class-pointer `++` in for headers, `trailer`'s byte — fixed in
+     place); hybrid PASS 9/9 Windows + wine.  Left: the later chapters' STORY SCRIPTS 0x4e1d10..0x546670 (~430 KB,
+     unreached).  rhost: by-address functions (window
+     procedures, atexit, callbacks, jmp-thunk targets) take an ENTRY PATCH under REPLACE (game memory keeps retail's
+     address); 3 stack-address slots joined `volatile.enold.txt` (re-blessed).
   000000. (2026-10-17 afternoon) coverage over the corpus (`rhost.py coverage`): 1,068 of 1,550 game functions reached;
      reached but unported (rhost modules, engine-proper) ~120 KB outside the platform layer — the corpus ALREADY
      reaches monsters, a party ally's AI, the menus, a statue save and a game over (rh-combat), so these are all

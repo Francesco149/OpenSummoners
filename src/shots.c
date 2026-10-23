@@ -2,7 +2,8 @@
  *
  * A FIRST PASS through tools/ida/decomp2c.py (the decompile's control flow kept verbatim: labels, gotos across
  * the cases; IDA's local types, fields through width-typed accessors), then finished by hand against the asm.
- * Hand finishes: 0x4710c0's int64 parameter (IDA merged the flag / part dwords) split back; the four stdcall
+ * Hand finishes: 0x4710c0's int64 parameter (IDA merged the flag / part dwords) split back (and its caller
+ * 0x590230's call: regenerate with --keep 0x4710c0,0x590230); the four stdcall
  * helpers that pass their caller's ecx through to a thiscall (0x445ce0 0x4504c0 0x46e110 0x46e150) take it as an
  * explicit first parameter (always the caller's `this`). */
 #include "shots.h"
@@ -21,6 +22,21 @@ static intptr_t rnd(void) { return (intptr_t)rng_rand(); }
 
 
 
+#include "actor_update.h"
+#include "camera_follow.h"
+#include "char_attack.h"
+#include "char_integrate.h"
+#include "char_physics.h"
+#include "char_state.h"
+#include "device_init.h"
+#include "entity_fx.h"
+#include "entity_life.h"
+#include "entity_move.h"
+#include "npc_ai.h"
+#include "particle_init.h"
+#include "particle_spawn.h"
+#include "room_tick.h"
+#include "sound_fx.h"
 #include "actor_update.h"
 #include "camera_follow.h"
 #include "char_attack.h"
@@ -67,15 +83,33 @@ static inline int32_t abs32(int32_t x) { return x < 0 ? (int32_t)(0u - (uint32_t
 #include <stdbool.h>
 #endif
 typedef int32_t _DWORD;
+typedef uint8_t _UNKNOWN;   /* IDA's untyped byte (casts: `(_UNKNOWN *)p`) */
+typedef uint8_t _BOOL1;
+typedef uint16_t _BOOL2;
+typedef int32_t _BOOL4;
 typedef uint16_t _WORD;
 typedef uint8_t _BYTE;
 typedef uint64_t _QWORD;
 #define GAP(p, o, i) F8(p, (o) + (i))   /* IDA's gapN[i]: the byte at +N + i */
 #define qmemcpy memcpy   /* IDA's inline memcpy */
+static inline void *memset32(void *d, uint32_t v, size_t n) { uint32_t *p = d; while (n--) *p++ = v; return d; }   /* IDA's rep stosd */
+static inline void eh_vec_ctor(intptr_t p, uint32_t size, int32_t n, void *ctor, void *dtor)   /* MSVC's `eh vector */
+{                                                                                             /* constructor iterator' */
+    typedef void (__attribute__((thiscall)) *c_t)(void *);
+    (void)dtor;
+    for (int32_t i = 0; i < n; i++) ((c_t)ctor)((void *)(p + (intptr_t)size * i));
+}
+static inline void eh_vec_dtor(intptr_t p, uint32_t size, int32_t n, void *dtor)   /* MSVC's `eh vector destructor iterator': */
+{                                                                                  /* the elements' dtors, last first */
+    typedef void (__attribute__((thiscall)) *d_t)(void *);
+    p += (intptr_t)size * n;
+    while (--n >= 0) { p -= size; ((d_t)dtor)((void *)p); }
+}
 typedef char CHAR;
 #define SETLO(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff0000u) | (uint16_t)(v)))
 #define SETHI(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffu) | ((uint32_t)(uint16_t)(v) << 16)))
 #define SETLB(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffff00u) | (uint8_t)(v)))
+#define SETB1(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff00ffu) | ((uint32_t)(uint8_t)(v) << 8)))
 #define SETLODW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffff00000000ull) | (uint32_t)(v)))
 #define SETHIDW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffffull) | ((uint64_t)(uint32_t)(v) << 32)))
 #define F32(p, o) (*(int32_t *)((uint8_t *)(intptr_t)(p) + (o)))
@@ -5200,7 +5234,7 @@ int32_t band96_tick(wl_char *self)
           v3 = (intptr_t *)W_vpool_take(SYS32(1736), 0);
           if ( v3 != 0 )
           {
-            v30 = F32(v3, 0);
+            v30 = *v3;
             v3 = (intptr_t *)W_sfx_place(
                                   c,
                                   F32(CFG(), 360) - 800,
@@ -5270,7 +5304,7 @@ int32_t band96_tick(wl_char *self)
           v21 = (intptr_t *)W_vpool_take(SYS32(1744), 0);
           if ( v21 != 0 )
           {
-            v22 = F32(v21, 0);
+            v22 = *v21;
             if ( W_sfx_place(
                    c,
                    F32(CFG(), 360) - 800,
@@ -5443,7 +5477,7 @@ int32_t band96_tick(wl_char *self)
             v16 = (intptr_t *)W_vpool_take(SYS32(1744), 0);
             if ( v16 != 0 )
             {
-              v17 = F32(v16, 0);
+              v17 = *v16;
               if ( W_sfx_place(
                      c,
                      F32(CFG(), 360) - 800,
@@ -5923,7 +5957,7 @@ int32_t shot_476740(wl_char *self, int32_t a2)
     intptr_t v2;
     uint16_t i;
     intptr_t v4;
-    intptr_t v5;
+    intptr_t * v5;
     intptr_t * v6;
     int32_t * v7;
     _Alignas(8) uint8_t frame_[0x14 + 0x10];   /* the stack locals at their ebp offsets */
@@ -5948,7 +5982,7 @@ int32_t shot_476740(wl_char *self, int32_t a2)
           if ( v6 != 0 )
           {
             if ( a2 != 0 )
-              g_eng.dsb_stop_5bb8e0(F32(v6, 0));
+              g_eng.dsb_stop_5bb8e0(*v6);
             F32(*v7, 4) = 0;
             *v7 = 0;
             v7[1] = 0;
@@ -6773,7 +6807,7 @@ int32_t shot_477b70(wl_char *self, int32_t a2, int32_t a3)
         v9 = (intptr_t *)W_vpool_take(SYS32(1292), 0);
         if ( v9 != 0 )
         {
-          (*v29__f) = F32(v9, 0);
+          (*v29__f) = *v9;
           if ( W_sfx_place(c, F32(CFG(), 360) + 400, 0, 0, v7, &a2, v31) != 0 )
           {
             g_eng.dsb_volume_5bb870((*v29__f), a2);
@@ -6960,7 +6994,7 @@ int32_t shot_477f10(wl_char *self, int32_t a2, int32_t a3)
       v8 = (intptr_t *)W_vpool_take(SYS32(1292), 0);
       if ( v8 != 0 )
       {
-        (*v18__f) = F32(v8, 0);
+        (*v18__f) = *v8;
         if ( W_sfx_place(c, F32(CFG(), 360) + 400, 0, 0, v6, &a2, &(*v19__f)) != 0 )
         {
           g_eng.dsb_volume_5bb870((*v18__f), a2);
@@ -7100,7 +7134,7 @@ int32_t shot_4781f0(wl_char *self, int32_t a2, int32_t a3)
         v15 = (intptr_t *)W_vpool_take(SYS32(1292), 0);
         if ( v15 != 0 )
         {
-          (*v27__f) = F32(v15, 0);
+          (*v27__f) = *v15;
           if ( W_sfx_place(c, F32(CFG(), 360) + 400, 0, 0, v13, &a2, v29) != 0 )
           {
             g_eng.dsb_volume_5bb870((*v27__f), a2);

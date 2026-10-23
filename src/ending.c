@@ -24,6 +24,7 @@ static intptr_t rnd(void) { return (intptr_t)rng_rand(); }
 #include <time.h>
 #include "asset_register.h"
 #include "frame_load.h"
+#include "gamepad.h"
 #include "input_dev.h"
 #include "input_dik.h"
 #include "render_draw.h"
@@ -76,6 +77,12 @@ typedef uint64_t _QWORD;
 #define GAP(p, o, i) F8(p, (o) + (i))   /* IDA's gapN[i]: the byte at +N + i */
 #define qmemcpy memcpy   /* IDA's inline memcpy */
 static inline void *memset32(void *d, uint32_t v, size_t n) { uint32_t *p = d; while (n--) *p++ = v; return d; }   /* IDA's rep stosd */
+static inline void eh_vec_ctor(intptr_t p, uint32_t size, int32_t n, void *ctor, void *dtor)   /* MSVC's `eh vector */
+{                                                                                             /* constructor iterator' */
+    typedef void (__attribute__((thiscall)) *c_t)(void *);
+    (void)dtor;
+    for (int32_t i = 0; i < n; i++) ((c_t)ctor)((void *)(p + (intptr_t)size * i));
+}
 static inline void eh_vec_dtor(intptr_t p, uint32_t size, int32_t n, void *dtor)   /* MSVC's `eh vector destructor iterator': */
 {                                                                                  /* the elements' dtors, last first */
     typedef void (__attribute__((thiscall)) *d_t)(void *);
@@ -97,6 +104,7 @@ typedef char CHAR;
 #define F64(p, o) (*(int64_t *)((uint8_t *)(intptr_t)(p) + (o)))
 
 static inline intptr_t W_fl_4184a0(intptr_t a0, intptr_t a1, ...) { fl_4184a0((wl_char *)a0, (int32_t)a1); return 0; }
+static inline intptr_t W_gp_468b10(intptr_t a0, intptr_t a1, intptr_t a2, ...) { return (intptr_t)gp_468b10((wl_char *)a0, (int32_t *)a1, (int32_t)a2); }
 static inline intptr_t W_id_5ba2d0(intptr_t a0, ...) { return (intptr_t)id_5ba2d0((wl_char *)a0); }
 static inline intptr_t W_id_5ba4c0(intptr_t a0, ...) { return (intptr_t)id_5ba4c0((wl_char *)a0); }
 static inline intptr_t W_id_5ba650(intptr_t a0, ...) { return (intptr_t)id_5ba650((wl_char *)a0); }
@@ -122,8 +130,6 @@ static inline intptr_t W_tm_56d710(intptr_t a0, ...) { return (intptr_t)tm_56d71
 static inline intptr_t W_wm_5b1030(void) { return (intptr_t)wm_5b1030(); }
 static inline intptr_t W_world_free(intptr_t a0, ...) { world_free((wl_world *)a0); return 0; }
 static inline intptr_t W_zd_5b9410(intptr_t a0, ...) { return (intptr_t)zd_5b9410((wl_char *)a0); }
-typedef intptr_t (__attribute__((thiscall)) *rt_468b10)(intptr_t, intptr_t, intptr_t);   /* 0x468b10 thiscall: unported, retail's */
-#define RC_468b10 ((rt_468b10)g_eng.retail(0x468b10u))
 typedef intptr_t (__attribute__((thiscall)) *rt_5b8fc0)(intptr_t, intptr_t);   /* 0x5b8fc0 thiscall: unported, retail's */
 #define RC_5b8fc0 ((rt_5b8fc0)g_eng.retail(0x5b8fc0u))
 typedef intptr_t (__attribute__((stdcall)) *api_DeleteObject_t)(intptr_t);
@@ -2091,7 +2097,7 @@ LABEL_137:
   for ( (*k__f) = 2; (*k__f) != 0; --(*k__f) )
   {
     if ( F32(v19, 0) != 0 && F32(v18, 0) != 0 )
-      RC_468b10((intptr_t)(v14), (intptr_t)(*(_DWORD **)v18), (intptr_t)(0));
+      W_gp_468b10((intptr_t)(v14), (intptr_t)(*(_DWORD **)v18), (intptr_t)(0));
     v19 += 4;
     v18 += 4;
   }
@@ -3040,4 +3046,4 @@ int32_t en_5a45c0(wl_char *self, char a2)
     g_eng.op_delete((void *)c);
   return (void **)c;
 }
-/* unported callees: 0x468b10 0x5b8fc0 */
+/* unported callees: 0x5b8fc0 */

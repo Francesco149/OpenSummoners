@@ -20,14 +20,18 @@
 static intptr_t rnd(void) { return (intptr_t)rng_rand(); }
 
 #include <windows.h>
+#include <stdio.h>
+#include <time.h>
 
 #include "actor_update.h"
 #include "char_integrate.h"
+#include "engine_rest.h"
 #include "party_member.h"
 #include "room_load.h"
 #include "room_loop.h"
 #include "scene_cmd.h"
 #include "script_engine.h"
+#include "sound_dev.h"
 #include "sound_fx.h"
 #include "title_menu.h"
 #pragma GCC optimize ("no-strict-aliasing")
@@ -61,15 +65,33 @@ static inline int32_t abs32(int32_t x) { return x < 0 ? (int32_t)(0u - (uint32_t
 #include <stdbool.h>
 #endif
 typedef int32_t _DWORD;
+typedef uint8_t _UNKNOWN;   /* IDA's untyped byte (casts: `(_UNKNOWN *)p`) */
+typedef uint8_t _BOOL1;
+typedef uint16_t _BOOL2;
+typedef int32_t _BOOL4;
 typedef uint16_t _WORD;
 typedef uint8_t _BYTE;
 typedef uint64_t _QWORD;
 #define GAP(p, o, i) F8(p, (o) + (i))   /* IDA's gapN[i]: the byte at +N + i */
 #define qmemcpy memcpy   /* IDA's inline memcpy */
+static inline void *memset32(void *d, uint32_t v, size_t n) { uint32_t *p = d; while (n--) *p++ = v; return d; }   /* IDA's rep stosd */
+static inline void eh_vec_ctor(intptr_t p, uint32_t size, int32_t n, void *ctor, void *dtor)   /* MSVC's `eh vector */
+{                                                                                             /* constructor iterator' */
+    typedef void (__attribute__((thiscall)) *c_t)(void *);
+    (void)dtor;
+    for (int32_t i = 0; i < n; i++) ((c_t)ctor)((void *)(p + (intptr_t)size * i));
+}
+static inline void eh_vec_dtor(intptr_t p, uint32_t size, int32_t n, void *dtor)   /* MSVC's `eh vector destructor iterator': */
+{                                                                                  /* the elements' dtors, last first */
+    typedef void (__attribute__((thiscall)) *d_t)(void *);
+    p += (intptr_t)size * n;
+    while (--n >= 0) { p -= size; ((d_t)dtor)((void *)p); }
+}
 typedef char CHAR;
 #define SETLO(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff0000u) | (uint16_t)(v)))
 #define SETHI(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffu) | ((uint32_t)(uint16_t)(v) << 16)))
 #define SETLB(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffff00u) | (uint8_t)(v)))
+#define SETB1(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff00ffu) | ((uint32_t)(uint8_t)(v) << 8)))
 #define SETLODW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffff00000000ull) | (uint32_t)(v)))
 #define SETHIDW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffffull) | ((uint64_t)(uint32_t)(v) << 32)))
 #define F32(p, o) (*(int32_t *)((uint8_t *)(intptr_t)(p) + (o)))
@@ -83,6 +105,7 @@ static inline intptr_t W_actor_by_handle(intptr_t a0, ...) { return (intptr_t)ac
 static inline intptr_t W_area_level_row(intptr_t a0, ...) { return (intptr_t)area_level_row((int32_t)a0); }
 static inline intptr_t W_body_action_start(intptr_t a0, intptr_t a1, intptr_t a2, ...) { return (intptr_t)body_action_start((wl_body *)a0, (int16_t)a1, (int32_t)a2); }
 static inline intptr_t W_cast_cmd_clear(intptr_t a0, ...) { cast_cmd_clear((uint8_t *)a0); return 0; }
+static inline intptr_t W_el_41e4c0(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, ...) { return (intptr_t)el_41e4c0((wl_char *)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3); }
 static inline intptr_t W_member_attach(intptr_t a0, intptr_t a1, intptr_t a2, ...) { return (intptr_t)member_attach((wl_char *)a0, (wl_pslot *)a1, (int32_t)a2); }
 static inline intptr_t W_pslot_heal(intptr_t a0, intptr_t a1, ...) { pslot_heal((wl_pslot *)a0, (int32_t)a1); return 0; }
 static inline intptr_t W_pslot_ok(intptr_t a0, intptr_t a1, intptr_t a2, ...) { return (intptr_t)pslot_ok((const wl_pslot *)a0, (int32_t)a1, (int32_t)a2); }
@@ -97,25 +120,19 @@ static inline intptr_t W_script_end(intptr_t a0, ...) { script_end((wl_event *)a
 static inline intptr_t W_script_leader(intptr_t a0, ...) { return (intptr_t)script_leader((const wl_event *)a0); }
 static inline intptr_t W_script_party_cast(intptr_t a0, ...) { script_party_cast((wl_event *)a0); return 0; }
 static inline intptr_t W_script_wait(intptr_t a0, ...) { return (intptr_t)script_wait((wl_event *)a0); }
+static inline intptr_t W_sd_5bbc20(intptr_t a0, ...) { return (intptr_t)sd_5bbc20((wl_char *)a0); }
+static inline intptr_t W_sd_5bbc60(intptr_t a0, intptr_t a1, ...) { return (intptr_t)sd_5bbc60((wl_char *)a0, (uint16_t)a1); }
+static inline intptr_t W_sd_5bbc90(intptr_t a0, intptr_t a1, ...) { return (intptr_t)sd_5bbc90((wl_char *)a0, (uint16_t)a1); }
+static inline intptr_t W_sd_5bbcd0(intptr_t a0, intptr_t a1, ...) { sd_5bbcd0((wl_char *)a0, (int32_t)a1); return 0; }
+static inline intptr_t W_sd_5bcb80(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, ...) { return (intptr_t)sd_5bcb80((wl_char *)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3, (int32_t)a4, (int32_t)a5); }
 static inline intptr_t W_tm_41d780(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, ...) { return (intptr_t)tm_41d780((wl_char *)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3); }
 static inline intptr_t W_voice_group_prio(intptr_t a0, intptr_t a1, ...) { return (intptr_t)voice_group_prio((const wl_voiceset *)a0, (uint16_t)a1); }
 static inline intptr_t W_voice_place(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, ...) { return (intptr_t)voice_place((const wl_char *)a0, (int32_t *)a1, (int32_t *)a2, (int32_t *)a3); }
 static inline intptr_t W_voice_play(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, ...) { return (intptr_t)voice_play((wl_voiceset *)a0, (uint16_t)a1, (int32_t)a2, (int32_t)a3, (int32_t)a4, (int32_t)a5, (int32_t)a6); }
-typedef intptr_t (__attribute__((thiscall)) *rt_41e4c0)(intptr_t, intptr_t, intptr_t, intptr_t);   /* 0x41e4c0 thiscall: unported, retail's */
-#define RC_41e4c0 ((rt_41e4c0)g_eng.retail(0x41e4c0u))
-typedef intptr_t (__attribute__((thiscall)) *rt_5bbc20)(intptr_t);   /* 0x5bbc20 thiscall: unported, retail's */
-#define RC_5bbc20 ((rt_5bbc20)g_eng.retail(0x5bbc20u))
-typedef intptr_t (__attribute__((thiscall)) *rt_5bbc60)(intptr_t, intptr_t);   /* 0x5bbc60 thiscall: unported, retail's */
-#define RC_5bbc60 ((rt_5bbc60)g_eng.retail(0x5bbc60u))
-typedef intptr_t (__attribute__((thiscall)) *rt_5bbc90)(intptr_t, intptr_t);   /* 0x5bbc90 thiscall: unported, retail's */
-#define RC_5bbc90 ((rt_5bbc90)g_eng.retail(0x5bbc90u))
-typedef intptr_t (__attribute__((thiscall)) *rt_5bbcd0)(intptr_t, intptr_t);   /* 0x5bbcd0 thiscall: unported, retail's */
-#define RC_5bbcd0 ((rt_5bbcd0)g_eng.retail(0x5bbcd0u))
-typedef intptr_t (__attribute__((thiscall)) *rt_5bcb80)(intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t);   /* 0x5bcb80 thiscall: unported, retail's */
-#define RC_5bcb80 ((rt_5bcb80)g_eng.retail(0x5bcb80u))
-typedef intptr_t (__attribute__((stdcall)) *api_FormatMessageA_t)(intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t);
+
+typedef uint32_t (__attribute__((stdcall)) *api_FormatMessageA_t)(intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t);
 #define API_FormatMessageA ((api_FormatMessageA_t)g_eng.api("FormatMessageA"))
-typedef intptr_t (__attribute__((stdcall)) *api_GetLastError_t)(void);
+typedef uint32_t (__attribute__((stdcall)) *api_GetLastError_t)(void);
 #define API_GetLastError ((api_GetLastError_t)g_eng.api("GetLastError"))
 typedef intptr_t (__attribute__((stdcall)) *api_GetLocalTime_t)(intptr_t);
 #define API_GetLocalTime ((api_GetLocalTime_t)g_eng.api("GetLocalTime"))
@@ -238,18 +255,18 @@ LABEL_16:
       {
         if ( SYS32(0x2884) != 0
           && F32(CFG(), 372) != 0
-          && (!RC_5bbc60((intptr_t)(SYS32(0x2884)), (intptr_t)(v10))
-           || RC_5bbc90((intptr_t)(SYS32(0x2884)), (intptr_t)(v10)) != 0) )
+          && (!W_sd_5bbc60((intptr_t)(SYS32(0x2884)), (intptr_t)(v10))
+           || W_sd_5bbc90((intptr_t)(SYS32(0x2884)), (intptr_t)(v10)) != 0) )
         {
           F16(D(0x8a93e8), 0) = 0;
-          RC_5bbcd0((intptr_t)(SYS32(0x2884)), (intptr_t)(20));
-          if ( RC_5bbc20((intptr_t)(SYS32(0x2884))) != 0 )
+          W_sd_5bbcd0((intptr_t)(SYS32(0x2884)), (intptr_t)(20));
+          if ( W_sd_5bbc20((intptr_t)(SYS32(0x2884))) != 0 )
           {
-            if ( RC_5bcb80((intptr_t)(SYS32(0x2884)), (intptr_t)(v10), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0)) == 0 )
+            if ( W_sd_5bcb80((intptr_t)(SYS32(0x2884)), (intptr_t)(v10), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0)) == 0 )
 LABEL_27:
               g_eng.h408b90(D(0x8a9530), (SYS32(0x2884) + 0x2c), 0, D(0x8a9b6c));
           }
-          else if ( RC_5bcb80((intptr_t)(SYS32(0x2884)), (intptr_t)(v10), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0)) == 0 )
+          else if ( W_sd_5bcb80((intptr_t)(SYS32(0x2884)), (intptr_t)(v10), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0)) == 0 )
           {
             goto LABEL_27;
           }
@@ -328,7 +345,7 @@ LABEL_44:
             *(_DWORD *)&GAP(c, 0x300, 636) = (*v29__f);
             v24 = W_script_wait((intptr_t)(c));
             if ( v24 != 6 && a2 != 0 )
-              RC_41e4c0((intptr_t)(c), (intptr_t)(100145), (intptr_t)(1), (intptr_t)(0));
+              W_el_41e4c0((intptr_t)(c), (intptr_t)(100145), (intptr_t)(1), (intptr_t)(0));
             return v24;
           }
         }
@@ -586,17 +603,17 @@ int32_t si_40a340(wl_char *self)
   {
     if ( SYS32(0x2884) != 0
       && F32(CFG(), 372) != 0
-      && (!RC_5bbc60((intptr_t)(SYS32(0x2884)), (intptr_t)(0x1Bu))
-       || RC_5bbc90((intptr_t)(SYS32(0x2884)), (intptr_t)(0x1Bu)) != 0) )
+      && (!W_sd_5bbc60((intptr_t)(SYS32(0x2884)), (intptr_t)(0x1Bu))
+       || W_sd_5bbc90((intptr_t)(SYS32(0x2884)), (intptr_t)(0x1Bu)) != 0) )
     {
       F16(D(0x8a93e8), 0) = 0;
-      RC_5bbcd0((intptr_t)(SYS32(0x2884)), (intptr_t)(20));
-      if ( RC_5bbc20((intptr_t)(SYS32(0x2884))) != 0 )
+      W_sd_5bbcd0((intptr_t)(SYS32(0x2884)), (intptr_t)(20));
+      if ( W_sd_5bbc20((intptr_t)(SYS32(0x2884))) != 0 )
       {
-        if ( RC_5bcb80((intptr_t)(SYS32(0x2884)), (intptr_t)(27), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0)) == 0 )
+        if ( W_sd_5bcb80((intptr_t)(SYS32(0x2884)), (intptr_t)(27), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0)) == 0 )
           goto LABEL_17;
       }
-      else if ( RC_5bcb80((intptr_t)(SYS32(0x2884)), (intptr_t)(27), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0)) == 0 )
+      else if ( W_sd_5bcb80((intptr_t)(SYS32(0x2884)), (intptr_t)(27), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0)) == 0 )
       {
 LABEL_17:
         g_eng.h408b90(D(0x8a9530), (SYS32(0x2884) + 0x2c), 0, D(0x8a9b6c));
@@ -647,17 +664,17 @@ int32_t si_41a160(wl_char *self)
   F32(c, 0x2e4) = 1;
   if ( SYS32(0x2884) != 0
     && F32(CFG(), 372) != 0
-    && (!RC_5bbc60((intptr_t)(SYS32(0x2884)), (intptr_t)(0x1Au))
-     || RC_5bbc90((intptr_t)(SYS32(0x2884)), (intptr_t)(0x1Au)) != 0) )
+    && (!W_sd_5bbc60((intptr_t)(SYS32(0x2884)), (intptr_t)(0x1Au))
+     || W_sd_5bbc90((intptr_t)(SYS32(0x2884)), (intptr_t)(0x1Au)) != 0) )
   {
     F16(D(0x8a93e8), 0) = 0;
-    RC_5bbcd0((intptr_t)(SYS32(0x2884)), (intptr_t)(20));
-    if ( RC_5bbc20((intptr_t)(SYS32(0x2884))) != 0 )
+    W_sd_5bbcd0((intptr_t)(SYS32(0x2884)), (intptr_t)(20));
+    if ( W_sd_5bbc20((intptr_t)(SYS32(0x2884))) != 0 )
     {
-      if ( RC_5bcb80((intptr_t)(SYS32(0x2884)), (intptr_t)(26), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0)) == 0 )
+      if ( W_sd_5bcb80((intptr_t)(SYS32(0x2884)), (intptr_t)(26), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0)) == 0 )
         g_eng.log_fail_406440((const char *)D(0x8a9530), (SYS32(0x2884) + 0x2c), D(0x8a9b6c));
     }
-    else if ( RC_5bcb80((intptr_t)(SYS32(0x2884)), (intptr_t)(26), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0)) == 0 )
+    else if ( W_sd_5bcb80((intptr_t)(SYS32(0x2884)), (intptr_t)(26), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0)) == 0 )
     {
       g_eng.h408b90(D(0x8a9530), (SYS32(0x2884) + 0x2c), 0, D(0x8a9b6c));
     }
@@ -833,8 +850,8 @@ LABEL_28:
       F32(v6, 0x4020) = v18[3];
       do
       {
-        v20 = F32(v19, 0);
-        if ( W_pslot_ok((intptr_t)(F32(v19, 0)), (intptr_t)(0), (intptr_t)(0)) )
+        v20 = *v19;
+        if ( W_pslot_ok((intptr_t)(*v19), (intptr_t)(0), (intptr_t)(0)) )
         {
           W_tm_41d780((intptr_t)(v20), (intptr_t)(0), (intptr_t)(v18[1]), (intptr_t)(v18[2]));
         }
@@ -881,8 +898,8 @@ void si_408b90(wl_char *self, char * msg, int32_t errno_decorate, char * trailer
 {
     intptr_t c = (intptr_t)self;
     uint32_t LastError = 0;
-    intptr_t v6 = 0;
-    intptr_t v7 = 0;
+    FILE * v6 = 0;
+    FILE * v7 = 0;
     _Alignas(8) uint8_t frame_[0x210 + 0x10];   /* the stack locals at their ebp offsets */
     memset(frame_, 0, sizeof frame_);
     char *OutputString = (char *)(frame_ + 0x10);   /* [256] at ebp-0x200 */
@@ -948,7 +965,7 @@ void si_40a5d0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5, in
     intptr_t v8 = 0;
     intptr_t v9 = 0;
     char * v10 = 0;
-    intptr_t v11 = 0;
+    FILE * v11 = 0;
     _Alignas(8) uint8_t frame_[0x10 + 0x10];   /* the stack locals at their ebp offsets */
     memset(frame_, 0, sizeof frame_);
     SYSTEMTIME *const SystemTime__f = (SYSTEMTIME *)(frame_ + 0x0);   /* ebp-0x10 */
@@ -956,25 +973,25 @@ void si_40a5d0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5, in
   v7 = F32(c, 10372);
   if ( v7 != 0
     && F32(F32(F32(c, 800), 0), 372) != 0
-    && (!RC_5bbc60((intptr_t)(v7), (intptr_t)(a2)) || RC_5bbc90((intptr_t)(F32(c, 10372)), (intptr_t)(a2)) != 0) )
+    && (!W_sd_5bbc60((intptr_t)(v7), (intptr_t)(a2)) || W_sd_5bbc90((intptr_t)(F32(c, 10372)), (intptr_t)(a2)) != 0) )
   {
     if ( a3 != 0 )
       F16(c, 10376) = a2;
     else
       F16(c, 10376) = 0;
     if ( a6 != 0 )
-      RC_5bbcd0((intptr_t)(F32(c, 10372)), (intptr_t)(20));
+      W_sd_5bbcd0((intptr_t)(F32(c, 10372)), (intptr_t)(20));
     if ( a4 != 0 )
     {
-      if ( RC_5bcb80((intptr_t)(F32(c, 10372)), (intptr_t)(a2), (intptr_t)(a3), (intptr_t)(0), (intptr_t)(a5), (intptr_t)(1)) == 0 )
+      if ( W_sd_5bcb80((intptr_t)(F32(c, 10372)), (intptr_t)(a2), (intptr_t)(a3), (intptr_t)(0), (intptr_t)(a5), (intptr_t)(1)) == 0 )
         g_eng.log_fail_406440((const char *)D(0x8a9530), (char *)(F32(c, 10372) + 44), D(0x8a9b6c));
       return;
     }
-    v8 = RC_5bbc20((intptr_t)(F32(c, 10372)));
+    v8 = W_sd_5bbc20((intptr_t)(F32(c, 10372)));
     v9 = F32(c, 10372);
     if ( v8 != 0 )
     {
-      if ( RC_5bcb80((intptr_t)(v9), (intptr_t)(a2), (intptr_t)(a3), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0)) == 0 )
+      if ( W_sd_5bcb80((intptr_t)(v9), (intptr_t)(a2), (intptr_t)(a3), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0)) == 0 )
       {
         v10 = (const CHAR *)(F32(c, 10372) + 44);
         API_OutputDebugStringA((intptr_t)(v10));
@@ -1000,7 +1017,7 @@ LABEL_19:
         }
       }
     }
-    else if ( RC_5bcb80((intptr_t)(v9), (intptr_t)(a2), (intptr_t)(a3), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0)) == 0 )
+    else if ( W_sd_5bcb80((intptr_t)(v9), (intptr_t)(a2), (intptr_t)(a3), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0)) == 0 )
     {
       v10 = (const CHAR *)(F32(c, 10372) + 44);
       API_OutputDebugStringA((intptr_t)(v10));
@@ -1012,4 +1029,4 @@ LABEL_19:
     }
   }
 }
-/* unported callees: 0x41e4c0 0x5bbc20 0x5bbc60 0x5bbc90 0x5bbcd0 0x5bcb80 */
+/* unported callees: none */

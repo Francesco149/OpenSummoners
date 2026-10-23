@@ -30,11 +30,12 @@ def main():
     ap.add_argument("--flags", default="--typed --zero-locals")
     ap.add_argument("--dry", action="store_true")
     ap.add_argument("--show", action="store_true", help="print each regenerated function's changed lines")
+    ap.add_argument("--force", action="store_true", help="(a finish script's own call) ignore tools/ida/finish/<module>.py")
     a = ap.parse_args()
     path = os.path.join(REPO, a.module)
     name = os.path.splitext(os.path.basename(path))[0]
     fin = os.path.join(REPO, "tools", "ida", "finish", name + ".py")
-    if os.path.exists(fin):
+    if os.path.exists(fin) and not a.force:
         sys.exit(f"{a.module}: has a finish script — run python3 {os.path.relpath(fin, REPO)}")
     text = open(path).read()
     fs = funcs_of(text)
@@ -45,23 +46,48 @@ def main():
         sys.exit(r.stderr[-2000:])
     out = r.stdout
     new = out[min(i for i in (out.find("#include"), out.find("#pragma")) if i >= 0):]
-    old = {va: b for va, _, b in fs}
-    changed = []
-    for va, n, b in funcs_of(new):
-        if norm(b) == norm(old.get(va, "")):
-            continue
+    newf = {va: b for va, _, b in funcs_of(new)}
+    first_new = min(new.find(b) for b in newf.values())
+    new_pro = new[:first_new]
+    tail = re.search(r"/\* unported callees:[^\n]*\*/\s*$", new)
+    body0 = body_start(text)
+    old_body = text[body0:]
+    spans = sorted((old_body.find(b), old_body.find(b) + len(b), va, n, b) for va, n, b in fs)
+    old_pro = old_body[:spans[0][0]]
+    GEN = re.compile(r"^(typedef intptr_t \(.*\*rt_[0-9a-f]{6}\)|#define RC_[0-9a-f]{6} |static inline intptr_t W_\w+\(|"
+                     r"typedef (?:intptr_t|uint32_t) \(.*\*api_\w+_t\)|#define API_\w+ |#define CRT_\w+ |(?:int32_t|int64_t|void) \w+\(.*\);$|"
+                     r"#include [<\"])")
+    for va, n, _ in fs:   # a kept function keeps its committed prototype (a hand finish's signature, 0x4710c0's)
         if va in keep:
-            print(f"0x{va} {n}: KEPT (hand finish; the fresh body differs)")
-            new = new.replace(b, old[va], 1)
-        else:
-            changed.append(f"0x{va}")
-            if a.show:
-                import difflib
-                d = [l for l in difflib.unified_diff(norm(old.get(va, "")), norm(b), lineterm="", n=0) if l[:1] in "+-" and l[:3] not in ("+++", "---")]
-                print(f"--- 0x{va} {n}"); print("\n".join("    " + l[:220] for l in d[:40]))
+            op = re.search(r"^(?:int32_t|int64_t|void) %s\(.*\);$" % n, old_pro, re.M)
+            if op:
+                new_pro = re.sub(r"^(?:int32_t|int64_t|void) %s\(.*\);$" % n, lambda m: op.group(0), new_pro, flags=re.M)
+    lost = [l for l in old_pro.split("\n") if l.strip() and l not in new_pro.split("\n") and not GEN.match(l)]
+    if lost:   # (a hand addition in the old prologue the converter does not emit: review)
+        print(f"{a.module}: {len(lost)} old prologue line(s) not in the new prologue (kept after it):")
+        for l in lost[:12]:
+            print("    " + l[:160])
+    res, pos, changed = [new_pro.rstrip("\n") + "\n" + "\n".join(lost) + ("\n" if lost else "") + "\n"], spans[0][0], []
+    for s0, s1, va, n, b in spans:
+        res.append(old_body[pos:s0])   # whatever sits between functions (a hand port, a helper) stays
+        nb = newf.get(va, b)
+        if norm(nb) != norm(b):
+            if va in keep:
+                print(f"0x{va} {n}: KEPT (hand finish; the fresh body differs)")
+                nb = b
+            else:
+                changed.append(f"0x{va}")
+                if a.show:
+                    import difflib
+                    d = [l for l in difflib.unified_diff(norm(b), norm(nb), lineterm="", n=0) if l[:1] in "+-" and l[:3] not in ("+++", "---")]
+                    print(f"--- 0x{va} {n}"); print("\n".join("    " + l[:220] for l in d[:40]))
+        res.append(nb)
+        pos = s1
+    rest = re.sub(r"/\* unported callees:[^\n]*\*/", "", old_body[pos:], count=1)
+    res.append(rest.rstrip("\n") + "\n" + (tail.group(0) if tail else ""))
     print(f"{a.module}: {len(fs)} functions, {len(changed)} regenerated" + (": " + " ".join(changed) if changed else ""))
     if not a.dry:
-        open(path, "w").write(text[:body_start(text)] + new)
+        open(path, "w").write(text[:body0] + "".join(res))
 
 
 if __name__ == "__main__":

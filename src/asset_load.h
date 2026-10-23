@@ -15,6 +15,7 @@
 #define OSS_ASSET_LOAD_H
 
 #include <stdint.h>
+#include <stdio.h>
 
 #include "asset_register.h"
 #include "world_layout.h"
@@ -41,7 +42,7 @@ void al_57a260(wl_char *self, uint32_t color, uint16_t group, uint16_t capacity)
 int32_t al_582b80(wl_char *self, ar_sprite_slot * dst);
 void al_582d00(wl_char *self);
 int32_t al_582d10(uint16_t a1, uint16_t a2, uint16_t a3, uint32_t color, int32_t a5, uint32_t a6, uint16_t a7, uint16_t a8, uint16_t a9);
-int32_t al_583c90(wl_char *self, int32_t a2);
+int32_t al_583c90(wl_char *self, FILE * a2);
 int32_t al_583ee0(void);
 int32_t al_563ef0(wl_char *self, void * zds, void * settings, uint16_t resource_id, uint16_t count, uint16_t group, int32_t load_flag);
 

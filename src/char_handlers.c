@@ -36,6 +36,23 @@ static intptr_t rnd(void) { return (intptr_t)rng_rand(); }
 #include "particle_spawn.h"
 #include "skill_cast.h"
 #include "sound_fx.h"
+#include "actor_update.h"
+#include "arche_pose.h"
+#include "behave_helpers.h"
+#include "char_attack.h"
+#include "char_def.h"
+#include "char_hit.h"
+#include "char_integrate.h"
+#include "char_physics.h"
+#include "char_state.h"
+#include "char_status.h"
+#include "entity_fx.h"
+#include "entity_life.h"
+#include "entity_move.h"
+#include "gimmick.h"
+#include "particle_spawn.h"
+#include "skill_cast.h"
+#include "sound_fx.h"
 #pragma GCC optimize ("no-strict-aliasing")
 #pragma GCC diagnostic ignored "-Wint-conversion"
 #pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
@@ -67,15 +84,33 @@ static inline int32_t abs32(int32_t x) { return x < 0 ? (int32_t)(0u - (uint32_t
 #include <stdbool.h>
 #endif
 typedef int32_t _DWORD;
+typedef uint8_t _UNKNOWN;   /* IDA's untyped byte (casts: `(_UNKNOWN *)p`) */
+typedef uint8_t _BOOL1;
+typedef uint16_t _BOOL2;
+typedef int32_t _BOOL4;
 typedef uint16_t _WORD;
 typedef uint8_t _BYTE;
 typedef uint64_t _QWORD;
 #define GAP(p, o, i) F8(p, (o) + (i))   /* IDA's gapN[i]: the byte at +N + i */
 #define qmemcpy memcpy   /* IDA's inline memcpy */
+static inline void *memset32(void *d, uint32_t v, size_t n) { uint32_t *p = d; while (n--) *p++ = v; return d; }   /* IDA's rep stosd */
+static inline void eh_vec_ctor(intptr_t p, uint32_t size, int32_t n, void *ctor, void *dtor)   /* MSVC's `eh vector */
+{                                                                                             /* constructor iterator' */
+    typedef void (__attribute__((thiscall)) *c_t)(void *);
+    (void)dtor;
+    for (int32_t i = 0; i < n; i++) ((c_t)ctor)((void *)(p + (intptr_t)size * i));
+}
+static inline void eh_vec_dtor(intptr_t p, uint32_t size, int32_t n, void *dtor)   /* MSVC's `eh vector destructor iterator': */
+{                                                                                  /* the elements' dtors, last first */
+    typedef void (__attribute__((thiscall)) *d_t)(void *);
+    p += (intptr_t)size * n;
+    while (--n >= 0) { p -= size; ((d_t)dtor)((void *)p); }
+}
 typedef char CHAR;
 #define SETLO(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff0000u) | (uint16_t)(v)))
 #define SETHI(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffu) | ((uint32_t)(uint16_t)(v) << 16)))
 #define SETLB(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffff00u) | (uint8_t)(v)))
+#define SETB1(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff00ffu) | ((uint32_t)(uint8_t)(v) << 8)))
 #define SETLODW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffff00000000ull) | (uint32_t)(v)))
 #define SETHIDW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffffull) | ((uint64_t)(uint32_t)(v) << 32)))
 #define F32(p, o) (*(int32_t *)((uint8_t *)(intptr_t)(p) + (o)))
@@ -691,7 +726,7 @@ LABEL_15:
           v12 = (intptr_t *)W_vpool_take(SYS32(1420), 0);
           if ( v12 != 0 )
           {
-            v13 = F32(v12, 0);
+            v13 = *v12;
             if ( W_sfx_place(c, F32(CFG(), 360), 0, 0, a4, (int *)&a7, &a2) != 0 )
             {
               g_eng.dsb_volume_5bb870(v13, (int)a7);
@@ -1160,7 +1195,7 @@ LABEL_24:
             v19 = (intptr_t *)W_vpool_take(SYS32(1468), 0);
             if ( v19 != 0 )
             {
-              v20 = F32(v19, 0);
+              v20 = *v19;
               if ( W_sfx_place(
                      c,
                      F32(CFG(), 360),
@@ -1190,7 +1225,7 @@ LABEL_24:
           v15 = (intptr_t *)W_vpool_take(SYS32(1464), 0);
           if ( v15 != 0 )
           {
-            v16 = F32(v15, 0);
+            v16 = *v15;
             if ( W_sfx_place(c, F32(CFG(), 360), 0, 0, a4, &a6, &a2) != 0 )
             {
               g_eng.dsb_volume_5bb870(v16, a6);
@@ -1627,7 +1662,7 @@ int32_t ih_5b28a0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5,
         v24 = (intptr_t *)W_vpool_take(SYS32(1208), 0);
         if ( v24 != 0 )
         {
-          v25 = F32(v24, 0);
+          v25 = *v24;
           if ( W_sfx_place(c, F32(CFG(), 360), 0, 0, v23, &(*v51__f), &(*v50__f)) != 0 )
           {
             g_eng.dsb_volume_5bb870(v25, (*v51__f));
@@ -1698,7 +1733,7 @@ int32_t ih_5b28a0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5,
       v36 = (intptr_t *)W_vpool_take(SYS32(1208), 0);
       if ( v36 != 0 )
       {
-        v37 = F32(v36, 0);
+        v37 = *v36;
         if ( W_sfx_place(c, F32(CFG(), 360), 0, 0, v35, &(*v51__f), &(*v53__f)) != 0 )
         {
           g_eng.dsb_volume_5bb870(v37, (*v51__f));
@@ -1711,7 +1746,7 @@ int32_t ih_5b28a0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5,
       v39 = (intptr_t *)W_vpool_take(SYS32(1212), 0);
       if ( v39 == 0 )
         goto LABEL_83;
-      v40 = F32(v39, 0);
+      v40 = *v39;
       if ( W_sfx_place(c, F32(CFG(), 360), 0, 0, v38, &(*v53__f), &(*v51__f)) == 0 )
         goto LABEL_83;
       g_eng.dsb_volume_5bb870(v40, (*v53__f));
@@ -1767,7 +1802,7 @@ LABEL_60:
         v45 = (intptr_t *)W_vpool_take(SYS32(1208), 0);
         if ( v45 != 0 )
         {
-          v46 = F32(v45, 0);
+          v46 = *v45;
           if ( W_sfx_place(c, F32(CFG(), 360), 0, 0, v44, &(*v53__f), &(*v51__f)) != 0 )
           {
             g_eng.dsb_volume_5bb870(v46, (*v53__f));
@@ -1788,7 +1823,7 @@ LABEL_60:
           v48 = (intptr_t *)W_vpool_take(SYS32(1208), 0);
           if ( v48 != 0 )
           {
-            v49 = F32(v48, 0);
+            v49 = *v48;
             if ( W_sfx_place(c, F32(CFG(), 360), 0, 0, v47, &(*v53__f), &(*v51__f)) != 0 )
             {
               g_eng.dsb_volume_5bb870(v49, (*v53__f));
@@ -1826,7 +1861,7 @@ LABEL_83:
         v14 = (intptr_t *)W_vpool_take(SYS32(1208), 0);
         if ( v14 != 0 )
         {
-          v15 = F32(v14, 0);
+          v15 = *v14;
           if ( W_sfx_place(c, F32(CFG(), 360), 0, 0, v13, &(*v50__f), &(*v51__f)) != 0 )
           {
             g_eng.dsb_volume_5bb870(v15, (*v50__f));

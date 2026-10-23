@@ -32,6 +32,18 @@ static intptr_t rnd(void) { return (intptr_t)rng_rand(); }
 #include "ui_menu.h"
 #include "ui_run.h"
 #include "ui_text.h"
+#include "event.h"
+#include "menu_helpers.h"
+#include "party_member.h"
+#include "render_draw.h"
+#include "room_load.h"
+#include "room_loop.h"
+#include "sound_fx.h"
+#include "title_menu.h"
+#include "ui_core.h"
+#include "ui_menu.h"
+#include "ui_run.h"
+#include "ui_text.h"
 #pragma GCC optimize ("no-strict-aliasing")
 #pragma GCC diagnostic ignored "-Wint-conversion"
 #pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
@@ -73,6 +85,18 @@ typedef uint64_t _QWORD;
 #define GAP(p, o, i) F8(p, (o) + (i))   /* IDA's gapN[i]: the byte at +N + i */
 #define qmemcpy memcpy   /* IDA's inline memcpy */
 static inline void *memset32(void *d, uint32_t v, size_t n) { uint32_t *p = d; while (n--) *p++ = v; return d; }   /* IDA's rep stosd */
+static inline void eh_vec_ctor(intptr_t p, uint32_t size, int32_t n, void *ctor, void *dtor)   /* MSVC's `eh vector */
+{                                                                                             /* constructor iterator' */
+    typedef void (__attribute__((thiscall)) *c_t)(void *);
+    (void)dtor;
+    for (int32_t i = 0; i < n; i++) ((c_t)ctor)((void *)(p + (intptr_t)size * i));
+}
+static inline void eh_vec_dtor(intptr_t p, uint32_t size, int32_t n, void *dtor)   /* MSVC's `eh vector destructor iterator': */
+{                                                                                  /* the elements' dtors, last first */
+    typedef void (__attribute__((thiscall)) *d_t)(void *);
+    p += (intptr_t)size * n;
+    while (--n >= 0) { p -= size; ((d_t)dtor)((void *)p); }
+}
 typedef char CHAR;
 #define SETLO(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff0000u) | (uint16_t)(v)))
 #define SETHI(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffu) | ((uint32_t)(uint16_t)(v) << 16)))
@@ -2132,8 +2156,8 @@ LABEL_28:
         v38 = (intptr_t *)v37;
         if ( v37 != 0 )
         {
-          g_eng.dsb_volume_5bb870(F32(v37, 0), F32(CFG(), 360));
-          g_eng.dsb_freq_5bb890(F32(v38, 0), 0);
+          g_eng.dsb_volume_5bb870(*v37, F32(CFG(), 360));
+          g_eng.dsb_freq_5bb890(*v38, 0);
           g_eng.dsb_play_5bb8c0(*v38);
         }
         break;
@@ -2265,8 +2289,8 @@ int32_t mm_594a20(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int16_t a5,
     v26 = (intptr_t *)(*v34__f);
     for ( j = 8; j != 0; --j )
     {
-      v27 = F32(v26, 0);
-      if ( W_pslot_ok((intptr_t)(F32(v26, 0)), (intptr_t)(a12), (intptr_t)(0)) )
+      v27 = *v26;
+      if ( W_pslot_ok((intptr_t)(*v26), (intptr_t)(a12), (intptr_t)(0)) )
       {
         v28 = W_grid_row_add((intptr_t)(v24), (intptr_t)(1), (intptr_t)(F32(v27, 0x9f0)));
         W_grid_cell_text((intptr_t)(v24), (intptr_t)(v28), (intptr_t)(0), (intptr_t)(&GAP((v27 + (1) * 0x9f4), 0x0, 28)));
@@ -4674,8 +4698,8 @@ int32_t mm_599ac0(wl_char *self, int32_t a2)
   v9 = (intptr_t *)(a2 + 16432);
   for ( (*i__f) = 8; (*i__f) != 0; --(*i__f) )
   {
-    v10 = F32(v9, 0);
-    if ( W_pslot_ok((intptr_t)(F32(v9, 0)), (intptr_t)(1), (intptr_t)(0)) )
+    v10 = *v9;
+    if ( W_pslot_ok((intptr_t)(*v9), (intptr_t)(1), (intptr_t)(0)) )
       W_grid_row_text_add((intptr_t)(v5), (intptr_t)(1), (intptr_t)(F32(v10, 0x9f0)), (intptr_t)(&GAP((v10 + (1) * 0x9f4), 0x0, 28)));
     ++v9;
   }

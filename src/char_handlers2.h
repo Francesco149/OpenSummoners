@@ -15,6 +15,7 @@
 #define OSS_CHAR_HANDLERS2_H
 
 #include <stdint.h>
+#include <stdio.h>
 
 #include "world_layout.h"
 
@@ -37,8 +38,8 @@ int32_t ih_44f690(wl_char *self, int32_t a2, int32_t a3, int32_t * a4, int32_t a
 int32_t ih_450810(wl_char *self, int32_t a2, int32_t a3, int32_t * a4, int32_t a5, int32_t a6, int32_t a7);
 int32_t ih_4516e0(wl_char *self, int32_t a2, int32_t a3, int32_t * a4, int32_t a5, int32_t a6, int32_t a7, int32_t a8);
 int32_t ih_452020(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6, int32_t a7, int32_t a8);
-int32_t ih_452730(wl_char *self, int32_t a2, int32_t a3, int32_t * a4, int32_t a5, int32_t a6);
-int32_t ih_4539b0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t * a5, int32_t a6, int32_t a7);
+int32_t ih_452730(wl_char *self, int32_t a2, FILE * a3, int32_t * a4, int32_t a5, int32_t a6);
+int32_t ih_4539b0(wl_char *self, int32_t a2, FILE * a3, int32_t a4, int32_t * a5, int32_t a6, int32_t a7);
 int32_t ih_455c90(wl_char *self, uint16_t a2, int32_t a3);
 int32_t ih_455cf0(wl_char *self, int32_t a2, int32_t a3, int32_t a4);
 int32_t ih_455d20(wl_char *self, int32_t a2, int32_t * a3, int32_t * a4);

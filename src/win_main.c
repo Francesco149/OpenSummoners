@@ -23,6 +23,7 @@ static intptr_t rnd(void) { return (intptr_t)rng_rand(); }
 
 
 #include <windows.h>
+#include <stdio.h>
 #include <time.h>
 #include "asset_register.h"
 #include "bitmap_session.h"
@@ -78,6 +79,18 @@ typedef uint64_t _QWORD;
 #define GAP(p, o, i) F8(p, (o) + (i))   /* IDA's gapN[i]: the byte at +N + i */
 #define qmemcpy memcpy   /* IDA's inline memcpy */
 static inline void *memset32(void *d, uint32_t v, size_t n) { uint32_t *p = d; while (n--) *p++ = v; return d; }   /* IDA's rep stosd */
+static inline void eh_vec_ctor(intptr_t p, uint32_t size, int32_t n, void *ctor, void *dtor)   /* MSVC's `eh vector */
+{                                                                                             /* constructor iterator' */
+    typedef void (__attribute__((thiscall)) *c_t)(void *);
+    (void)dtor;
+    for (int32_t i = 0; i < n; i++) ((c_t)ctor)((void *)(p + (intptr_t)size * i));
+}
+static inline void eh_vec_dtor(intptr_t p, uint32_t size, int32_t n, void *dtor)   /* MSVC's `eh vector destructor iterator': */
+{                                                                                  /* the elements' dtors, last first */
+    typedef void (__attribute__((thiscall)) *d_t)(void *);
+    p += (intptr_t)size * n;
+    while (--n >= 0) { p -= size; ((d_t)dtor)((void *)p); }
+}
 typedef char CHAR;
 #define SETLO(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff0000u) | (uint16_t)(v)))
 #define SETHI(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffu) | ((uint32_t)(uint16_t)(v) << 16)))
@@ -151,8 +164,6 @@ static inline intptr_t W_wm_5b5af0(intptr_t a0, ...) { return (intptr_t)wm_5b5af
 static inline intptr_t W_wm_5b5d50(intptr_t a0, ...) { return (intptr_t)wm_5b5d50((uint32_t)a0); }
 static inline intptr_t W_zd_5b7fe0(intptr_t a0, ...) { zd_5b7fe0((wl_char *)a0); return 0; }
 static inline intptr_t W_zd_5bd520(intptr_t a0, ...) { zd_5bd520((wl_char *)a0); return 0; }
-typedef intptr_t (__attribute__((stdcall)) *rt_401210)(intptr_t, intptr_t, intptr_t, intptr_t);   /* 0x401210 stdcall: unported, retail's */
-#define RC_401210 ((rt_401210)g_eng.retail(0x401210u))
 typedef intptr_t (*rt_5bf4fb)(intptr_t);   /* 0x5bf4fb cdecl: unported, retail's */
 #define RC_5bf4fb ((rt_5bf4fb)g_eng.retail(0x5bf4fbu))
 typedef intptr_t (__attribute__((stdcall)) *api_CoInitialize_t)(intptr_t);
@@ -416,7 +427,7 @@ int32_t wn_5a4770(wl_char *self, int32_t hInstance)
   F32(v72__f, 0x4) = (int)W_wm_5b5d50((intptr_t)(0xFFFFFFu));
   (*v71__f).cbSize = 48;
   (*v71__f).style = 3;
-  (*v71__f).lpfnWndProc = ((intptr_t)g_eng.retail(0x401210u));
+  (*v71__f).lpfnWndProc = ((intptr_t)D(0x401210) /* lo_401210 by address */);
   (*v71__f).cbClsExtra = 0;
   (*v71__f).cbWndExtra = 0;
   (*v71__f).hInstance = hInstance;
@@ -3032,7 +3043,7 @@ int32_t wn_562210(int32_t hInstance, int32_t hPrevInstance, char * lpCmdLine, in
             v12 = W_fs_5b6580((intptr_t)(v11));
           else
             v12 = 0;
-          F32(v9, 0) = v12;
+          *v9 = v12;
           W_fs_5b65b0((intptr_t)(v12), (intptr_t)(512), (intptr_t)(1));
           W_fs_5b6db0((intptr_t)(*v9++), (intptr_t)((int)D(0x5cc290)));
         }
@@ -3165,16 +3176,16 @@ void wn_5624c0(wl_char *self)
   v2 = (intptr_t *)D(0x8a93f0);
   for ( i = 3; i != 0; --i )
   {
-    if ( F32(v2, 0) != 0 )
+    if ( *v2 != 0 )
     {
-      W_fs_5b6940((intptr_t)(F32(v2, 0)));
-      v4 = F32(v2, 0);
-      if ( F32(v2, 0) != 0 )
+      W_fs_5b6940((intptr_t)(*v2));
+      v4 = *v2;
+      if ( *v2 != 0 )
       {
         W_fs_5b65a0((intptr_t)(*v2));
         g_eng.op_delete((void *)v4);
       }
-      F32(v2, 0) = 0;
+      *v2 = 0;
     }
     ++v2;
   }
@@ -3407,60 +3418,60 @@ void wn_5624c0(wl_char *self)
   v45 = (intptr_t *)&SYSB(10072);
   for ( i2 = 20; i2 != 0; --i2 )
   {
-    v47 = F32(v45, 0);
-    if ( F32(v45, 0) != 0 )
+    v47 = *v45;
+    if ( *v45 != 0 )
     {
-      W_zd_5bd520((intptr_t)(F32(v45, 0)));
+      W_zd_5bd520((intptr_t)(*v45));
       g_eng.op_delete((void *)v47);
-      F32(v45, 0) = 0;
+      *v45 = 0;
     }
     ++v45;
   }
   v48 = (intptr_t *)&SYSB(10152);
   for ( i3 = 20; i3 != 0; --i3 )
   {
-    v50 = F32(v48, 0);
-    if ( F32(v48, 0) != 0 )
+    v50 = *v48;
+    if ( *v48 != 0 )
     {
-      W_zd_5bd520((intptr_t)(F32(v48, 0)));
+      W_zd_5bd520((intptr_t)(*v48));
       g_eng.op_delete((void *)v50);
-      F32(v48, 0) = 0;
+      *v48 = 0;
     }
     ++v48;
   }
   v51 = (intptr_t *)&SYSB(10232);
   for ( i4 = 5; i4 != 0; --i4 )
   {
-    v53 = F32(v51, 0);
-    if ( F32(v51, 0) != 0 )
+    v53 = *v51;
+    if ( *v51 != 0 )
     {
-      W_zd_5bd520((intptr_t)(F32(v51, 0)));
+      W_zd_5bd520((intptr_t)(*v51));
       g_eng.op_delete((void *)v53);
-      F32(v51, 0) = 0;
+      *v51 = 0;
     }
     ++v51;
   }
   v54 = (intptr_t *)&SYSB(10332);
   for ( i5 = 4; i5 != 0; --i5 )
   {
-    v56 = F32(v54, 0);
-    if ( F32(v54, 0) != 0 )
+    v56 = *v54;
+    if ( *v54 != 0 )
     {
-      W_zd_5bd520((intptr_t)(F32(v54, 0)));
+      W_zd_5bd520((intptr_t)(*v54));
       g_eng.op_delete((void *)v56);
-      F32(v54, 0) = 0;
+      *v54 = 0;
     }
     ++v54;
   }
   v57 = (intptr_t *)&SYSB(10252);
   for ( i6 = 20; i6 != 0; --i6 )
   {
-    v59 = F32(v57, 0);
-    if ( F32(v57, 0) != 0 )
+    v59 = *v57;
+    if ( *v57 != 0 )
     {
-      W_zd_5bd520((intptr_t)(F32(v57, 0)));
+      W_zd_5bd520((intptr_t)(*v57));
       g_eng.op_delete((void *)v59);
-      F32(v57, 0) = 0;
+      *v57 = 0;
     }
     ++v57;
   }
@@ -3497,9 +3508,9 @@ int32_t wn_562b70(intptr_t * a1)
 int32_t wn_560900(wl_char *self)
 {
     intptr_t c = (intptr_t)self;
-    intptr_t result = 0;
+    FILE * result = 0;
     intptr_t v3 = 0;
-    intptr_t v4 = 0;
+    FILE * v4 = 0;
     _Alignas(8) uint8_t frame_[0x210 + 0x10];   /* the stack locals at their ebp offsets */
     memset(frame_, 0, sizeof frame_);
     char *OutputString = (char *)(frame_ + 0x10);   /* [256] at ebp-0x200 */

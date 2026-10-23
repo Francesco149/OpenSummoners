@@ -109,6 +109,6 @@ void rd_499100(wl_char *self, int32_t a2);
 void rd_499560(int32_t a1, int32_t * a2, int32_t a3, int32_t a4);
 int32_t rd_499670(wl_char *self, int32_t a2, uint8_t * a3, int32_t a4, uint32_t a5);
 int32_t rd_4997b0(int32_t a1, int32_t a2);
-int32_t rd_49c170(intptr_t ecx_, int32_t a1);
+int32_t rd_49c170(int32_t a1);
 
 #endif /* OSS_RENDER_DRAW_H */

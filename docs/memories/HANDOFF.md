@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated 2026-10-16 evening)
+# Session handoff — rolling current state (last updated 2026-10-23)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,23 +6,34 @@
 > `findings/`. Keep this to: the current checkpoint, the next move, the module layout, and
 > open RE threads.
 
-## Where we are — 2026-10-16 (rhost era: port function by function, verified inside retail)
+## Where we are — 2026-10-23 (rhost era: nearly the whole engine runs as port code inside retail)
 
-The loop (CLAUDE.md "Methodology"): `tools/ida/decomp2c.py` first pass (or a hand port) → wire in place of the
-`g_eng.hXXXXXX` slot → TC/ST hook row in `tools/rhost/rh_hooks.c` + `VERIFY_HOOKS` → `rhost.py verify` (shadow,
-per call) + `corpus --check --hybrid` (wine: every 600-frame sample; Windows: the end state) → commit.
+The loop (CLAUDE.md "Methodology"): `tools/ida/decomp2c.py` module first pass (or a hand port) → `src/<module>.{c,h}`
+(header: `FUN_00va name` table) → `tools/rhost/build.sh` list + X / TC_HOOK / ST_HOOK rows in `rh_hooks.c` (+ the
+REPLACE_ONLY / VERIFY lists in `rhost.py`) → `corpus --check --hook replace:...` → `corpus --check --hybrid` on Windows
+AND `--target wine` (600-frame sem series) → commit.  Debug: `rhost.py run SCEN --dump-at F` + `rhs.py A B` (state
+diff), `--extra="--watch-write VA@F"` (who writes), `--trap VA` (retail code only).
 
-- **decomp2c** (`tools/ida/decomp2c.py`): module = `VA:name ...`; keeps IDA's control flow + types; replays IDA's
-  class layouts; every stack local in `frame_` at its ebp offset; detects ecx pass-through (IDA __stdcall reading
-  ecx → leading `ecx_`) and unread-edx fastcalls; per-module assemble scripts finish the hand patches (the int64
-  argument split of `0x4710c0`, ...). Review its output for: `/*ECX…*/` markers, `/*edx*/` drops, Wmaybe-uninit.
-- **Modules from it:** `arche_sword.c`, `skill_cast.c`, `shots.c`, `behave_helpers.c`, `char_handlers.c`.
-- **Gates:** `corpus --check --hybrid` (wine + win) PASS 9/9; `hookbisect SCEN --frames N` names a breaking hook;
-  `verify --hooks a@N,b` shadows; `--vmmap-at`, `--dump-at` + `rhs.py` for state diffs.
-- **Open threads / next:** the integrator's unexercised handlers (0x4539b0, 0x456d30, 0x452730, ... — need a
-  recording that reaches them); the chapter scripts (`0x4b4d40` ... 20+ KB each, `cls_401D40` = a moved-field
-  class: decomp2c handles it); combat leftovers `0x48ef40`, `0x597aa0`/`0x5985f0`/`0x596d60` (the room loop
-  `0x591120`), `0x561560`/`0x561d20`; the room's item use `0x5b1f10`.
+- **Coverage:** 94.9% of engine functions touched (ledger), 76% of code bytes; the hybrid gate replaces retail with
+  1,271 port functions.  Left: the later chapters' STORY SCRIPTS 0x4e1d10..0x546670 (~430 KB, unreached; they need a
+  second script range in `rh_script_call` + a `story_find`), tiny CRT static-init thunks, the map decode's inlined
+  helpers 0x58c8c0..0x58cb30 / 0x54e4f0 (inside the hand ports).
+- **UNVERIFIED modules** (unreached by the corpus; compile-checked, REPLACE-wired): menu_screens, menu_helpers,
+  char_types, char_handlers2, actor_behave, sjis_text, gamepad, ending, title_extra (but 0x40fe00), engine_rest.  A new
+  recording that reaches them verifies them for free (the hybrid gate already replaces retail with them).
+- **decomp2c traps met** (each now a converter rule; see PROGRESS 2026-10-23): member-deref precedence, unsigned Win32
+  returns, offset-only arrays, `trailer`'s byte, class-pointer `++` anywhere, `this + <sum>`, by-address functions
+  (retail's address + rhost's entry patch), the Flip / easer never bound to ports.  IDA misreads to watch for: a
+  mid-body callee-save `push` taken as an argument (0x5bb3d0), scratch registers as `__userpurge` arguments
+  (0x5b7310, 0x585590).
+- **Regenerating** committed modules: `tools/ida/decomp2c_regen.py src/x.c [--keep VA] [--dry --show]` (splices the
+  fresh bodies in place; hand ports between functions and finish scripts' modules handled — run
+  `tools/ida/finish/<module>.py` for frame_load / save_game / sound_dev / title_menu).  Done 2026-10-23 for every
+  module (hybrid PASS); keep lists: shots `--flags "" --keep 0x4710c0,0x590230`; chapter_scripts / behave_helpers /
+  char_handlers / script_helpers / shots take `--flags ""` (the rest the default `--typed --zero-locals`);
+  arche_sword / skill_cast skipped (hand-typed signatures).  After a regen, re-sync the module header's prototypes
+  (a newly typed `FILE *` parameter) and the rh_hooks.c casts; a host-linked module's new call into a mingw-only port
+  needs a `tests/host_stubs.c` stub.
 
 ## Legacy (Frida era, kept for reference) — ckpt 155
  (the freeroam SWORD/ATTACK arc — RE + cels DONE; PORT next session)

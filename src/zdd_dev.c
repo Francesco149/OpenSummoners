@@ -23,6 +23,8 @@
 
 #include "render_platform.h"
 #include "render_platform.h"
+#include "render_platform.h"
+#include "win_main.h"
 #pragma GCC optimize ("no-strict-aliasing")
 #pragma GCC diagnostic ignored "-Wint-conversion"
 #pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
@@ -54,11 +56,28 @@ static inline int32_t abs32(int32_t x) { return x < 0 ? (int32_t)(0u - (uint32_t
 #include <stdbool.h>
 #endif
 typedef int32_t _DWORD;
+typedef uint8_t _UNKNOWN;   /* IDA's untyped byte (casts: `(_UNKNOWN *)p`) */
+typedef uint8_t _BOOL1;
+typedef uint16_t _BOOL2;
+typedef int32_t _BOOL4;
 typedef uint16_t _WORD;
 typedef uint8_t _BYTE;
 typedef uint64_t _QWORD;
 #define GAP(p, o, i) F8(p, (o) + (i))   /* IDA's gapN[i]: the byte at +N + i */
 #define qmemcpy memcpy   /* IDA's inline memcpy */
+static inline void *memset32(void *d, uint32_t v, size_t n) { uint32_t *p = d; while (n--) *p++ = v; return d; }   /* IDA's rep stosd */
+static inline void eh_vec_ctor(intptr_t p, uint32_t size, int32_t n, void *ctor, void *dtor)   /* MSVC's `eh vector */
+{                                                                                             /* constructor iterator' */
+    typedef void (__attribute__((thiscall)) *c_t)(void *);
+    (void)dtor;
+    for (int32_t i = 0; i < n; i++) ((c_t)ctor)((void *)(p + (intptr_t)size * i));
+}
+static inline void eh_vec_dtor(intptr_t p, uint32_t size, int32_t n, void *dtor)   /* MSVC's `eh vector destructor iterator': */
+{                                                                                  /* the elements' dtors, last first */
+    typedef void (__attribute__((thiscall)) *d_t)(void *);
+    p += (intptr_t)size * n;
+    while (--n >= 0) { p -= size; ((d_t)dtor)((void *)p); }
+}
 typedef char CHAR;
 #define SETLO(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff0000u) | (uint16_t)(v)))
 #define SETHI(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffu) | ((uint32_t)(uint16_t)(v) << 16)))
@@ -85,10 +104,8 @@ static inline intptr_t W_rp_5b97e0(intptr_t a0, intptr_t a1, intptr_t a2, ...) {
 static inline intptr_t W_rp_5b9830(intptr_t a0, intptr_t a1, ...) { return (intptr_t)rp_5b9830((wl_char *)a0, (int32_t)a1); }
 static inline intptr_t W_rp_5b98c0(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, ...) { return (intptr_t)rp_5b98c0((wl_char *)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3, (int32_t)a4, (int32_t)a5, (int32_t)a6); }
 static inline intptr_t W_rp_5b9a40(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, ...) { return (intptr_t)rp_5b9a40((wl_char *)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3); }
-typedef intptr_t (__attribute__((thiscall)) *rt_5b9ab0)(intptr_t);   /* 0x5b9ab0 thiscall: unported, retail's */
-#define RC_5b9ab0 ((rt_5b9ab0)g_eng.retail(0x5b9ab0u))
-typedef intptr_t (__attribute__((thiscall)) *rt_5b9ac0)(intptr_t);   /* 0x5b9ac0 thiscall: unported, retail's */
-#define RC_5b9ac0 ((rt_5b9ac0)g_eng.retail(0x5b9ac0u))
+static inline intptr_t W_wn_5b9ab0(intptr_t a0, ...) { return (intptr_t)wn_5b9ab0((wl_char *)a0); }
+static inline intptr_t W_wn_5b9ac0(intptr_t a0, ...) { return (intptr_t)wn_5b9ac0((wl_char *)a0); }
 typedef intptr_t (*rt_5c0907)(intptr_t, intptr_t, intptr_t);   /* 0x5c0907 cdecl: unported, retail's */
 #define RC_5c0907 ((rt_5c0907)g_eng.retail(0x5c0907u))
 typedef intptr_t (__attribute__((stdcall)) *api_BeginPaint_t)(intptr_t, intptr_t);
@@ -101,7 +118,7 @@ typedef intptr_t (__attribute__((stdcall)) *api_EndPaint_t)(intptr_t, intptr_t);
 #define API_EndPaint ((api_EndPaint_t)g_eng.api("EndPaint"))
 typedef intptr_t (__attribute__((stdcall)) *api_GetDC_t)(intptr_t);
 #define API_GetDC ((api_GetDC_t)g_eng.api("GetDC"))
-typedef intptr_t (__attribute__((stdcall)) *api_GetSystemPaletteEntries_t)(intptr_t, intptr_t, intptr_t, intptr_t);
+typedef uint32_t (__attribute__((stdcall)) *api_GetSystemPaletteEntries_t)(intptr_t, intptr_t, intptr_t, intptr_t);
 #define API_GetSystemPaletteEntries ((api_GetSystemPaletteEntries_t)g_eng.api("GetSystemPaletteEntries"))
 typedef intptr_t (__attribute__((stdcall)) *api_OutputDebugStringA_t)(intptr_t);
 #define API_OutputDebugStringA ((api_OutputDebugStringA_t)g_eng.api("OutputDebugStringA"))
@@ -1021,13 +1038,13 @@ int32_t zd_5b91d0(wl_char *self)
   if ( v2 != 0 && (*(int (__stdcall **)(int))(F32(v2, 0) + 96))(v2) == -2005532222 )
     return true;
   v4 = F32(c, 0x16c);
-  if ( v4 != 0 && RC_5b9ac0((intptr_t)(v4)) )
+  if ( v4 != 0 && W_wn_5b9ac0((intptr_t)(v4)) )
     return true;
   v5 = F32(c, 0x18);
-  if ( v5 != 0 && RC_5b9ac0((intptr_t)(v5)) )
+  if ( v5 != 0 && W_wn_5b9ac0((intptr_t)(v5)) )
     return true;
   v6 = F32(c, 0x1c);
-  return v6 != 0 && RC_5b9ac0((intptr_t)(v6));
+  return v6 != 0 && W_wn_5b9ac0((intptr_t)(v6));
 }
 
 /* 0x5b9240: int __thiscall sub_5B9240(cls_5B9240 *this) */
@@ -1044,13 +1061,13 @@ int32_t zd_5b9240(wl_char *self)
     result = (*(int (__stdcall **)(int))(F32(result, 0) + 108))(result);
   v3 = F32(c, 0x16c);
   if ( v3 != 0 )
-    result = RC_5b9ab0((intptr_t)(v3));
+    result = W_wn_5b9ab0((intptr_t)(v3));
   v4 = F32(c, 0x18);
   if ( v4 != 0 )
-    result = RC_5b9ab0((intptr_t)(v4));
+    result = W_wn_5b9ab0((intptr_t)(v4));
   v5 = F32(c, 0x1c);
   if ( v5 != 0 )
-    return RC_5b9ab0((intptr_t)(v5));
+    return W_wn_5b9ab0((intptr_t)(v5));
   return result;
 }
 
@@ -1375,4 +1392,4 @@ void zd_5bd520(wl_char *self)
   zd_5bcff0((int)(c + 4 * (6)));
   zd_5bcff0((int)(c + 4 * (11)));
 }
-/* unported callees: 0x5b9ab0 0x5b9ac0 0x5c0907 */
+/* unported callees: 0x5c0907 */

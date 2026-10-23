@@ -22,6 +22,8 @@
 
 
 #include <windows.h>
+#include <stdio.h>
+#include <time.h>
 #include "bitmap_session.h"
 #include "file_stream.h"
 #include "frame_load.h"
@@ -29,6 +31,7 @@
 #include "render_platform.h"
 #include "sound_dev.h"
 #include "title_menu.h"
+#include "win_main.h"
 #include "zdd_dev.h"
 #pragma GCC optimize ("no-strict-aliasing")
 #pragma GCC diagnostic ignored "-Wint-conversion"
@@ -61,11 +64,28 @@ static inline int32_t abs32(int32_t x) { return x < 0 ? (int32_t)(0u - (uint32_t
 #include <stdbool.h>
 #endif
 typedef int32_t _DWORD;
+typedef uint8_t _UNKNOWN;   /* IDA's untyped byte (casts: `(_UNKNOWN *)p`) */
+typedef uint8_t _BOOL1;
+typedef uint16_t _BOOL2;
+typedef int32_t _BOOL4;
 typedef uint16_t _WORD;
 typedef uint8_t _BYTE;
 typedef uint64_t _QWORD;
 #define GAP(p, o, i) F8(p, (o) + (i))   /* IDA's gapN[i]: the byte at +N + i */
 #define qmemcpy memcpy   /* IDA's inline memcpy */
+static inline void *memset32(void *d, uint32_t v, size_t n) { uint32_t *p = d; while (n--) *p++ = v; return d; }   /* IDA's rep stosd */
+static inline void eh_vec_ctor(intptr_t p, uint32_t size, int32_t n, void *ctor, void *dtor)   /* MSVC's `eh vector */
+{                                                                                             /* constructor iterator' */
+    typedef void (__attribute__((thiscall)) *c_t)(void *);
+    (void)dtor;
+    for (int32_t i = 0; i < n; i++) ((c_t)ctor)((void *)(p + (intptr_t)size * i));
+}
+static inline void eh_vec_dtor(intptr_t p, uint32_t size, int32_t n, void *dtor)   /* MSVC's `eh vector destructor iterator': */
+{                                                                                  /* the elements' dtors, last first */
+    typedef void (__attribute__((thiscall)) *d_t)(void *);
+    p += (intptr_t)size * n;
+    while (--n >= 0) { p -= size; ((d_t)dtor)((void *)p); }
+}
 typedef char CHAR;
 #define SETLO(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff0000u) | (uint16_t)(v)))
 #define SETHI(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffu) | ((uint32_t)(uint16_t)(v) << 16)))
@@ -97,19 +117,14 @@ static inline intptr_t W_id_5ba290(intptr_t a0, ...) { return (intptr_t)id_5ba29
 static inline intptr_t W_rp_5b9390(intptr_t a0, ...) { return (intptr_t)rp_5b9390((wl_char *)a0); }
 static inline intptr_t W_sd_5bbd20(intptr_t a0, intptr_t a1, ...) { sd_5bbd20((wl_char *)a0, (int32_t)a1); return 0; }
 static inline intptr_t W_tm_5658c0(intptr_t a0, ...) { return (intptr_t)tm_5658c0((wl_char *)a0); }
+static inline intptr_t W_wn_5624c0(intptr_t a0, ...) { wn_5624c0((wl_char *)a0); return 0; }
+static inline intptr_t W_wn_58ffa0(intptr_t a0, intptr_t a1, ...) { wn_58ffa0((wl_char *)a0, (int32_t)a1); return 0; }
+static inline intptr_t W_wn_5b9ab0(intptr_t a0, ...) { return (intptr_t)wn_5b9ab0((wl_char *)a0); }
+static inline intptr_t W_wn_5b9ac0(intptr_t a0, ...) { return (intptr_t)wn_5b9ac0((wl_char *)a0); }
 static inline intptr_t W_zd_5b9130(intptr_t a0, intptr_t a1, ...) { return (intptr_t)zd_5b9130((wl_char *)a0, (int32_t)a1); }
 static inline intptr_t W_zd_5b91d0(intptr_t a0, ...) { return (intptr_t)zd_5b91d0((wl_char *)a0); }
 static inline intptr_t W_zd_5b9240(intptr_t a0, ...) { return (intptr_t)zd_5b9240((wl_char *)a0); }
-typedef intptr_t (__attribute__((stdcall)) *rt_4013c0)(intptr_t, intptr_t, intptr_t, intptr_t);   /* 0x4013c0 stdcall: unported, retail's */
-#define RC_4013c0 ((rt_4013c0)g_eng.retail(0x4013c0u))
-typedef intptr_t (__attribute__((thiscall)) *rt_5624c0)(intptr_t);   /* 0x5624c0 thiscall: unported, retail's */
-#define RC_5624c0 ((rt_5624c0)g_eng.retail(0x5624c0u))
-typedef intptr_t (__attribute__((thiscall)) *rt_58ffa0)(intptr_t, intptr_t);   /* 0x58ffa0 thiscall: unported, retail's */
-#define RC_58ffa0 ((rt_58ffa0)g_eng.retail(0x58ffa0u))
-typedef intptr_t (__attribute__((thiscall)) *rt_5b9ab0)(intptr_t);   /* 0x5b9ab0 thiscall: unported, retail's */
-#define RC_5b9ab0 ((rt_5b9ab0)g_eng.retail(0x5b9ab0u))
-typedef intptr_t (__attribute__((thiscall)) *rt_5b9ac0)(intptr_t);   /* 0x5b9ac0 thiscall: unported, retail's */
-#define RC_5b9ac0 ((rt_5b9ac0)g_eng.retail(0x5b9ac0u))
+
 typedef intptr_t (__attribute__((stdcall)) *api_CloseHandle_t)(intptr_t);
 #define API_CloseHandle ((api_CloseHandle_t)g_eng.api("CloseHandle"))
 typedef intptr_t (__attribute__((stdcall)) *api_CoUninitialize_t)(void);
@@ -475,8 +490,8 @@ int32_t wm_5affe0(wl_char *self, char * FileName, uint32_t a3)
 {
     intptr_t c = (intptr_t)self;
     intptr_t v4 = 0;
-    intptr_t v5 = 0;
-    intptr_t v6 = 0;
+    FILE * v5 = 0;
+    FILE * v6 = 0;
     intptr_t v8 = 0;
     uint32_t v9 = 0;
     uint32_t v10 = 0;
@@ -484,7 +499,7 @@ int32_t wm_5affe0(wl_char *self, char * FileName, uint32_t a3)
     _Alignas(8) uint8_t frame_[0x408 + 0x10];   /* the stack locals at their ebp offsets */
     memset(frame_, 0, sizeof frame_);
     char * *const v12__f = (char * *)(frame_ + 0x0);   /* ebp-0x408 */
-    intptr_t *const v13__f = (intptr_t *)(frame_ + 0x4);   /* ebp-0x404 */
+    FILE * *const v13__f = (FILE * *)(frame_ + 0x4);   /* ebp-0x404 */
     char *const v14__f = (char *)(frame_ + 0x8);   /* ebp-0x400 */
 
   v4 = 0;
@@ -787,10 +802,10 @@ int32_t wm_5b0890(char * a1, int32_t a2, int32_t a3)
     char * v6 = 0;
     char * v7 = 0;
     char v8 = 0;
-    intptr_t v9 = 0;
+    FILE * v9 = 0;
     uint32_t v10 = 0;
     intptr_t LibraryA = 0;
-    intptr_t v12 = 0;
+    FILE * v12 = 0;
     uint32_t LastError = 0;
     uint32_t v15 = 0;
     uint32_t v16 = 0;
@@ -944,7 +959,7 @@ int32_t wm_5b0d70(wl_char *self, int32_t hInstance, char * a3)
 
   F32(c, 4 * 65) = hInstance;
   strcpy((uint8_t *)c + 4, a3);
-  API_DialogBoxParamA((intptr_t)(hInstance), (intptr_t)((char *)0x2711), (intptr_t)(0), (intptr_t)(((intptr_t)g_eng.retail(0x4013c0u))), (intptr_t)(0));
+  API_DialogBoxParamA((intptr_t)(hInstance), (intptr_t)((char *)0x2711), (intptr_t)(0), (intptr_t)(((intptr_t)D(0x4013c0) /* lo_4013c0 by address */)), (intptr_t)(0));
   return F32(c, 0x0);
 }
 
@@ -1036,7 +1051,7 @@ void wm_5b10d0(void)
   v0 = (*(int *)D(0x8a9b64));
   if ( (*(int *)D(0x8a9b64)) != 0 )
   {
-    RC_5624c0((intptr_t)((*(int *)D(0x8a9b64))));
+    W_wn_5624c0((intptr_t)((*(int *)D(0x8a9b64))));
     g_eng.op_delete((void *)v0);
     (*(int *)D(0x8a9b64)) = 0;
   }
@@ -1164,7 +1179,7 @@ int32_t wm_5b12e0(int32_t hWnd, uint32_t Msg, uint32_t wParam, int32_t lParam)
   if ( wParam == 0 )
   {
     if ( F32((char *)(*(int *)D(0x8a9b64)), 8) != 0 )
-      RC_58ffa0((intptr_t)(((intptr_t)g_eng.sys)), (intptr_t)(1));
+      W_wn_58ffa0((intptr_t)(((intptr_t)g_eng.sys)), (intptr_t)(1));
     return 0;
   }
   v5 = (*(int *)D(0x8a9b64));
@@ -1227,10 +1242,10 @@ void wm_5b14c0(wl_char *self)
       }
       v1 += 4;
     }
-    if ( SYS32(860) != 0 && RC_5b9ac0((intptr_t)(SYS32(860))) )
-      RC_5b9ab0((intptr_t)(SYS32(860)));
-    if ( SYS32(864) != 0 && RC_5b9ac0((intptr_t)(SYS32(864))) )
-      RC_5b9ab0((intptr_t)(SYS32(864)));
+    if ( SYS32(860) != 0 && W_wn_5b9ac0((intptr_t)(SYS32(860))) )
+      W_wn_5b9ab0((intptr_t)(SYS32(860)));
+    if ( SYS32(864) != 0 && W_wn_5b9ac0((intptr_t)(SYS32(864))) )
+      W_wn_5b9ab0((intptr_t)(SYS32(864)));
     v5 = SYS32(10068);
     if ( SYS32(10068) != 0 )
     {
@@ -1514,4 +1529,4 @@ int32_t wm_5b5f50(uint32_t a1, int32_t a2, int32_t a3, int32_t a4)
   }
   return v4;
 }
-/* unported callees: 0x5624c0 0x58ffa0 0x5b9ab0 0x5b9ac0 */
+/* unported callees: none */

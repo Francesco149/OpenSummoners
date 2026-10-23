@@ -29,6 +29,17 @@ static intptr_t rnd(void) { return (intptr_t)rng_rand(); }
 #include "scene_cmd.h"
 #include "scene_loop.h"
 #include "script_engine.h"
+#include "actor_update.h"
+#include "char_state.h"
+#include "entity_life.h"
+#include "entity_move.h"
+#include "gimmick.h"
+#include "npc_ai.h"
+#include "party_member.h"
+#include "room_load.h"
+#include "scene_cmd.h"
+#include "scene_loop.h"
+#include "script_engine.h"
 #pragma GCC optimize ("no-strict-aliasing")
 #pragma GCC diagnostic ignored "-Wint-conversion"
 #pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
@@ -60,15 +71,33 @@ static inline int32_t abs32(int32_t x) { return x < 0 ? (int32_t)(0u - (uint32_t
 #include <stdbool.h>
 #endif
 typedef int32_t _DWORD;
+typedef uint8_t _UNKNOWN;   /* IDA's untyped byte (casts: `(_UNKNOWN *)p`) */
+typedef uint8_t _BOOL1;
+typedef uint16_t _BOOL2;
+typedef int32_t _BOOL4;
 typedef uint16_t _WORD;
 typedef uint8_t _BYTE;
 typedef uint64_t _QWORD;
 #define GAP(p, o, i) F8(p, (o) + (i))   /* IDA's gapN[i]: the byte at +N + i */
 #define qmemcpy memcpy   /* IDA's inline memcpy */
+static inline void *memset32(void *d, uint32_t v, size_t n) { uint32_t *p = d; while (n--) *p++ = v; return d; }   /* IDA's rep stosd */
+static inline void eh_vec_ctor(intptr_t p, uint32_t size, int32_t n, void *ctor, void *dtor)   /* MSVC's `eh vector */
+{                                                                                             /* constructor iterator' */
+    typedef void (__attribute__((thiscall)) *c_t)(void *);
+    (void)dtor;
+    for (int32_t i = 0; i < n; i++) ((c_t)ctor)((void *)(p + (intptr_t)size * i));
+}
+static inline void eh_vec_dtor(intptr_t p, uint32_t size, int32_t n, void *dtor)   /* MSVC's `eh vector destructor iterator': */
+{                                                                                  /* the elements' dtors, last first */
+    typedef void (__attribute__((thiscall)) *d_t)(void *);
+    p += (intptr_t)size * n;
+    while (--n >= 0) { p -= size; ((d_t)dtor)((void *)p); }
+}
 typedef char CHAR;
 #define SETLO(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff0000u) | (uint16_t)(v)))
 #define SETHI(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffu) | ((uint32_t)(uint16_t)(v) << 16)))
 #define SETLB(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffff00u) | (uint8_t)(v)))
+#define SETB1(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff00ffu) | ((uint32_t)(uint8_t)(v) << 8)))
 #define SETLODW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffff00000000ull) | (uint32_t)(v)))
 #define SETHIDW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffffull) | ((uint64_t)(uint32_t)(v) << 32)))
 #define F32(p, o) (*(int32_t *)((uint8_t *)(intptr_t)(p) + (o)))
@@ -95,7 +124,7 @@ static inline intptr_t W_item_give(intptr_t a0, intptr_t a1, intptr_t a2, intptr
 static inline intptr_t W_member_palette(intptr_t a0, ...) { member_palette((wl_char *)a0); return 0; }
 static inline intptr_t W_part_bottom(intptr_t a0, intptr_t a1, ...) { return (intptr_t)part_bottom((const wl_entity *)a0, (uint16_t)a1); }
 static inline intptr_t W_pslot_input_set(intptr_t a0, intptr_t a1, ...) { return (intptr_t)pslot_input_set((wl_pslot *)a0, (void *)a1); }
-static inline intptr_t W_room_formation(intptr_t a0, ...) { room_formation((wl_room *)a0); return 0; }
+static inline intptr_t W_room_formation(intptr_t a0, ...) { return (intptr_t)room_formation((wl_room *)a0); }
 static inline intptr_t W_scene_face(intptr_t a0, intptr_t a1, intptr_t a2, ...) { scene_face((wl_event *)a0, (void *)a1, (int32_t)a2); return 0; }
 static inline intptr_t W_scene_msg(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, intptr_t a7, intptr_t a8, intptr_t a9, intptr_t a10, ...) { scene_msg((wl_event *)a0, (uint32_t)a1, (void *)a2, (const char *)a3, (int32_t)a4, (int32_t)a5, (int32_t)a6, (const char *)a7, (int32_t)a8, (int32_t)a9, (uint16_t)a10); return 0; }
 static inline intptr_t W_scene_party_stance(intptr_t a0, intptr_t a1, intptr_t a2, ...) { return (intptr_t)scene_party_stance((wl_event *)a0, (int32_t)a1, (wl_room *)a2); }
@@ -1777,14 +1806,14 @@ int32_t sc_4a63d0(wl_char *self, uint32_t a2)
     intptr_t v7;
     uint32_t * v8;
     uint32_t LastError;
-    intptr_t v10;
+    intptr_t * v10;
     uint32_t v11;
     char * v12;
     char * v13;
     char * v14;
     char v15;
     uint32_t v16;
-    intptr_t v17;
+    intptr_t * v17;
     _Alignas(8) uint8_t frame_[0x210 + 0x10];   /* the stack locals at their ebp offsets */
     memset(frame_, 0, sizeof frame_);
     char *OutputString = (char *)(frame_ + 0x10);   /* [256] at ebp-0x200 */
@@ -1880,7 +1909,7 @@ int32_t sc_4b3f30(wl_char *self)
     uint16_t *const v6__f = (uint16_t *)(frame_ + 0x0);   /* ebp-0x22c */
     intptr_t *const v7__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x22c */
 
-  Buffer[0] = D(0x8a9b6c);
+  Buffer[0] = F8(D(0x8a9b6c), 0);
   memset(&Buffer[1], 0, 511);
   (*v6__f) = sc_402f60(c, D(0x6c0838), v8);
   v2 = W_scene_yes_no(c);

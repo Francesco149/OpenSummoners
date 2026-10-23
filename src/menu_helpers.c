@@ -36,6 +36,21 @@ static intptr_t rnd(void) { return (intptr_t)rng_rand(); }
 #include "ui_menu.h"
 #include "ui_run.h"
 #include "ui_text.h"
+#include "arche_pose.h"
+#include "behave_helpers.h"
+#include "char_handlers.h"
+#include "char_hit.h"
+#include "char_state.h"
+#include "char_status.h"
+#include "party_member.h"
+#include "room_load.h"
+#include "room_loop.h"
+#include "script_helpers.h"
+#include "sound_fx.h"
+#include "ui_core.h"
+#include "ui_menu.h"
+#include "ui_run.h"
+#include "ui_text.h"
 #pragma GCC optimize ("no-strict-aliasing")
 #pragma GCC diagnostic ignored "-Wint-conversion"
 #pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
@@ -67,6 +82,7 @@ static inline int32_t abs32(int32_t x) { return x < 0 ? (int32_t)(0u - (uint32_t
 #include <stdbool.h>
 #endif
 typedef int32_t _DWORD;
+typedef uint8_t _UNKNOWN;   /* IDA's untyped byte (casts: `(_UNKNOWN *)p`) */
 typedef uint8_t _BOOL1;
 typedef uint16_t _BOOL2;
 typedef int32_t _BOOL4;
@@ -76,6 +92,18 @@ typedef uint64_t _QWORD;
 #define GAP(p, o, i) F8(p, (o) + (i))   /* IDA's gapN[i]: the byte at +N + i */
 #define qmemcpy memcpy   /* IDA's inline memcpy */
 static inline void *memset32(void *d, uint32_t v, size_t n) { uint32_t *p = d; while (n--) *p++ = v; return d; }   /* IDA's rep stosd */
+static inline void eh_vec_ctor(intptr_t p, uint32_t size, int32_t n, void *ctor, void *dtor)   /* MSVC's `eh vector */
+{                                                                                             /* constructor iterator' */
+    typedef void (__attribute__((thiscall)) *c_t)(void *);
+    (void)dtor;
+    for (int32_t i = 0; i < n; i++) ((c_t)ctor)((void *)(p + (intptr_t)size * i));
+}
+static inline void eh_vec_dtor(intptr_t p, uint32_t size, int32_t n, void *dtor)   /* MSVC's `eh vector destructor iterator': */
+{                                                                                  /* the elements' dtors, last first */
+    typedef void (__attribute__((thiscall)) *d_t)(void *);
+    p += (intptr_t)size * n;
+    while (--n >= 0) { p -= size; ((d_t)dtor)((void *)p); }
+}
 typedef char CHAR;
 #define SETLO(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff0000u) | (uint16_t)(v)))
 #define SETHI(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffu) | ((uint32_t)(uint16_t)(v) << 16)))
@@ -1086,7 +1114,7 @@ int32_t mh_4e6870(wl_char *self, uint16_t a2, int32_t a3, int32_t a4)
   return result;
 }
 
-/* 0x5b1f10: BOOL __thiscall sub_5B1F10(cls_413B20 * this, int a3, int a4, char *Buffer, _WORD *a6, unsigned int a7, int a8) */
+/* 0x5b1f10: BOOL __thiscall sub_5B1F10(cls_413B20 *this, int a3, int a4, char *Buffer, _WORD *a6, unsigned int a7, int a8) */
 int32_t mh_5b1f10(wl_char *self, int32_t a3, int32_t a4, char * Buffer, uint16_t * a6, uint32_t a7, int32_t a8)
 {
     intptr_t c = (intptr_t)self;

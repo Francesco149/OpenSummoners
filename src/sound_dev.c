@@ -24,6 +24,8 @@
 
 
 #include <windows.h>
+#include <stdio.h>
+#include <time.h>
 
 
 #pragma GCC optimize ("no-strict-aliasing")
@@ -57,11 +59,28 @@ static inline int32_t abs32(int32_t x) { return x < 0 ? (int32_t)(0u - (uint32_t
 #include <stdbool.h>
 #endif
 typedef int32_t _DWORD;
+typedef uint8_t _UNKNOWN;   /* IDA's untyped byte (casts: `(_UNKNOWN *)p`) */
+typedef uint8_t _BOOL1;
+typedef uint16_t _BOOL2;
+typedef int32_t _BOOL4;
 typedef uint16_t _WORD;
 typedef uint8_t _BYTE;
 typedef uint64_t _QWORD;
 #define GAP(p, o, i) F8(p, (o) + (i))   /* IDA's gapN[i]: the byte at +N + i */
 #define qmemcpy memcpy   /* IDA's inline memcpy */
+static inline void *memset32(void *d, uint32_t v, size_t n) { uint32_t *p = d; while (n--) *p++ = v; return d; }   /* IDA's rep stosd */
+static inline void eh_vec_ctor(intptr_t p, uint32_t size, int32_t n, void *ctor, void *dtor)   /* MSVC's `eh vector */
+{                                                                                             /* constructor iterator' */
+    typedef void (__attribute__((thiscall)) *c_t)(void *);
+    (void)dtor;
+    for (int32_t i = 0; i < n; i++) ((c_t)ctor)((void *)(p + (intptr_t)size * i));
+}
+static inline void eh_vec_dtor(intptr_t p, uint32_t size, int32_t n, void *dtor)   /* MSVC's `eh vector destructor iterator': */
+{                                                                                  /* the elements' dtors, last first */
+    typedef void (__attribute__((thiscall)) *d_t)(void *);
+    p += (intptr_t)size * n;
+    while (--n >= 0) { p -= size; ((d_t)dtor)((void *)p); }
+}
 typedef char CHAR;
 #define SETLO(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff0000u) | (uint16_t)(v)))
 #define SETHI(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffu) | ((uint32_t)(uint16_t)(v) << 16)))
@@ -105,13 +124,13 @@ typedef intptr_t (__attribute__((stdcall)) *api_LockResource_t)(intptr_t);
 #define API_LockResource ((api_LockResource_t)g_eng.api("LockResource"))
 typedef intptr_t (__attribute__((stdcall)) *api_OutputDebugStringA_t)(intptr_t);
 #define API_OutputDebugStringA ((api_OutputDebugStringA_t)g_eng.api("OutputDebugStringA"))
-typedef intptr_t (__attribute__((stdcall)) *api_SizeofResource_t)(intptr_t, intptr_t);
+typedef uint32_t (__attribute__((stdcall)) *api_SizeofResource_t)(intptr_t, intptr_t);
 #define API_SizeofResource ((api_SizeofResource_t)g_eng.api("SizeofResource"))
 typedef intptr_t (__attribute__((stdcall)) *api_WriteFile_t)(intptr_t, intptr_t, intptr_t, intptr_t, intptr_t);
 #define API_WriteFile ((api_WriteFile_t)g_eng.api("WriteFile"))
-typedef intptr_t (__attribute__((stdcall)) *api_mmioClose_t)(intptr_t, intptr_t);
+typedef uint32_t (__attribute__((stdcall)) *api_mmioClose_t)(intptr_t, intptr_t);
 #define API_mmioClose ((api_mmioClose_t)g_eng.api("mmioClose"))
-typedef intptr_t (__attribute__((stdcall)) *api_mmioDescend_t)(intptr_t, intptr_t, intptr_t, intptr_t);
+typedef uint32_t (__attribute__((stdcall)) *api_mmioDescend_t)(intptr_t, intptr_t, intptr_t, intptr_t);
 #define API_mmioDescend ((api_mmioDescend_t)g_eng.api("mmioDescend"))
 typedef intptr_t (__attribute__((stdcall)) *api_mmioOpenA_t)(intptr_t, intptr_t, intptr_t);
 #define API_mmioOpenA ((api_mmioOpenA_t)g_eng.api("mmioOpenA"))
@@ -1843,9 +1862,9 @@ int32_t sd_5bcdf0(wl_char *self, uint16_t a2)
     intptr_t result = 0;
 
   v2 = (intptr_t *)(F32(c, 0x20) + 576 * a2);
-  if ( F32(v2, 0) == 0 )
+  if ( *v2 == 0 )
     return 0;
-  if ( sd_5baec0(F32(v2, 0)) )
+  if ( sd_5baec0(*v2) )
     return 1;
   result = sd_5bab10(*v2);
   if ( result != 0 )

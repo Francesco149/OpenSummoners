@@ -6,6 +6,47 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-23 — the platform layer and the program's top as port code; every unreached group but the story scripts
+
+- An overnight run off the existing corpus (no new traces). 13 commits, each with `corpus --check` on its hooks and
+  `corpus --check --hybrid` PASS 9/9 on Windows and wine: frame loaders + bitmap session (902ec00), file layer /
+  DirectInput / DirectSound + the music manager (902ec00), DirectDraw + the FLIP (943cd85), the application shell
+  under WinMain + the PUMP (a463ebe), the boot asset groups (51055f0), `_WinMain` + WinMain (54cba6f: under REPLACE the
+  whole program runs from the port's top), the reached leftovers — the AI's ring find 0x479960 / held charge 0x479a10,
+  the logger, the launcher (615c792) — and the UNVERIFIED batches: the menu screens + dialogs + item use, 14 per-type
+  inits, 18 integrator handlers (5dfee0c), actor behaviours, the SJIS wrap, the gamepad, the ending, the title's
+  other screens + attract demo + the input re-poll (7adac99), the engine's unreached rest (615c792). Hybrid: 1,271
+  hooks. Ledger: 94.9% of engine functions touched, 76% of code bytes.
+- rhost: the Flip's REPLACE retargets rhost's flip stub (it owns every Flip call site); a function stored BY ADDRESS
+  (the window procedure, atexit's shutdown, the EnumDevices callback) or reached through a jmp thunk takes an ENTRY
+  PATCH (jmp → wrapper) and the port stores retail's address (the atexit table had held a port pointer); the game
+  window is found by its class (`CLASS_LIZSOFT_SOTES`) for the synthetic activation; ordinal imports by name
+  (DSOUND!1); `TC_HOOK0_64` (edx:eax); RC_ srand → the pinned srand; the REPLACE table held 1,024 (now 4,096, fatal
+  past it); `volatile.enold.txt` + 3 stack-address slots (WinMain's &local, the CRT setlocale's frame pointers) —
+  re-blessed (state_sem / the wine series only).
+- decomp2c, found by today's modules (each a real bug class): `*(T *)v->member` derefs the MEMBER (it read `*v + N`);
+  Win32 DWORD / UINT returns are unsigned (the pump's `last - GetTickCount() < 5` is a `jnb`); an array the asm only
+  takes the address of (`offset unk_X` for C's `dword_X`, `String`) is an address; IDA's bare `trailer` is its byte;
+  a class pointer's `++` anywhere (a for header walked 4-byte slots by bytes); `this + <sum>` scales the whole term;
+  the Flip / easer never bind to their ports (rhost's stubs step the clock there); `input_dev **this`; a FLIRT-named
+  ctor; `BYTE1(x) = v`; word-shell fields; callbacks by address; vtable casts' class parameters; MMCKINFO / FILE /
+  WNDCLASSEXA / `struct tm`; `_BOOL2`, `_UNKNOWN`, memset32, MSVC's vector ctor / dtor iterators; `HIWORD(g) = v`;
+  `this[k].gapN` / `p[k].gapN` / `(*v)[k].gapN`; the fastcall → thiscall rewrite's `cls_X *this`.
+  `tools/ida/decomp2c_regen.py` regenerates a committed module with today's converter (keeping named hand finishes).
+- REGENERATION pass (`tools/ida/decomp2c_regen.py`, 30 modules): the older decomp2c modules re-converted with
+  today's converter, hand finishes kept (`--keep`; finish scripts for frame_load / save_game / sound_dev /
+  title_menu — the new `tools/ida/finish/title_menu.py` re-applies 0x562ea0's two `break`s).  Over 120 functions changed:
+  RC_ calls bound to today's ports (chapter scripts → engine_rest / sound_dev / script_io / save_game), the latent
+  converter bugs above fixed in place.  Hybrid gate PASS 9/9 Windows + wine.  A kept function keeps its committed
+  prototype (0x4710c0's split int64; its caller 0x590230 kept too).  Two converter regressions the pass exposed:
+  the inlined log 0x406440's collapse stopped matching once `Mode` / `OutputString` / the log path became
+  addresses (fixed: both forms), and an unused `FILE *` / `SYSTEMTIME` local dragged `<windows.h>` into host-built
+  modules (now a plain word; `<windows.h>` only when the final text keeps a Win32 struct).  The host suite links the
+  chapter scripts, whose calls now reach mingw-only ports: `tests/host_stubs.c` (abort stubs, never run).
+- IDA misreads met: 0x5b7310's and 0x585590's ebx "arguments" (scratch registers, only their low words used);
+  0x5bb3d0's mid-body `push esi` taken for an Unlock argument (a phantom a7, every later frame label 4 bytes off);
+  0x5752e0 calls the Flip inside its Now Loading loop.
+
 ## 2026-10-17 (afternoon) — save chains; the menus and saving / loading as port code; decomp2c reads ecx from the asm
 
 - rhost: `record NEXT --from PREV` boots with the user\ dir PREV's pure replay leaves (`final_save`, cached under

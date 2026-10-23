@@ -20,12 +20,15 @@ static intptr_t rnd(void) { return (intptr_t)rng_rand(); }
 
 
 #include <windows.h>
+#include <stdio.h>
+#include <time.h>
 #include "asset_register.h"
 #include "camera_follow.h"
 #include "char_ai.h"
 #include "char_attack.h"
 #include "char_hit.h"
 #include "char_status.h"
+#include "frame_load.h"
 #include "hud_view.h"
 #include "npc_ai.h"
 #include "particle_init.h"
@@ -67,15 +70,33 @@ static inline int32_t abs32(int32_t x) { return x < 0 ? (int32_t)(0u - (uint32_t
 #include <stdbool.h>
 #endif
 typedef int32_t _DWORD;
+typedef uint8_t _UNKNOWN;   /* IDA's untyped byte (casts: `(_UNKNOWN *)p`) */
+typedef uint8_t _BOOL1;
+typedef uint16_t _BOOL2;
+typedef int32_t _BOOL4;
 typedef uint16_t _WORD;
 typedef uint8_t _BYTE;
 typedef uint64_t _QWORD;
 #define GAP(p, o, i) F8(p, (o) + (i))   /* IDA's gapN[i]: the byte at +N + i */
 #define qmemcpy memcpy   /* IDA's inline memcpy */
+static inline void *memset32(void *d, uint32_t v, size_t n) { uint32_t *p = d; while (n--) *p++ = v; return d; }   /* IDA's rep stosd */
+static inline void eh_vec_ctor(intptr_t p, uint32_t size, int32_t n, void *ctor, void *dtor)   /* MSVC's `eh vector */
+{                                                                                             /* constructor iterator' */
+    typedef void (__attribute__((thiscall)) *c_t)(void *);
+    (void)dtor;
+    for (int32_t i = 0; i < n; i++) ((c_t)ctor)((void *)(p + (intptr_t)size * i));
+}
+static inline void eh_vec_dtor(intptr_t p, uint32_t size, int32_t n, void *dtor)   /* MSVC's `eh vector destructor iterator': */
+{                                                                                  /* the elements' dtors, last first */
+    typedef void (__attribute__((thiscall)) *d_t)(void *);
+    p += (intptr_t)size * n;
+    while (--n >= 0) { p -= size; ((d_t)dtor)((void *)p); }
+}
 typedef char CHAR;
 #define SETLO(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff0000u) | (uint16_t)(v)))
 #define SETHI(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffu) | ((uint32_t)(uint16_t)(v) << 16)))
 #define SETLB(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffff00u) | (uint8_t)(v)))
+#define SETB1(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff00ffu) | ((uint32_t)(uint8_t)(v) << 8)))
 #define SETLODW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffff00000000ull) | (uint32_t)(v)))
 #define SETHIDW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffffull) | ((uint64_t)(uint32_t)(v) << 32)))
 #define F32(p, o) (*(int32_t *)((uint8_t *)(intptr_t)(p) + (o)))
@@ -90,6 +111,9 @@ static inline intptr_t W_dramatist_row(intptr_t a0, ...) { return (intptr_t)dram
 static inline intptr_t W_entity_part_descs(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, ...) { return (intptr_t)entity_part_descs((const wl_entity *)a0, (const wl_body *)a1, (es_desc *)a2, (uint16_t *)a3); }
 static inline intptr_t W_entity_sprite_desc(intptr_t a0, intptr_t a1, intptr_t a2, ...) { return (intptr_t)entity_sprite_desc((const wl_entity *)a0, (const wl_body *)a1, (es_desc *)a2); }
 static inline intptr_t W_entity_sprite_descs(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, ...) { return (intptr_t)entity_sprite_descs((const wl_entity *)a0, (const wl_body *)a1, (es_desc *)a2, (uint16_t *)a3); }
+static inline intptr_t W_fl_4178e0(intptr_t a0, intptr_t a1, ...) { return (intptr_t)fl_4178e0((wl_char *)a0, (void *)a1); }
+static inline intptr_t W_fl_4184a0(intptr_t a0, intptr_t a1, ...) { fl_4184a0((wl_char *)a0, (int32_t)a1); return 0; }
+static inline intptr_t W_fl_499850(intptr_t a0, ...) { fl_499850((int32_t)a0); return 0; }
 static inline intptr_t W_member_skill_at(intptr_t a0, intptr_t a1, intptr_t a2, ...) { return (intptr_t)member_skill_at((const uint8_t *)a0, (int32_t)a1, (uint16_t)a2); }
 static inline intptr_t W_pal_swap_apply(intptr_t a0, intptr_t a1, intptr_t a2, ...) { pal_swap_apply((void *)a0, (const uint8_t *)a1, (uint8_t *)a2); return 0; }
 static inline intptr_t W_palette_tint(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, ...) { palette_tint((uint8_t *)a0, (const uint8_t *)a1, (int32_t)a2, (int32_t)a3, (int32_t)a4, (int32_t)a5); return 0; }
@@ -122,12 +146,7 @@ static inline intptr_t W_tint_fade_a(intptr_t a0, intptr_t a1, ...) { return (in
 static inline intptr_t W_tint_fade_b(intptr_t a0, intptr_t a1, ...) { return (intptr_t)tint_fade_b((int32_t)a0, (int32_t)a1); }
 static inline intptr_t W_view_box_visible(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, ...) { return (intptr_t)view_box_visible((const camera_view *)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3, (int32_t)a4, (int32_t)a5); }
 static inline intptr_t W_view_project(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, intptr_t a7, intptr_t a8, intptr_t a9, ...) { return (intptr_t)view_project((const camera_view *)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3, (int32_t)a4, (int32_t)a5, (int32_t)a6, (int32_t *)a7, (int32_t *)a8, (int32_t)a9); }
-typedef intptr_t (__attribute__((thiscall)) *rt_4178e0)(intptr_t, intptr_t);   /* 0x4178e0 thiscall: unported, retail's */
-#define RC_4178e0 ((rt_4178e0)g_eng.retail(0x4178e0u))
-typedef intptr_t (__attribute__((thiscall)) *rt_4184a0)(intptr_t, intptr_t);   /* 0x4184a0 thiscall: unported, retail's */
-#define RC_4184a0 ((rt_4184a0)g_eng.retail(0x4184a0u))
-typedef intptr_t (__attribute__((stdcall)) *rt_499850)(intptr_t);   /* 0x499850 stdcall: unported, retail's */
-#define RC_499850 ((rt_499850)g_eng.retail(0x499850u))
+
 typedef intptr_t (__attribute__((stdcall)) *api_Arc_t)(intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t);
 #define API_Arc ((api_Arc_t)g_eng.api("Arc"))
 typedef intptr_t (__attribute__((stdcall)) *api_Polyline_t)(intptr_t, intptr_t, intptr_t);
@@ -136,7 +155,7 @@ typedef intptr_t (__attribute__((stdcall)) *api_SelectObject_t)(intptr_t, intptr
 #define API_SelectObject ((api_SelectObject_t)g_eng.api("SelectObject"))
 typedef intptr_t (__attribute__((stdcall)) *api_SetBkMode_t)(intptr_t, intptr_t);
 #define API_SetBkMode ((api_SetBkMode_t)g_eng.api("SetBkMode"))
-typedef intptr_t (__attribute__((stdcall)) *api_SetTextColor_t)(intptr_t, intptr_t);
+typedef uint32_t (__attribute__((stdcall)) *api_SetTextColor_t)(intptr_t, intptr_t);
 #define API_SetTextColor ((api_SetTextColor_t)g_eng.api("SetTextColor"))
 typedef intptr_t (__attribute__((stdcall)) *api_TextOutA_t)(intptr_t, intptr_t, intptr_t, intptr_t, intptr_t);
 #define API_TextOutA ((api_TextOutA_t)g_eng.api("TextOutA"))
@@ -217,7 +236,7 @@ void rd_499100(wl_char *self, int32_t a2);
 void rd_499560(int32_t a1, int32_t * a2, int32_t a3, int32_t a4);
 int32_t rd_499670(wl_char *self, int32_t a2, uint8_t * a3, int32_t a4, uint32_t a5);
 int32_t rd_4997b0(int32_t a1, int32_t a2);
-int32_t rd_49c170(intptr_t ecx_, int32_t a1);
+int32_t rd_49c170(int32_t a1);
 
 /* 0x48c150: int __thiscall sub_48C150(cls_48C150 *this, int a2, int a3, int a4) */
 int32_t rd_48c150(wl_char *self, int32_t a2, int32_t a3, int32_t a4)
@@ -278,7 +297,7 @@ int32_t rd_48c150(wl_char *self, int32_t a2, int32_t a3, int32_t a4)
   {
     v8 = SYS32(4 * *(uint16_t *)&GAP(c, 0x28, 8) + 2732);
     if ( **(_DWORD **)((uint8_t *)(v8) + 0x0) == 0 )
-      RC_4184a0((intptr_t)(v8), (intptr_t)(0));
+      W_fl_4184a0((intptr_t)(v8), (intptr_t)(0));
     W_rp_5b9a40((intptr_t)(***(intptr_t ***)((uint8_t *)(v8) + 0x0)), (intptr_t)(F32(SYS32(10348), 364)), (intptr_t)(0), (intptr_t)(0));
 LABEL_65:
     v9 = W;
@@ -474,7 +493,7 @@ LABEL_66:
     v42 = *(_DWORD *)&GAP((v9 + (1) * 0x27a4), 0x0, 12);
     if ( v42 != 0 )
     {
-      rd_49c170(c, F32(v42, 4));
+      rd_49c170(F32(v42, 4));
       v9 = W;
     }
   }
@@ -508,7 +527,7 @@ LABEL_66:
   if ( result != 0 )
   {
     F32(((uint8_t *)(c) + 0x34), 0) = 0;
-    RC_499850((intptr_t)(a2));
+    W_fl_499850((intptr_t)(a2));
     return W_sfx_play((intptr_t)(((intptr_t)g_eng.sys)), (intptr_t)(4u), (intptr_t)(0), (intptr_t)(0));
   }
   return result;
@@ -520,7 +539,7 @@ int32_t rd_418470(wl_char *self, uint16_t a2)
     intptr_t c = (intptr_t)self;
 
   if ( *(_DWORD *)F32(c, 0x0) == 0 )
-    RC_4184a0((intptr_t)(c), (intptr_t)(0));
+    W_fl_4184a0((intptr_t)(c), (intptr_t)(0));
   return F32((*(_DWORD *)F32(c, 0x0) + 4 * a2), 0);
 }
 
@@ -1083,7 +1102,7 @@ int32_t rd_48d3d0(int32_t a1, int32_t a2, int32_t a3, int32_t a4, int32_t a5, in
   v12 = F32(a2, 0);
   v13 = F16(a2, 4) + a8;
   if ( ***(_DWORD ***)a2 == 0 )
-    RC_4184a0((intptr_t)(v12), (intptr_t)(0));
+    W_fl_4184a0((intptr_t)(v12), (intptr_t)(0));
   v14 = F32((**(_DWORD **)((uint8_t *)(v12) + 0x0) + 4 * v13), 0);
   if ( a11 != 0 )
   {
@@ -1111,7 +1130,7 @@ int32_t rd_48d3d0(int32_t a1, int32_t a2, int32_t a3, int32_t a4, int32_t a5, in
       v35 = F32(a2, 0);
       if ( ***(_DWORD ***)a2 == 0 )
       {
-        RC_4184a0((intptr_t)(v20), (intptr_t)(0));
+        W_fl_4184a0((intptr_t)(v20), (intptr_t)(0));
         v20 = v35;
       }
       v22 = F32((**(_DWORD **)((uint8_t *)(v20) + 0x0) + 4 * v21), 0);
@@ -1137,7 +1156,7 @@ int32_t rd_48d3d0(int32_t a1, int32_t a2, int32_t a3, int32_t a4, int32_t a5, in
     v34 = v24;
     if ( ***(_DWORD ***)a2 == 0 )
     {
-      RC_4184a0((intptr_t)(v25), (intptr_t)(0));
+      W_fl_4184a0((intptr_t)(v25), (intptr_t)(0));
       v25 = v39;
       v24 = v34;
     }
@@ -1154,7 +1173,7 @@ int32_t rd_48d3d0(int32_t a1, int32_t a2, int32_t a3, int32_t a4, int32_t a5, in
   v40 = F32(a2, 0);
   if ( ***(_DWORD ***)a2 == 0 )
   {
-    RC_4184a0((intptr_t)(v29), (intptr_t)(0));
+    W_fl_4184a0((intptr_t)(v29), (intptr_t)(0));
     v27 = v38;
     v29 = v40;
   }
@@ -1364,7 +1383,7 @@ int32_t rd_48d670(int32_t a1, int32_t a2, int16_t a3, int32_t a4, int32_t a5, in
   v9 = F32(a2, 0);
   v10 = a3 + F16(a2, 4);
   if ( ***(_DWORD ***)a2 == 0 )
-    RC_4184a0((intptr_t)(v9), (intptr_t)(0));
+    W_fl_4184a0((intptr_t)(v9), (intptr_t)(0));
   v11 = F32((**(_DWORD **)((uint8_t *)(v9) + 0x0) + 4 * v10), 0);
   if ( a8 != 0 )
     return W_rp_5bd550((intptr_t)(a8), (intptr_t)(a1), (intptr_t)(v11), (intptr_t)(a4 + F32(v11, 12)), (intptr_t)(a5 + F32(v11, 16)), (intptr_t)(a6), (intptr_t)(a7), (intptr_t)(0), (intptr_t)(0), (intptr_t)(F32(v11, 40)), (intptr_t)(hdcSrc));
@@ -1425,7 +1444,7 @@ LABEL_6:
         v8 += *(_WORD *)&GAP(c, 0x8e, 2 * F16(c, 0xd2));
       if ( **(_DWORD **)((uint8_t *)(v10) + 0x0) == 0 )
       {
-        RC_4184a0((intptr_t)(v10), (intptr_t)(0));
+        W_fl_4184a0((intptr_t)(v10), (intptr_t)(0));
         v10 = (*v21__f);
       }
       v12 = F32((**(_DWORD **)((uint8_t *)(v10) + 0x0) + 4 * v8), 0);
@@ -1456,7 +1475,7 @@ LABEL_18:
         v14 += *(_WORD *)&GAP(c, 0xea, 2 * F16(c, 0x12e));
       if ( **(_DWORD **)((uint8_t *)(v16) + 0x0) == 0 )
       {
-        RC_4184a0((intptr_t)(v16), (intptr_t)(0));
+        W_fl_4184a0((intptr_t)(v16), (intptr_t)(0));
         v16 = v22;
       }
       v18 = F32(c, 0x134);
@@ -1526,7 +1545,7 @@ int32_t rd_48d940(wl_char *self, int32_t a2, int32_t a3, int32_t * a4, int32_t h
           v11 += *(_WORD *)&GAP(c, 0x2e, 2 * F16(c, 0x72));
         if ( **(_DWORD **)((uint8_t *)(v10) + 0x0) == 0 )
         {
-          RC_4184a0((intptr_t)(v10), (intptr_t)(0));
+          W_fl_4184a0((intptr_t)(v10), (intptr_t)(0));
           v10 = v14;
         }
         v12 = F32(c, 0x78);
@@ -1726,7 +1745,7 @@ int32_t rd_48da70(wl_char *self, int32_t a2, int32_t hdc, int32_t a4, int32_t a5
               (*v83__f) = v54;
               if ( **(_DWORD **)((uint8_t *)(v54) + 0x0) == 0 )
               {
-                RC_4184a0((intptr_t)(v54), (intptr_t)(0));
+                W_fl_4184a0((intptr_t)(v54), (intptr_t)(0));
                 v55 = (*v85__f);
                 v54 = (*v83__f);
               }
@@ -2148,7 +2167,7 @@ int32_t rd_48e200(wl_char *self, int32_t a2, int32_t a3, int32_t hdc, int32_t a5
                   v37 += F16(v35 + 2 * F16(v35, 74), 6);
                 if ( **(_DWORD **)((uint8_t *)(v36) + 0x0) == 0 )
                 {
-                  RC_4184a0((intptr_t)(v36), (intptr_t)(0));
+                  W_fl_4184a0((intptr_t)(v36), (intptr_t)(0));
                   v36 = (*v59__f);
                   v17 = (*v65__f);
                 }
@@ -2168,7 +2187,7 @@ int32_t rd_48e200(wl_char *self, int32_t a2, int32_t a3, int32_t hdc, int32_t a5
               (*v60__f) = v41;
               if ( **(_DWORD **)((uint8_t *)(v41) + 0x0) == 0 )
               {
-                RC_4184a0((intptr_t)(v41), (intptr_t)(0));
+                W_fl_4184a0((intptr_t)(v41), (intptr_t)(0));
                 v41 = (*v60__f);
               }
               (*ya__f) = F32(**(_DWORD **)((uint8_t *)(v41) + 0x0), 4 * v42);
@@ -2379,7 +2398,7 @@ LABEL_23:
           v17 = *(_DWORD ***)&SYSB(2944);
           (*v19__f) = SYS32(10328);
           if ( ***(_DWORD ***)&SYSB(2944) == 0 )
-            RC_4184a0((intptr_t)(SYS32(2944)), (intptr_t)(0));
+            W_fl_4184a0((intptr_t)(SYS32(2944)), (intptr_t)(0));
           W_rp_5bd550((intptr_t)((*v19__f)), (intptr_t)((intptr_t)a2), (intptr_t)(F32((**v17 + 4 * (uint16_t)v3), 0)), (intptr_t)(v8), (intptr_t)(v9), (intptr_t)(64), (intptr_t)(4), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0x1FFFFFF), (intptr_t)(*(intptr_t *)&SYSB(864)));
         }
 LABEL_15:
@@ -2399,7 +2418,7 @@ LABEL_11:
 LABEL_12:
         v14 = SYS32(2948);
         if ( ***(_DWORD ***)&SYSB(2948) == 0 )
-          RC_4184a0((intptr_t)(SYS32(2948)), (intptr_t)(0));
+          W_fl_4184a0((intptr_t)(SYS32(2948)), (intptr_t)(0));
         W_rp_5b9a40((intptr_t)(***v14), (intptr_t)(a2), (intptr_t)(v8), (intptr_t)(v9));
         goto LABEL_15;
       }
@@ -3748,11 +3767,11 @@ int32_t rd_417c40(wl_char *self, uint16_t a2, uint16_t a3)
         {
           if ( v7[2] != 0 )
           {
-            RC_4178e0((intptr_t)(v6), (intptr_t)(out_palette));
+            W_fl_4178e0((intptr_t)(v6), (intptr_t)(out_palette));
             v10 = F32((v3[a2 + 1592] + 8), 0);
             if ( *v10 != 0 )
             {
-              RC_4178e0((intptr_t)((ar_sprite_slot *)v3[(uint16_t)*v10 + 683]), (intptr_t)(&(*v59__f)));
+              W_fl_4178e0((intptr_t)((ar_sprite_slot *)v3[(uint16_t)*v10 + 683]), (intptr_t)(&(*v59__f)));
               v11 = &(*v59__f);
             }
             else
@@ -3772,7 +3791,7 @@ int32_t rd_417c40(wl_char *self, uint16_t a2, uint16_t a3)
           }
           else
           {
-            RC_4178e0((intptr_t)(v6), (intptr_t)(out_palette));
+            W_fl_4178e0((intptr_t)(v6), (intptr_t)(out_palette));
           }
           v9 = (uint8_t *)out_palette;
         }
@@ -4155,12 +4174,12 @@ int32_t rd_490f30(wl_char *self, int32_t * a2, int32_t a3)
             {
               if ( v24[2] != 0 )
               {
-                RC_4178e0((intptr_t)((ar_sprite_slot *)v23), (intptr_t)(out_palette));
+                W_fl_4178e0((intptr_t)((ar_sprite_slot *)v23), (intptr_t)(out_palette));
                 W_pal_swap_apply((intptr_t)((ar_sprite_slot **)((intptr_t)g_eng.sys)), (intptr_t)(F32(SYS32(4 * v22 + 6368), 8)), (intptr_t)(out_palette));
               }
               else
               {
-                RC_4178e0((intptr_t)((ar_sprite_slot *)v23), (intptr_t)(out_palette));
+                W_fl_4178e0((intptr_t)((ar_sprite_slot *)v23), (intptr_t)(out_palette));
               }
               v26 = (int)out_palette;
             }
@@ -4496,7 +4515,7 @@ int32_t rd_491820(wl_char *self, int32_t a2, char * a3, uint16_t a4, int32_t a5,
         {
           v22 = *(((intptr_t *)c) + a4 + 683);
           if ( **(_DWORD **)((uint8_t *)(v22) + 0x0) == 0 )
-            RC_4184a0((intptr_t)(v22), (intptr_t)(0));
+            W_fl_4184a0((intptr_t)(v22), (intptr_t)(0));
           v23 = F32((uint8_t *)(v22), 0x0);
           v11 = (*v34__f);
           v24 = F32((*v23 + 4 * v21), 0);
@@ -4531,7 +4550,7 @@ int32_t rd_491820(wl_char *self, int32_t a2, char * a3, uint16_t a4, int32_t a5,
       {
         v27 = *(((intptr_t *)c) + a4 + 683);
         if ( **(_DWORD **)((uint8_t *)(v27) + 0x0) == 0 )
-          RC_4184a0((intptr_t)(v27), (intptr_t)(0));
+          W_fl_4184a0((intptr_t)(v27), (intptr_t)(0));
         v28 = F32((**(_DWORD **)((uint8_t *)(v27) + 0x0) + 4 * v26), 0);
         if ( v28 != 0 && a2 != 0 )
         {
@@ -6898,13 +6917,13 @@ int32_t rd_494790(wl_char *self, int32_t a2, int32_t * a3)
     if ( F32(c, 0x20) / 16 % 2 != 0 )
     {
       if ( v16 == 0 )
-        RC_4184a0((intptr_t)(SYS32(2960)), (intptr_t)(0));
+        W_fl_4184a0((intptr_t)(SYS32(2960)), (intptr_t)(0));
       v17 = F32(**(_DWORD **)((uint8_t *)(v11) + 0x0), 28);
     }
     else
     {
       if ( v16 == 0 )
-        RC_4184a0((intptr_t)(SYS32(2960)), (intptr_t)(0));
+        W_fl_4184a0((intptr_t)(SYS32(2960)), (intptr_t)(0));
       v17 = F32(**(_DWORD **)((uint8_t *)(v11) + 0x0), 20);
     }
     v18 = v31 - 48;
@@ -6915,7 +6934,7 @@ int32_t rd_494790(wl_char *self, int32_t a2, int32_t * a3)
   else if ( v15 == 1 )
   {
     if ( ***(_DWORD ***)&SYSB(2960) == 0 )
-      RC_4184a0((intptr_t)(SYS32(2960)), (intptr_t)(0));
+      W_fl_4184a0((intptr_t)(SYS32(2960)), (intptr_t)(0));
     v21 = v31 - 48;
     v32 = (_DWORD *)(v31 - 48);
     if ( (int)v32 < v14 )
@@ -6926,7 +6945,7 @@ int32_t rd_494790(wl_char *self, int32_t a2, int32_t * a3)
     if ( v22 > 0 )
     {
       if ( **(_DWORD **)((uint8_t *)(v11) + 0x0) == 0 )
-        RC_4184a0((intptr_t)(v11), (intptr_t)(0));
+        W_fl_4184a0((intptr_t)(v11), (intptr_t)(0));
       v24 = v23 + 6;
       v25 = (int)v32;
       if ( (int)v32 >= (*v29__f) )
@@ -6940,7 +6959,7 @@ int32_t rd_494790(wl_char *self, int32_t a2, int32_t * a3)
       if ( result != 0 )
       {
         if ( **(_DWORD **)((uint8_t *)(v11) + 0x0) == 0 )
-          RC_4184a0((intptr_t)(v11), (intptr_t)(0));
+          W_fl_4184a0((intptr_t)(v11), (intptr_t)(0));
         v26 = v13 + 48;
         v27 = (*v30__f) - 20;
         if ( (*v30__f) - 20 >= v26 )
@@ -6958,7 +6977,7 @@ int32_t rd_494790(wl_char *self, int32_t a2, int32_t * a3)
   {
     v19 = F32(c, 0x20) / 8 % 4;
     if ( **(_DWORD **)((uint8_t *)(v11) + 0x0) == 0 )
-      RC_4184a0((intptr_t)(v11), (intptr_t)(0));
+      W_fl_4184a0((intptr_t)(v11), (intptr_t)(0));
     v20 = v31 - 48;
     if ( v31 - 48 >= v14 )
       v20 = v14;
@@ -7112,7 +7131,7 @@ int32_t rd_494a60(wl_char *self, int32_t a2)
 LABEL_6:
         v5 = *(_DWORD ***)&SYSB(3000);
         if ( ***(_DWORD ***)&SYSB(3000) == 0 )
-          RC_4184a0((intptr_t)(SYS32(3000)), (intptr_t)(0));
+          W_fl_4184a0((intptr_t)(SYS32(3000)), (intptr_t)(0));
         v6 = F32((**v5 + 4 * v4), 0);
         if ( F32(CFG(), 148) == 0 )
           goto LABEL_14;
@@ -7287,7 +7306,7 @@ int32_t rd_494e60(wl_char *self, int32_t a2)
     v6 = (intptr_t *)(F32(c, 0x4) + 16432);
     do
     {
-      if ( W_pslot_ok((intptr_t)(F32(v6, 0)), (intptr_t)(0), (intptr_t)(0)) )
+      if ( W_pslot_ok((intptr_t)(*v6), (intptr_t)(0), (intptr_t)(0)) )
         ++v3;
       ++v6;
       --v5;
@@ -7952,7 +7971,7 @@ int32_t rd_495e40(wl_char *self, int32_t a2, char * a3, uint16_t a4, int32_t a5,
       {
         v16 = *(((intptr_t *)c) + a4 + 683);
         if ( **(_DWORD **)((uint8_t *)(v16) + 0x0) == 0 )
-          RC_4184a0((intptr_t)(v16), (intptr_t)(0));
+          W_fl_4184a0((intptr_t)(v16), (intptr_t)(0));
         v17 = F32((**(_DWORD **)((uint8_t *)(v16) + 0x0) + 4 * v15), 0);
         if ( v17 != 0 && a2 != 0 )
         {
@@ -8009,7 +8028,7 @@ int32_t rd_495fe0(wl_char *self, int32_t a2, uint16_t a3, int32_t * a4, int32_t 
   v6 = *(_DWORD ***)&SYSB(2964);
   v7 = (_DWORD *)(F32(c, 0x40) + 660 * a3);
   if ( ***(_DWORD ***)&SYSB(2964) == 0 )
-    RC_4184a0((intptr_t)(SYS32(2964)), (intptr_t)(0));
+    W_fl_4184a0((intptr_t)(SYS32(2964)), (intptr_t)(0));
   v8 = F32((**v6 + 4 * a6), 0);
   v9 = v7[1] / 100 + v7[3] / 2 / 100 - (a4[13] + a4[24]) / 100 - 32;
   result = v7[4] / 100 - (a4[19] + a4[23] + 100 * a4[29]) / 100;
@@ -8130,16 +8149,16 @@ int32_t rd_4962a0(int32_t a1, uint16_t a2, uint16_t a3, int32_t a4, int32_t a5)
   v7 = 32 * a2 - 200 * a5 / 1000 + 440;
   v8 = ((1000 - a4) << 7) / 1000 + 444;
   if ( ***(_DWORD ***)&SYSB(2960) == 0 )
-    RC_4184a0((intptr_t)(SYS32(2960)), (intptr_t)(0));
+    W_fl_4184a0((intptr_t)(SYS32(2960)), (intptr_t)(0));
   W_rp_5b9b70((intptr_t)(F32(**(_DWORD **)v5, 48)), (intptr_t)(a1), (intptr_t)(v7), (intptr_t)(v8));
   if ( a3 != 0 )
   {
     if ( **(_DWORD **)((uint8_t *)(v6) + 0x0) == 0 )
-      RC_4184a0((intptr_t)(v6), (intptr_t)(0));
+      W_fl_4184a0((intptr_t)(v6), (intptr_t)(0));
     W_rp_5b9b70((intptr_t)(F32(**(_DWORD **)((uint8_t *)(v6) + 0x0), 4 * a3)), (intptr_t)(a1), (intptr_t)(v7), (intptr_t)(v8));
   }
   if ( **(_DWORD **)((uint8_t *)(v6) + 0x0) == 0 )
-    RC_4184a0((intptr_t)(v6), (intptr_t)(0));
+    W_fl_4184a0((intptr_t)(v6), (intptr_t)(0));
   return W_rp_5b9b70((intptr_t)(F32((**(_DWORD **)((uint8_t *)(v6) + 0x0) + 4 * (uint16_t)(a2 + 4)), 0)), (intptr_t)(a1), (intptr_t)(v7), (intptr_t)(v8));
 }
 
@@ -8249,7 +8268,7 @@ int32_t rd_496560(wl_char *self, int32_t a2, int32_t * a3, uint16_t a4, int32_t 
       SETLO((*c_l__f), F16(v16, 20));
       (*v34__f) = SYS32(3008);
       if ( ***(_DWORD ***)&SYSB(3008) == 0 )
-        RC_4184a0((intptr_t)(SYS32(3008)), (intptr_t)(0));
+        W_fl_4184a0((intptr_t)(SYS32(3008)), (intptr_t)(0));
       v17 = a2;
       W_rp_5b9a40((intptr_t)(F32((**(_DWORD **)(*v34__f) + 4 * (uint16_t)(*c_l__f)), 0)), (intptr_t)((int)a2), (intptr_t)(a7 != 3 ? 22 : 362), (intptr_t)(v15 - 2));
     }
@@ -8261,7 +8280,7 @@ int32_t rd_496560(wl_char *self, int32_t a2, int32_t * a3, uint16_t a4, int32_t 
     (*c_l__f) = SYS32(2916);
     if ( ***(_DWORD ***)&SYSB(2916) == 0 )
     {
-      RC_4184a0((intptr_t)(SYS32(2916)), (intptr_t)(0));
+      W_fl_4184a0((intptr_t)(SYS32(2916)), (intptr_t)(0));
       v18 = (*c_l__f);
     }
     W_rp_5b9a40((intptr_t)(F32(**(_DWORD **)v18, 4)), (intptr_t)((int)v17), (intptr_t)(a7 != 3 ? 68 : 408), (intptr_t)(v15));
@@ -8363,11 +8382,11 @@ int32_t rd_498f10(int32_t a1, int32_t a2, int32_t y1, int32_t a4, int32_t a5, in
   v13 = a9 * (int)a7 / v12 - v21;
   v14 = SYS32(4 * a10 + 2732);
   if ( **(_DWORD **)((uint8_t *)(v14) + 0x0) == 0 )
-    RC_4184a0((intptr_t)(v14), (intptr_t)(0));
+    W_fl_4184a0((intptr_t)(v14), (intptr_t)(0));
   v15 = SYS32(4 * a10 + 2732);
   v23 = F32(**(_DWORD **)((uint8_t *)(v14) + 0x0), 4 * a11);
   if ( **(_DWORD **)((uint8_t *)(v15) + 0x0) == 0 )
-    RC_4184a0((intptr_t)(v15), (intptr_t)(0));
+    W_fl_4184a0((intptr_t)(v15), (intptr_t)(0));
   v24 = ***(intptr_t ***)((uint8_t *)(v15) + 0x0);
   result = a4;
   if ( (uint16_t)a4 != 0 )
@@ -8613,7 +8632,7 @@ LABEL_57:
         v36 = *(_DWORD ***)&SYSB(2964);
         if ( ***(_DWORD ***)&SYSB(2964) == 0 )
         {
-          RC_4184a0((intptr_t)(SYS32(2964)), (intptr_t)(0));
+          W_fl_4184a0((intptr_t)(SYS32(2964)), (intptr_t)(0));
           v26 = (*v38__f);
         }
         v37 = F32((**v36 + 4 * (uint16_t)((*v42__f) + 4)), 0);
@@ -8731,7 +8750,7 @@ LABEL_19:
   v10 = 200 * v8 / 500;
   v11 = 200 - v10;
   if ( ***(_DWORD ***)&SYSB(2924) == 0 )
-    RC_4184a0((intptr_t)(SYS32(2924)), (intptr_t)(0));
+    W_fl_4184a0((intptr_t)(SYS32(2924)), (intptr_t)(0));
   (*v36__f) = F32((**v9 + 4 * (uint16_t)(*hdc__f)), 0);
   (*hdc__f) = (intptr_t)rd_418470(SYS32(2924), 1u);
   W_rp_5b9ae0((intptr_t)((*v36__f)), (intptr_t)((int)a2), (intptr_t)((*y__f)), (intptr_t)((*v39__f) + 4 - v10 + 200), (intptr_t)(10), (intptr_t)(v10), (intptr_t)(0), (intptr_t)(0), (intptr_t)(10), (intptr_t)(v10));
@@ -8764,7 +8783,7 @@ LABEL_19:
   (*c_l__f) = (*v39__f) + 4;
   (*v36__f) = (200 - v15);
   if ( *v16 == 0 )
-    RC_4184a0((intptr_t)(SYS32(2924)), (intptr_t)(0));
+    W_fl_4184a0((intptr_t)(SYS32(2924)), (intptr_t)(0));
   (*y__f) = F32(**(_DWORD **)v14, 16);
   v17 = rd_418470(SYS32(2924), 1u);
   W_rp_5b9ae0((intptr_t)((*y__f)), (intptr_t)((int)a2), (intptr_t)((*v38__f) + 4), (intptr_t)((*v39__f) + 4 - v15 + 200), (intptr_t)(3), (intptr_t)(v15), (intptr_t)(0), (intptr_t)(0), (intptr_t)(3), (intptr_t)(v15));
@@ -8795,7 +8814,7 @@ LABEL_19:
     v24 = ((*v39__f) - ((v22 >> 31) + v22) + 200);
     (*v36__f) = v24;
     if ( v23 == 0 )
-      RC_4184a0((intptr_t)(SYS32(2928)), (intptr_t)(0));
+      W_fl_4184a0((intptr_t)(SYS32(2928)), (intptr_t)(0));
     W_rp_5b9b70((intptr_t)(F32(**(_DWORD **)v21, 200)), (intptr_t)((int)a2), (intptr_t)((*v38__f) + 7), (intptr_t)((int)v24));
     g_eng.h5bf3ee(String, "%d%%", F32((*v40__f) + (1) * 0x3e0, 0x4) / 10);
     v25 = strlen(String);
@@ -8854,7 +8873,7 @@ LABEL_19:
   }
   (*y__f) = SYS32(2924);
   if ( ***(_DWORD ***)&SYSB(2924) == 0 )
-    RC_4184a0((intptr_t)(SYS32(2924)), (intptr_t)(0));
+    W_fl_4184a0((intptr_t)(SYS32(2924)), (intptr_t)(0));
   v30 = (*v39__f);
   v31 = (*v38__f);
   W_rp_5b9a40((intptr_t)(***(intptr_t ***)(*y__f)), (intptr_t)((int)a2), (intptr_t)((*v38__f)), (intptr_t)((*v39__f) - 16));
@@ -8939,7 +8958,7 @@ LABEL_7:
 LABEL_8:
   v8 = SYS32(3016);
   if ( ***(_DWORD ***)&SYSB(3016) == 0 )
-    RC_4184a0((intptr_t)(SYS32(3016)), (intptr_t)(0));
+    W_fl_4184a0((intptr_t)(SYS32(3016)), (intptr_t)(0));
   v9 = F32(**(_DWORD **)v8, 12);
   if ( F32(CFG(), 148) == 2 )
     W_rp_5bd550((intptr_t)(SYS32(10192)), (intptr_t)(a2), (intptr_t)(v9), (intptr_t)(F32(v9, 12) + v7 + 96), (intptr_t)(v6 + F32(v9, 16)), (intptr_t)(F32(v9, 20)), (intptr_t)(F32(v9, 24)), (intptr_t)(0), (intptr_t)(0), (intptr_t)(F32(v9, 40)), (intptr_t)(*(intptr_t *)&SYSB(864)));
@@ -9017,7 +9036,7 @@ LABEL_8:
   }
   v26 = SYS32(2980);
   if ( ***(_DWORD ***)&SYSB(2980) == 0 )
-    RC_4184a0((intptr_t)(SYS32(2980)), (intptr_t)(0));
+    W_fl_4184a0((intptr_t)(SYS32(2980)), (intptr_t)(0));
   W_rp_5b9b70((intptr_t)(***v26), (intptr_t)((int)a2), (intptr_t)(v7), (intptr_t)(v6));
   if ( GAP((v5 + (231) * 0x4), 0x0, 0) != 0 )
     rd_43e250(2u, a2, (intptr_t)(v5 + (231) * 0x4), v7 + 8, v6 + 40, 0);
@@ -9174,7 +9193,7 @@ LABEL_19:
   v13 = ***(_DWORD ***)&SYSB(2916);
   (*v26__f) = v12;
   if ( v13 == 0 )
-    RC_4184a0((intptr_t)(SYS32(2916)), (intptr_t)(0));
+    W_fl_4184a0((intptr_t)(SYS32(2916)), (intptr_t)(0));
   (*v29__f) = ***v11;
   v14 = rd_418470(SYS32(2916), 0);
   v15 = 112 - (*v26__f);
@@ -9208,13 +9227,13 @@ LABEL_19:
   while ( !v16 );
   v17 = SYS32(2916);
   if ( ***(_DWORD ***)&SYSB(2916) == 0 )
-    RC_4184a0((intptr_t)(SYS32(2916)), (intptr_t)(0));
+    W_fl_4184a0((intptr_t)(SYS32(2916)), (intptr_t)(0));
   v18 = (*v28__f);
   v19 = (*v23__f);
   W_rp_5b9a40((intptr_t)(F32(**(_DWORD **)v17, 8)), (intptr_t)((int)a1), (intptr_t)((*v23__f) + 28), (intptr_t)((*v28__f) + 12));
   v20 = SYS32(2928);
   if ( ***(_DWORD ***)&SYSB(2928) == 0 )
-    RC_4184a0((intptr_t)(SYS32(2928)), (intptr_t)(0));
+    W_fl_4184a0((intptr_t)(SYS32(2928)), (intptr_t)(0));
   W_rp_5b9b70((intptr_t)(F32(**(_DWORD **)v20, 48)), (intptr_t)((int)a1), (intptr_t)(v19), (intptr_t)(v18));
   if ( (*v25__f) != 0 )
     rd_43e250(2u, a1, Buffer, v19 + 44, v18 + 8, 0);
@@ -9303,7 +9322,7 @@ LABEL_8:
   v13 = 104 * v12 / v11 - 0 / v11;
   v14 = *(intptr_t ****)&SYSB(2916);
   if ( ***(_DWORD ***)&SYSB(2916) == 0 )
-    RC_4184a0((intptr_t)(SYS32(2916)), (intptr_t)(0));
+    W_fl_4184a0((intptr_t)(SYS32(2916)), (intptr_t)(0));
   (*hdc__f) = ***v14;
   (*c_l__f) = rd_418470(SYS32(2916), 0);
   W_rp_5b9ae0((intptr_t)((*hdc__f)), (intptr_t)((int)a2), (intptr_t)((*v42__f) + (*v36__f) + 143), (intptr_t)((*v40__f) + 41), (intptr_t)(v13), (intptr_t)(2), (intptr_t)(104 - v13), (intptr_t)(4), (intptr_t)(v13), (intptr_t)(2));
@@ -9324,7 +9343,7 @@ LABEL_8:
     W_rp_5b9ae0((intptr_t)((*c_l__f)), (intptr_t)((int)a2), (intptr_t)(v13 + (*v36__f) + 143), (intptr_t)((*v40__f) + 41), (intptr_t)(104 - v13), (intptr_t)(2), (intptr_t)(0), (intptr_t)(14), (intptr_t)(104 - v13), (intptr_t)(2));
   v15 = SYS32(3012);
   if ( ***(_DWORD ***)&SYSB(3012) == 0 )
-    RC_4184a0((intptr_t)(SYS32(3012)), (intptr_t)(0));
+    W_fl_4184a0((intptr_t)(SYS32(3012)), (intptr_t)(0));
   W_rp_5b9b70((intptr_t)(***v15), (intptr_t)((int)a2), (intptr_t)((*v36__f) - 32), (intptr_t)((*v40__f)));
   v16 = 0;
   if ( (int)v7[55] > 0 )
@@ -9406,7 +9425,7 @@ LABEL_8:
     (*y__f) = (int)v28;
     if ( **(_DWORD **)((uint8_t *)(v28) + 0x0) == 0 )
     {
-      RC_4184a0((intptr_t)(v28), (intptr_t)(0));
+      W_fl_4184a0((intptr_t)(v28), (intptr_t)(0));
       v28 = (*y__f);
     }
     W_rp_5b9b70((intptr_t)(F32(**(_DWORD **)((uint8_t *)(v28) + 0x0), 4 * v27)), (intptr_t)((int)a2), (intptr_t)((*v36__f)), (intptr_t)((*v40__f)));
@@ -9427,7 +9446,7 @@ LABEL_8:
       }
       v31 = SYS32(4 * v29[2] + 2732);
       if ( **(_DWORD **)((uint8_t *)(v31) + 0x0) == 0 )
-        RC_4184a0((intptr_t)(v31), (intptr_t)(0));
+        W_fl_4184a0((intptr_t)(v31), (intptr_t)(0));
       v32 = F32(**(_DWORD **)((uint8_t *)(v31) + 0x0), 4 * v30);
       v33 = v32[10];
       v34 = W_tint_fade_a((intptr_t)(a4[8] - 1), (intptr_t)(1000));
@@ -9448,7 +9467,7 @@ int32_t rd_498620(int32_t a1, int32_t a2, int32_t a3, int32_t a4, int32_t a5)
 
   v5 = *(_DWORD ***)&SYSB(2928);
   if ( ***(_DWORD ***)&SYSB(2928) == 0 )
-    RC_4184a0((intptr_t)(SYS32(2928)), (intptr_t)(0));
+    W_fl_4184a0((intptr_t)(SYS32(2928)), (intptr_t)(0));
   return W_rp_5b9b70((intptr_t)(F32((**v5 + 4 * (uint16_t)((a4 <= a5) + 16)), 0)), (intptr_t)(a1), (intptr_t)(a2), (intptr_t)(a3));
 }
 
@@ -9479,11 +9498,11 @@ int32_t rd_498680(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5,
   v15 = a8 * a3 / v14 - 0 / v14;
   v16 = SYS32(4 * a11 + 2732);
   if ( **(_DWORD **)((uint8_t *)(v16) + 0x0) == 0 )
-    RC_4184a0((intptr_t)(v16), (intptr_t)(0));
+    W_fl_4184a0((intptr_t)(v16), (intptr_t)(0));
   v17 = SYS32(4 * a11 + 2732);
   v25 = ***(intptr_t ***)((uint8_t *)(v16) + 0x0);
   if ( **(_DWORD **)((uint8_t *)(v17) + 0x0) == 0 )
-    RC_4184a0((intptr_t)(v17), (intptr_t)(0));
+    W_fl_4184a0((intptr_t)(v17), (intptr_t)(0));
   result = a7;
   v24 = ***(intptr_t ***)((uint8_t *)(v17) + 0x0);
   if ( (uint16_t)a7 != 0 )
@@ -9537,11 +9556,11 @@ int32_t rd_498820(int32_t a1, int32_t a2, int32_t a3, int32_t a4, int32_t y1, in
   v10 = a7 * a2 / v9 - 0 / v9;
   v11 = SYS32(4 * a9 + 2732);
   if ( **(_DWORD **)((uint8_t *)(v11) + 0x0) == 0 )
-    RC_4184a0((intptr_t)(v11), (intptr_t)(0));
+    W_fl_4184a0((intptr_t)(v11), (intptr_t)(0));
   v12 = SYS32(4 * a9 + 2732);
   v21 = ***(intptr_t ***)((uint8_t *)(v11) + 0x0);
   if ( **(_DWORD **)((uint8_t *)(v12) + 0x0) == 0 )
-    RC_4184a0((intptr_t)(v12), (intptr_t)(0));
+    W_fl_4184a0((intptr_t)(v12), (intptr_t)(0));
   result = a6;
   v20 = ***(intptr_t ***)((uint8_t *)(v12) + 0x0);
   if ( (uint16_t)a6 != 0 )
@@ -9738,7 +9757,7 @@ LABEL_42:
         v26 = SYS32(2960);
         (*v41__f) = v23 + 4;
         if ( ***(_DWORD ***)&SYSB(2960) == 0 )
-          RC_4184a0((intptr_t)(SYS32(2960)), (intptr_t)(0));
+          W_fl_4184a0((intptr_t)(SYS32(2960)), (intptr_t)(0));
         W_rp_5b9b70((intptr_t)(F32(**(_DWORD **)v26, 44)), (intptr_t)((int)a1), (intptr_t)(v24), (intptr_t)(v23 - 4));
       }
       else
@@ -9746,20 +9765,20 @@ LABEL_42:
         v27 = SYS32(2960);
         (*v41__f) = v23;
         if ( ***(_DWORD ***)&SYSB(2960) == 0 )
-          RC_4184a0((intptr_t)(SYS32(2960)), (intptr_t)(0));
+          W_fl_4184a0((intptr_t)(SYS32(2960)), (intptr_t)(0));
         W_rp_5b9b70((intptr_t)(F32(**(_DWORD **)v27, 40)), (intptr_t)((int)a1), (intptr_t)(v24), (intptr_t)(v23 - 8));
       }
       v28 = *(_DWORD ***)&SYSB(2936);
       v29 = F16(&String[2 * (int32_t)v25 + 80], 0);
       if ( ***(_DWORD ***)&SYSB(2936) == 0 )
-        RC_4184a0((intptr_t)(SYS32(2936)), (intptr_t)(0));
+        W_fl_4184a0((intptr_t)(SYS32(2936)), (intptr_t)(0));
       W_rp_5b9b70((intptr_t)(F32(**v28, 4 * v29)), (intptr_t)((int)a1), (intptr_t)(v24), (intptr_t)((*v41__f)));
       v30 = F16(&String[2 * (int32_t)(*hdc__f) + 208], 0);
       if ( v30 != 255 )
       {
         v31 = v30 + 22;
         if ( **(_DWORD **)((uint8_t *)((*v43__f)) + 0x0) == 0 )
-          RC_4184a0((intptr_t)((*v43__f)), (intptr_t)(0));
+          W_fl_4184a0((intptr_t)((*v43__f)), (intptr_t)(0));
         W_rp_5b9b70((intptr_t)(F32(**(_DWORD **)((uint8_t *)((*v43__f)) + 0x0), 4 * v31)), (intptr_t)((int)a1), (intptr_t)(v24), (intptr_t)(v23 + 1));
       }
       v24 += 32;
@@ -10232,7 +10251,7 @@ int32_t rd_4997b0(int32_t a1, int32_t a2)
 }
 
 /* 0x49c170: int __stdcall sub_49C170(int a1) */
-int32_t rd_49c170(intptr_t ecx_, int32_t a1)
+int32_t rd_49c170(int32_t a1)
 {
 
     intptr_t v1 = 0;
@@ -10285,4 +10304,4 @@ int32_t rd_49c170(intptr_t ecx_, int32_t a1)
            0,
            0);
 }
-/* unported callees: 0x4178e0 0x4184a0 0x499850 */
+/* unported callees: none */

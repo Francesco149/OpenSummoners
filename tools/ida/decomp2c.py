@@ -283,7 +283,6 @@ def ida_cc(edition):
 
 IAT = {"enold": (0x5cc000, 0x5cc284)}   # the import address table (PE data directory 12)
 API_USED = {}   # Win32 import -> argument count (from its first call site)
-WINH = [False]  # a module that keeps a <windows.h> struct (POINT, RECT, BITMAPINFOHEADER ...)
 ZERO_LOCALS = [False]   # --zero-locals: register locals start at 0 (IDA's LOWORD(v) = x on an unset v)
 TYPED = [False]  # --typed: the knowledge pack's structs (src/ headers: paint_ctx, bitmap_session ...) stay C types
 KBH = set()      # ... and the headers that define the ones used
@@ -734,6 +733,7 @@ RESERVED = ("c", "self", "W", "D", "rnd")   # the converter's own names: an IDA 
 
 
 INDEXED = set()   # the dword_ / word_ / byte_ tables a function indexes (an array: its bare name is its address)
+CLS2 = {}         # the `cls_X **` locals -> cls_X
 
 
 NAMED_DWORDS = {"hInstance": 0x8a6b38}   # named word globals IDA types by their API use
@@ -785,8 +785,21 @@ def scale_this_sum(s, pat, n):
     return "".join(out) + s[pos:]
 
 
+def unused_win_locals(f):
+    """A <windows.h>-typed local nothing uses any more (the inlined log's FILE * / SYSTEMTIME once it collapses to
+    the log call): a plain word, so the module needs no <windows.h> for it (the host test suite builds natively)."""
+    out = []
+    for ln in f.split("\n"):
+        m = re.match(r"^(\s+)(%s)(\s*\*?\s*(?:const\s+)?)(\w+)\b(.*)$" % "|".join(re.escape(w) for w in WIN_STRUCT), ln)
+        if m and len(re.findall(r"\b%s\b" % re.escape(m.group(4)), f)) == 1:
+            ln = m.group(1) + "intptr_t" + m.group(3) + m.group(4) + m.group(5).replace("(%s *)" % m.group(2), "(intptr_t *)")
+        out.append(ln)
+    return "\n".join(out)
+
+
 def convert(text, names, widths, this):
     text = global_cls(text)
+    CLS2.clear()
     INDEXED.clear()
     INDEXED.update(re.findall(r"\b((?:dword|word|byte)_[0-9A-F]{6})\s*\[", text))
     INDEXED.update(asm_offset_only(EDITION[0], CURVA[0], set(re.findall(r"\b(?:dword|word|byte)_[0-9A-F]{6}\b", text))))
@@ -844,6 +857,9 @@ def convert(text, names, widths, this):
             cm = re.match(r"(cls_\w+) \*$", m.group(1).strip())
             if cm:
                 CLSTYPE[m.group(2)] = cm.group(1)
+            cm2 = re.match(r"(cls_\w+) \*\*$", m.group(1).strip())
+            if cm2:
+                CLS2[m.group(2)] = cm2.group(1)   # a `cls_X **` local: `(*v)[k].gapN` (0x4ee690)
             if cm and class_size(cm.group(1)):
                 CLSIDX[m.group(2)] = (cm.group(1), class_size(cm.group(1)))
             if fo and re.match(r"^cls_\w+$", m.group(1).strip()):
@@ -900,6 +916,14 @@ def convert(text, names, widths, this):
                        lambda m: f"{ {1: 'F8', 2: 'F16', 4: 'F32', 8: 'F64'}[tsize]}(this, {tsize} * ({m.group(1)}))", s)
     s = re.sub(r"this->field_([0-9A-F]+)", lambda m: fld(this, int(m.group(1), 16), tfields, tgaps), s)
     s = re.sub(r"this->gap([0-9A-F]+)\[([^\]]+)\]", lambda m: f"GAP({this}, 0x{tgaps.get(int(m.group(1), 16), int(m.group(1), 16)):x}, {m.group(2)})", s)
+    for v2, c2 in CLS2.items():   # `(*v)[k].gapN` of a `cls_X **` local: element k of the class it points at
+        csz, cfs, cgaps = class_layout(c2)
+        s = re.sub(r"\(\*%s\)->field_([0-9A-F]+)\b" % v2,   # ... and `(*v)->field_X` (0x562ea0's `(*v33)->field_44`)
+                   lambda m, v=v2, cfs=cfs: f"{ {1: 'F8', 2: 'F16', 4: 'F32', 8: 'F64'}.get(cfs.get(int(m.group(1), 16), (0, 4))[1], 'F32')}"
+                                            f"(*{v}, 0x{cfs.get(int(m.group(1), 16), (int(m.group(1), 16), 4))[0]:x})", s)
+        if csz:
+            s = re.sub(r"\(\*%s\)\[(\d+)\]\.gap([0-9A-F]+)\b(?!\s*\[)" % v2,
+                       lambda m, v=v2, csz=csz, cgaps=cgaps: f"((uint8_t *)(*{v}) + 0x{int(m.group(1)) * csz + cgaps.get(int(m.group(2), 16), int(m.group(2), 16)):x})", s)
     for cm in re.finditer(r"(cls_\w+) \*(\w+)\b", head):   # a class-pointer PARAMETER's `p[k].gapN[i]` (0x585400's `a1[1].gap0`)
         csz, _, cgaps = class_layout(cm.group(1))
         if csz and cm.group(2) != "this":
@@ -989,8 +1013,8 @@ def convert(text, names, widths, this):
             s = re.sub(r"(?m)^(\s*)(?:\+\+%s|%s\+\+);" % (re.escape(v), re.escape(v)), lambda m: f"{m.group(1)}{v} += {n};", s)
             s = re.sub(r"(?m)^(\s*)(?:--%s|%s--);" % (re.escape(v), re.escape(v)), lambda m: f"{m.group(1)}{v} -= {n};", s)
             # ... anywhere else too (a for header's `++i`: 0x479a10 walked its 4-byte slots a byte at a time)
-            s = re.sub(r"(?<![\w+])\+\+%s\b" % re.escape(v), f"({v} += {n})", s)
-            s = re.sub(r"(?<![\w-])--%s\b" % re.escape(v), f"({v} -= {n})", s)
+            s = re.sub(r"(?<![\w+])\+\+%s\b(?!\s*(?:->|\[|\.))" % re.escape(v), f"({v} += {n})", s)   # (not `--v->field`: the field)
+            s = re.sub(r"(?<![\w-])--%s\b(?!\s*(?:->|\[|\.))" % re.escape(v), f"({v} -= {n})", s)
             s = re.sub(r"\b%s\+\+(?![\w+])" % re.escape(v), f"(({v} += {n}) - {n})", s)
             s = re.sub(r"\b%s--(?![\w-])" % re.escape(v), f"(({v} -= {n}) + {n})", s)
     for v, (cls, n) in CLSIDX.items():   # a class pointer kept as an integer, indexed: by the class size
@@ -1133,8 +1157,6 @@ def convert(text, names, widths, this):
     s = re.sub(r"\((?:uint8_t|char) \*\)(\w+) - \((?:uint8_t|char) \*\)(\w+)", r"((uint8_t *)\1 - (uint8_t *)\2)", s)   # byte pointers' distance   # a Win32 handle's dummy member (HDC__ { int unused; }): the handle itself
     s = re.sub(r"\((?:const )?(%s)( ?\**)\)" % "|".join(sorted(WIN_INT | WIN_UINT | set(WIN_ALIAS), key=len, reverse=True)),
                lambda m: f"({map_type(m.group(1) + m.group(2))})", s)   # Win32 casts: (HDC)x, (LPCSTR)s, (HGDIOBJ ***)p
-    if re.search(r"\b(%s)\b" % "|".join(WIN_STRUCT), s + "\n".join(DECLS)):
-        WINH[0] = True
     s = re.sub(r"\((?:const )?(%s) (\*+)\)" % "|".join(WORD_SHELLS), lambda m: f"(intptr_t{' ' + m.group(2)[1:] if len(m.group(2)) > 1 else ''})", s)
     if TYPED[0]:
         for t in set(re.findall(r"\b([a-z]\w*)\s*\*", s)) & set(kb_types()):
@@ -1196,9 +1218,10 @@ def convert(text, names, widths, this):
         s = re.sub(r"\b%s\b" % re.escape(a_), b_, s)
     for _, t, n, cnt in ARRAYS:   # a stack array lives in frame_ through a pointer: its sizeof is the array's
         s = re.sub(r"\bsizeof\(%s\)" % re.escape(n), f"({cnt} * sizeof({t}))", s)
-    # retail's log 0x406440 inlined (OutputDebugStringA x 3 + the dated line appended to the log file)
-    s = re.sub(r"OutputDebugStringA\(([^;]+)\);\s*OutputDebugStringA\(([^;]+)\);\s*OutputDebugStringA\((?:::)?OutputString\);\s*"
-               r"(\w+) = fopen\(stru_8A9530\.path, Mode\);\s*if \( \3 != 0 \)\s*\{\s*GetLocalTime\(&SystemTime\);\s*"
+    # retail's log 0x406440 inlined (OutputDebugStringA x 3 + the dated line appended to the log file; its string
+    # globals OutputString / Mode are already addresses here)
+    s = re.sub(r"OutputDebugStringA\(([^;]+)\);\s*OutputDebugStringA\(([^;]+)\);\s*OutputDebugStringA\((?:(?:::)?OutputString|\(\(char \*\)D\(0x[0-9a-f]+\)\))\);\s*"
+               r"(\w+) = fopen\((?:stru_8A9530\.path|\(\(char \*\)D\(0x8a9530\) \+ 0x404\)), (?:Mode|\(\(char \*\)D\(0x[0-9a-f]+\)\))\);\s*if \( \3 != 0 \)\s*\{\s*GetLocalTime\(&SystemTime\);\s*"
                r"fprintf\(.*?\);\s*fclose\(\3\);\s*\}",
                r"g_eng.log_fail_406440(g_eng.log, (const char *)(\1), (const char *)(\2));", s, flags=re.S)
     s = re.sub(r"(\w+) = GetLastError\(\);.*?g_eng\.log_fail_406440\((?:\(const char \*\)(?:D\(0x8a9530\)|\(\(intptr_t\)g_eng\.log\)), (D\(0x[0-9a-f]+\)), D\(0x8a9b6c\)"
@@ -1503,7 +1526,8 @@ def main():
                        for l in f.split("\n")) for f in funcs]
     if TYPED[0]:
         funcs = [word_args(f) for f in funcs]
-    if WINH[0] or any(re.search(r"\b(%s)\b" % "|".join(WIN_STRUCT), f) for f in funcs):
+    funcs = [unused_win_locals(f) for f in funcs]
+    if any(re.search(r"\b(%s)\b" % "|".join(WIN_STRUCT), f) for f in funcs):   # a module that keeps a <windows.h> struct
         print("#include <windows.h>")
         print("#include <stdio.h>")
         print("#include <time.h>")

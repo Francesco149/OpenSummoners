@@ -20,8 +20,10 @@ static intptr_t rnd(void) { return (intptr_t)rng_rand(); }
 
 
 #include <windows.h>
+#include <stdio.h>
+#include <time.h>
 
-
+#include "zdd_dev.h"
 #pragma GCC optimize ("no-strict-aliasing")
 #pragma GCC diagnostic ignored "-Wint-conversion"
 #pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
@@ -53,15 +55,33 @@ static inline int32_t abs32(int32_t x) { return x < 0 ? (int32_t)(0u - (uint32_t
 #include <stdbool.h>
 #endif
 typedef int32_t _DWORD;
+typedef uint8_t _UNKNOWN;   /* IDA's untyped byte (casts: `(_UNKNOWN *)p`) */
+typedef uint8_t _BOOL1;
+typedef uint16_t _BOOL2;
+typedef int32_t _BOOL4;
 typedef uint16_t _WORD;
 typedef uint8_t _BYTE;
 typedef uint64_t _QWORD;
 #define GAP(p, o, i) F8(p, (o) + (i))   /* IDA's gapN[i]: the byte at +N + i */
 #define qmemcpy memcpy   /* IDA's inline memcpy */
+static inline void *memset32(void *d, uint32_t v, size_t n) { uint32_t *p = d; while (n--) *p++ = v; return d; }   /* IDA's rep stosd */
+static inline void eh_vec_ctor(intptr_t p, uint32_t size, int32_t n, void *ctor, void *dtor)   /* MSVC's `eh vector */
+{                                                                                             /* constructor iterator' */
+    typedef void (__attribute__((thiscall)) *c_t)(void *);
+    (void)dtor;
+    for (int32_t i = 0; i < n; i++) ((c_t)ctor)((void *)(p + (intptr_t)size * i));
+}
+static inline void eh_vec_dtor(intptr_t p, uint32_t size, int32_t n, void *dtor)   /* MSVC's `eh vector destructor iterator': */
+{                                                                                  /* the elements' dtors, last first */
+    typedef void (__attribute__((thiscall)) *d_t)(void *);
+    p += (intptr_t)size * n;
+    while (--n >= 0) { p -= size; ((d_t)dtor)((void *)p); }
+}
 typedef char CHAR;
 #define SETLO(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff0000u) | (uint16_t)(v)))
 #define SETHI(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffu) | ((uint32_t)(uint16_t)(v) << 16)))
 #define SETLB(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffff00u) | (uint8_t)(v)))
+#define SETB1(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff00ffu) | ((uint32_t)(uint8_t)(v) << 8)))
 #define SETLODW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffff00000000ull) | (uint32_t)(v)))
 #define SETHIDW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffffull) | ((uint64_t)(uint32_t)(v) << 32)))
 #define F32(p, o) (*(int32_t *)((uint8_t *)(intptr_t)(p) + (o)))
@@ -71,9 +91,8 @@ typedef char CHAR;
 #define F8(p, o)  (*(uint8_t *)((uint8_t *)(intptr_t)(p) + (o)))
 #define F64(p, o) (*(int64_t *)((uint8_t *)(intptr_t)(p) + (o)))
 
+static inline intptr_t W_zd_5b80d0(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, ...) { zd_5b80d0((wl_char *)a0, (char *)a1, (char *)a2, (int32_t)a3); return 0; }
 
-typedef intptr_t (__attribute__((thiscall)) *rt_5b80d0)(intptr_t, intptr_t, intptr_t, intptr_t);   /* 0x5b80d0 thiscall: unported, retail's */
-#define RC_5b80d0 ((rt_5b80d0)g_eng.retail(0x5b80d0u))
 typedef intptr_t (__attribute__((stdcall)) *api_BitBlt_t)(intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t);
 #define API_BitBlt ((api_BitBlt_t)g_eng.api("BitBlt"))
 typedef intptr_t (__attribute__((stdcall)) *api_LocalFree_t)(intptr_t);
@@ -297,7 +316,7 @@ LABEL_6:
     return 1;
   }
 LABEL_15:
-  RC_5b80d0((intptr_t)(c), (intptr_t)(((char *)D(0x8a4b00))), (intptr_t)(((char *)D(0x8a4b0c))), (intptr_t)(v8));
+  W_zd_5b80d0((intptr_t)(c), (intptr_t)(((char *)D(0x8a4b00))), (intptr_t)(((char *)D(0x8a4b0c))), (intptr_t)(v8));
   return 0;
 }
 
@@ -345,7 +364,7 @@ int32_t rp_5b9830(wl_char *self, int32_t a2)
   v6 = (*(int (__stdcall **)(int, int, _DWORD *))(*(_DWORD *)F32(c, 0x2c) + 116))(F32(c, 0x2c), 8, v7);
   if ( v6 == 0 )
     return 1;
-  RC_5b80d0((intptr_t)(F32(c, 0xc0)), (intptr_t)(((char *)D(0x8a4b54))), (intptr_t)(((char *)D(0x8a4ba0))), (intptr_t)(v6));
+  W_zd_5b80d0((intptr_t)(F32(c, 0xc0)), (intptr_t)(((char *)D(0x8a4b54))), (intptr_t)(((char *)D(0x8a4ba0))), (intptr_t)(v6));
   return 0;
 }
 
@@ -405,7 +424,7 @@ int32_t rp_5b9490(wl_char *self)
     v3 = (*(int (__stdcall **)(int, _DWORD, char *, int, _DWORD))(F32(v2, 0) + 100))(v2, 0, ((uint8_t *)(c) + 0x30), 1, 0);
     if ( v3 == 0 )
       return 1;
-    RC_5b80d0((intptr_t)(F32(c, 0xc0)), (intptr_t)(((char *)D(0x8a4b54))), (intptr_t)(((char *)D(0x8a4b84))), (intptr_t)(v3));
+    W_zd_5b80d0((intptr_t)(F32(c, 0xc0)), (intptr_t)(((char *)D(0x8a4b54))), (intptr_t)(((char *)D(0x8a4b84))), (intptr_t)(v3));
   }
   return 0;
 }
@@ -963,4 +982,4 @@ int32_t rp_5bd680(wl_char *self, int32_t ** a2, int32_t ** a3, int32_t a4, int32
   }
   return result;
 }
-/* unported callees: 0x5b80d0 */
+/* unported callees: none */

@@ -39,6 +39,7 @@ static intptr_t rnd(void) { return (intptr_t)rng_rand(); }
 #include "entity_life.h"
 #include "entity_move.h"
 #include "gimmick.h"
+#include "leftovers.h"
 #include "menu_helpers.h"
 #include "npc_ai.h"
 #include "particle_init.h"
@@ -155,6 +156,7 @@ static inline intptr_t W_grid_row_reset(intptr_t a0, intptr_t a1, ...) { return 
 static inline intptr_t W_grid_row_text_add(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, ...) { return (intptr_t)grid_row_text_add((uint8_t *)a0, (int32_t)a1, (int32_t)a2, (const char *)a3); }
 static inline intptr_t W_icon_set(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, ...) { return (intptr_t)icon_set((uint8_t *)a0, (int32_t)a1, (uint16_t)a2, (const uint16_t *)a3, (uint16_t)a4, (uint16_t)a5); }
 static inline intptr_t W_item_list_fill(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, ...) { item_list_fill((uint8_t *)a0, (wl_room *)a1, (int32_t)a2, (int32_t)a3, (uint8_t *)a4, (int32_t)a5, (int32_t)a6); return 0; }
+static inline intptr_t W_lo_479960(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, intptr_t a7, intptr_t a8, intptr_t a9, ...) { return (intptr_t)lo_479960((wl_char *)a0, (int32_t)a1, (uint32_t)a2, (uint32_t)a3, (int32_t)a4, (int32_t)a5, (int32_t)a6, (int32_t)a7, (int32_t *)a8, (int32_t)a9); }
 static inline intptr_t W_menu_party_close(intptr_t a0, ...) { return (intptr_t)menu_party_close((uint8_t *)a0); }
 static inline intptr_t W_menu_party_fill(intptr_t a0, ...) { menu_party_fill((uint8_t *)a0); return 0; }
 static inline intptr_t W_menu_party_open(intptr_t a0, ...) { menu_party_open((uint8_t *)a0); return 0; }
@@ -237,8 +239,7 @@ static inline intptr_t W_win_grid_new(intptr_t a0, intptr_t a1, intptr_t a2, int
 static inline intptr_t W_win_init(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5, intptr_t a6, intptr_t a7, ...) { return (intptr_t)win_init((uint8_t *)a0, (uint8_t *)a1, (int32_t)a2, (int32_t)a3, (int32_t)a4, (int32_t)a5, (uint16_t)a6, (const void *)a7); }
 static inline intptr_t W_win_mgr_topmost(intptr_t a0, ...) { win_mgr_topmost((uint8_t *)a0); return 0; }
 static inline intptr_t W_win_text_add(intptr_t a0, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, ...) { return (intptr_t)win_text_add((uint8_t *)a0, (int32_t)a1, (int32_t)a2, (uint16_t)a3, (uint16_t)a4); }
-typedef intptr_t (__attribute__((thiscall)) *rt_479960)(intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t);   /* 0x479960 thiscall: unported, retail's */
-#define RC_479960 ((rt_479960)g_eng.retail(0x479960u))
+
 typedef intptr_t (__attribute__((stdcall)) *api_CopyFileA_t)(intptr_t, intptr_t, intptr_t);
 #define API_CopyFileA ((api_CopyFileA_t)g_eng.api("CopyFileA"))
 typedef uint32_t (__attribute__((stdcall)) *api_FormatMessageA_t)(intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t, intptr_t);
@@ -3322,7 +3323,7 @@ int32_t el_479ca0(wl_char *self, int32_t a2, uint32_t a3, uint32_t a4, int32_t a
   else
     v8 = a6;
   v9 = 0;
-  for ( i = c + 4 * (3); ; ++i )
+  for ( i = c + 4 * (3); ; (i += 4) )
   {
     v11 = (_DWORD *)F32(i, 0);
     if ( **(_DWORD **)i == v8 )
@@ -3625,7 +3626,7 @@ int32_t el_47a7f0(wl_char *self, int32_t a2, int32_t a3, int32_t a4)
     uint16_t v12 = 0;
     uint16_t v13 = 0;
 
-  if ( RC_479960((intptr_t)(F32(c, 0x158a4)), (intptr_t)(a3), (intptr_t)(0), (intptr_t)(0xC8u), (intptr_t)(1), (intptr_t)(a2), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0), (intptr_t)(1)) < 0 )
+  if ( W_lo_479960((intptr_t)(F32(c, 0x158a4)), (intptr_t)(a3), (intptr_t)(0), (intptr_t)(0xC8u), (intptr_t)(1), (intptr_t)(a2), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0), (intptr_t)(1)) < 0 )
     return 0;
   v5 = F32(c, 0x750);
   if ( F32(v5, 320) == 1 )
@@ -4729,4 +4730,4 @@ void el_5851a0(wl_char *self)
   }
   F32(c, 0x4) = 0;
 }
-/* unported callees: 0x479960 */
+/* unported callees: none */

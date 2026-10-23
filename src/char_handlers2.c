@@ -38,6 +38,28 @@ static intptr_t rnd(void) { return (intptr_t)rng_rand(); }
 #include "shots.h"
 #include "skill_cast.h"
 #include "sound_fx.h"
+#include <windows.h>
+#include <stdio.h>
+#include <time.h>
+
+#include "actor_ops.h"
+#include "actor_update.h"
+#include "arche_pose.h"
+#include "char_attack.h"
+#include "char_def.h"
+#include "char_handlers.h"
+#include "char_integrate.h"
+#include "char_state.h"
+#include "char_status.h"
+#include "entity_fx.h"
+#include "entity_life.h"
+#include "entity_move.h"
+#include "npc_ai.h"
+#include "particle_init.h"
+#include "particle_spawn.h"
+#include "shots.h"
+#include "skill_cast.h"
+#include "sound_fx.h"
 #pragma GCC optimize ("no-strict-aliasing")
 #pragma GCC diagnostic ignored "-Wint-conversion"
 #pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
@@ -79,6 +101,18 @@ typedef uint64_t _QWORD;
 #define GAP(p, o, i) F8(p, (o) + (i))   /* IDA's gapN[i]: the byte at +N + i */
 #define qmemcpy memcpy   /* IDA's inline memcpy */
 static inline void *memset32(void *d, uint32_t v, size_t n) { uint32_t *p = d; while (n--) *p++ = v; return d; }   /* IDA's rep stosd */
+static inline void eh_vec_ctor(intptr_t p, uint32_t size, int32_t n, void *ctor, void *dtor)   /* MSVC's `eh vector */
+{                                                                                             /* constructor iterator' */
+    typedef void (__attribute__((thiscall)) *c_t)(void *);
+    (void)dtor;
+    for (int32_t i = 0; i < n; i++) ((c_t)ctor)((void *)(p + (intptr_t)size * i));
+}
+static inline void eh_vec_dtor(intptr_t p, uint32_t size, int32_t n, void *dtor)   /* MSVC's `eh vector destructor iterator': */
+{                                                                                  /* the elements' dtors, last first */
+    typedef void (__attribute__((thiscall)) *d_t)(void *);
+    p += (intptr_t)size * n;
+    while (--n >= 0) { p -= size; ((d_t)dtor)((void *)p); }
+}
 typedef char CHAR;
 #define SETLO(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff0000u) | (uint16_t)(v)))
 #define SETHI(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffu) | ((uint32_t)(uint16_t)(v) << 16)))
@@ -177,8 +211,8 @@ int32_t ih_44f690(wl_char *self, int32_t a2, int32_t a3, int32_t * a4, int32_t a
 int32_t ih_450810(wl_char *self, int32_t a2, int32_t a3, int32_t * a4, int32_t a5, int32_t a6, int32_t a7);
 int32_t ih_4516e0(wl_char *self, int32_t a2, int32_t a3, int32_t * a4, int32_t a5, int32_t a6, int32_t a7, int32_t a8);
 int32_t ih_452020(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6, int32_t a7, int32_t a8);
-int32_t ih_452730(wl_char *self, int32_t a2, int32_t a3, int32_t * a4, int32_t a5, int32_t a6);
-int32_t ih_4539b0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t * a5, int32_t a6, int32_t a7);
+int32_t ih_452730(wl_char *self, int32_t a2, FILE * a3, int32_t * a4, int32_t a5, int32_t a6);
+int32_t ih_4539b0(wl_char *self, int32_t a2, FILE * a3, int32_t a4, int32_t * a5, int32_t a6, int32_t a7);
 int32_t ih_455c90(wl_char *self, uint16_t a2, int32_t a3);
 int32_t ih_455cf0(wl_char *self, int32_t a2, int32_t a3, int32_t a4);
 int32_t ih_455d20(wl_char *self, int32_t a2, int32_t * a3, int32_t * a4);
@@ -768,7 +802,7 @@ LABEL_12:
             v15 = (intptr_t *)W_vpool_take((intptr_t)(SYS32(1396)), (intptr_t)(0));
             if ( v15 != 0 )
             {
-              v16 = F32(v15, 0);
+              v16 = *v15;
               if ( W_sfx_place((intptr_t)(c), (intptr_t)(F32(CFG(), 360)), (intptr_t)(0), (intptr_t)(0), (intptr_t)((_DWORD *)i), (intptr_t)((int *)&a7), (intptr_t)(&a6)) != 0 )
               {
                 g_eng.dsb_volume_5bb870(v16, (int)a7);
@@ -830,7 +864,7 @@ LABEL_12:
             v25 = (intptr_t *)W_vpool_take((intptr_t)(SYS32(1396)), (intptr_t)(0));
             if ( v25 != 0 )
             {
-              v26 = F32(v25, 0);
+              v26 = *v25;
               if ( W_sfx_place((intptr_t)(c), (intptr_t)(F32(CFG(), 360)), (intptr_t)(0), (intptr_t)(0), (intptr_t)((_DWORD *)i), (intptr_t)((int *)&a7), (intptr_t)(&a6)) != 0 )
               {
                 g_eng.dsb_volume_5bb870(v26, (int)a7);
@@ -2259,7 +2293,7 @@ int32_t ih_44a200(wl_char *self, int32_t a2, int32_t a3, int32_t * a4, int32_t a
           v17 = (intptr_t *)W_vpool_take((intptr_t)(SYS32(1476)), (intptr_t)(0));
           if ( v17 != 0 )
           {
-            v18 = F32(v17, 0);
+            v18 = *v17;
             if ( W_sfx_place((intptr_t)(c), (intptr_t)(F32(CFG(), 360) - 800), (intptr_t)(0), (intptr_t)(0), (intptr_t)(v35), (intptr_t)(&(*v33__f)), (intptr_t)(&(*v34__f))) != 0 )
             {
               g_eng.dsb_volume_5bb870(v18, (*v33__f));
@@ -2515,7 +2549,7 @@ LABEL_6:
           v24 = (intptr_t *)W_vpool_take((intptr_t)(SYS32(1140)), (intptr_t)(0));
           if ( v24 != 0 )
           {
-            v25 = F32(v24, 0);
+            v25 = *v24;
             if ( W_sfx_place((intptr_t)(c), (intptr_t)(F32(CFG(), 360)), (intptr_t)(0), (intptr_t)(0), (intptr_t)(a5), (intptr_t)((int *)&a4), (intptr_t)(&a2)) != 0 )
             {
               g_eng.dsb_volume_5bb870(v25, (int)a4);
@@ -2544,7 +2578,7 @@ LABEL_6:
           v19 = (intptr_t *)W_vpool_take((intptr_t)(SYS32(1152)), (intptr_t)(0));
           if ( v19 != 0 )
           {
-            v20 = F32(v19, 0);
+            v20 = *v19;
             if ( W_sfx_place((intptr_t)(c), (intptr_t)(F32(CFG(), 360)), (intptr_t)(0), (intptr_t)(0), (intptr_t)(v18), (intptr_t)((int *)&a5), (intptr_t)((int *)&a4)) != 0 )
             {
               g_eng.dsb_volume_5bb870(v20, (int)a5);
@@ -2708,7 +2742,7 @@ int32_t ih_44b160(wl_char *self, int32_t a2, int32_t a3, int32_t * a4, int32_t *
           v17 = (intptr_t *)W_vpool_take((intptr_t)(SYS32(1444)), (intptr_t)(0));
           if ( v17 != 0 )
           {
-            v18 = F32(v17, 0);
+            v18 = *v17;
             if ( W_sfx_place((intptr_t)(c), (intptr_t)(F32(CFG(), 360)), (intptr_t)(0), (intptr_t)(0), (intptr_t)(a4), (intptr_t)((int *)&a5), (intptr_t)(&a2)) != 0 )
             {
               g_eng.dsb_volume_5bb870(v18, (int)a5);
@@ -2790,7 +2824,7 @@ LABEL_51:
           v24 = (intptr_t *)W_vpool_take((intptr_t)(SYS32(1444)), (intptr_t)(0));
           if ( v24 != 0 )
           {
-            v25 = F32(v24, 0);
+            v25 = *v24;
             if ( W_sfx_place((intptr_t)(c), (intptr_t)(F32(CFG(), 360)), (intptr_t)(0), (intptr_t)(0), (intptr_t)(a4), (intptr_t)((int *)&a5), (intptr_t)(&a2)) != 0 )
             {
               g_eng.dsb_volume_5bb870(v25, (int)a5);
@@ -2845,7 +2879,7 @@ LABEL_51:
           v12 = (intptr_t *)W_vpool_take((intptr_t)(SYS32(1240)), (intptr_t)(0));
           if ( v12 != 0 )
           {
-            v13 = F32(v12, 0);
+            v13 = *v12;
             if ( W_sfx_place((intptr_t)(c), (intptr_t)(F32(CFG(), 360)), (intptr_t)(0), (intptr_t)(0), (intptr_t)(a4), (intptr_t)((int *)&a5), (intptr_t)(&a2)) != 0 )
             {
               g_eng.dsb_volume_5bb870(v13, (int)a5);
@@ -2906,7 +2940,7 @@ LABEL_39:
             v22 = (intptr_t *)W_vpool_take((intptr_t)(SYS32(1444)), (intptr_t)(0));
             if ( v22 != 0 )
             {
-              v23 = F32(v22, 0);
+              v23 = *v22;
               if ( W_sfx_place((intptr_t)(c), (intptr_t)(F32(CFG(), 360)), (intptr_t)(0), (intptr_t)(0), (intptr_t)(a4), (intptr_t)(&a3), (intptr_t)((int *)&a5)) != 0 )
               {
                 g_eng.dsb_volume_5bb870(v23, a3);
@@ -3195,7 +3229,7 @@ LABEL_14:
               v11 = (intptr_t *)W_vpool_take((intptr_t)(SYS32(1144)), (intptr_t)(0));
               if ( v11 != 0 )
               {
-                v12 = F32(v11, 0);
+                v12 = *v11;
                 if ( W_sfx_place((intptr_t)(c), (intptr_t)(F32(CFG(), 360)), (intptr_t)(0), (intptr_t)(0), (intptr_t)(a4), (intptr_t)(&a2), (intptr_t)(&(*v18__f))) != 0 )
                 {
                   g_eng.dsb_volume_5bb870(v12, a2);
@@ -5227,7 +5261,7 @@ LABEL_26:
           v64 = (intptr_t *)W_vpool_take((intptr_t)(SYS32(1156)), (intptr_t)(0));
           if ( v64 != 0 )
           {
-            (*i__f) = F32(v64, 0);
+            (*i__f) = *v64;
             if ( W_sfx_place((intptr_t)(c), (intptr_t)(F32(CFG(), 360)), (intptr_t)(0), (intptr_t)(0), (intptr_t)((*v80__f)), (intptr_t)(&(*v81__f)), (intptr_t)((int *)&(*v77__f))) != 0 )
             {
               g_eng.dsb_volume_5bb870((*i__f), (*v81__f));
@@ -5300,7 +5334,7 @@ LABEL_69:
               v41 = (intptr_t *)W_vpool_take((intptr_t)(SYS32(1436)), (intptr_t)(0));
               if ( v41 != 0 )
               {
-                (*v77__f) = F32(v41, 0);
+                (*v77__f) = *v41;
                 if ( W_sfx_place((intptr_t)(c), (intptr_t)(F32(CFG(), 360)), (intptr_t)(0), (intptr_t)(0), (intptr_t)((*i__f)), (intptr_t)((int *)&(*v78__f)), (intptr_t)(&(*v82__f))) != 0 )
                 {
                   g_eng.dsb_volume_5bb870((*v77__f), (int)(*v78__f));
@@ -6442,7 +6476,7 @@ LABEL_48:
 }
 
 /* 0x452730: int __thiscall sub_452730(cls_4022A0 *this, int a2, FILE *a3, _DWORD *a4, int a5, int a6) */
-int32_t ih_452730(wl_char *self, int32_t a2, int32_t a3, int32_t * a4, int32_t a5, int32_t a6)
+int32_t ih_452730(wl_char *self, int32_t a2, FILE * a3, int32_t * a4, int32_t a5, int32_t a6)
 {
     intptr_t c = (intptr_t)self;
     intptr_t v6 = 0;
@@ -6453,7 +6487,7 @@ int32_t ih_452730(wl_char *self, int32_t a2, int32_t a3, int32_t * a4, int32_t a
     intptr_t v12 = 0;
     intptr_t result = 0;
     intptr_t v14 = 0;
-    intptr_t v15 = 0;
+    FILE * v15 = 0;
     intptr_t v16 = 0;
     intptr_t v17 = 0;
     intptr_t v18 = 0;
@@ -6480,13 +6514,13 @@ int32_t ih_452730(wl_char *self, int32_t a2, int32_t a3, int32_t * a4, int32_t a
     intptr_t v39 = 0;
     intptr_t * v40 = 0;
     intptr_t v41 = 0;
-    intptr_t v42 = 0;
+    FILE * v42 = 0;
     intptr_t v43 = 0;
     intptr_t v44 = 0;
     void * v45 = 0;
     intptr_t v46 = 0;
     int16_t v47 = 0;
-    intptr_t v48 = 0;
+    FILE * v48 = 0;
     int32_t * v49 = 0;
     intptr_t * v50 = 0;
     intptr_t v51 = 0;
@@ -6679,7 +6713,7 @@ LABEL_17:
             v50 = (intptr_t *)W_vpool_take((intptr_t)(SYS32(1696)), (intptr_t)(0));
             if ( v50 != 0 )
             {
-              v51 = F32(v50, 0);
+              v51 = *v50;
               if ( W_sfx_place((intptr_t)(c), (intptr_t)(F32(CFG(), 360) - 800), (intptr_t)(0), (intptr_t)(0), (intptr_t)(v49), (intptr_t)(&a2), (intptr_t)(&(*v95__f))) != 0 )
               {
                 g_eng.dsb_volume_5bb870(v51, a2);
@@ -6714,13 +6748,13 @@ LABEL_87:
                 {
                   v55 = (intptr_t **)(F32(c, 0x1b0) + 72);
                   v56 = SYS32(4 * (*v90__f) + 868);
-                  if ( F32(v55, 0) != 0 )
+                  if ( *v55 != 0 )
                     W_entity_snd_release((intptr_t)(c), (intptr_t)(2u), (intptr_t)(0), (intptr_t)(1));
                   v57 = (intptr_t *)W_vpool_take((intptr_t)(v56), (intptr_t)(1));
                   if ( v57 != 0 )
                   {
                     v58 = (*v96__f);
-                    F32(v55, 0) = v57;
+                    *v55 = v57;
                     v55[1] = (intptr_t *)v56;
                     v55[2] = (intptr_t *)v58;
                     v55[3] = 0;
@@ -6728,7 +6762,7 @@ LABEL_87:
                     v55[5] = (intptr_t *)1;
                     v55[6] = 0;
                     v55[7] = 0;
-                    g_eng.dsb_volume_5bb870(F32(v57, 0), -10000);
+                    g_eng.dsb_volume_5bb870(*v57, -10000);
                     g_eng.dsb_play_5bb8c0(*v57);
                   }
                 }
@@ -6962,7 +6996,7 @@ LABEL_87:
           v40 = (intptr_t *)W_vpool_take((intptr_t)(SYS32(1440)), (intptr_t)(0));
           if ( v40 != 0 )
           {
-            v41 = F32(v40, 0);
+            v41 = *v40;
             if ( W_sfx_place((intptr_t)(c), (intptr_t)(F32(CFG(), 360)), (intptr_t)(0), (intptr_t)(0), (intptr_t)(a4), (intptr_t)(&a2), (intptr_t)(&(*v96__f))) != 0 )
             {
               g_eng.dsb_volume_5bb870(v41, a2);
@@ -7035,7 +7069,7 @@ LABEL_31:
               v19 = (intptr_t *)W_vpool_take((intptr_t)(SYS32(1156)), (intptr_t)(0));
               if ( v19 != 0 )
               {
-                v20 = F32(v19, 0);
+                v20 = *v19;
                 if ( W_sfx_place((intptr_t)(c), (intptr_t)(F32(CFG(), 360)), (intptr_t)(0), (intptr_t)(0), (intptr_t)(a4), (intptr_t)(&a2), (intptr_t)(&(*v96__f))) != 0 )
                 {
                   g_eng.dsb_volume_5bb870(v20, a2);
@@ -7102,14 +7136,14 @@ LABEL_36:
 }
 
 /* 0x4539b0: int __thiscall sub_4539B0(cls_4022A0 *this, int a2, FILE *a3, int a4, _DWORD *a5, int a6, int a7) */
-int32_t ih_4539b0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t * a5, int32_t a6, int32_t a7)
+int32_t ih_4539b0(wl_char *self, int32_t a2, FILE * a3, int32_t a4, int32_t * a5, int32_t a6, int32_t a7)
 {
     intptr_t c = (intptr_t)self;
     intptr_t v7 = 0;
     intptr_t v9 = 0;
-    intptr_t v10 = 0;
+    FILE * v10 = 0;
     intptr_t v12 = 0;
-    intptr_t v13 = 0;
+    FILE * v13 = 0;
     uint16_t v14 = 0;
     uint16_t v15 = 0;
     char * v16 = 0;
@@ -7119,7 +7153,7 @@ int32_t ih_4539b0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t * a
     intptr_t v20 = 0;
     intptr_t v21 = 0;
     intptr_t v22 = 0;
-    intptr_t v23 = 0;
+    FILE * v23 = 0;
     intptr_t i = 0;
     intptr_t v25 = 0;
     intptr_t v26 = 0;
@@ -7128,7 +7162,7 @@ int32_t ih_4539b0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t * a
     intptr_t v29 = 0;
     intptr_t * v30 = 0;
     intptr_t v31 = 0;
-    intptr_t v32 = 0;
+    FILE * v32 = 0;
     intptr_t v33 = 0;
     intptr_t v34 = 0;
     intptr_t * v35 = 0;
@@ -7199,7 +7233,7 @@ int32_t ih_4539b0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t * a
     uint16_t v100 = 0;
     intptr_t v101 = 0;
     intptr_t v102 = 0;
-    intptr_t v103 = 0;
+    FILE * v103 = 0;
     intptr_t v104 = 0;
     intptr_t * v105 = 0;
     intptr_t v106 = 0;
@@ -7227,8 +7261,8 @@ int32_t ih_4539b0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t * a
     intptr_t v128 = 0;
     intptr_t v129 = 0;
     int32_t * v130 = 0;
-    intptr_t v131 = 0;
-    intptr_t v132 = 0;
+    FILE * v131 = 0;
+    FILE * v132 = 0;
     intptr_t v133 = 0;
     intptr_t v134 = 0;
     intptr_t v135 = 0;
@@ -7247,13 +7281,13 @@ int32_t ih_4539b0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t * a
     intptr_t v148 = 0;
     intptr_t v149 = 0;
     intptr_t v150 = 0;
-    intptr_t v151 = 0;
+    FILE * v151 = 0;
     intptr_t v152 = 0;
     intptr_t v153 = 0;
     intptr_t v154 = 0;
     intptr_t v155 = 0;
     intptr_t v156 = 0;
-    intptr_t v157 = 0;
+    FILE * v157 = 0;
     intptr_t v158 = 0;
     intptr_t v159 = 0;
     intptr_t v160 = 0;
@@ -7414,7 +7448,7 @@ LABEL_63:
           v30 = (intptr_t *)W_vpool_take((intptr_t)(SYS32(1016)), (intptr_t)(0));
           if ( v30 == 0 )
             return 0;
-          v31 = F32(v30, 0);
+          v31 = *v30;
           if ( W_sfx_place((intptr_t)(c), (intptr_t)(F32(CFG(), 360)), (intptr_t)(0), (intptr_t)(0), (intptr_t)(v28), (intptr_t)((int *)&a3), (intptr_t)((int *)&a5)) == 0 )
             return 0;
           g_eng.dsb_volume_5bb870(v31, (int)a3);
@@ -7511,7 +7545,7 @@ LABEL_85:
               v35 = (intptr_t *)W_vpool_take((intptr_t)(SYS32(1156)), (intptr_t)(0));
               if ( v35 != 0 )
               {
-                v36 = F32(v35, 0);
+                v36 = *v35;
                 if ( W_sfx_place((intptr_t)(c), (intptr_t)(F32(CFG(), 360)), (intptr_t)(0), (intptr_t)(0), (intptr_t)(a5), (intptr_t)(&a6), (intptr_t)(&(*v191__f))) != 0 )
                 {
                   g_eng.dsb_volume_5bb870(v36, a6);
@@ -7722,7 +7756,7 @@ LABEL_90:
             v105 = (intptr_t *)W_vpool_take((intptr_t)(SYS32(1156)), (intptr_t)(0));
             if ( v105 != 0 )
             {
-              v106 = F32(v105, 0);
+              v106 = *v105;
               if ( W_sfx_place((intptr_t)(c), (intptr_t)(F32(CFG(), 360)), (intptr_t)(0), (intptr_t)(0), (intptr_t)((_DWORD *)a6), (intptr_t)(&(*v191__f)), (intptr_t)(&(*v190__f))) != 0 )
               {
                 g_eng.dsb_volume_5bb870(v106, (*v191__f));
@@ -7890,7 +7924,7 @@ LABEL_186:
             v74 = (intptr_t *)W_vpool_take((intptr_t)(SYS32(1448)), (intptr_t)(0));
             if ( v74 != 0 )
             {
-              v75 = F32(v74, 0);
+              v75 = *v74;
               if ( W_sfx_place((intptr_t)(c), (intptr_t)(F32(CFG(), 360) + 600), (intptr_t)(-3000), (intptr_t)(0), (intptr_t)(v73), (intptr_t)(&a6), (intptr_t)(&(*v191__f))) != 0 )
               {
                 g_eng.dsb_volume_5bb870(v75, a6);
@@ -7926,7 +7960,7 @@ LABEL_125:
               v78 = (intptr_t *)W_vpool_take((intptr_t)(SYS32(1436)), (intptr_t)(0));
               if ( v78 != 0 )
               {
-                v79 = F32(v78, 0);
+                v79 = *v78;
                 if ( W_sfx_place((intptr_t)(c), (intptr_t)(F32(CFG(), 360)), (intptr_t)(0), (intptr_t)(0), (intptr_t)((_DWORD *)a6), (intptr_t)((int *)&a3), (intptr_t)(&(*v191__f))) != 0 )
                 {
                   g_eng.dsb_volume_5bb870(v79, (int)a3);
@@ -8688,7 +8722,7 @@ int32_t ih_456d30(wl_char *self, int32_t * a3, int32_t a4, uint16_t a5, int32_t 
           v54 = (intptr_t *)W_vpool_take((intptr_t)(SYS32(1240)), (intptr_t)(0));
           if ( v54 != 0 )
           {
-            v55 = F32(v54, 0);
+            v55 = *v54;
             if ( W_sfx_place((intptr_t)(v9), (intptr_t)(F32(CFG(), 360)), (intptr_t)(0), (intptr_t)(0), (intptr_t)((*v87__f)), (intptr_t)(&(*v88__f)), (intptr_t)(&(*v86__f))) != 0 )
             {
               g_eng.dsb_volume_5bb870(v55, (*v88__f));
@@ -8937,7 +8971,7 @@ LABEL_216:
         v28 = (intptr_t *)W_vpool_take((intptr_t)(SYS32(1244)), (intptr_t)(0));
         if ( v28 != 0 )
         {
-          v29 = F32(v28, 0);
+          v29 = *v28;
           if ( W_sfx_place((intptr_t)(v9), (intptr_t)(F32(CFG(), 360)), (intptr_t)(0), (intptr_t)(0), (intptr_t)((*v81__f)), (intptr_t)(&(*v83__f)), (intptr_t)(&(*v82__f))) != 0 )
           {
             g_eng.dsb_volume_5bb870(v29, (*v83__f));
@@ -9088,7 +9122,7 @@ LABEL_84:
           v36 = (intptr_t *)W_vpool_take((intptr_t)(SYS32(1240)), (intptr_t)(0));
           if ( v36 != 0 )
           {
-            v37 = F32(v36, 0);
+            v37 = *v36;
             if ( W_sfx_place((intptr_t)(v9), (intptr_t)(F32(CFG(), 360)), (intptr_t)(0), (intptr_t)(0), (intptr_t)((*v81__f)), (intptr_t)(&(*v83__f)), (intptr_t)(&(*v82__f))) != 0 )
             {
               g_eng.dsb_volume_5bb870(v37, (*v83__f));
