@@ -71,6 +71,11 @@
 #include "ai_skill.h"
 #include "script_io.h"
 #include "frame_load.h"
+#include "title_extra.h"
+#include "ending.h"
+#include "gamepad.h"
+#include "sjis_text.h"
+#include "actor_behave.h"
 #include "char_handlers2.h"
 #include "char_types.h"
 #include "menu_screens.h"
@@ -460,6 +465,29 @@ typedef struct {
     X(H_IH455C90, "ih_455c90", 0x455c90u) X(H_IH455CF0, "ih_455cf0", 0x455cf0u) X(H_IH455D20, "ih_455d20", 0x455d20u) \
     X(H_IH456D30, "ih_456d30", 0x456d30u) X(H_IH45E260, "ih_45e260", 0x45e260u) X(H_IH45E3E0, "ih_45e3e0", 0x45e3e0u) \
     X(H_IH461640, "ih_461640", 0x461640u) X(H_IH467330, "ih_467330", 0x467330u) \
+    X(H_AB54F140, "ab_54f140", 0x54f140u) X(H_AB552C70, "ab_552c70", 0x552c70u) X(H_AB552F60, "ab_552f60", 0x552f60u) \
+    X(H_AB553520, "ab_553520", 0x553520u) X(H_AB553EC0, "ab_553ec0", 0x553ec0u) X(H_AB554570, "ab_554570", 0x554570u) \
+    X(H_AB554C40, "ab_554c40", 0x554c40u) X(H_AB5554E0, "ab_5554e0", 0x5554e0u) X(H_AB5556D0, "ab_5556d0", 0x5556d0u) \
+    X(H_SJ4034F0, "sj_4034f0", 0x4034f0u) X(H_SJ4051D0, "sj_4051d0", 0x4051d0u) \
+    X(H_GP468B10, "gp_468b10", 0x468b10u) X(H_GP46CB40, "gp_46cb40", 0x46cb40u) X(H_GP46CD10, "gp_46cd10", 0x46cd10u) \
+    X(H_EN410090, "en_410090", 0x410090u) X(H_EN49BF90, "en_49bf90", 0x49bf90u) X(H_EN5646C0, "en_5646c0", 0x5646c0u) \
+    X(H_EN56C640, "en_56c640", 0x56c640u) X(H_EN56C900, "en_56c900", 0x56c900u) X(H_EN56DBB0, "en_56dbb0", 0x56dbb0u) \
+    X(H_EN5A00C0, "en_5a00c0", 0x5a00c0u) X(H_EN5A3670, "en_5a3670", 0x5a3670u) X(H_EN5A3870, "en_5a3870", 0x5a3870u) \
+    X(H_EN5A4320, "en_5a4320", 0x5a4320u) X(H_EN5A4440, "en_5a4440", 0x5a4440u) X(H_EN5A45C0, "en_5a45c0", 0x5a45c0u) \
+    X(H_TS40FE00, "ts_40fe00", 0x40fe00u) X(H_TS410250, "ts_410250", 0x410250u) X(H_TS54C530, "ts_54c530", 0x54c530u) \
+    X(H_TS55FF80, "ts_55ff80", 0x55ff80u) X(H_TS5612F0, "ts_5612f0", 0x5612f0u) X(H_TS5640B0, "ts_5640b0", 0x5640b0u) \
+    X(H_TS564110, "ts_564110", 0x564110u) X(H_TS565B00, "ts_565b00", 0x565b00u) X(H_TS566300, "ts_566300", 0x566300u) \
+    X(H_TS568780, "ts_568780", 0x568780u) X(H_TS569220, "ts_569220", 0x569220u) X(H_TS56A270, "ts_56a270", 0x56a270u) \
+    X(H_TS56A450, "ts_56a450", 0x56a450u) X(H_TS56A670, "ts_56a670", 0x56a670u) X(H_TS56AA70, "ts_56aa70", 0x56aa70u) \
+    X(H_TS56AD50, "ts_56ad50", 0x56ad50u) X(H_TS56D620, "ts_56d620", 0x56d620u) X(H_TS56DD80, "ts_56dd80", 0x56dd80u) \
+    X(H_TS583FE0, "ts_583fe0", 0x583fe0u) X(H_TS584400, "ts_584400", 0x584400u) X(H_TS584420, "ts_584420", 0x584420u) \
+    X(H_TS584550, "ts_584550", 0x584550u) X(H_TS5846F0, "ts_5846f0", 0x5846f0u) X(H_TS584710, "ts_584710", 0x584710u) \
+    X(H_TS585260, "ts_585260", 0x585260u) X(H_TS585400, "ts_585400", 0x585400u) X(H_TS585530, "ts_585530", 0x585530u) \
+    X(H_TS585590, "ts_585590", 0x585590u) X(H_TS585810, "ts_585810", 0x585810u) X(H_TS585AE0, "ts_585ae0", 0x585ae0u) \
+    X(H_TS585E70, "ts_585e70", 0x585e70u) X(H_TS59D160, "ts_59d160", 0x59d160u) X(H_TS59D690, "ts_59d690", 0x59d690u) \
+    X(H_TS59D900, "ts_59d900", 0x59d900u) X(H_TS59DC60, "ts_59dc60", 0x59dc60u) X(H_TS59DF50, "ts_59df50", 0x59df50u) \
+    X(H_TS59E1D0, "ts_59e1d0", 0x59e1d0u) X(H_TS59E230, "ts_59e230", 0x59e230u) X(H_TS59E5D0, "ts_59e5d0", 0x59e5d0u) \
+    X(H_TS59E9E0, "ts_59e9e0", 0x59e9e0u) \
     /* (wire.py: new modules' rows go above this line) */ \
     X(H_SC401D80, "sc_401d80", 0x401d80u) X(H_SC402030, "sc_402030", 0x402030u) X(H_SC4020A0, "sc_4020a0", 0x4020a0u) \
     X(H_SC4024E0, "sc_4024e0", 0x4024e0u) X(H_SC402610, "sc_402610", 0x402610u) X(H_SC402F40, "sc_402f40", 0x402f40u) \
@@ -4915,6 +4943,77 @@ TC_HOOK(H_IH45E260, "ih_45e260", 3, 1, return (intptr_t)ih_45e260((wl_char *)sel
 ST_HOOK(H_IH45E3E0, "ih_45e3e0", 4, 1, return (intptr_t)ih_45e3e0(a1, a2, a3, a4))
 ST_HOOK(H_IH461640, "ih_461640", 7, 1, return (intptr_t)ih_461640(a1, a2, a3, a4, a5, a6, a7))
 TC_HOOK0(H_IH467330, "ih_467330", 1, return (intptr_t)ih_467330((wl_char *)self))
+/* the actor_behave module (src/actor_behave.c; decomp2c): REPLACE only — UNVERIFIED (unreached by the corpus) */
+TC_HOOK(H_AB54F140, "ab_54f140", 5, 1, return (intptr_t)ab_54f140((wl_char *)self, a1, a2, a3, a4, a5))
+TC_HOOK(H_AB552C70, "ab_552c70", 3, 1, return (intptr_t)ab_552c70((wl_char *)self, (int32_t *)a1, a2, a3))
+TC_HOOK(H_AB552F60, "ab_552f60", 5, 1, return (intptr_t)ab_552f60((wl_char *)self, a1, a2, a3, a4, (int32_t *)a5))
+TC_HOOK(H_AB553520, "ab_553520", 6, 1, return (intptr_t)ab_553520((wl_char *)self, a1, a2, a3, a4, a5, a6))
+TC_HOOK(H_AB553EC0, "ab_553ec0", 7, 1, return (intptr_t)ab_553ec0((wl_char *)self, a1, a2, a3, a4, a5, a6, a7))
+TC_HOOK(H_AB554570, "ab_554570", 5, 1, return (intptr_t)ab_554570((wl_char *)self, a1, a2, a3, a4, a5))
+TC_HOOK(H_AB554C40, "ab_554c40", 6, 1, return (intptr_t)ab_554c40((wl_char *)self, a1, (FILE *)a2, a3, a4, a5, a6))
+ST_HOOK(H_AB5554E0, "ab_5554e0", 6, 1, return (intptr_t)ab_5554e0(a1, a2, a3, a4, a5, a6))
+TC_HOOK(H_AB5556D0, "ab_5556d0", 3, 1, return (intptr_t)ab_5556d0((wl_char *)self, a1, a2, a3))
+/* the sjis_text module (src/sjis_text.c; decomp2c): REPLACE only — UNVERIFIED (unreached by the corpus) */
+ST_HOOK(H_SJ4034F0, "sj_4034f0", 4, 1, return (intptr_t)sj_4034f0((char *)a1, a2, a3, a4))
+ST_HOOK(H_SJ4051D0, "sj_4051d0", 2, 1, return (intptr_t)sj_4051d0(a1, (char *)a2))
+/* the gamepad module (src/gamepad.c; decomp2c): REPLACE only — UNVERIFIED (unreached by the corpus) */
+TC_HOOK(H_GP468B10, "gp_468b10", 2, 1, return (intptr_t)gp_468b10((wl_char *)self, (int32_t *)a1, a2))
+TC_HOOK(H_GP46CB40, "gp_46cb40", 2, 1, return (intptr_t)gp_46cb40((wl_char *)self, a1, a2))
+TC_HOOK(H_GP46CD10, "gp_46cd10", 3, 1, return (intptr_t)gp_46cd10((wl_char *)self, a1, a2, a3))
+/* the ending module (src/ending.c; decomp2c): REPLACE only — UNVERIFIED (unreached by the corpus) */
+ST_HOOK(H_EN410090, "en_410090", 8, 1, return (intptr_t)en_410090(a1, a2, a3, (int32_t *)a4, (int32_t *)a5, (int32_t *)a6, (int32_t *)a7, (int32_t *)a8))
+TC_HOOK(H_EN49BF90, "en_49bf90", 1, 1, return (intptr_t)en_49bf90((wl_char *)self, a1))
+ST_HOOK(H_EN5646C0, "en_5646c0", 2, 0, en_5646c0((intptr_t *)a1, a2); return 0)
+TC_HOOK0(H_EN56C640, "en_56c640", 0, en_56c640((wl_char *)self); return 0)
+TC_HOOK(H_EN56C900, "en_56c900", 1, 1, return (intptr_t)en_56c900((wl_char *)self, a1))
+TC_HOOK(H_EN56DBB0, "en_56dbb0", 1, 1, return (intptr_t)en_56dbb0((wl_char *)self, a1))
+TC_HOOK0(H_EN5A00C0, "en_5a00c0", 1, return (intptr_t)en_5a00c0((wl_char *)self))
+TC_HOOK0(H_EN5A3670, "en_5a3670", 0, en_5a3670((wl_char *)self); return 0)
+TC_HOOK(H_EN5A3870, "en_5a3870", 1, 1, return (intptr_t)en_5a3870((wl_char *)self, (int32_t *)a1))
+TC_HOOK(H_EN5A4320, "en_5a4320", 1, 1, return (intptr_t)en_5a4320((wl_char *)self, a1))
+TC_HOOK(H_EN5A4440, "en_5a4440", 1, 1, return (intptr_t)en_5a4440((wl_char *)self, a1))
+TC_HOOK(H_EN5A45C0, "en_5a45c0", 1, 1, return (intptr_t)en_5a45c0((wl_char *)self, a1))
+/* the title's other screens + the attract demo (src/title_extra.c; decomp2c): REPLACE only — the input re-poll 0x40fe00 reached, the rest UNVERIFIED */
+TC_HOOK0(H_TS40FE00, "ts_40fe00", 1, return (intptr_t)ts_40fe00((wl_char *)self))
+TC_HOOK(H_TS410250, "ts_410250", 3, 1, return (intptr_t)ts_410250((wl_char *)self, (int32_t *)a1, a2, a3))
+TC_HOOK(H_TS54C530, "ts_54c530", 1, 1, return (intptr_t)ts_54c530((wl_char *)self, a1))
+TC_HOOK(H_TS55FF80, "ts_55ff80", 2, 1, return (intptr_t)ts_55ff80((wl_char *)self, a1, a2))
+TC_HOOK0(H_TS5612F0, "ts_5612f0", 1, return (intptr_t)ts_5612f0((wl_char *)self))
+TC_HOOK0(H_TS5640B0, "ts_5640b0", 1, return (intptr_t)ts_5640b0((wl_char *)self))
+TC_HOOK(H_TS564110, "ts_564110", 2, 1, return (intptr_t)ts_564110((wl_char *)self, a1, U16(a2)))
+TC_HOOK(H_TS565B00, "ts_565b00", 6, 1, return (intptr_t)ts_565b00((wl_char *)self, (char *)a1, a2, a3, a4, U16(a5), U16(a6)))
+TC_HOOK(H_TS566300, "ts_566300", 1, 1, return (intptr_t)ts_566300((wl_char *)self, a1))
+ST_HOOK(H_TS568780, "ts_568780", 1, 1, return (intptr_t)ts_568780(a1))
+TC_HOOK(H_TS569220, "ts_569220", 1, 1, return (intptr_t)ts_569220((wl_char *)self, a1))
+TC_HOOK(H_TS56A270, "ts_56a270", 2, 1, return (intptr_t)ts_56a270((wl_char *)self, (char *)a1, a2))
+ST_HOOK(H_TS56A450, "ts_56a450", 1, 1, return (intptr_t)ts_56a450(a1))
+TC_HOOK(H_TS56A670, "ts_56a670", 3, 1, return (intptr_t)ts_56a670((wl_char *)self, (int32_t **)a1, (uint16_t *)a2, (int32_t *)a3))
+TC_HOOK(H_TS56AA70, "ts_56aa70", 2, 1, return (intptr_t)ts_56aa70((wl_char *)self, (int32_t *)a1, (int32_t *)a2))
+TC_HOOK0(H_TS56AD50, "ts_56ad50", 0, ts_56ad50((wl_char *)self); return 0)
+TC_HOOK0(H_TS56D620, "ts_56d620", 1, return (intptr_t)ts_56d620((wl_char *)self))
+ST_HOOK(H_TS56DD80, "ts_56dd80", 2, 1, return (intptr_t)ts_56dd80(a1, a2))
+TC_HOOK0(H_TS583FE0, "ts_583fe0", 1, return (intptr_t)ts_583fe0((wl_char *)self))
+TC_HOOK0(H_TS584400, "ts_584400", 1, return (intptr_t)ts_584400((wl_char *)self))
+TC_HOOK(H_TS584420, "ts_584420", 2, 1, return (intptr_t)ts_584420((wl_char *)self, a1, a2))
+TC_HOOK(H_TS584550, "ts_584550", 2, 1, return (intptr_t)ts_584550((wl_char *)self, a1, a2))
+TC_HOOK0(H_TS5846F0, "ts_5846f0", 1, return (intptr_t)ts_5846f0((wl_char *)self))
+TC_HOOK0(H_TS584710, "ts_584710", 1, return (intptr_t)ts_584710((wl_char *)self))
+TC_HOOK(H_TS585260, "ts_585260", 4, 1, return (intptr_t)ts_585260((wl_char *)self, a1, a2, (int16_t)a3, a4))
+ST_HOOK(H_TS585400, "ts_585400", 2, 1, return (intptr_t)ts_585400(a1, a2))
+ST_HOOK(H_TS585530, "ts_585530", 1, 1, return (intptr_t)ts_585530((int32_t *)a1))
+ST_HOOK(H_TS585590, "ts_585590", 4, 1, return (intptr_t)ts_585590(0, a1, a2, a3, a4))   /* (IDA __userpurge: ebx is scratch, 4 stack args) */
+ST_HOOK(H_TS585810, "ts_585810", 7, 1, return (intptr_t)ts_585810(a1, U16(a2), a3, U16(a4), U16(a5), U16(a6), a7))
+TC_HOOK(H_TS585AE0, "ts_585ae0", 5, 1, return (intptr_t)ts_585ae0((wl_char *)self, (int32_t *)a1, a2, a3, a4, (int32_t *)a5))
+TC_HOOK0(H_TS585E70, "ts_585e70", 1, return (intptr_t)ts_585e70((wl_char *)self))
+ST_HOOK0(H_TS59D160, "ts_59d160", 0, ts_59d160(); return 0)
+TC_HOOK0(H_TS59D690, "ts_59d690", 0, ts_59d690((wl_char *)self); return 0)
+TC_HOOK(H_TS59D900, "ts_59d900", 1, 1, return (intptr_t)ts_59d900((wl_char *)self, a1))
+TC_HOOK0(H_TS59DC60, "ts_59dc60", 1, return (intptr_t)ts_59dc60((wl_char *)self))
+TC_HOOK(H_TS59DF50, "ts_59df50", 3, 1, return (intptr_t)ts_59df50((wl_char *)self, (int32_t *)a1, (int32_t *)a2, (int32_t *)a3))
+TC_HOOK0(H_TS59E1D0, "ts_59e1d0", 1, return (intptr_t)ts_59e1d0((wl_char *)self))
+TC_HOOK0(H_TS59E230, "ts_59e230", 1, return (intptr_t)ts_59e230((wl_char *)self))
+TC_HOOK(H_TS59E5D0, "ts_59e5d0", 1, 1, return (intptr_t)ts_59e5d0((wl_char *)self, (int16_t)a1))
+TC_HOOK(H_TS59E9E0, "ts_59e9e0", 1, 1, return (intptr_t)ts_59e9e0((wl_char *)self, a1))
 /* (wire.py: new modules' hook rows go above this line) */
 /* the chapter scripts' file / sound / DirectX-free callees (src/script_helpers.c; 0x4a5e40 0x4cbfb0 0x4cbfd0 0x4d6490
  * read their caller's ecx: thiscall wrappers) */

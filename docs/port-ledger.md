@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **1353** (87.5% of engine-proper) — tested 249, ported 1104
-- code bytes touched: **71.4%** (1,267,701 / 1,776,526 B of engine-proper)
-- unported: **471**
+- touched: **1418** (91.7% of engine-proper) — tested 249, ported 1169
+- code bytes touched: **74.7%** (1,326,657 / 1,776,526 B of engine-proper)
+- unported: **406**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -178,7 +178,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x58cb30 | layer_hdr_u32_58CB30 | 1065 | map_decode.c, map_decode.h |
 | 0x58ffa0 | sub_58FFA0 | 23 | win_main.h, wnd_proc.h, wnd_proc_win32.c |
 | 0x59f2c0 | sub_59F2C0 | 3522 | game_map.c, game_map.h, game_world.c (+5) |
-| 0x5a00c0 | sub_5A00C0 | 13690 | map_data.h |
+| 0x5a00c0 | sub_5A00C0 | 13690 | ending.h, map_data.h |
 | 0x5a4770 | sub_5A4770 | 45963 | app_pump.h, main.c, win_main.h |
 | 0x5b1030 | sub_5B1030 | 156 | app_pump.c, app_pump.h, title_scene.c (+3) |
 | 0x5b12e0 | sub_5B12E0 | 441 | win_app.h, wnd_proc.c, wnd_proc.h |
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (1104) — reimplemented, no host test yet
+## ported (1169) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -300,6 +300,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x402f40 | sub_402F40 | 21 | script_helpers.h |
 | 0x402f60 | sub_402F60 | 412 | script_helpers.h |
 | 0x403100 | sub_403100 | 181 | scene_cmd.h |
+| 0x4034f0 | sub_4034F0 | 7330 | sjis_text.h |
+| 0x4051d0 | sub_4051D0 | 3244 | sjis_text.h |
 | 0x405e80 | sub_405E80 | 577 | scene_cmd.h |
 | 0x4060d0 | sub_4060D0 | 241 | char_state.h |
 | 0x4061d0 | sub_4061D0 | 55 | scene_cmd.h |
@@ -358,6 +360,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x40f5a0 | sub_40F5A0 | 25 | ui_core.h |
 | 0x40f800 | sub_40F800 | 511 | ui_core.h |
 | 0x40fdb0 | sub_40FDB0 | 70 | ui_core.h |
+| 0x40fe00 | sub_40FE00 | 596 | title_extra.h |
+| 0x410090 | sub_410090 | 444 | ending.h |
+| 0x410250 | sub_410250 | 166 | title_extra.h |
 | 0x410300 | sub_410300 | 196 | sprite_slot.h |
 | 0x4103d0 | sub_4103D0 | 389 | ui_core.h |
 | 0x410560 | sub_410560 | 164 | ui_text.h |
@@ -702,6 +707,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x4678f0 | sub_4678F0 | 482 | arche_pose.h |
 | 0x467ae0 | sub_467AE0 | 199 | arche_pose.h |
 | 0x468a20 | sub_468A20 | 237 | room_loop.h |
+| 0x468b10 | sub_468B10 | 7214 | gamepad.h |
+| 0x46cb40 | sub_46CB40 | 301 | gamepad.h |
+| 0x46cd10 | sub_46CD10 | 81 | gamepad.h |
 | 0x46cd70 | actor_update_all_46CD70 | 1031 | world_tick.c, world_tick.h |
 | 0x46d180 | sub_46D180 | 798 | entity_fx.c, entity_fx.h |
 | 0x46d4a0 | sub_46D4A0 | 838 | entity_fx.c, entity_fx.h |
@@ -897,6 +905,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x49bd50 | sub_49BD50 | 147 | hud_view.h |
 | 0x49bdf0 | sub_49BDF0 | 97 | hud_view.h |
 | 0x49be60 | sub_49BE60 | 290 | room_loop.h |
+| 0x49bf90 | sub_49BF90 | 424 | ending.h |
 | 0x49c170 | sub_49C170 | 371 | render_draw.h |
 | 0x49c2f0 | sub_49C2F0 | 808 | screen_fx.h |
 | 0x49c620 | sub_49C620 | 31 | ui_core.h |
@@ -1005,6 +1014,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x54bfb0 | sub_54BFB0 | 801 | world_alloc.c, world_alloc.h |
 | 0x54c2e0 | sub_54C2E0 | 217 | world_alloc.h |
 | 0x54c3c0 | sub_54C3C0 | 358 | world_alloc.h |
+| 0x54c530 | sub_54C530 | 167 | title_extra.h |
 | 0x54c640 | sub_54C640 | 812 | grid_refresh.c, grid_refresh.h |
 | 0x54c9d0 | sub_54C9D0 | 214 | grid_refresh.c, grid_refresh.h |
 | 0x54cab0 | sub_54CAB0 | 484 | shots.h |
@@ -1014,8 +1024,17 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x54d090 | sub_54D090 | 2636 | entity_fx.c, entity_fx.h |
 | 0x54ecf0 | sub_54ECF0 | 137 | gimmick.h |
 | 0x54efd0 | sub_54EFD0 | 358 | gimmick.h |
+| 0x54f140 | sub_54F140 | 2094 | actor_behave.h |
 | 0x54f980 | actor_update_54F980 | 11597 | actor_update.c, actor_update.h |
+| 0x552c70 | sub_552C70 | 748 | actor_behave.h |
+| 0x552f60 | sub_552F60 | 590 | actor_behave.h |
 | 0x5531b0 | ambient_sound_timer_5531B0 | 756 | sound_fx.h |
+| 0x553520 | sub_553520 | 2458 | actor_behave.h |
+| 0x553ec0 | sub_553EC0 | 1681 | actor_behave.h |
+| 0x554570 | sub_554570 | 1724 | actor_behave.h |
+| 0x554c40 | sub_554C40 | 2187 | actor_behave.h |
+| 0x5554e0 | sub_5554E0 | 496 | actor_behave.h |
+| 0x5556d0 | sub_5556D0 | 179 | actor_behave.h |
 | 0x555790 | sub_555790 | 1082 | actor_ops.h |
 | 0x555bd0 | sub_555BD0 | 694 | actor_ops.h |
 | 0x555e90 | sub_555E90 | 109 | actor_ops.h |
@@ -1047,6 +1066,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x55f550 | sub_55F550 | 199 | ui_run.h |
 | 0x55f620 | sub_55F620 | 354 | save_game.h |
 | 0x55f790 | sub_55F790 | 1558 | scene_loop.h |
+| 0x55ff80 | sub_55FF80 | 1449 | title_extra.h |
 | 0x560530 | sub_560530 | 962 | save_game.h |
 | 0x560a00 | sub_560A00 | 57 | title_menu.h |
 | 0x560a40 | sub_560A40 | 1049 | title_menu.h |
@@ -1055,6 +1075,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5611d0 | sub_5611D0 | 173 | scene_loop.h |
 | 0x561280 | sub_561280 | 37 | scene_loop.h |
 | 0x5612b0 | sub_5612B0 | 56 | scene_loop.h |
+| 0x5612f0 | sub_5612F0 | 493 | title_extra.h |
 | 0x5614e0 | sub_5614E0 | 113 | scene_loop.h |
 | 0x561560 | sub_561560 | 1673 | save_game.h |
 | 0x561bf0 | sub_561BF0 | 152 | save_game.h |
@@ -1069,25 +1090,42 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x562d50 | sub_562D50 | 239 | room_load.h |
 | 0x562e40 | sub_562E40 | 30 | scene_loop.h |
 | 0x562e60 | sub_562E60 | 58 | scene_loop.h |
+| 0x5640b0 | sub_5640B0 | 81 | title_extra.h |
+| 0x564110 | sub_564110 | 80 | title_extra.h |
 | 0x5642e0 | sub_5642E0 | 440 | title_menu.h |
 | 0x5644a0 | sub_5644A0 | 483 | title_menu.h |
 | 0x564690 | sub_564690 | 47 | title_menu.h |
+| 0x5646c0 | sub_5646C0 | 180 | ending.h |
 | 0x565810 | sub_565810 | 45 | title_menu.h |
 | 0x565840 | sub_565840 | 115 | title_menu.h |
 | 0x5658c0 | sub_5658C0 | 565 | title_menu.h |
+| 0x565b00 | sub_565B00 | 528 | title_extra.h |
 | 0x566250 | sub_566250 | 169 | title_menu.h |
+| 0x566300 | sub_566300 | 80 | title_extra.h |
 | 0x566350 | sub_566350 | 540 | title_menu.h |
+| 0x568780 | sub_568780 | 554 | title_extra.h |
 | 0x568b40 | sub_568B40 | 659 | title_menu.h |
 | 0x568de0 | sub_568DE0 | 998 | title_menu.h |
+| 0x569220 | sub_569220 | 4007 | title_extra.h |
 | 0x56a220 | sub_56A220 | 66 | title_menu.h |
+| 0x56a270 | sub_56A270 | 470 | title_extra.h |
+| 0x56a450 | sub_56A450 | 455 | title_extra.h |
+| 0x56a670 | sub_56A670 | 1011 | title_extra.h |
+| 0x56aa70 | sub_56AA70 | 724 | title_extra.h |
+| 0x56ad50 | sub_56AD50 | 334 | title_extra.h |
 | 0x56bfd0 | sub_56BFD0 | 88 | title_menu.h |
 | 0x56c430 | sub_56C430 | 64 | field_menu.h |
+| 0x56c640 | sub_56C640 | 690 | ending.h |
+| 0x56c900 | sub_56C900 | 37 | ending.h |
 | 0x56cb90 | sub_56CB90 | 113 | title_menu.h |
 | 0x56cc10 | sub_56CC10 | 267 | title_menu.h |
+| 0x56d620 | sub_56D620 | 237 | title_extra.h |
 | 0x56d710 | sub_56D710 | 510 | title_menu.h |
 | 0x56d910 | sub_56D910 | 272 | title_menu.h |
 | 0x56da40 | sub_56DA40 | 96 | title_menu.h |
 | 0x56daa0 | sub_56DAA0 | 267 | title_menu.h |
+| 0x56dbb0 | sub_56DBB0 | 102 | ending.h |
+| 0x56dd80 | sub_56DD80 | 254 | title_extra.h |
 | 0x56de80 | sub_56DE80 | 67 | title_menu.h |
 | 0x56ded0 | sub_56DED0 | 61 | title_menu.h |
 | 0x56df10 | sub_56DF10 | 203 | sprite_slot.h |
@@ -1098,7 +1136,20 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5798f0 | sub_5798F0 | 259 | asset_load.h |
 | 0x583c90 | sub_583C90 | 580 | asset_load.h |
 | 0x583ee0 | sub_583EE0 | 248 | asset_load.h |
+| 0x583fe0 | sub_583FE0 | 979 | title_extra.h |
+| 0x584400 | sub_584400 | 19 | title_extra.h |
+| 0x584420 | sub_584420 | 292 | title_extra.h |
+| 0x584550 | sub_584550 | 414 | title_extra.h |
+| 0x5846f0 | sub_5846F0 | 22 | title_extra.h |
+| 0x584710 | actor_manifest_build_584710 | 2280 | title_extra.h |
 | 0x5851e0 | sub_5851E0 | 114 | scene_loop.h |
+| 0x585260 | sub_585260 | 409 | title_extra.h |
+| 0x585400 | sub_585400 | 292 | title_extra.h |
+| 0x585530 | sub_585530 | 88 | title_extra.h |
+| 0x585590 | sub_585590 | 627 | title_extra.h |
+| 0x585810 | sub_585810 | 711 | title_extra.h |
+| 0x585ae0 | sub_585AE0 | 908 | title_extra.h |
+| 0x585e70 | sub_585E70 | 134 | title_extra.h |
 | 0x585f00 | sub_585F00 | 258 | scene_loop.h |
 | 0x5878a0 | sub_5878A0 | 207 | room_load.h |
 | 0x587ce0 | sub_587CE0 | 71 | room_load.h |
@@ -1186,12 +1237,23 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x59ca90 | sub_59CA90 | 975 | room_tick.c, room_tick.h |
 | 0x59ce60 | sub_59CE60 | 350 | room_tick.h |
 | 0x59cfc0 | sub_59CFC0 | 405 | scene_loop.h |
+| 0x59d160 | sub_59D160 | 644 | title_extra.h |
 | 0x59d3f0 | sub_59D3F0 | 323 | room_loop.h |
 | 0x59d540 | sub_59D540 | 334 | field_menu.h |
+| 0x59d690 | sub_59D690 | 624 | title_extra.h |
+| 0x59d900 | sub_59D900 | 619 | title_extra.h |
 | 0x59db70 | sub_59DB70 | 227 | room_load.h |
+| 0x59dc60 | sub_59DC60 | 752 | title_extra.h |
+| 0x59df50 | sub_59DF50 | 585 | title_extra.h |
 | 0x59e1a0 | sub_59E1A0 | 34 | scene_loop.h |
+| 0x59e1d0 | sub_59E1D0 | 93 | title_extra.h |
+| 0x59e230 | sub_59E230 | 924 | title_extra.h |
+| 0x59e5d0 | sub_59E5D0 | 1033 | title_extra.h |
+| 0x59e9e0 | sub_59E9E0 | 577 | title_extra.h |
 | 0x59ec30 | sub_59EC30 | 531 | title_menu.h |
 | 0x59ee50 | sub_59EE50 | 1132 | title_menu.h |
+| 0x5a3670 | sub_5A3670 | 499 | ending.h |
+| 0x5a3870 | sub_5A3870 | 828 | ending.h |
 | 0x5a3bb0 | sub_5A3BB0 | 62 | scene_loop.h |
 | 0x5a3bf0 | sub_5A3BF0 | 27 | scene_loop.h |
 | 0x5a3c10 | sub_5A3C10 | 37 | scene_loop.h |
@@ -1200,8 +1262,11 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5a3e20 | sub_5A3E20 | 455 | scene_loop.h |
 | 0x5a3ff0 | sub_5A3FF0 | 516 | scene_loop.h |
 | 0x5a4200 | sub_5A4200 | 276 | scene_loop.h |
+| 0x5a4320 | sub_5A4320 | 278 | ending.h |
+| 0x5a4440 | sub_5A4440 | 26 | ending.h |
 | 0x5a4460 | sub_5A4460 | 30 | scene_loop.h |
 | 0x5a4480 | sub_5A4480 | 312 | scene_loop.h |
+| 0x5a45c0 | sub_5A45C0 | 409 | ending.h |
 | 0x5afb00 | sub_5AFB00 | 129 | win_app.h |
 | 0x5afb90 | sub_5AFB90 | 96 | win_app.h |
 | 0x5afbf0 | sub_5AFBF0 | 146 | win_app.h |

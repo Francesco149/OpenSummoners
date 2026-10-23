@@ -159,6 +159,32 @@ def asm_calls(edition, caller, callee):
     return out, lines
 
 
+def asm_named_offset_only(edition, va, name):
+    """a plain-named global (`String`, a runtime-filled buffer) this function's asm only takes the address of"""
+    if va is None:
+        return False
+    if edition not in _ASM:
+        ecx_in(edition, va, 0)
+    if edition not in _SIZES:
+        _SIZES[edition] = {int(x.split("\t")[0], 16): int(x.split("\t")[1]) for x in open(os.path.join(IDA, edition, "functions_ida.tsv"))
+                           if re.match(r"^[0-9a-f]{8}\t\d+", x)}
+    lines, idx = _ASM[edition]
+    i, end = idx.get(va), va + _SIZES[edition].get(va, 0)
+    seen = addr = 0
+    while i is not None and i < len(lines):
+        m = re.match(r"^([0-9a-f]{8})\s+\w+\s*(.*)$", lines[i]); i += 1
+        if not m:
+            continue
+        if int(m.group(1), 16) >= end:
+            break
+        for mm in re.finditer(r"(\boffset\s+)?\b%s\b" % re.escape(name), m.group(2).split(";")[0]):
+            if mm.group(1):
+                addr += 1
+            else:
+                seen += 1
+    return addr > 0 and seen == 0
+
+
 def asm_offset_only(edition, va, names):
     """the globals among names this function's asm only ever takes the address of (`push offset byte_8A47F8`): a C
     array IDA prints bare as a pointer argument (0x5b6650's message strings) — its bare name is its address"""
@@ -845,6 +871,13 @@ def convert(text, names, widths, this):
                        lambda m: f"{ {1: 'F8', 2: 'F16', 4: 'F32', 8: 'F64'}[tsize]}(this, {tsize} * ({m.group(1)}))", s)
     s = re.sub(r"this->field_([0-9A-F]+)", lambda m: fld(this, int(m.group(1), 16), tfields, tgaps), s)
     s = re.sub(r"this->gap([0-9A-F]+)\[([^\]]+)\]", lambda m: f"GAP({this}, 0x{tgaps.get(int(m.group(1), 16), int(m.group(1), 16)):x}, {m.group(2)})", s)
+    for cm in re.finditer(r"(cls_\w+) \*(\w+)\b", head):   # a class-pointer PARAMETER's `p[k].gapN[i]` (0x585400's `a1[1].gap0`)
+        csz, _, cgaps = class_layout(cm.group(1))
+        if csz and cm.group(2) != "this":
+            s = re.sub(r"\b%s\[(\d+)\]\.gap([0-9A-F]+)\[([^\]]+)\]" % cm.group(2),
+                       lambda m, v=cm.group(2), csz=csz, cgaps=cgaps: f"GAP({v}, 0x{int(m.group(1)) * csz + cgaps.get(int(m.group(2), 16), int(m.group(2), 16)):x}, {m.group(3)})", s)
+            s = re.sub(r"\b%s\[(\d+)\]\.gap([0-9A-F]+)\b(?!\s*\[)" % cm.group(2),
+                       lambda m, v=cm.group(2), csz=csz, cgaps=cgaps: f"((uint8_t *)({v}) + 0x{int(m.group(1)) * csz + cgaps.get(int(m.group(2), 16), int(m.group(2), 16)):x})", s)
     if tm and tsize:   # `this[k].gapN[i]`: past the object by whole objects (0x456d30's `this[1].gap0[37820]`)
         s = re.sub(r"\bthis\[(\d+)\]\.gap([0-9A-F]+)\[([^\]]+)\]",
                    lambda m: f"GAP({this}, 0x{int(m.group(1)) * tsize + tgaps.get(int(m.group(2), 16), int(m.group(2), 16)):x}, {m.group(3)})", s)
@@ -877,7 +910,7 @@ def convert(text, names, widths, this):
         s = re.sub(r"\*\(this \+ ", "*(" + this_expr + " + ", s)
         s = re.sub(r"\*this\b", "(*" + this_expr + ")", s)
         esz = {"uint8_t": 1, "char": 1, "int8_t": 1, "uint16_t": 2, "int16_t": 2}.get(this_expr[2:].split(" *")[0], 4)
-        if esz > 1 and not (tp and tp.group(1) in SHELL_SIZE):   # ... and `this + n` as a value (`v4 = this + 2604` = +10416 bytes for a _DWORD *this)
+        if esz > 1 and not (tp and tp.group(1) in SHELL_SIZE and len(tp.group(2)) == 1):   # ... and `this + n` as a value (`v4 = this + 2604` = +10416 bytes for a _DWORD *this)
             s = re.sub(r"(?<![\w)*])\bthis \+ ((?:[\w.]+|\((?:[^()]|\([^()]*\))*\))(?: [*/] (?:[\w.]+|\([^()]*\)))*)(?=\s*[;,)])",
                        lambda m: f"this + {esz} * ({m.group(1)})", s)
     s = re.sub(r"\bthis\b", this, s)
@@ -966,6 +999,7 @@ def convert(text, names, widths, this):
     s = re.sub(r"\b(\w+)\[0\]\.gap([0-9A-F]+)\[(\d+)\]", lambda m: f"F8({m.group(1)}, 0x{int(m.group(2), 16) + int(m.group(3)):x})", s)   # an
     # element 0 of a class-typed stack array: its byte at +N + i (0x5a4770's `v88[0].gap0[0] = 0`)
     s = s.replace("`eh vector destructor iterator'(", "eh_vec_dtor(").replace("(void (__thiscall *)(void *))", "(void *)")   # MSVC's delete[]
+    s = s.replace("`eh vector constructor iterator'(", "eh_vec_ctor(")   # ... and new[]
     s = s.replace("rand_draw_5BF505()", "rnd()")
     s = re.sub(r"\bp_cls_40BE00 = ", "*(intptr_t *)g_eng.world = ", s)   # the world pointer itself (0x5a4320 clears it)
     s = s.replace("p_cls_40BE00", "W")
@@ -1000,7 +1034,7 @@ def convert(text, names, widths, this):
             acc = {"dword_": "F32", "word_": "F16", "byte_": "F8"}[name.split("_")[0] + "_"]
             s = re.sub(r"(?<![\w.])%s\b(?!\s*\[)" % re.escape(name), f"{acc}(D(0x{va:x}), 0)", s)
         elif re.match(r"^[A-Za-z]\w*$", name) and not re.match(r"^(dword|word|byte|qword|flt|dbl|off|unk|stru|asc|o_cls)_|^a[A-Z0-9]", name) \
-                and is_cstr(va) and name not in kb_names():
+                and (is_cstr(va) or asm_named_offset_only(EDITION[0], CURVA[0], name)) and name not in kb_names():
             # a global IDA named after the API parameter it feeds (SubBlock "\\", Mode "a", OutputString "\n", msg):
             # its bytes are a C string — the name is the string's address
             s = re.sub(r"(?<![\w.&:])%s\b(?!\s*[\[.(]|\s*->)" % re.escape(name), f"((char *)D(0x{va:x}))", s)
@@ -1187,6 +1221,12 @@ typedef uint64_t _QWORD;
 #define GAP(p, o, i) F8(p, (o) + (i))   /* IDA's gapN[i]: the byte at +N + i */
 #define qmemcpy memcpy   /* IDA's inline memcpy */
 static inline void *memset32(void *d, uint32_t v, size_t n) { uint32_t *p = d; while (n--) *p++ = v; return d; }   /* IDA's rep stosd */
+static inline void eh_vec_ctor(intptr_t p, uint32_t size, int32_t n, void *ctor, void *dtor)   /* MSVC's `eh vector */
+{                                                                                             /* constructor iterator' */
+    typedef void (__attribute__((thiscall)) *c_t)(void *);
+    (void)dtor;
+    for (int32_t i = 0; i < n; i++) ((c_t)ctor)((void *)(p + (intptr_t)size * i));
+}
 static inline void eh_vec_dtor(intptr_t p, uint32_t size, int32_t n, void *dtor)   /* MSVC's `eh vector destructor iterator': */
 {                                                                                  /* the elements' dtors, last first */
     typedef void (__attribute__((thiscall)) *d_t)(void *);
