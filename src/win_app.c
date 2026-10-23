@@ -157,8 +157,6 @@ typedef uint32_t (__attribute__((stdcall)) *api_GetFileVersionInfoSizeA_t)(intpt
 #define API_GetFileVersionInfoSizeA ((api_GetFileVersionInfoSizeA_t)g_eng.api("GetFileVersionInfoSizeA"))
 typedef uint32_t (__attribute__((stdcall)) *api_GetLastError_t)(void);
 #define API_GetLastError ((api_GetLastError_t)g_eng.api("GetLastError"))
-typedef intptr_t (__attribute__((stdcall)) *api_GetLocalTime_t)(intptr_t);
-#define API_GetLocalTime ((api_GetLocalTime_t)g_eng.api("GetLocalTime"))
 typedef uint32_t (__attribute__((stdcall)) *api_GetModuleFileNameA_t)(intptr_t, intptr_t, intptr_t);
 #define API_GetModuleFileNameA ((api_GetModuleFileNameA_t)g_eng.api("GetModuleFileNameA"))
 typedef uint32_t (__attribute__((stdcall)) *api_GetTickCount_t)(void);
@@ -169,8 +167,6 @@ typedef intptr_t (__attribute__((stdcall)) *api_LoadLibraryA_t)(intptr_t);
 #define API_LoadLibraryA ((api_LoadLibraryA_t)g_eng.api("LoadLibraryA"))
 typedef intptr_t (__attribute__((stdcall)) *api_MessageBoxA_t)(intptr_t, intptr_t, intptr_t, intptr_t);
 #define API_MessageBoxA ((api_MessageBoxA_t)g_eng.api("MessageBoxA"))
-typedef intptr_t (__attribute__((stdcall)) *api_OutputDebugStringA_t)(intptr_t);
-#define API_OutputDebugStringA ((api_OutputDebugStringA_t)g_eng.api("OutputDebugStringA"))
 typedef intptr_t (__attribute__((stdcall)) *api_PeekMessageA_t)(intptr_t, intptr_t, intptr_t, intptr_t, intptr_t);
 #define API_PeekMessageA ((api_PeekMessageA_t)g_eng.api("PeekMessageA"))
 typedef intptr_t (__attribute__((stdcall)) *api_Polygon_t)(intptr_t, intptr_t, intptr_t);
@@ -189,7 +185,6 @@ typedef intptr_t (__attribute__((stdcall)) *api_WaitMessage_t)(void);
 #define API_WaitMessage ((api_WaitMessage_t)g_eng.api("WaitMessage"))
 #define CRT_fclose ((intptr_t (*)())g_eng.retail(0x5bf440u))   /* retail's CRT fclose (cdecl) */
 #define CRT_fopen ((intptr_t (*)())g_eng.retail(0x5bf4e8u))   /* retail's CRT fopen (cdecl) */
-#define CRT_fprintf ((intptr_t (*)())g_eng.retail(0x5bf496u))   /* retail's CRT fprintf (cdecl) */
 #define CRT_fscanf ((intptr_t (*)())g_eng.retail(0x5c08f1u))   /* retail's CRT fscanf (cdecl) */
 #define CRT_fseek ((intptr_t (*)())g_eng.retail(0x5c0865u))   /* retail's CRT fseek (cdecl) */
 int32_t wm_5afb00(wl_char *self, char * a2, uint16_t a3, int32_t a4);
@@ -802,10 +797,10 @@ int32_t wm_5b0890(char * a1, int32_t a2, int32_t a3)
     char * v6 = 0;
     char * v7 = 0;
     char v8 = 0;
-    FILE * v9 = 0;
+    intptr_t * v9 = 0;
     uint32_t v10 = 0;
     intptr_t LibraryA = 0;
-    FILE * v12 = 0;
+    intptr_t * v12 = 0;
     uint32_t LastError = 0;
     uint32_t v15 = 0;
     uint32_t v16 = 0;
@@ -820,7 +815,7 @@ int32_t wm_5b0890(char * a1, int32_t a2, int32_t a3)
     char *Buffer = (char *)(frame_ + 0x110);   /* [256] at ebp-0x600 */
     char *OutputString = (char *)(frame_ + 0x210);   /* [256] at ebp-0x500 */
     char *Filename = (char *)(frame_ + 0x310);   /* [1024] at ebp-0x400 */
-    SYSTEMTIME *const SystemTime__f = (SYSTEMTIME *)(frame_ + 0x0);   /* ebp-0x710 */
+    intptr_t *const SystemTime__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x710 */
 
   Filename[0] = F8(D(0x8a9b6c), 0);
   memset(&Filename[1], 0, 1023);
@@ -842,26 +837,7 @@ int32_t wm_5b0890(char * a1, int32_t a2, int32_t a3)
   }
   else
   {
-    API_OutputDebugStringA((intptr_t)(((char *)D(0x8a2850))));
-    API_OutputDebugStringA((intptr_t)(D(0x8a9b6c)));
-    API_OutputDebugStringA((intptr_t)(((char *)D(0x854570))));
-    v9 = CRT_fopen(((char *)D(0x8a9530) + 0x404), ((char *)D(0x85456c)));
-    if ( v9 != 0 )
-    {
-      API_GetLocalTime((intptr_t)(&(*SystemTime__f)));
-      CRT_fprintf(
-        v9,
-        "%04d/%02d/%02d %02d:%02d:%02d  %s %s \n",
-        (*SystemTime__f).wYear,
-        (*SystemTime__f).wMonth,
-        (*SystemTime__f).wDay,
-        (*SystemTime__f).wHour,
-        (*SystemTime__f).wMinute,
-        (*SystemTime__f).wSecond,
-        ((char *)D(0x8a2850)),
-        D(0x8a9b6c));
-      CRT_fclose(v9);
-    }
+    g_eng.log_fail_406440(g_eng.log, (const char *)(((char *)D(0x8a2850))), (const char *)(D(0x8a9b6c)));
     v10 = strlen(a1) + 1;
     qmemcpy(LibFileName, a1, 4 * (v10 >> 2));
     v7 = &a1[4 * (v10 >> 2)];
@@ -906,26 +882,7 @@ int32_t wm_5b0890(char * a1, int32_t a2, int32_t a3)
       g_eng.log_fail_406440((const char *)D(0x8a9530), ((char *)D(0x8a2838)), LibFileName);
       g_eng.h5bf5db(0);
     }
-    API_OutputDebugStringA((intptr_t)(((char *)D(0x8a2838))));
-    API_OutputDebugStringA((intptr_t)(LibFileName));
-    API_OutputDebugStringA((intptr_t)(((char *)D(0x854570))));
-    v12 = CRT_fopen(((char *)D(0x8a9530) + 0x404), ((char *)D(0x85456c)));
-    if ( v12 != 0 )
-    {
-      API_GetLocalTime((intptr_t)(&(*SystemTime__f)));
-      CRT_fprintf(
-        v12,
-        "%04d/%02d/%02d %02d:%02d:%02d  %s %s \n",
-        (*SystemTime__f).wYear,
-        (*SystemTime__f).wMonth,
-        (*SystemTime__f).wDay,
-        (*SystemTime__f).wHour,
-        (*SystemTime__f).wMinute,
-        (*SystemTime__f).wSecond,
-        ((char *)D(0x8a2838)),
-        LibFileName);
-      CRT_fclose(v12);
-    }
+    g_eng.log_fail_406440(g_eng.log, (const char *)(((char *)D(0x8a2838))), (const char *)(LibFileName));
   }
   return LibraryA;
 }

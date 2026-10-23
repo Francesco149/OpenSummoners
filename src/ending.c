@@ -605,7 +605,7 @@ int32_t en_5a00c0(wl_char *self)
 {
     intptr_t c = (intptr_t)self;
     char * name = 0;
-    FILE * v2 = 0;
+    intptr_t * v2 = 0;
     uint16_t v3 = 0;
     intptr_t v4 = 0;
     uint32_t v5 = 0;
@@ -1188,26 +1188,7 @@ int32_t en_5a00c0(wl_char *self)
     else if ( W_sd_5bcb80((intptr_t)(SYS32(0x2884)), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0), (intptr_t)(0)) == 0 )
     {
       name = (SYS32(0x2884) + 0x2c);
-      API_OutputDebugStringA((intptr_t)((SYS32(0x2884) + 0x2c)));
-      API_OutputDebugStringA((intptr_t)(D(0x8a9b6c)));
-      API_OutputDebugStringA((intptr_t)(((char *)D(0x854570))));
-      v2 = CRT_fopen(((char *)D(0x8a9530) + 0x404), ((char *)D(0x85456c)));
-      if ( v2 != 0 )
-      {
-        API_GetLocalTime((intptr_t)(&(*SystemTime__f)));
-        CRT_fprintf(
-          v2,
-          "%04d/%02d/%02d %02d:%02d:%02d  %s %s \n",
-          (*SystemTime__f).wYear,
-          (*SystemTime__f).wMonth,
-          (*SystemTime__f).wDay,
-          (*SystemTime__f).wHour,
-          (*SystemTime__f).wMinute,
-          (*SystemTime__f).wSecond,
-          name,
-          D(0x8a9b6c));
-        CRT_fclose(v2);
-      }
+      g_eng.log_fail_406440(g_eng.log, (const char *)((SYS32(0x2884) + 0x2c)), (const char *)(D(0x8a9b6c)));
     }
   }
   (*v150__f) = 17;
@@ -2684,19 +2665,19 @@ int32_t en_5a3870(wl_char *self, int32_t * a2)
     uint32_t v18 = 0;
     uint32_t LastError = 0;
     uint32_t v20 = 0;
-    FILE * v21 = 0;
+    intptr_t * v21 = 0;
     uint32_t v22 = 0;
     char * v23 = 0;
     char * v24 = 0;
     char * v25 = 0;
     char v26 = 0;
     uint32_t v27 = 0;
-    FILE * v28 = 0;
+    intptr_t * v28 = 0;
     _Alignas(8) uint8_t frame_[0x220 + 0x10];   /* the stack locals at their ebp offsets */
     memset(frame_, 0, sizeof frame_);
     char *OutputString = (char *)(frame_ + 0x20);   /* [256] at ebp-0x200 */
     char *Buffer = (char *)(frame_ + 0x120);   /* [256] at ebp-0x100 */
-    SYSTEMTIME *const SystemTime__f = (SYSTEMTIME *)(frame_ + 0x0);   /* ebp-0x220 */
+    intptr_t *const SystemTime__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x220 */
     intptr_t *const v30__f = (intptr_t *)(frame_ + 0x10);   /* ebp-0x210 */
     intptr_t *const v31__f = (intptr_t *)(frame_ + 0x14);   /* ebp-0x20c */
     intptr_t *const v32__f = (intptr_t *)(frame_ + 0x18);   /* ebp-0x208 */
@@ -2761,26 +2742,7 @@ LABEL_16:
               {
                 API_FormatMessageA((intptr_t)(0x12FFu), (intptr_t)(0), (intptr_t)(LastError), (intptr_t)(0), (intptr_t)(Buffer), (intptr_t)(0xFFu), (intptr_t)(0));
                 g_eng.h5bf3ee(OutputString, "[%08d] %s", v20, Buffer);
-                API_OutputDebugStringA((intptr_t)(OutputString));
-                API_OutputDebugStringA((intptr_t)(D(0x8a9b6c)));
-                API_OutputDebugStringA((intptr_t)(((char *)D(0x854570))));
-                v21 = CRT_fopen(((char *)D(0x8a9530) + 0x404), ((char *)D(0x85456c)));
-                if ( v21 != 0 )
-                {
-                  API_GetLocalTime((intptr_t)(&(*SystemTime__f)));
-                  CRT_fprintf(
-                    v21,
-                    "%04d/%02d/%02d %02d:%02d:%02d  %s %s \n",
-                    (*SystemTime__f).wYear,
-                    (*SystemTime__f).wMonth,
-                    (*SystemTime__f).wDay,
-                    (*SystemTime__f).wHour,
-                    (*SystemTime__f).wMinute,
-                    (*SystemTime__f).wSecond,
-                    OutputString,
-                    D(0x8a9b6c));
-                  CRT_fclose(v21);
-                }
+                g_eng.log_fail_406440(g_eng.log, (const char *)(OutputString), (const char *)(D(0x8a9b6c)));
               }
               F32(((uint8_t *)D(0x8a9530) + 0x000), 0) = 1;
               if ( strlen((const char *)&((uint8_t *)D(0x8a9530) + 0x000)[4]) != 0 )
@@ -2803,26 +2765,7 @@ LABEL_16:
               }
               qmemcpy(v24, v25, v26 & 3);
               strcat((char *)&((uint8_t *)D(0x8a9530) + 0x000)[4], D(0x8a9b6c));
-              API_OutputDebugStringA((intptr_t)(((char *)D(0x855040))));
-              API_OutputDebugStringA((intptr_t)(D(0x8a9b6c)));
-              API_OutputDebugStringA((intptr_t)(((char *)D(0x854570))));
-              v28 = CRT_fopen(((char *)D(0x8a9530) + 0x404), ((char *)D(0x85456c)));
-              if ( v28 != 0 )
-              {
-                API_GetLocalTime((intptr_t)(&(*SystemTime__f)));
-                CRT_fprintf(
-                  v28,
-                  "%04d/%02d/%02d %02d:%02d:%02d  %s %s \n",
-                  (*SystemTime__f).wYear,
-                  (*SystemTime__f).wMonth,
-                  (*SystemTime__f).wDay,
-                  (*SystemTime__f).wHour,
-                  (*SystemTime__f).wMinute,
-                  (*SystemTime__f).wSecond,
-                  ((char *)D(0x855040)),
-                  D(0x8a9b6c));
-                CRT_fclose(v28);
-              }
+              g_eng.log_fail_406440(g_eng.log, (const char *)(((char *)D(0x855040))), (const char *)(D(0x8a9b6c)));
               g_eng.h5bf5db(0);
             }
             a2[1536] = v8 + 1;

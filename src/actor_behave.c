@@ -984,7 +984,7 @@ int32_t ab_553520(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5,
     int32_t * *const v75__f = (int32_t * *)(frame_ + 0x44);   /* ebp-0x11c */
     intptr_t *const v76__f = (intptr_t *)(frame_ + 0x48);   /* ebp-0x118 */
     intptr_t *const v77__f = (intptr_t *)(frame_ + 0x4c);   /* ebp-0x114 */
-    SYSTEMTIME *const SystemTime__f = (SYSTEMTIME *)(frame_ + 0x50);   /* ebp-0x110 */
+    intptr_t *const SystemTime__f = (intptr_t *)(frame_ + 0x50);   /* ebp-0x110 */
 
   (*Stream__f) = 0;
   (*v71__f) = 0;
@@ -1202,26 +1202,7 @@ LABEL_44:
     {
       v34 = 0;
       g_eng.h5bf3ee(OutputString, "%d", F32(v33, 468));
-      API_OutputDebugStringA((intptr_t)(((char *)D(0x85451c))));
-      API_OutputDebugStringA((intptr_t)(OutputString));
-      API_OutputDebugStringA((intptr_t)(((char *)D(0x854570))));
-      (*Streama__f) = CRT_fopen(((char *)D(0x8a9530) + 0x404), ((char *)D(0x85456c)));
-      if ( (*Streama__f) != 0 )
-      {
-        API_GetLocalTime((intptr_t)(&(*SystemTime__f)));
-        CRT_fprintf(
-          (*Streama__f),
-          "%04d/%02d/%02d %02d:%02d:%02d  %s %s \n",
-          (*SystemTime__f).wYear,
-          (*SystemTime__f).wMonth,
-          (*SystemTime__f).wDay,
-          (*SystemTime__f).wHour,
-          (*SystemTime__f).wMinute,
-          (*SystemTime__f).wSecond,
-          ((char *)D(0x85451c)),
-          OutputString);
-        CRT_fclose((*Streama__f));
-      }
+      g_eng.log_fail_406440(g_eng.log, (const char *)(((char *)D(0x85451c))), (const char *)(OutputString));
     }
     (*Stream__f) = 1;
     v35 = F32(F32((v33 + 64), 0) + 660 * v34, 44);
