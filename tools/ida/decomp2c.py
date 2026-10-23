@@ -756,6 +756,35 @@ def global_cls(text):
     return text
 
 
+def scale_this_sum(s, pat, n):
+    """`this + <expr>` -> `this + n * (<expr>)`, <expr> running to the enclosing argument's end (a top-level `,` / `;`
+    or the closing paren) — the pointer arithmetic of a sized `this`"""
+    out, pos = [], 0
+    for m in re.finditer(pat, s):
+        if m.start() < pos:
+            continue
+        j, depth = m.end(), 0
+        while j < len(s):
+            ch = s[j]
+            if ch in "([":
+                depth += 1
+            elif ch in ")]":
+                if depth == 0:
+                    break
+                depth -= 1
+            elif ch in ",;?:" and depth == 0:
+                break
+            elif ch == "=" and depth == 0 and s[j + 1:j + 2] != "=" and s[j - 1:j] not in "=!<>":
+                break
+            j += 1
+        e = s[m.end():j].rstrip()
+        if not e:
+            continue
+        out.append(s[pos:m.end()] + f"{n} * ({e})")
+        pos = m.end() + len(e)
+    return "".join(out) + s[pos:]
+
+
 def convert(text, names, widths, this):
     text = global_cls(text)
     INDEXED.clear()
@@ -864,8 +893,8 @@ def convert(text, names, widths, this):
         off, w = fields.get(nom, (nom, 4))
         return f"{W.get(w, 'F32')}({base}, 0x{off:x})"
     if tsize > 1:   # `this + n` (no cast) moves by whole objects, as in the asm
-        s = re.sub(r"(?<![\w)*])this \+ ((?:[\w.]+|\((?:[^()]|\([^()]*\))*\))(?: [*/] (?:[\w.]+|\([^()]*\)))*)(?=\s*[;,)])",
-                   lambda m: f"this + {tsize} * ({m.group(1)})", s)   # (one operand: 0x5bb180's `this + 1, 0)` keeps its 0)
+        s = scale_this_sum(s, r"(?<![\w)*])this \+ ", tsize)   # (to the argument's end: 0x5bb180's `this + 1, 0)`
+        # keeps its 0; 0x484bc0's `this + 1536 * a2 + 12 * a3` scales whole)
         if tsize in (1, 2, 4, 8):   # `*(this + n)` of a word-sized class: the whole object by value (0x42b5f0's `*(this + 7) = ...`)
             s = re.sub(r"\*\(this \+ %d \* \(([^()]+)\)\)" % tsize,
                        lambda m: f"{ {1: 'F8', 2: 'F16', 4: 'F32', 8: 'F64'}[tsize]}(this, {tsize} * ({m.group(1)}))", s)
@@ -911,8 +940,7 @@ def convert(text, names, widths, this):
         s = re.sub(r"\*this\b", "(*" + this_expr + ")", s)
         esz = {"uint8_t": 1, "char": 1, "int8_t": 1, "uint16_t": 2, "int16_t": 2}.get(this_expr[2:].split(" *")[0], 4)
         if esz > 1 and not (tp and tp.group(1) in SHELL_SIZE and len(tp.group(2)) == 1):   # ... and `this + n` as a value (`v4 = this + 2604` = +10416 bytes for a _DWORD *this)
-            s = re.sub(r"(?<![\w)*])\bthis \+ ((?:[\w.]+|\((?:[^()]|\([^()]*\))*\))(?: [*/] (?:[\w.]+|\([^()]*\)))*)(?=\s*[;,)])",
-                       lambda m: f"this + {esz} * ({m.group(1)})", s)
+            s = scale_this_sum(s, r"(?<![\w)*])\bthis \+ ", esz)
     s = re.sub(r"\bthis\b", this, s)
     s = s.replace("nullptr", "0")
     s = re.sub(r"\*\*\(\((?:_DWORD|int|cls_\w+) \*\*\)(\w+) \+ (\d+)\)", r"F32(F32(\1, 4 * \2), 0)", s)   # `**((_DWORD **)v + n)`
@@ -960,6 +988,11 @@ def convert(text, names, widths, this):
             # ... and so does its ++ / -- (0x56c430's dword walk: `++v3` is +4)
             s = re.sub(r"(?m)^(\s*)(?:\+\+%s|%s\+\+);" % (re.escape(v), re.escape(v)), lambda m: f"{m.group(1)}{v} += {n};", s)
             s = re.sub(r"(?m)^(\s*)(?:--%s|%s--);" % (re.escape(v), re.escape(v)), lambda m: f"{m.group(1)}{v} -= {n};", s)
+            # ... anywhere else too (a for header's `++i`: 0x479a10 walked its 4-byte slots a byte at a time)
+            s = re.sub(r"(?<![\w+])\+\+%s\b" % re.escape(v), f"({v} += {n})", s)
+            s = re.sub(r"(?<![\w-])--%s\b" % re.escape(v), f"({v} -= {n})", s)
+            s = re.sub(r"\b%s\+\+(?![\w+])" % re.escape(v), f"(({v} += {n}) - {n})", s)
+            s = re.sub(r"\b%s--(?![\w-])" % re.escape(v), f"(({v} -= {n}) + {n})", s)
     for v, (cls, n) in CLSIDX.items():   # a class pointer kept as an integer, indexed: by the class size
         _, fs0, gs0 = class_layout(cls)
         el = lambda i: f"({v} + ({i}) * 0x{n:x})"

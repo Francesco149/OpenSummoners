@@ -71,6 +71,8 @@
 #include "ai_skill.h"
 #include "script_io.h"
 #include "frame_load.h"
+#include "engine_rest.h"
+#include "leftovers.h"
 #include "title_extra.h"
 #include "ending.h"
 #include "gamepad.h"
@@ -488,6 +490,24 @@ typedef struct {
     X(H_TS59D900, "ts_59d900", 0x59d900u) X(H_TS59DC60, "ts_59dc60", 0x59dc60u) X(H_TS59DF50, "ts_59df50", 0x59df50u) \
     X(H_TS59E1D0, "ts_59e1d0", 0x59e1d0u) X(H_TS59E230, "ts_59e230", 0x59e230u) X(H_TS59E5D0, "ts_59e5d0", 0x59e5d0u) \
     X(H_TS59E9E0, "ts_59e9e0", 0x59e9e0u) \
+    X(H_LO479960, "lo_479960", 0x479960u) X(H_LO479A10, "lo_479a10", 0x479a10u) X(H_LO479DE0, "lo_479de0", 0x479de0u) \
+    X(H_LO406440, "lo_406440", 0x406440u) X(H_LO401140, "lo_401140", 0x401140u) X(H_LO4011B0, "lo_4011b0", 0x4011b0u) \
+    X(H_LO4013A0, "lo_4013a0", 0x4013a0u) X(H_LO401730, "lo_401730", 0x401730u) \
+    X(H_EL401DF0, "el_401df0", 0x401df0u) X(H_EL402890, "el_402890", 0x402890u) X(H_EL407F30, "el_407f30", 0x407f30u) \
+    X(H_EL40A2E0, "el_40a2e0", 0x40a2e0u) X(H_EL40AC90, "el_40ac90", 0x40ac90u) X(H_EL415AE0, "el_415ae0", 0x415ae0u) \
+    X(H_EL4192F0, "el_4192f0", 0x4192f0u) X(H_EL419980, "el_419980", 0x419980u) X(H_EL41B470, "el_41b470", 0x41b470u) \
+    X(H_EL41C390, "el_41c390", 0x41c390u) X(H_EL41CB10, "el_41cb10", 0x41cb10u) \
+    X(H_EL41DB30, "el_41db30", 0x41db30u) X(H_EL41DBA0, "el_41dba0", 0x41dba0u) X(H_EL41E070, "el_41e070", 0x41e070u) \
+    X(H_EL41E4C0, "el_41e4c0", 0x41e4c0u) X(H_EL41F0C0, "el_41f0c0", 0x41f0c0u) X(H_EL426110, "el_426110", 0x426110u) \
+    X(H_EL438970, "el_438970", 0x438970u) X(H_EL43C1B0, "el_43c1b0", 0x43c1b0u) X(H_EL43D4B0, "el_43d4b0", 0x43d4b0u) \
+    X(H_EL43D540, "el_43d540", 0x43d540u) X(H_EL43D830, "el_43d830", 0x43d830u) X(H_EL43DD30, "el_43dd30", 0x43dd30u) \
+    X(H_EL43E010, "el_43e010", 0x43e010u) X(H_EL441DE0, "el_441de0", 0x441de0u) X(H_EL4428F0, "el_4428f0", 0x4428f0u) \
+    X(H_EL44BF60, "el_44bf60", 0x44bf60u) X(H_EL4675C0, "el_4675c0", 0x4675c0u) X(H_EL467750, "el_467750", 0x467750u) \
+    X(H_EL468970, "el_468970", 0x468970u) X(H_EL479CA0, "el_479ca0", 0x479ca0u) X(H_EL47A300, "el_47a300", 0x47a300u) \
+    X(H_EL47A420, "el_47a420", 0x47a420u) X(H_EL47A7F0, "el_47a7f0", 0x47a7f0u) X(H_EL49D330, "el_49d330", 0x49d330u) \
+    X(H_EL49EEA0, "el_49eea0", 0x49eea0u) X(H_EL4C5AF0, "el_4c5af0", 0x4c5af0u) X(H_EL4CC0E0, "el_4cc0e0", 0x4cc0e0u) \
+    X(H_EL54ED80, "el_54ed80", 0x54ed80u) X(H_EL5534D0, "el_5534d0", 0x5534d0u) X(H_EL556E50, "el_556e50", 0x556e50u) \
+    X(H_EL55FDB0, "el_55fdb0", 0x55fdb0u) \
     /* (wire.py: new modules' rows go above this line) */ \
     X(H_SC401D80, "sc_401d80", 0x401d80u) X(H_SC402030, "sc_402030", 0x402030u) X(H_SC4020A0, "sc_4020a0", 0x4020a0u) \
     X(H_SC4024E0, "sc_4024e0", 0x4024e0u) X(H_SC402610, "sc_402610", 0x402610u) X(H_SC402F40, "sc_402f40", 0x402f40u) \
@@ -5014,6 +5034,58 @@ TC_HOOK0(H_TS59E1D0, "ts_59e1d0", 1, return (intptr_t)ts_59e1d0((wl_char *)self)
 TC_HOOK0(H_TS59E230, "ts_59e230", 1, return (intptr_t)ts_59e230((wl_char *)self))
 TC_HOOK(H_TS59E5D0, "ts_59e5d0", 1, 1, return (intptr_t)ts_59e5d0((wl_char *)self, (int16_t)a1))
 TC_HOOK(H_TS59E9E0, "ts_59e9e0", 1, 1, return (intptr_t)ts_59e9e0((wl_char *)self, a1))
+/* the AI's input-ring helpers, the logger, the launcher (src/leftovers.c; decomp2c): REPLACE only */
+TC_HOOK(H_LO479960, "lo_479960", 9, 1, return (intptr_t)lo_479960((wl_char *)self, a1, a2, a3, a4, a5, a6, a7, (int32_t *)a8, a9))
+TC_HOOK(H_LO479A10, "lo_479a10", 6, 1, return (intptr_t)lo_479a10((wl_char *)self, a1, a2, a3, a4, a5, a6))
+ST_HOOK(H_LO479DE0, "lo_479de0", 3, 1, return (intptr_t)lo_479de0(a1, (int16_t)a2, (int16_t)a3))
+TC_HOOK(H_LO406440, "lo_406440", 2, 1, return (intptr_t)lo_406440((wl_char *)self, (char *)a1, (char *)a2))
+ST_HOOK0(H_LO401140, "lo_401140", 1, return (intptr_t)lo_401140())
+ST_HOOK0(H_LO4011B0, "lo_4011b0", 1, return (intptr_t)lo_4011b0())
+ST_HOOK0(H_LO4013A0, "lo_4013a0", 1, return (intptr_t)lo_4013a0())
+ST_HOOK(H_LO401730, "lo_401730", 1, 1, return (intptr_t)lo_401730(a1))
+/* the engine's remaining unreached callees (src/engine_rest.c; decomp2c): REPLACE only — UNVERIFIED */
+TC_HOOK(H_EL401DF0, "el_401df0", 2, 1, return (intptr_t)el_401df0((wl_char *)self, a1, a2))
+TC_HOOK(H_EL402890, "el_402890", 1, 1, return (intptr_t)el_402890((wl_char *)self, a1))
+TC_HOOK(H_EL407F30, "el_407f30", 3, 1, return (intptr_t)el_407f30((wl_char *)self, (char *)a1, a2, a3))
+ST_HOOK(H_EL40A2E0, "el_40a2e0", 1, 1, return (intptr_t)el_40a2e0(a1))
+TC_HOOK(H_EL40AC90, "el_40ac90", 6, 1, return (intptr_t)el_40ac90((wl_char *)self, a1, a2, a3, a4, a5, a6))
+TC_HOOK(H_EL415AE0, "el_415ae0", 3, 1, return (intptr_t)el_415ae0((wl_char *)self, a1, a2, a3))
+TC_HOOK(H_EL4192F0, "el_4192f0", 1, 1, return (intptr_t)el_4192f0((wl_char *)self, a1))
+TC_HOOK(H_EL419980, "el_419980", 1, 1, return (intptr_t)el_419980((wl_char *)self, U16(a1)))
+ST_HOOK(H_EL41B470, "el_41b470", 2, 1, return (intptr_t)el_41b470(a1, U16(a2)))
+TC_HOOK(H_EL41C390, "el_41c390", 9, 1, return (intptr_t)el_41c390((wl_char *)self, a1, a2, a3, a4, (char *)a5, a6, a7, a8, a9))
+TC_HOOK(H_EL41CB10, "el_41cb10", 1, 1, return (intptr_t)el_41cb10((wl_char *)self, a1))
+ST_HOOK(H_EL41DB30, "el_41db30", 2, 1, return (intptr_t)el_41db30(a1, a2))
+TC_HOOK(H_EL41DBA0, "el_41dba0", 3, 1, return (intptr_t)el_41dba0((wl_char *)self, a1, a2, (int32_t *)a3))
+TC_HOOK(H_EL41E070, "el_41e070", 1, 1, return (intptr_t)el_41e070((wl_char *)self, a1))
+TC_HOOK(H_EL41E4C0, "el_41e4c0", 3, 1, return (intptr_t)el_41e4c0((wl_char *)self, a1, a2, a3))
+ST_HOOK(H_EL41F0C0, "el_41f0c0", 3, 1, return (intptr_t)el_41f0c0(a1, a2, a3))
+TC_HOOK(H_EL426110, "el_426110", 3, 1, return (intptr_t)el_426110((wl_char *)self, (char *)a1, a2, (char *)a3))
+TC_HOOK(H_EL438970, "el_438970", 7, 1, return (intptr_t)el_438970((wl_char *)self, a1, a2, a3, a4, a5, a6, a7))
+TC_HOOK(H_EL43C1B0, "el_43c1b0", 3, 1, return (intptr_t)el_43c1b0((wl_char *)self, a1, a2, a3))
+ST_HOOK(H_EL43D4B0, "el_43d4b0", 2, 1, return (intptr_t)el_43d4b0((uint16_t *)a1, a2))
+TC_HOOK0(H_EL43D540, "el_43d540", 1, return (intptr_t)el_43d540((wl_char *)self))
+TC_HOOK0(H_EL43D830, "el_43d830", 1, return (intptr_t)el_43d830((wl_char *)self))
+TC_HOOK(H_EL43DD30, "el_43dd30", 2, 0, el_43dd30((wl_char *)self, (int32_t *)a1, U16(a2)); return 0)
+ST_HOOK(H_EL43E010, "el_43e010", 2, 1, return (intptr_t)el_43e010(a1, (char *)a2))
+TC_HOOK(H_EL441DE0, "el_441de0", 2, 1, return (intptr_t)el_441de0((wl_char *)self, (int32_t *)a1, a2))
+TC_HOOK0(H_EL4428F0, "el_4428f0", 1, return (intptr_t)el_4428f0((wl_char *)self))
+TC_HOOK(H_EL44BF60, "el_44bf60", 4, 0, el_44bf60((wl_char *)self, a1, a2, a3, a4); return 0)
+TC_HOOK(H_EL4675C0, "el_4675c0", 2, 1, return (intptr_t)el_4675c0((wl_char *)self, (int32_t *)a1, U16(a2)))
+TC_HOOK(H_EL467750, "el_467750", 2, 1, return (intptr_t)el_467750((wl_char *)self, a1, U16(a2)))
+TC_HOOK(H_EL468970, "el_468970", 1, 1, return (intptr_t)el_468970((wl_char *)self, a1))
+TC_HOOK(H_EL479CA0, "el_479ca0", 6, 1, return (intptr_t)el_479ca0((wl_char *)self, a1, a2, a3, a4, a5, a6))
+TC_HOOK(H_EL47A300, "el_47a300", 2, 1, return (intptr_t)el_47a300((wl_char *)self, a1, a2))
+TC_HOOK(H_EL47A420, "el_47a420", 2, 1, return (intptr_t)el_47a420((wl_char *)self, a1, a2))
+TC_HOOK(H_EL47A7F0, "el_47a7f0", 3, 1, return (intptr_t)el_47a7f0((wl_char *)self, a1, a2, a3))
+ST_HOOK(H_EL49D330, "el_49d330", 2, 0, el_49d330(a1, a2); return 0)
+TC_HOOK(H_EL49EEA0, "el_49eea0", 2, 1, return (intptr_t)el_49eea0((wl_char *)self, a1, a2))
+TC_HOOK(H_EL4C5AF0, "el_4c5af0", 3, 1, return (intptr_t)el_4c5af0((wl_char *)self, a1, a2, a3))
+TC_HOOK(H_EL4CC0E0, "el_4cc0e0", 1, 0, el_4cc0e0((wl_char *)self, a1); return 0)
+ST_HOOK0(H_EL54ED80, "el_54ed80", 1, return (intptr_t)el_54ed80())
+TC_HOOK(H_EL5534D0, "el_5534d0", 3, 1, return (intptr_t)el_5534d0((wl_char *)self, a1, a2, a3))
+ST_HOOK(H_EL556E50, "el_556e50", 5, 0, el_556e50(a1, a2, a3, a4, a5); return 0)
+TC_HOOK0(H_EL55FDB0, "el_55fdb0", 0, el_55fdb0((wl_char *)self); return 0)
 /* (wire.py: new modules' hook rows go above this line) */
 /* the chapter scripts' file / sound / DirectX-free callees (src/script_helpers.c; 0x4a5e40 0x4cbfb0 0x4cbfd0 0x4d6490
  * read their caller's ecx: thiscall wrappers) */
@@ -5449,7 +5521,8 @@ void rh_hooks_install(void)
         }
         /* reached BY ADDRESS too (a window procedure, the atexit shutdown, the EnumDevices callback): the port stores
          * retail's address there, so REPLACE also patches the entry with a jmp to the wrapper (the body is dead) */
-        static const uint32_t BYADDR[] = { 0x5b12e0u, 0x5b10d0u, 0x5ba200u };
+        static const uint32_t BYADDR[] = { 0x5b12e0u, 0x5b10d0u, 0x5ba200u,
+                                           0x401140u, 0x4011b0u, 0x4013a0u };   /* (+ reached through jmp thunks) */
         int byaddr = 0;
         for (size_t k = 0; k < sizeof BYADDR / sizeof BYADDR[0]; k++) byaddr |= h->va == BYADDR[k];
         if (byaddr && h->mode == 2) {
