@@ -494,6 +494,7 @@ typedef struct {
     X(H_LO479960, "lo_479960", 0x479960u) X(H_LO479A10, "lo_479a10", 0x479a10u) X(H_LO479DE0, "lo_479de0", 0x479de0u) \
     X(H_LO406440, "lo_406440", 0x406440u) X(H_LO401140, "lo_401140", 0x401140u) X(H_LO4011B0, "lo_4011b0", 0x4011b0u) \
     X(H_LO4013A0, "lo_4013a0", 0x4013a0u) X(H_LO401730, "lo_401730", 0x401730u) \
+    X(H_LO5A4760, "lo_5a4760", 0x5a4760u) X(H_LO58C8D0, "lo_58c8d0", 0x58c8d0u) X(H_LO54E4F0, "lo_54e4f0", 0x54e4f0u) \
     X(H_EL401DF0, "el_401df0", 0x401df0u) X(H_EL402890, "el_402890", 0x402890u) X(H_EL407F30, "el_407f30", 0x407f30u) \
     X(H_EL40A2E0, "el_40a2e0", 0x40a2e0u) X(H_EL40AC90, "el_40ac90", 0x40ac90u) X(H_EL415AE0, "el_415ae0", 0x415ae0u) \
     X(H_EL4192F0, "el_4192f0", 0x4192f0u) X(H_EL419980, "el_419980", 0x419980u) X(H_EL41B470, "el_41b470", 0x41b470u) \
@@ -5072,6 +5073,9 @@ ST_HOOK0(H_LO401140, "lo_401140", 1, return (intptr_t)lo_401140())
 ST_HOOK0(H_LO4011B0, "lo_4011b0", 1, return (intptr_t)lo_4011b0())
 ST_HOOK0(H_LO4013A0, "lo_4013a0", 1, return (intptr_t)lo_4013a0())
 ST_HOOK(H_LO401730, "lo_401730", 1, 1, return (intptr_t)lo_401730(a1))
+TC_HOOK0(H_LO5A4760, "lo_5a4760", 1, return (intptr_t)lo_5a4760((wl_char *)self))
+TC_HOOK(H_LO58C8D0, "lo_58c8d0", 3, 1, return (intptr_t)lo_58c8d0((wl_char *)self, a1, (int32_t *)a2, (int32_t *)a3))
+TC_HOOK(H_LO54E4F0, "lo_54e4f0", 3, 1, return (intptr_t)lo_54e4f0((wl_char *)self, a1, a2, a3))
 /* the engine's remaining unreached callees (src/engine_rest.c; decomp2c): REPLACE only — UNVERIFIED */
 TC_HOOK(H_EL401DF0, "el_401df0", 2, 1, return (intptr_t)el_401df0((wl_char *)self, a1, a2))
 TC_HOOK(H_EL402890, "el_402890", 1, 1, return (intptr_t)el_402890((wl_char *)self, a1))

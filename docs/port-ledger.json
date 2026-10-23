@@ -7,15 +7,15 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 1266,
-  "unported": 309,
+  "ported": 1269,
+  "unported": 306,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 1515,
-  "pct_touched": 98.0,
+  "touched": 1518,
+  "pct_touched": 98.2,
   "pct_tested": 15.7,
-  "engine_proper_touched": 1502,
+  "engine_proper_touched": 1505,
   "bytes_total": 1776526,
-  "bytes_touched": 1775963,
+  "bytes_touched": 1776237,
   "pct_bytes_touched": 100.0
  },
  "orphan_refs": [],
@@ -9788,8 +9788,10 @@
    "name": "sub_54E4F0",
    "size": 207,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/leftovers.h"
+   ]
   },
   {
    "va": "0x54e5c0",
@@ -11893,8 +11895,10 @@
    "name": "sub_58C8D0",
    "size": 51,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/leftovers.h"
+   ]
   },
   {
    "va": "0x58c910",
@@ -13092,8 +13096,10 @@
    "name": "??0_ReaderWriterLock@details@Concurrency@@QAE@XZ",
    "size": 16,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/leftovers.h"
+   ]
   },
   {
    "va": "0x5a4770",

@@ -14,10 +14,12 @@ REPLACE_ONLY / VERIFY lists in `rhost.py`) → `corpus --check --hook replace:..
 AND `--target wine` (600-frame sem series) → commit.  Debug: `rhost.py run SCEN --dump-at F` + `rhs.py A B` (state
 diff), `--extra="--watch-write VA@F"` (who writes), `--trap VA` (retail code only).
 
-- **Coverage:** 98.0% of engine functions touched (ledger), 100.0% of code bytes; the hybrid gate replaces retail
-  with ~1,320 port functions.  The later chapters' STORY SCRIPTS are port code (`src/story_scripts.c`, UNVERIFIED:
-  unreached; `story_find` + rhost's second script range H_ST_FIRST..H_ST_LAST).  Left: the frontier's 3 leaves
-  (0x5a4760 16 B, 0x58c8d0 51 B, 0x54e4f0 207 B), tiny CRT static-init thunks.  Every chapter-1 chapter script
+- **Coverage:** 98.2% of engine functions touched (ledger), 100.0% of code bytes, the frontier EMPTY; the hybrid
+  gate replaces retail with ~1,320 port functions.  The later chapters' STORY SCRIPTS are port code (`src/story_scripts.c`, UNVERIFIED:
+  unreached; `story_find` + rhost's second script range H_ST_FIRST..H_ST_LAST).  Left: tiny CRT static-init
+  thunks.  The decomp2c modules' remaining `RC_` calls are by design: the Flip 0x5b8fc0 and srand 0x5bf4fb
+  (rhost's stubs), the CRT 0x5c0907, and 0x43c110 (hand-ported as `input_poll_consume`, src/input.c — not bound by
+  name).  NEXT: recordings that reach the UNVERIFIED modules (story scripts, menus, the ending, …).  Every chapter-1 chapter script
   (35) is on in the hybrid set (0x49f7c0 since its book-record fix).
 - **UNVERIFIED modules** (unreached by the corpus; compile-checked, REPLACE-wired): menu_screens, menu_helpers,
   char_types, char_handlers2, actor_behave, sjis_text, gamepad, ending, title_extra (but 0x40fe00), engine_rest,

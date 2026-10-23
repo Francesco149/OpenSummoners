@@ -34,6 +34,7 @@ static intptr_t rnd(void) { return (intptr_t)rng_rand(); }
 #include "gamepad.h"
 #include "input_dev.h"
 #include "input_dik.h"
+#include "leftovers.h"
 #include "particle_init.h"
 #include "party_member.h"
 #include "render_draw.h"
@@ -131,7 +132,7 @@ static inline intptr_t W_al_57a330(intptr_t a0, intptr_t a1, intptr_t a2, ...) {
 static inline intptr_t W_al_57b280(intptr_t a0, intptr_t a1, intptr_t a2, ...) { return (intptr_t)al_57b280((int32_t)a0, (uint16_t)a1, (void *)a2); }
 static inline intptr_t W_al_57ca40(intptr_t a0, intptr_t a1, intptr_t a2, ...) { return (intptr_t)al_57ca40((void *)a0, (uint16_t)a1, (void *)a2); }
 static inline intptr_t W_al_582e90(intptr_t a0, ...) { return (intptr_t)al_582e90((wl_char *)a0); }
-static inline intptr_t W_al_583c90(intptr_t a0, intptr_t a1, ...) { return (intptr_t)al_583c90((wl_char *)a0, (int32_t)a1); }
+static inline intptr_t W_al_583c90(intptr_t a0, intptr_t a1, ...) { return (intptr_t)al_583c90((wl_char *)a0, (FILE *)a1); }
 static inline intptr_t W_al_583ee0(void) { return (intptr_t)al_583ee0(); }
 static inline intptr_t W_bs_5ba390(intptr_t a0, ...) { return (intptr_t)bs_5ba390((wl_char *)a0); }
 static inline intptr_t W_char_skills_refresh(intptr_t a0, intptr_t a1, ...) { return (intptr_t)char_skills_refresh((wl_char *)a0, (int32_t)a1); }
@@ -185,6 +186,7 @@ static inline intptr_t W_id_5ba650(intptr_t a0, ...) { return (intptr_t)id_5ba65
 static inline intptr_t W_input_ctor(intptr_t a0, ...) { input_ctor((uint8_t *)a0); return 0; }
 static inline intptr_t W_input_dik_produce(intptr_t a0, intptr_t a1, ...) { input_dik_produce((input_mgr *)a0, (const void *)a1); return 0; }
 static inline intptr_t W_input_dtor(intptr_t a0, ...) { input_dtor((uint8_t *)a0); return 0; }
+static inline intptr_t W_lo_5a4760(intptr_t a0, ...) { return (intptr_t)lo_5a4760((wl_char *)a0); }
 static inline intptr_t W_menu_pace(intptr_t a0, ...) { return (intptr_t)menu_pace((uint8_t *)a0); }
 static inline intptr_t W_mgr_win_to_back(intptr_t a0, intptr_t a1, ...) { return (intptr_t)mgr_win_to_back((uint8_t *)a0, (uint16_t)a1); }
 static inline intptr_t W_pool_head_delete(intptr_t a0, intptr_t a1, ...) { return (intptr_t)pool_head_delete((uint8_t *)a0, (int32_t)a1); }
@@ -265,8 +267,6 @@ static inline intptr_t W_zd_5bd3d0(intptr_t a0, intptr_t a1, ...) { return (intp
 static inline intptr_t W_zd_5bd4d0(intptr_t a0, ...) { return (intptr_t)zd_5bd4d0((wl_char *)a0); }
 typedef intptr_t (__attribute__((thiscall)) *rt_43c110)(intptr_t, intptr_t, intptr_t);   /* 0x43c110 thiscall: unported, retail's */
 #define RC_43c110 ((rt_43c110)g_eng.retail(0x43c110u))
-typedef intptr_t (__attribute__((thiscall)) *rt_5a4760)(intptr_t);   /* 0x5a4760 thiscall: unported, retail's */
-#define RC_5a4760 ((rt_5a4760)g_eng.retail(0x5a4760u))
 typedef intptr_t (__attribute__((thiscall)) *rt_5b8fc0)(intptr_t, intptr_t);   /* 0x5b8fc0 thiscall: unported, retail's */
 #define RC_5b8fc0 ((rt_5b8fc0)g_eng.retail(0x5b8fc0u))
 typedef intptr_t (__attribute__((stdcall)) *api_DeleteObject_t)(intptr_t);
@@ -1012,7 +1012,7 @@ int32_t tm_562ea0(wl_char *self, int32_t a2)
       g_eng.h408b90(D(0x8a6620), ((char *)D(0x8a0c3c)), 0, D(0x8a9b6c));
     if ( SYS32(780) == 0 )
     {
-      RC_5a4760((intptr_t)(&(*Rect__f).top));
+      W_lo_5a4760((intptr_t)(&(*Rect__f).top));
       SETLB((*v84__f), 9);
       top = tm_56aea0(&(*Rect__f).top, (*v76__f));
       SETLB((*v84__f), 1);
@@ -8285,4 +8285,4 @@ void tm_49a6e0(wl_char *self)
     F32(c, 0x8) = 0;
   }
 }
-/* unported callees: 0x43c110 0x5a4760 0x5b8fc0 */
+/* unported callees: 0x43c110 0x5b8fc0 */

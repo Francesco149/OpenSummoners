@@ -43,6 +43,11 @@ specific commits where relevant.
   addresses (fixed: both forms), and an unused `FILE *` / `SYSTEMTIME` local dragged `<windows.h>` into host-built
   modules (now a plain word; `<windows.h>` only when the final text keeps a Win32 struct).  The host suite links the
   chapter scripts, whose calls now reach mingw-only ports: `tests/host_stubs.c` (abort stubs, never run).
+- The frontier's last 3 leaves (`src/leftovers.c`): 0x5a4760 (two dwords cleared, returns this — FLIRT's
+  `_ReaderWriterLock` ctor; title_menu now calls the port), 0x58c8d0 (entry k's record addresses), 0x54e4f0 (the solid
+  test of a 3200-unit map block) — IDA misprints its index (`4 * (a3 / 2)`; the asm divides a3 by 3200: hand finish).
+  rhost shadow: 10 / 4,474 / 59,239 sampled (@256 of ~15M) calls, 0 divergences.  The frontier is EMPTY; ledger
+  98.2% of engine functions touched, 100.0% of bytes.
 - WALL-CLOCK audit (USER: "the longest sessions"), measured then fixed: decomp2c compiled + scanned a regex per data
   symbol (~9,600) per function — the story scripts' pass ~15 min → 108 s (byte-identical), a 27-module dry regen
   54 s; it also rescanned the caller's asm per call site and re-read the 10 MB decompile per function (memoized).

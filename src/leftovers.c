@@ -3,9 +3,13 @@
  * char_ai inlines them, retail's call sites reach these —, the LOGGER 0x406440 (the error flag + message, the dated
  * line appended through retail's CRT; every module's g_eng.log_fail_406440), and the LAUNCHER: its dialog procedure
  * DialogFunc 0x4013c0 (+ 0x401730; rhost shows no dialog), the splash window procedure 0x401210 and helpers 0x401140 /
- * 0x4011b0 / 0x4013a0.  See leftovers.h.
+ * 0x4011b0 / 0x4013a0.  The last three small engine leaves: 0x5a4760 (a two-dword clear returning this: FLIRT's
+ * `_ReaderWriterLock` ctor), 0x58c8d0 (entry k's two record addresses: +0x38 + 60k, +0x3c + 16k), 0x54e4f0 (the
+ * solid test of the 3200-unit map block at (a2, a3): its type word + height profile).  See leftovers.h.
  *
- * A FIRST PASS through tools/ida/decomp2c.py (--typed --zero-locals); no hand finish. */
+ * A FIRST PASS through tools/ida/decomp2c.py (--typed --zero-locals).  Hand finish: 0x54e4f0's cell index —
+ * IDA prints `this + 512 * (a2 / 3200) + 4 * (a3 / 2) + 327692`, the asm computes
+ * `16 * (128 * (a2 / 3200) + a3 / 3200 + 0x14003)` (regenerate with --keep 0x54e4f0). */
 #include "leftovers.h"
 
 #include <stddef.h>
@@ -145,6 +149,9 @@ int32_t lo_401210(int32_t hWnd, uint32_t Msg, uint32_t wParam, int32_t lParam);
 int32_t lo_4013a0(void);
 int32_t lo_4013c0(int32_t hDlg, uint32_t a2, uint32_t a3, int32_t a4);
 int32_t lo_401730(int32_t hDlg);
+int32_t lo_5a4760(wl_char *self);
+int32_t lo_58c8d0(wl_char *self, int32_t a2, int32_t * a3, int32_t * a4);
+int32_t lo_54e4f0(wl_char *self, int32_t a2, int32_t a3, int32_t a4);
 
 /* 0x479960: int __thiscall sub_479960( cls_479960 *this, int a2, unsigned int a3, unsigned int a4, int a5, int a6, int a7, int a8, _DWORD *a9, int a10) */
 int32_t lo_479960(wl_char *self, int32_t a2, uint32_t a3, uint32_t a4, int32_t a5, int32_t a6, int32_t a7, int32_t a8, int32_t * a9, int32_t a10)
@@ -659,4 +666,77 @@ int32_t lo_401730(int32_t hDlg)
   v6 = API_GetDlgItem((intptr_t)(hDlg), (intptr_t)(10023));
   return API_EnableWindow((intptr_t)(v6), (intptr_t)(v1));
 }
+/* 0x5a4760: _DWORD __thiscall Concurrency::details::_ReaderWriterLock::_ReaderWriterLock(cls_5A4760 *this) */
+int32_t lo_5a4760(wl_char *self)
+{
+    intptr_t c = (intptr_t)self;
+
+  F32(((uint8_t *)(c) + 0x0), 0) = 0;
+  *(_DWORD *)&GAP(c, 0x0, 4) = 0;
+  return c;
+}
+
+/* 0x58c8d0: int __thiscall sub_58C8D0(cls_58C8D0 *this, int a2, _DWORD *a3, int *a4) */
+int32_t lo_58c8d0(wl_char *self, int32_t a2, int32_t * a3, int32_t * a4)
+{
+    intptr_t c = (intptr_t)self;
+    intptr_t result = 0;
+
+  result = a2;
+  if ( a3 != 0 )
+    *a3 = F32(c, 0x38) + 60 * a2;
+  if ( a4 != 0 )
+  {
+    result = F32(c, 0x3c) + 16 * a2;
+    *a4 = result;
+  }
+  return result;
+}
+
+/* 0x54e4f0: int __thiscall sub_54E4F0(cls_54E4F0 *this, int a2, int a3, int a4) */
+int32_t lo_54e4f0(wl_char *self, int32_t a2, int32_t a3, int32_t a4)
+{
+    intptr_t c = (intptr_t)self;
+    intptr_t v4 = 0;
+    intptr_t v5 = 0;
+    intptr_t v6 = 0;
+    intptr_t v7 = 0;
+    uint16_t v8 = 0;
+    intptr_t v9 = 0;
+    intptr_t v10 = 0;
+    intptr_t result = 0;
+
+  v4 = c + 16 * (128 * (a2 / 3200) + a3 / 3200 + 0x14003);   /* (hand finish: IDA prints `4 * (a3 / 2)`; the asm
+                                                              * divides a3 by 3200 too — see the module header) */
+  v5 = F32(v4, (2) * 4);
+  v6 = a3 % 3200 / 100;
+  if ( v5 != 0 )
+  {
+    v7 = 32 - F8((a2 % 3200 / 100 + *(_DWORD *)&v5), 0);
+    if ( v6 > v7 )
+      v8 = F16(((uint8_t *)(v4) + 0x0), 0);
+    else
+      v8 = 0;
+    v9 = v7 + 1;
+  }
+  else
+  {
+    v8 = F16(((uint8_t *)(v4) + 0x0), 0);
+    v9 = 0;
+  }
+  v10 = v8 - 1;
+  if ( v10 != 0 )
+  {
+    if ( v10 == 9 )
+      return 0;
+  }
+  else
+  {
+    result = a4;
+    if ( (int)abs32(v6 - v9) <= 0 )
+      return result;
+  }
+  return 1;
+}
+
 /* unported callees: none */

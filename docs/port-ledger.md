@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **1515** (98.0% of engine-proper) — tested 249, ported 1266
-- code bytes touched: **100.0%** (1,775,963 / 1,776,526 B of engine-proper)
-- unported: **309**
+- touched: **1518** (98.2% of engine-proper) — tested 249, ported 1269
+- code bytes touched: **100.0%** (1,776,237 / 1,776,526 B of engine-proper)
+- unported: **306**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (1266) — reimplemented, no host test yet
+## ported (1269) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -1114,6 +1114,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x54cfc0 | sub_54CFC0 | 147 | shots.h |
 | 0x54d060 | sub_54D060 | 36 | arche_pose.h |
 | 0x54d090 | sub_54D090 | 2636 | entity_fx.c, entity_fx.h |
+| 0x54e4f0 | sub_54E4F0 | 207 | leftovers.h |
 | 0x54ecf0 | sub_54ECF0 | 137 | gimmick.h |
 | 0x54ed80 | sub_54ED80 | 592 | engine_rest.h |
 | 0x54efd0 | sub_54EFD0 | 358 | gimmick.h |
@@ -1253,6 +1254,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x587d30 | sub_587D30 | 28 | room_load.h |
 | 0x587d50 | sub_587D50 | 96 | room_load.h |
 | 0x587db0 | sub_587DB0 | 76 | room_load.h |
+| 0x58c8d0 | sub_58C8D0 | 51 | leftovers.h |
 | 0x58cf60 | sub_58CF60 | 83 | room_load.h |
 | 0x58cfc0 | sub_58CFC0 | 27 | room_load.h |
 | 0x58cfe0 | sub_58CFE0 | 63 | room_load.h |
@@ -1364,6 +1366,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5a4460 | sub_5A4460 | 30 | scene_loop.h |
 | 0x5a4480 | sub_5A4480 | 312 | scene_loop.h |
 | 0x5a45c0 | sub_5A45C0 | 409 | ending.h |
+| 0x5a4760 | ??0_ReaderWriterLock@details@Concurrency@@QAE@XZ | 16 | leftovers.h |
 | 0x5afb00 | sub_5AFB00 | 129 | win_app.h |
 | 0x5afb90 | sub_5AFB90 | 96 | win_app.h |
 | 0x5afbf0 | sub_5AFBF0 | 146 | win_app.h |
