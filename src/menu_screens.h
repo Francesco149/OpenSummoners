@@ -1,6 +1,6 @@
 /*
  * menu_screens.{c,h} — the main menu's other screens (level-up, Status, Items, Abilities, Party Commands).  Retail
- * layout; REPLACE-wired in rhost (UNVERIFIED until a recording opens them).  Names by VA.
+ * layout; REPLACE-wired in rhost (rh-early-game verifies all but the level-up screen).  Names by VA.
  *
  *   FUN_005915c0  mm_5915c0   FUN_00592020  mm_592020   FUN_00592190  mm_592190   FUN_00592850  mm_592850
  *   FUN_00593d90  mm_593d90   FUN_00593e40  mm_593e40   FUN_00593f60  mm_593f60   FUN_005943e0  mm_5943e0

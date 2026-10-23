@@ -5,8 +5,9 @@
  * 0x409150.  See menu_helpers.h.
  *
  * A FIRST PASS through tools/ida/decomp2c.py (--typed --zero-locals); no hand finish.  0x5b1f10 is IDA's __fastcall
- * whose edx is never read: a thiscall + 6 stack arguments.  UNVERIFIED: the corpus reaches none of them (REPLACE-
- * wired, compile-checked). */
+ * whose edx is never read: a thiscall + 6 stack arguments.  REPLACE-verified by rh-early-game (2026-10-23):
+ * 0x418ec0 0x4199b0 0x419c70 0x419eb0 0x4e6520 (the start gear) 0x5b1f10 (the item use) 0x5b35f0; the rest UNVERIFIED
+ * (unreached; REPLACE-wired, compile-checked). */
 #include "menu_helpers.h"
 
 #include <stddef.h>

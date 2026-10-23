@@ -6,6 +6,25 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-23 (evening) — rh-early-game: the main menu's screens, the shop's Sell, the item use verified
+
+- The USER's new recording `rh-early-game` (137.7k flips, fresh new game: more of the story, a statue save, selling
+  at the shop, Status / Items / Abilities / Party Commands) reaches 82 functions no scenario reached (47 KB; coverage
+  diff vs the 2026-10-17 union) — all port code already, REPLACE-wired but UNVERIFIED.  The hybrid gate replaces
+  retail with them for free.
+- First hybrid run: AV f32682 (read 0xc4) in Abilities `0x5956c0`.  IDA's decompile `v25 = v24[181]; strcpy(v47,
+  v25 + 196)` reorders a register reload: the asm takes the name from the RECORD's +0xc4 (`lea edi, [edx+0C4h]`)
+  before `mov edx, [edx+2D4h]` (the MP cost).  Fixed (+ the table walk's head: IDA folded `dword_6826C0` to 10101).
+  A scan of all_ida.c for the same shape: no other.  Then: frame / tick / RNG / fb equal to pure retail, only the
+  end `state_sem` off — rhs.py: 0 non-pointer dwords; the scenario reaches system-pointer slots the volatile list
+  never saw.  `det rh-early-game -n 3 --calibrate`: PASS, +1,229 slots (32,330 → 33,559); every scenario re-blessed
+  (only `state_sem` moved).  Hybrid gate PASS 10/10 on Windows.  Wine: rh-early-game's whole 600-frame series
+  (230 samples, semv + fb) and end semv matched pure under the pre-calibration mask (stricter: fewer masked bytes);
+  the other scenarios re-checked under the new mask (series + end).  Shadow verify of the 9 newly reached shadow
+  hooks: 1,299 calls, 0 div.
+- rhost footgun: two wine batches can't overlap (a batch's start runs `wineserver -k`); a retail crash under wine
+  can hang in `winedbg --auto` (README).
+
 ## 2026-10-23 — the platform layer and the program's top as port code; every unreached group but the story scripts
 
 - An overnight run off the existing corpus (no new traces). 13 commits, each with `corpus --check` on its hooks and

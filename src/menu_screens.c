@@ -4,8 +4,12 @@
  * use), ABILITIES 0x596b50 / 0x5956c0 (+ 0x595dd0..0x596ac0), the options page helpers 0x597480 / 0x5974b0 / 0x597670,
  * PARTY COMMANDS 0x598d00 (+ 0x5990b0..0x599e60).  See menu_screens.h.
  *
- * A FIRST PASS through tools/ida/decomp2c.py (--typed --zero-locals); no hand finish.  UNVERIFIED: no recording opens
- * these screens yet (rh-combat reaches the main menu itself, `src/field_menu.c`); REPLACE-wired, compile-checked. */
+ * A FIRST PASS through tools/ida/decomp2c.py (--typed --zero-locals); no hand finish.  REPLACE-verified by rh-early-game
+ * (2026-10-23: the hybrid gate's end state + every frame's pixels, wine's 600-frame series): Status 0x592190 / 0x592850
+ * (+ 0x593d90 / 0x593e40), Items 0x593f60 / 0x5943e0 / 0x594a20 / 0x594c80 / 0x594f40 / 0x595320 / 0x595350,
+ * Abilities 0x596b50 / 0x5956c0 / 0x595dd0 / 0x5963a0 / 0x596ac0, the options helpers 0x597480 / 0x5974b0 / 0x597670,
+ * Party Commands 0x598d00 / 0x5990b0 / 0x599140 / 0x5994e0 / 0x599a60 / 0x599ac0 / 0x599e60.  UNVERIFIED (unreached):
+ * the level-up screen 0x5915c0 / 0x592020, 0x5962a0, 0x596620.  Hand fix: 0x5956c0's IDA register-reuse misread. */
 #include "menu_screens.h"
 
 #include <stddef.h>

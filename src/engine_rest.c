@@ -7,8 +7,9 @@
  * the key use 0x54ed80, 0x401df0 / 0x41c230 / 0x54c5e0 / 0x5534d0 / 0x556e50 / 0x55fdb0 (the cue) / 0x5851a0.  See
  * engine_rest.h.
  *
- * A FIRST PASS through tools/ida/decomp2c.py (--typed --zero-locals); no hand finish.  UNVERIFIED: the corpus reaches
- * none of them; REPLACE-wired, compile-checked. */
+ * A FIRST PASS through tools/ida/decomp2c.py (--typed --zero-locals); no hand finish.  REPLACE-verified by rh-early-game
+ * (2026-10-23): 0x401df0 0x4192f0 (the shop's Sell) 0x419980 0x43d4b0 0x43d540 0x43d830 0x43dd30 0x43e010 0x479ca0
+ * 0x47a300 0x47a7f0 0x49eea0 0x4cc0e0; the rest UNVERIFIED (unreached; REPLACE-wired, compile-checked). */
 #include "engine_rest.h"
 
 #include <stddef.h>

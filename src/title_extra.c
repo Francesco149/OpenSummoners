@@ -6,7 +6,8 @@
  * 0x54c530, 0x55ff80, 0x5612f0, 0x5640b0, 0x564110, 0x56d620, 0x56dd80.  See title_extra.h.
  *
  * A FIRST PASS through tools/ida/decomp2c.py (--typed --zero-locals); no hand finish.  Reached by the corpus: the input
- * re-poll 0x40fe00; the rest UNVERIFIED (REPLACE-wired, compile-checked). */
+ * re-poll 0x40fe00; rh-early-game (2026-10-23): 0x565b00 0x566300 0x56a670 0x56ad50 0x583fe0 0x584400 0x584420 0x584550
+ * 0x59dc60; the rest UNVERIFIED (REPLACE-wired, compile-checked). */
 #include "title_extra.h"
 
 #include <stddef.h>

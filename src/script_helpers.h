@@ -18,7 +18,7 @@
  *   FUN_004d6490  sc_4d6490   FUN_005b4330  sc_5b4330
  *
  * Reached by the rhost corpus, shadow-verified per call: sc_401d80 sc_402030 sc_4020a0 sc_4024e0 sc_406500
- * sc_41e2b0 sc_41e340 sc_41ece0 sc_41efe0 sc_49e250 sc_4a63d0.  The rest are converted (the same decomp2c pass)
+ * sc_41e2b0 sc_41e340 sc_41ece0 sc_41efe0 sc_49e250 sc_4a63d0 (+ rh-early-game: sc_4c5300 sc_4cbff0 sc_4cca50).  The rest are converted (the same decomp2c pass)
  * but no corpus scenario reaches them yet: UNVERIFIED until one does.
  */
 #ifndef OSS_SCRIPT_HELPERS_H

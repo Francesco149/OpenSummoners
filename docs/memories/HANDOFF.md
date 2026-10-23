@@ -21,19 +21,25 @@ diff), `--extra="--watch-write VA@F"` (who writes), `--trap VA` (retail code onl
   (rhost's stubs), the CRT 0x5c0907, and 0x43c110 (hand-ported as `input_poll_consume`, src/input.c — not bound by
   name).  NEXT: recordings that reach the UNVERIFIED modules (story scripts, menus, the ending, …).  Every chapter-1 chapter script
   (35) is on in the hybrid set (0x49f7c0 since its book-record fix).
-- **UNVERIFIED modules** (unreached by the corpus; compile-checked, REPLACE-wired): menu_screens, menu_helpers,
-  char_types, char_handlers2, actor_behave, sjis_text, gamepad, ending, title_extra (but 0x40fe00), engine_rest,
-  story_scripts.  A new
-  recording that reaches them verifies them for free (the hybrid gate already replaces retail with them).
+- **UNVERIFIED modules** (unreached by the corpus; compile-checked, REPLACE-wired): char_types, char_handlers2,
+  actor_behave, sjis_text, gamepad, story_scripts; PARTLY (each header lists what rh-early-game reached, 2026-10-23):
+  menu_screens (all but the level-up screen 0x5915c0 / 0x592020), menu_helpers, title_extra, ending (3 helpers),
+  engine_rest (13).  A new recording that reaches them verifies them for free (the hybrid gate already replaces
+  retail with them).
+- **New scenario ⇒ calibrate volatiles:** a recording reaching new system-pointer slots (sound buffers, menu screens)
+  leaves Windows / wine `state_sem` unstable at its end (pure runs disagree; rhs.py shows only ext-ptr / volatile
+  rows).  `det SCEN -n 3 --calibrate` → re-bless EVERY scenario on both targets (the mask changes every sem).
 - **decomp2c traps met** (each now a converter rule; see PROGRESS 2026-10-23): member-deref precedence, unsigned Win32
   returns, offset-only arrays, `trailer`'s byte, class-pointer `++` anywhere, `this + <sum>`, by-address functions
   (retail's address + rhost's entry patch), the Flip / easer never bound to ports.  IDA misreads to watch for: a
   mid-body callee-save `push` taken as an argument (0x5bb3d0), scratch registers as `__userpurge` arguments
-  (0x5b7310, 0x585590).
+  (0x5b7310, 0x585590), a register RELOAD moved before its other use (0x595a3f: `lea edi, [edx+0C4h]` then `mov
+  edx, [edx+2D4h]` decompiled as `v25 = v24[181]; strcpy(v47, v25 + 196)` — the port read 0xc4; a scan for the
+  same shape found no other), a data table's first entry folded to a constant (0x5959ee: `v22 = 10101`).
 - **Regenerating** committed modules: `tools/ida/decomp2c_regen.py src/x.c [--keep VA] [--dry --show]` (splices the
   fresh bodies in place; hand ports between functions and finish scripts' modules handled — run
   `tools/ida/finish/<module>.py` for frame_load / save_game / sound_dev / title_menu).  Done 2026-10-23 for every
-  module (hybrid PASS); keep lists: shots `--flags "" --keep 0x4710c0,0x590230`; chapter_scripts / behave_helpers /
+  module (hybrid PASS); keep lists: shots `--flags "" --keep 0x4710c0,0x590230`; menu_screens `--keep 0x5956c0` (the IDA reload misread); chapter_scripts / behave_helpers /
   char_handlers / script_helpers / shots take `--flags ""` (the rest the default `--typed --zero-locals`);
   arche_sword / skill_cast skipped (hand-typed signatures).  After a regen, re-sync the module header's prototypes
   (a newly typed `FILE *` parameter) and the rh_hooks.c casts; a host-linked module's new call into a mingw-only port

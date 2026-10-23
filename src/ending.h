@@ -1,6 +1,6 @@
 /*
  * ending.{c,h} — the ending credits + the screen helpers it reaches.  Retail layout; rhost
- * REPLACE-wired (UNVERIFIED).  Names by VA.
+ * REPLACE-wired (UNVERIFIED but 0x56c640 0x56c900 0x56dbb0).  Names by VA.
  *
  *   FUN_00410090  en_410090   FUN_0049bf90  en_49bf90   FUN_005646c0  en_5646c0   FUN_0056c640  en_56c640
  *   FUN_0056c900  en_56c900   FUN_0056dbb0  en_56dbb0   FUN_005a00c0  en_5a00c0   FUN_005a3670  en_5a3670

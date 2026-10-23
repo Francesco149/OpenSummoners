@@ -4,7 +4,8 @@
  * 0x5646c0, the fades 0x56c640 / 0x56c900 / 0x56dbb0.  See ending.h.
  *
  * A FIRST PASS through tools/ida/decomp2c.py (--typed --zero-locals); no hand finish.  UNVERIFIED: no recording beats
- * the game; REPLACE-wired, compile-checked. */
+ * the game (rh-early-game reaches the screen helpers 0x56c640 0x56c900 0x56dbb0: REPLACE-verified); REPLACE-wired,
+ * compile-checked. */
 #include "ending.h"
 
 #include <stddef.h>

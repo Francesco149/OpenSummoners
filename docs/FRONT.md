@@ -11,7 +11,8 @@
   USER decisions (audit §7): deterministic cadence = rhost 1 update/flip; EN-old first (SE = a later
   delta layer); Frida retail drive RETIRED (legacy, don't extend). Port boot "Now Loading" frames now
   DEFAULT (`--no-boot-loading` = legacy axis; old port-timed traces keep working).
-  Corpus: 8 scenarios incl. the USER's `rh-my-play` (15.7k flips: intro → house errands → town → shop;
+  Corpus: 10 scenarios incl. the USER's `rh-early-game` (137.7k flips, 2026-10-23: more of the story, a statue save,
+  selling at the shop, the main menu's Status / Items / Abilities / Party Commands) + `rh-my-play` (15.7k flips: intro → house errands → town → shop;
   10 room loads) + `rh-errands-items` (16.4k flips: errands, item finds, the storage box) + `rh-combat` (57.6k
   flips, the USER 2026-10-16: combat on the way to school, a party ally fighting, a statue save, the main menu, a game
   over + retry). **Save chains (2026-10-17):** `rhost.py record NEXT --from PREV` continues a play from PREV's final
@@ -136,6 +137,14 @@
   ahead, `0x4418e0`, `0x440e40`, `0x441700`, `0x43ee30`, …; scratch bodies from retail's heap via
   `g_eng.op_new`). Hybrid gate with all 12 movement functions replacing retail: PASS.
 - **Next (port side):**
+  00000000. (2026-10-23 evening) the USER's `rh-early-game` joins the corpus: it reaches 82 functions no scenario did
+     (47 KB: the main menu's screens, the item use 0x5b1f10, the shop's Sell 0x4192f0, the start gear 0x4e6520, …) —
+     all already port code, UNVERIFIED until now.  First hybrid run: an AV at f32682 in Abilities 0x5956c0 (an IDA
+     register-reuse misread, HANDOFF); fixed, the hybrid gate PASSES on it (Windows: end state + every frame's
+     pixels; wine: the 600-frame series).  9 newly reached shadow hooks: 1,299 calls, 0 div.  The new slots made
+     `state_sem` unstable at its end ⇒ `det --calibrate` (+1,229 volatile slots) + every scenario re-blessed.
+     Still unreached: the level-up screen 0x5915c0, the later chapters' story scripts, char_types / char_handlers2
+     (new monsters), actor_behave, sjis_text, gamepad, the ending.
   0000000. (2026-10-23, an overnight run, no new traces) the PLATFORM LAYER and the program TOP run as port code, and
      every unreached group outside the story scripts is ported: `frame_load` (frame loaders + bitmap session),
      `file_stream`, `input_dev` (DirectInput), `sound_dev` (DirectSound + the DirectShow music manager), `zdd_dev`

@@ -178,7 +178,10 @@ copy of `C:\oss-rhost\game\enold`). **A valid LOGIC oracle:** frame/tick/RNG ide
 (SE boot f900 rng 9d661dcf; rh-se-newgame rng 7ba076a4 / tick 1663 both), deterministic run-to-run;
 state hashes differ from Windows only environmentally, so wine keeps its own `expected.wine.json`.
 Pixels + speed are Windows truth (wined3d on llvmpipe: ~190–260 fps). One Xvfb per batch is shared by
-all workers (one wineserver per prefix; per-run displays die with BadWindow). Known flake: under
+all workers (one wineserver per prefix; per-run displays die with BadWindow). **One wine batch at a time:** a
+batch's start runs `wineserver -k` on the prefix, so a second batch kills the first one's runs mid-flight (they end
+with NO RESULT). A retail crash under wine can hang the batch in `winedbg --auto`: kill that batch's exact pids
++ `WINEPREFIX=<ours> wineserver -k` (sibling projects run their own prefixes and wineservers). Known flake: under
 6-way parallel load one rh-errands-walk wine run in ~5 ended with a different state hash (frame/tick/
 rng equal) — not reproduced by `det --target wine`. Use it when the Windows box is unavailable or
 for wide parallel sweeps.

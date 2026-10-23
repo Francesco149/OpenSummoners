@@ -201,7 +201,7 @@ state hash; ~830–1000 fps; no Frida, no pins. Editions: `enold` (port target) 
 - **Build:** `nix develop --command make -C src` (mingw32; **don't** override `CC`) →
   `build/opensummoners.exe` (+ `-debug.exe`, console build — prefer it for interactive
   runs so `fprintf` log lines surface). **Tests:** `nix develop --command make -C tests run`
-  (host unit suite, ASan/UBSan; currently **806 pass / 0 fail / 6 skip** — run before
+  (host unit suite, ASan/UBSan; currently **1118 pass / 0 fail / 6 skip** — run before
   committing C).
 - **Disassembly:** PRIMARY = the IDA 9.4 export `/mnt/ephemeral/opensummoners/decompiled-ida/
   <edition>/all_ida.c` (knowledge pack + C++ class recovery applied; `plain/` = untouched IDA),

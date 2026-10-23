@@ -1,6 +1,6 @@
 /*
  * engine_rest.{c,h} — the engine's remaining unreached callees.  Retail layout; rhost
- * REPLACE-wired (UNVERIFIED).  Names by VA.
+ * REPLACE-wired (UNVERIFIED but the 13 rh-early-game reaches: engine_rest.c).  Names by VA.
  *
  *   FUN_00401df0  el_401df0   FUN_00402890  el_402890   FUN_00407f30  el_407f30   FUN_0040a2e0  el_40a2e0
  *   FUN_0040ac90  el_40ac90   FUN_00415ae0  el_415ae0   FUN_004192f0  el_4192f0   FUN_00419980  el_419980
