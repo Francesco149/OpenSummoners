@@ -7,7 +7,7 @@
  * the surface Restore / IsLost 0x5b9ab0 / 0x5b9ac0.  See win_main.h.
  *
  * A FIRST PASS through tools/ida/decomp2c.py (--typed --zero-locals); no hand finish.  The window procedure is the
- * port's (0x5b12e0 by address: a stdcall shim); the launcher's 0x401210 stays retail's. */
+ * port's (0x5b12e0 by address: a stdcall shim); so is the wait window's 0x401210 (lo_401210, by address). */
 #include "win_main.h"
 
 #include <stddef.h>

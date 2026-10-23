@@ -22,6 +22,7 @@
 #include "char_ai.h"
 #include "char_physics.h"
 #include "char_integrate.h"
+#include "static_init.h"
 #include "npc_ai.h"
 #include "char_apply.h"
 #include "world_tick.h"
@@ -492,8 +493,9 @@ typedef struct {
     X(H_TS59E1D0, "ts_59e1d0", 0x59e1d0u) X(H_TS59E230, "ts_59e230", 0x59e230u) X(H_TS59E5D0, "ts_59e5d0", 0x59e5d0u) \
     X(H_TS59E9E0, "ts_59e9e0", 0x59e9e0u) \
     X(H_LO479960, "lo_479960", 0x479960u) X(H_LO479A10, "lo_479a10", 0x479a10u) X(H_LO479DE0, "lo_479de0", 0x479de0u) \
-    X(H_LO406440, "lo_406440", 0x406440u) X(H_LO401140, "lo_401140", 0x401140u) X(H_LO4011B0, "lo_4011b0", 0x4011b0u) \
+    X(H_LO406440, "lo_406440", 0x406440u) X(H_LO401140, "lo_401140", 0x401140u) X(H_LO4011B0, "lo_4011b0", 0x4011b0u) X(H_LO401210, "lo_401210", 0x401210u) \
     X(H_LO4013A0, "lo_4013a0", 0x4013a0u) X(H_LO401730, "lo_401730", 0x401730u) \
+    X(H_SI401030, "si_401030", 0x401030u) X(H_SI401060, "si_401060", 0x401060u) X(H_SI401090, "si_401090", 0x401090u) X(H_SI4010C0, "si_4010c0", 0x4010c0u) X(H_SI4010F0, "si_4010f0", 0x4010f0u) X(H_SI401130, "si_401130", 0x401130u) X(H_SI4011A0, "si_4011a0", 0x4011a0u) X(H_SI401360, "si_401360", 0x401360u) X(H_SI401390, "si_401390", 0x401390u) X(H_SI5B5FA0, "si_5b5fa0", 0x5b5fa0u) X(H_SI5B5FD0, "si_5b5fd0", 0x5b5fd0u) X(H_SI5B6000, "si_5b6000", 0x5b6000u) X(H_SI5B6030, "si_5b6030", 0x5b6030u) X(H_SI5B60A0, "si_5b60a0", 0x5b60a0u) \
     X(H_LO5A4760, "lo_5a4760", 0x5a4760u) X(H_LO58C8D0, "lo_58c8d0", 0x58c8d0u) X(H_LO54E4F0, "lo_54e4f0", 0x54e4f0u) \
     X(H_EL401DF0, "el_401df0", 0x401df0u) X(H_EL402890, "el_402890", 0x402890u) X(H_EL407F30, "el_407f30", 0x407f30u) \
     X(H_EL40A2E0, "el_40a2e0", 0x40a2e0u) X(H_EL40AC90, "el_40ac90", 0x40ac90u) X(H_EL415AE0, "el_415ae0", 0x415ae0u) \
@@ -975,17 +977,18 @@ static int __attribute__((thiscall)) w_char_int(wl_char *self, wl_cmd *cmd, wl_b
 {
     hook_t *h = &H[H_CHAR_INT];
     if (h->mode == 2) { h->calls++; port_world(); return char_integrate(self, cmd, in, out, probe, part); }
-    if (!sample(h)) return ((char_int_t)(uintptr_t)h->va)(self, cmd, in, out, probe, part);
-    if ((in->pose >= 0x75 && in->pose <= 0x7a) || in->pose == 0x81) g_int_special++;
+    int special = (in->pose >= 0x75 && in->pose <= 0x7a) || in->pose == 0x81;   /* rare: every one is compared */
+    if (!sample(h) && !(special && !rh_in_shadow())) return ((char_int_t)(uintptr_t)h->va)(self, cmd, in, out, probe, part);
+    if (special) g_int_special++;
     int_ctx x = { self, cmd, in, out, probe, part, 0, 0 };
-    uint16_t pose = in->pose, st = in->state; uint32_t code = (uint32_t)self->base.code; long unp = g_integrate_unported;
+    uint16_t pose = in->pose, st = in->state; uint32_t code = (uint32_t)self->base.code;
     char why[512];
     int d = rh_shadow_ex("char_integrate", int_retail, int_port, &x, why, sizeof why);
     if (d < 0) { h->skipped++; return x.r_ret; }
     h->compared++;
     if (d || x.r_ret != x.r_port)
-        diverged(h, "f%u char %p code %x pose %x state %u probe %d part %d unported+%ld ret %d/%d %s", g_frame, (void *)self, code,
-                 pose, st, probe, part, g_integrate_unported - unp, x.r_ret, x.r_port, d ? why : "");
+        diverged(h, "f%u char %p code %x pose %x state %u probe %d part %d ret %d/%d %s", g_frame, (void *)self, code,
+                 pose, st, probe, part, x.r_ret, x.r_port, d ? why : "");
     return x.r_ret;
 }
 
@@ -2451,18 +2454,20 @@ static void __attribute__((thiscall)) w_unload(void *sys, uint32_t group)
 }
 
 /* engine calls with an external effect: in a shadow's port phase they abort the comparison */
+/* a guard calls through rh_retail: a REPLACED callee runs as port code (its wrapper), not retail's body */
+static void *rh_retail(uint32_t va);
 #define GUARD(what) if (rh_shadow_port_phase()) { rh_shadow_abort(what); return 0; }
-static int __attribute__((thiscall)) gd_5b9390(void *f) { GUARD("the surface free 0x5b9390") return ((eng_tc0)(uintptr_t)0x5b9390u)(f); }
-static int __attribute__((thiscall)) gd_5bb3a0(void *b) { GUARD("the buffer release 0x5bb3a0") return ((eng_tc0)(uintptr_t)0x5bb3a0u)(b); }
+static int __attribute__((thiscall)) gd_5b9390(void *f) { GUARD("the surface free 0x5b9390") return ((eng_tc0)rh_retail(0x5b9390u))(f); }
+static int __attribute__((thiscall)) gd_5bb3a0(void *b) { GUARD("the buffer release 0x5bb3a0") return ((eng_tc0)rh_retail(0x5bb3a0u))(b); }
 static int (__stdcall *r_DeleteObject)(void *);
 static int __stdcall gd_delobj(void *o) { GUARD("DeleteObject") return r_DeleteObject(o); }
-static int __attribute__((thiscall)) gd_40fe00(void *s) { GUARD("the input re-poll 0x40fe00") return ((eng_tc0)(uintptr_t)0x40fe00u)(s); }
-static int __attribute__((thiscall)) gd_5ba4c0(void *d) { GUARD("DirectInput 0x5ba4c0") return ((eng_tc0)(uintptr_t)0x5ba4c0u)(d); }
-static int __attribute__((thiscall)) gd_5ba2d0(void *d) { GUARD("DirectInput 0x5ba2d0") return ((eng_tc0)(uintptr_t)0x5ba2d0u)(d); }
-static int __attribute__((thiscall)) gd_5ba650(void *d) { GUARD("DirectInput 0x5ba650") return ((eng_tc0)(uintptr_t)0x5ba650u)(d); }
+static int __attribute__((thiscall)) gd_40fe00(void *s) { GUARD("the input re-poll 0x40fe00") return ((eng_tc0)rh_retail(0x40fe00u))(s); }
+static int __attribute__((thiscall)) gd_5ba4c0(void *d) { GUARD("DirectInput 0x5ba4c0") return ((eng_tc0)rh_retail(0x5ba4c0u))(d); }
+static int __attribute__((thiscall)) gd_5ba2d0(void *d) { GUARD("DirectInput 0x5ba2d0") return ((eng_tc0)rh_retail(0x5ba2d0u))(d); }
+static int __attribute__((thiscall)) gd_5ba650(void *d) { GUARD("DirectInput 0x5ba650") return ((eng_tc0)rh_retail(0x5ba650u))(d); }
 static int __attribute__((thiscall)) gd_40a5d0(void *s, intptr_t id, intptr_t a, intptr_t f, intptr_t fade, intptr_t b)
-{ GUARD("the BGM change 0x40a5d0") return ((eng_tc5)(uintptr_t)0x40a5d0u)(s, id, a, f, fade, b); }
-static int __attribute__((thiscall)) gd_49bf90(void *d, intptr_t v) { GUARD("the joystick read 0x49bf90") return ((eng_tc1)(uintptr_t)0x49bf90u)(d, v); }
+{ GUARD("the BGM change 0x40a5d0") return ((eng_tc5)rh_retail(0x40a5d0u))(s, id, a, f, fade, b); }
+static int __attribute__((thiscall)) gd_49bf90(void *d, intptr_t v) { GUARD("the joystick read 0x49bf90") return ((eng_tc1)rh_retail(0x49bf90u))(d, v); }
 /* the script engine 0x40c380 (ported): the room-start (mode 0) and touch (mode 2) chapter scripts drive
  * DirectShow / DirectDraw (BGM, room changes) — running them a second time perturbs the run; the switch /
  * hit scripts (3 / 4) are state-only in the corpus (shadowed both sides, corpus hash unchanged).  The
@@ -2510,18 +2515,18 @@ static int __attribute__((thiscall)) gd_4081d0(void *ev, intptr_t a1, intptr_t a
     return ((eng_tc6)(uintptr_t)0x4081d0u)(ev, a1, a2, a3, a4, a5, a6);
 }
 static int __attribute__((thiscall)) gd_408730(void *ev, intptr_t a1)
-{ GUARD("the save statue 0x408730") return ((eng_tc1)(uintptr_t)0x408730u)(ev, a1); }
+{ GUARD("the save statue 0x408730") return ((eng_tc1)rh_retail(0x408730u))(ev, a1); }
 static int __attribute__((thiscall)) gd_407970(void *ev, intptr_t a1, intptr_t a2)
 {
     GUARD("the furniture 0x407970")
     if (H[H_FURN].mode == 2) { H[H_FURN].calls++; port_world(); return furniture_search(ev, (wl_entity *)a1, (const char *)a2); }
     return ((eng_tc2)(uintptr_t)0x407970u)(ev, a1, a2);
 }
-static int __attribute__((thiscall)) gd_40a340(void *ev) { GUARD("the mode-5 script 0x40a340") return ((eng_tc0)(uintptr_t)0x40a340u)(ev); }
+static int __attribute__((thiscall)) gd_40a340(void *ev) { GUARD("the mode-5 script 0x40a340") return ((eng_tc0)rh_retail(0x40a340u))(ev); }
 static int __attribute__((thiscall)) gd_402d40(void *ev, intptr_t a1, intptr_t a2)
-{ GUARD("the talk step 0x402d40") return ((eng_tc2)(uintptr_t)0x402d40u)(ev, a1, a2); }
+{ GUARD("the talk step 0x402d40") return ((eng_tc2)rh_retail(0x402d40u))(ev, a1, a2); }
 static int __attribute__((thiscall)) gd_406210(void *ev, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4)
-{ GUARD("the talk step 0x406210") return ((eng_tc4)(uintptr_t)0x406210u)(ev, a1, a2, a3, a4); }
+{ GUARD("the talk step 0x406210") return ((eng_tc4)rh_retail(0x406210u))(ev, a1, a2, a3, a4); }
 static int __attribute__((thiscall)) gd_411610(void *ev)
 {
     GUARD("the storage talk 0x411610")
@@ -2529,13 +2534,13 @@ static int __attribute__((thiscall)) gd_411610(void *ev)
     return ((eng_tc0)(uintptr_t)0x411610u)(ev);
 }
 static int __attribute__((thiscall)) gd_4031c0(void *t, intptr_t a1, intptr_t a2)
-{ GUARD("the title text 0x4031c0") return ((eng_tc2)(uintptr_t)0x4031c0u)(t, a1, a2); }
-static int __attribute__((thiscall)) gd_5bbc60(void *z, intptr_t a1) { GUARD("the BGM player 0x5bbc60") return ((eng_tc1)(uintptr_t)0x5bbc60u)(z, a1); }
-static int __attribute__((thiscall)) gd_5bbc90(void *z, intptr_t a1) { GUARD("the BGM player 0x5bbc90") return ((eng_tc1)(uintptr_t)0x5bbc90u)(z, a1); }
-static int __attribute__((thiscall)) gd_5bbcd0(void *z, intptr_t a1) { GUARD("the BGM player 0x5bbcd0") return ((eng_tc1)(uintptr_t)0x5bbcd0u)(z, a1); }
-static int __attribute__((thiscall)) gd_5bbc20(void *z) { GUARD("the BGM player 0x5bbc20") return ((eng_tc0)(uintptr_t)0x5bbc20u)(z); }
+{ GUARD("the title text 0x4031c0") return ((eng_tc2)rh_retail(0x4031c0u))(t, a1, a2); }
+static int __attribute__((thiscall)) gd_5bbc60(void *z, intptr_t a1) { GUARD("the BGM player 0x5bbc60") return ((eng_tc1)rh_retail(0x5bbc60u))(z, a1); }
+static int __attribute__((thiscall)) gd_5bbc90(void *z, intptr_t a1) { GUARD("the BGM player 0x5bbc90") return ((eng_tc1)rh_retail(0x5bbc90u))(z, a1); }
+static int __attribute__((thiscall)) gd_5bbcd0(void *z, intptr_t a1) { GUARD("the BGM player 0x5bbcd0") return ((eng_tc1)rh_retail(0x5bbcd0u))(z, a1); }
+static int __attribute__((thiscall)) gd_5bbc20(void *z) { GUARD("the BGM player 0x5bbc20") return ((eng_tc0)rh_retail(0x5bbc20u))(z); }
 static int __attribute__((thiscall)) gd_5bcb80(void *z, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5)
-{ GUARD("the BGM play 0x5bcb80") return ((eng_tc5)(uintptr_t)0x5bcb80u)(z, a1, a2, a3, a4, a5); }
+{ GUARD("the BGM play 0x5bcb80") return ((eng_tc5)rh_retail(0x5bcb80u))(z, a1, a2, a3, a4, a5); }
 #undef EV_GUARD
 #undef GUARD
 
@@ -5071,6 +5076,22 @@ ST_HOOK(H_LO479DE0, "lo_479de0", 3, 1, return (intptr_t)lo_479de0(a1, (int16_t)a
 TC_HOOK(H_LO406440, "lo_406440", 2, 1, return (intptr_t)lo_406440((wl_char *)self, (char *)a1, (char *)a2))
 ST_HOOK0(H_LO401140, "lo_401140", 1, return (intptr_t)lo_401140())
 ST_HOOK0(H_LO4011B0, "lo_4011b0", 1, return (intptr_t)lo_4011b0())
+ST_HOOK(H_LO401210, "lo_401210", 4, 1, return (intptr_t)lo_401210((int32_t)a1, (uint32_t)a2, (uint32_t)a3, (int32_t)a4))
+/* the CRT static initializers (src/static_init.c): _initterm calls the thunks by address */
+ST_HOOK0(H_SI401030, "si_401030", 0, si_401030(); return 0)
+ST_HOOK0(H_SI401060, "si_401060", 0, si_401060(); return 0)
+ST_HOOK0(H_SI401090, "si_401090", 0, si_401090(); return 0)
+ST_HOOK0(H_SI4010C0, "si_4010c0", 0, si_4010c0(); return 0)
+ST_HOOK0(H_SI4010F0, "si_4010f0", 1, return (intptr_t)si_4010f0())
+ST_HOOK0(H_SI401130, "si_401130", 1, return (intptr_t)si_401130())
+ST_HOOK0(H_SI4011A0, "si_4011a0", 1, return (intptr_t)si_4011a0())
+ST_HOOK0(H_SI401360, "si_401360", 1, return (intptr_t)si_401360())
+ST_HOOK0(H_SI401390, "si_401390", 1, return (intptr_t)si_401390())
+ST_HOOK0(H_SI5B5FA0, "si_5b5fa0", 0, si_5b5fa0(); return 0)
+ST_HOOK0(H_SI5B5FD0, "si_5b5fd0", 0, si_5b5fd0(); return 0)
+ST_HOOK0(H_SI5B6000, "si_5b6000", 0, si_5b6000(); return 0)
+ST_HOOK0(H_SI5B6030, "si_5b6030", 0, si_5b6030(); return 0)
+ST_HOOK0(H_SI5B60A0, "si_5b60a0", 0, si_5b60a0(); return 0)
 ST_HOOK0(H_LO4013A0, "lo_4013a0", 1, return (intptr_t)lo_4013a0())
 ST_HOOK(H_LO401730, "lo_401730", 1, 1, return (intptr_t)lo_401730(a1))
 TC_HOOK0(H_LO5A4760, "lo_5a4760", 1, return (intptr_t)lo_5a4760((wl_char *)self))
@@ -5441,7 +5462,6 @@ static void bind_engine_calls(void)
     g_eng.sys    = (void *)(uintptr_t)0x8a6b60u;
     g_eng.keycfg = (wl_keycfg ***)(uintptr_t)0x8a6e80u;
     g_eng.log    = (void *)(uintptr_t)0x8a9530u;
-    *(void **)&g_eng.integrate_442a70    = (void *)(uintptr_t)0x442a70u;
     *(void **)&g_eng.skill_479f90        = (void *)(uintptr_t)0x479f90u;
     *(void **)&g_eng.skill_47a300        = (void *)(uintptr_t)0x47a300u;
     *(void **)&g_eng.skill_47a420        = (void *)(uintptr_t)0x47a420u;
@@ -5604,7 +5624,10 @@ void rh_hooks_install(void)
         /* reached BY ADDRESS too (a window procedure, the atexit shutdown, the EnumDevices callback): the port stores
          * retail's address there, so REPLACE also patches the entry with a jmp to the wrapper (the body is dead) */
         static const uint32_t BYADDR[] = { 0x5b12e0u, 0x5b10d0u, 0x5ba200u,
-                                           0x401140u, 0x4011b0u, 0x4013a0u };   /* (+ reached through jmp thunks) */
+                                           0x401140u, 0x4011b0u, 0x4013a0u, 0x401210u,
+                                           /* the CRT's static initializers (_initterm's table) */
+                                           0x401030u, 0x401060u, 0x401090u, 0x4010c0u, 0x4010f0u, 0x401130u, 0x4011a0u,
+                                           0x401360u, 0x401390u, 0x5b5fa0u, 0x5b5fd0u, 0x5b6000u, 0x5b6030u, 0x5b60a0u };   /* (+ reached through jmp thunks) */
         int byaddr = 0;
         for (size_t k = 0; k < sizeof BYADDR / sizeof BYADDR[0]; k++) byaddr |= h->va == BYADDR[k];
         if (byaddr && h->mode == 2) {
@@ -5632,8 +5655,6 @@ void rh_hooks_install(void)
         void *w = rh_retail(sl[k]);
         if (w != (void *)(uintptr_t)sl[k]) { rh_log("hook: slot +%03x %08x -> port\n", (unsigned)(k * 4), sl[k]); sl[k] = (uint32_t)(uintptr_t)w; nslot++; }
     }
-    /* ... except a port's delegation to retail's OWN version (the integrator's unported special poses) */
-    if ((uintptr_t)g_eng.integrate_442a70 != 0x442a70u) { *(void **)&g_eng.integrate_442a70 = (void *)(uintptr_t)0x442a70u; nslot--; }
     if (g_nrep) rh_log("hook: %d engine-call slots retargeted to the replacing ports (%d replace hooks)\n", nslot, g_nrep);
 }
 
@@ -5648,8 +5669,7 @@ void rh_hooks_report(void)
         else rh_log("hook-result replace %s calls=%ld\n", h->name, h->calls);
     }
     if (H[H_CHAR_INT].mode == 1)
-        rh_log("char_integrate: %ld calls delegated (special input pose), %ld entered an unported pose mid-call\n",
-               g_int_special, g_integrate_unported);
+        rh_log("char_integrate: %ld calls with a special input pose (0x75..0x7a / 0x81)\n", g_int_special);
     if (H[H_BEHAVE].mode == 1)
         for (int k = 0; k < g_nbh_codes; k++) rh_log("char_behave coverage: code %d compared %ld\n", g_bh_code_id[k], g_bh_codes[k]);
     if (H[H_PINIT].mode == 1)

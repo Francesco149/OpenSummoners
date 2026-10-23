@@ -11,11 +11,8 @@
  * monsters 0xc74e.. / 0x1874a..) -> the movement step 0x467bb0 + the clip choice
  * 0x466930, and the tail (carry release, the +0x66 timer, the region-C flags 0x426be0).
  *
- * PORT-DEBT(integrate-special-poses): the inlined special poses 0x75..0x7a / 0x81
- * (flying / butterflies / riding — ~1,500 decompiled lines of physics variants) are
- * not ported: a call whose INPUT pose is one of them runs retail's 0x442a70 through
- * the engine_calls slot; one that only ENTERS such a pose mid-call is counted in
- * g_integrate_unported (rhost reports it).
+ * The pose switch's special poses 0x75..0x7a / 0x81 (flying / butterflies / riding —
+ * ~1,800 decompiled lines) run in src/char_special.c (integrate_special).
  *
  *   FUN_00442a70  char_integrate
  *   FUN_0040a540  body_action_start    FUN_00426f20  body_action_reset
@@ -34,7 +31,6 @@
 #include "world_layout.h"
 
 int  char_integrate(wl_char *self, wl_cmd *cmd, wl_body *in, wl_body *out, int32_t probe, int32_t part);
-extern long g_integrate_unported;
 
 int     body_action_start(wl_body *b, int16_t pose, int32_t len);
 void    body_action_reset(wl_body *b);

@@ -15,6 +15,8 @@
 
 int32_t el_41c390(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5, char * Format, int32_t a7, int32_t a8, int32_t a9, int32_t a10) { STUB("el_41c390"); }
 void el_49d330(int32_t a1, int32_t a2) { STUB("el_49d330"); }
+int32_t el_4675c0(wl_char *self, int32_t * a2, uint16_t a3) { STUB("el_4675c0"); }
+int32_t el_467750(wl_char *self, int32_t a2, uint16_t a3) { STUB("el_467750"); }
 int32_t el_49eea0(wl_char *self, int32_t a2, int32_t a3) { STUB("el_49eea0"); }
 void el_4cc0e0(wl_char *self, int32_t a2) { STUB("el_4cc0e0"); }
 int32_t sd_5bbc20(wl_char *self) { STUB("sd_5bbc20"); }

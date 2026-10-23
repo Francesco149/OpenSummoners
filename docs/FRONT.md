@@ -131,12 +131,21 @@
   `rh_shadow_ex` (full-state shadow; port code may call retail), `rng_bind`, heap zero-on-alloc
   (quirk #130), Windows binary `oss-rhost.exe` (openrecet kills `rhost.exe` by name).
 - **Integrator `0x442a70` LANDED** (`src/char_integrate.c`): prologue, action start, poses 0x20/0x68..0x6a,
-  the full per-type dispatch (~30 type handlers as slots), tail; special poses 0x75..0x81 delegated to
-  retail (PORT-DEBT(integrate-special-poses); none occur in the corpus yet).
+  the full per-type dispatch (~30 type handlers as slots), tail; the special poses 0x75..0x81 too
+  (`src/char_special.c`, 2026-10-23; pose 0x78 reached: 54 calls, 0 div).
 - **NPC navigation AI `0x43f880` LANDED** (`src/npc_ai.c`: + `0x4412d0` try-command, `0x441ae0` floor
   ahead, `0x4418e0`, `0x440e40`, `0x441700`, `0x43ee30`, …; scratch bodies from retail's heap via
   `g_eng.op_new`). Hybrid gate with all 12 movement functions replacing retail: PASS.
 - **Next (port side):**
+  000000000. (2026-10-23 night, no new traces) WHAT RETAIL CODE STILL RUNS under the full hybrid: `rhost.py coverage
+     --hybrid` (INT3 on every retail entry while all ports replace retail) found 51 game functions / 18 KB — now 4 / 79
+     BYTES, all CRT internals (srand behind rhost's seed stub, 0x5c071e / 0x5c7c05 / 0x5c8d47); the rest of what runs
+     is the MSVC CRT (FLIRT).  Closed: the integrator's SPECIAL POSES (`src/char_special.c`, quirk #174; the corpus
+     reaches pose 0x78: shadow 54 / 54 full-state, 0 div — the old shadow had compared retail with retail there), the
+     shadow GUARDS now call through the replacing ports (17 functions ran retail's body via a guarded slot), the wait
+     window's WndProc 0x401210 + the CRT's static initializers (`src/static_init.c`, by address).  Hybrid gate: 1,338
+     hooks, PASS 10/10 Windows + wine.  The drop-in's remaining gap is the CRT + the platform (rhost's determinism
+     layer: clock, DirectInput, files) — not game code.
   00000000. (2026-10-23 evening) the USER's `rh-early-game` joins the corpus: it reaches 82 functions no scenario did
      (47 KB: the main menu's screens, the item use 0x5b1f10, the shop's Sell 0x4192f0, the start gear 0x4e6520, …) —
      all already port code, UNVERIFIED until now.  First hybrid run: an AV at f32682 in Abilities 0x5956c0 (an IDA

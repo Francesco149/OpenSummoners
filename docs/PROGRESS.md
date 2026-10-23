@@ -6,6 +6,27 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-23 (night) — what retail code still runs under the hybrid: only the CRT
+
+- No new traces.  New probe `rhost.py coverage --hybrid`: first-hit INT3 on every retail function entry while all
+  ports REPLACE retail; a hit = retail code the drop-in would still need (`retail_still_run.tsv`: unreplaced /
+  replaced-but-reached-indirectly; `run --hybrid --extra="--trap VA"` names the caller).  First run: 51 game
+  functions / 18,363 B.  Three causes, all closed:
+  (1) the integrator's special poses — the corpus DOES reach pose 0x78 (rh-combat 17 calls from f22470,
+  rh-early-game 37), so retail's 0x442a70 body ran through the `integrate_442a70` slot (+ its callees 0x426be0 /
+  0x426f20).  Ported: `src/char_special.c`, a decomp2c pass of 0x442a70 carved to the pose switch's closed special
+  region (quirk #174); slot retired, PORT-DEBT `integrate-special-poses` retired.  The old shadow had delegated those
+  calls on BOTH sides (retail vs retail); the hook now always compares a special-pose call: 54 / 54 full-state, 0 div.
+  (2) the shadow GUARDS (`gd_*`) called retail's raw VA, so a guarded engine slot ran retail's body even with its
+  callee replaced (the input re-poll 0x40fe00, DirectInput 0x5ba2d0 / 0x5ba4c0, the BGM player, the talk steps
+  0x402d40 / 0x406210, the title text 0x4031c0, the surface free 0x5b9390, …: 17) — now through `rh_retail`.
+  (3) by-address code: the wait window's WndProc 0x401210 and the CRT's static initializers (_initterm's jmp thunks
+  + bodies: the degree / radian doubles off .rdata, two zeroed globals, an atexit'd dtor; `src/static_init.c`) —
+  entry-patched REPLACE hooks.
+- After: 4 functions / 79 B, all CRT internals (srand behind rhost's seed stub; 0x5c071e / 0x5c7c05 / 0x5c8d47,
+  which FLIRT left unnamed); everything else that runs is the MSVC CRT.  Hybrid gate (1,338 hooks) PASS 10/10 on
+  Windows and wine (series + end) after each step; host suite 1118 / 0 / 6; build_all green.
+
 ## 2026-10-23 (evening) — rh-early-game: the main menu's screens, the shop's Sell, the item use verified
 
 - The USER's new recording `rh-early-game` (137.7k flips, fresh new game: more of the story, a statue save, selling

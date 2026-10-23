@@ -5060,6 +5060,18 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   Messages list uses width 16 / 32 with suffix `0x8a3760`. Retail builds each character in the stack slot of its
   first argument (a 4-byte buffer).
 
+### #174 — the integrator's SPECIAL POSES are cases of its pose switch, and the corpus reaches 0x78 (RE 2026-10-23)
+- `0x442a70`'s pose switch (on the body's +0x48, after the in→out copy / ground probe / action start) holds seven
+  special cases — 0x75 (~600 decompiled lines), 0x76 (~570), 0x77 (~190 + the state switch IDA lays out after the
+  pose switch: 0x77's `break` lands there), 0x78, 0x79 (clip sequence), 0x7a, 0x81 (clip `0x629a70` + the sys tint at
+  +10340) — one closed region: entered only at its case labels, left only through the shared tail (`LABEL_838`: the
+  0x18753/4 part boxes, the carry release, the +0x66 timer, the region flags `0x426be0`).  It never touches the tail's
+  dt / held stack slots; the argument slots a3 / a4 are reused as scratch, written before any read.
+- Pose 0x78 is a one-tick pose: probe 0 only — sound 126 at a random pitch offset `2000 * rand / 0x8000 - 2000`,
+  particle 100090 on the body, the action reset `0x426f20`, `0x4466b0(this, body, 0, 1)`; the probe calls skip it.
+  rh-combat reaches it 17 times (first f22470), rh-early-game 37 (in == out: the live tick); no other special pose.
+- The three `0x445ce0` calls in 0x75 / 0x76 / 0x77 take ecx = edi = this (`0x442f89` / `0x4439dc` / `0x444473`).
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

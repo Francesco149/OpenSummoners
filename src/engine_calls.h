@@ -84,8 +84,6 @@ typedef struct engine_calls {
     wl_keycfg ***keycfg;                  /* &0x8a6e80: the config is **(*keycfg) (asm: load
                                            * the global, then two derefs)                     */
     /* unported callees */
-    int (ENG_THISCALL *integrate_442a70)(wl_char *self, wl_cmd *cmd, wl_body *in, wl_body *out,
-                                         int32_t mode, int32_t n);
     int (ENG_THISCALL *skill_479f90)(wl_char *self, wl_body *b, int32_t a3);
     int (ENG_THISCALL *skill_47a300)(wl_char *self, int32_t a2, int32_t a3);
     int (ENG_THISCALL *skill_47a420)(wl_char *self, int32_t a2, int32_t a3);

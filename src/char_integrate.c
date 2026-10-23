@@ -10,6 +10,7 @@
 
 #include "arche_pose.h"
 #include "char_physics.h"
+#include "char_special.h"
 #include "char_state.h"
 #include "char_handlers.h"
 #include "engine_calls.h"
@@ -22,8 +23,6 @@
 #include "sana_skills.h"
 #include "skill_cast.h"
 #include "sound_fx.h"
-
-long g_integrate_unported;
 
 #define IP(p) ((intptr_t)(p))
 
@@ -215,13 +214,8 @@ cap:;
 
 /* ── FUN_00442a70 ─────────────────────────────────────────────────────────── */
 
-static int special_pose(uint16_t p) { return (p >= 0x75 && p <= 0x7a) || p == 0x81; }
-
 int char_integrate(wl_char *self, wl_cmd *cmd, wl_body *in, wl_body *out, int32_t probe, int32_t part)
 {
-    if (special_pose(in->pose))        /* PORT-DEBT(integrate-special-poses) */
-        return g_eng.integrate_442a70(self, cmd, in, out, probe, part);
-
     int32_t ctl = 0;        /* v220 */
     int32_t dt = -20;       /* v221: the +0x66 timer step the handlers may change */
     int32_t held = 0;       /* v224 */
@@ -353,8 +347,10 @@ hit_tail:
         out->nocollide = 1;
         char_float_cap(self, out, part, 1);
         goto dispatch;
+    case 0x75: case 0x76: case 0x77: case 0x78: case 0x79: case 0x7a: case 0x81:
+        integrate_special(self, cmd, out, probe, part);     /* flying / butterflies / riding: src/char_special.c */
+        goto tail;
     default:
-        if (special_pose(out->pose)) { g_integrate_unported++; goto tail; }
         goto dispatch;
     }
 

@@ -114,8 +114,11 @@ ebp chain — symbolize port frames with `nm -n build/rhost/rhost.exe`); a forei
 ported caller reaches its callee through an engine-call slot (`g_eng.hXXXXXX` = retail's VA) or decomp2c's `RC_`
 (`g_eng.retail(va)`) instead — before, those ran retail's even when the callee was replaced (the ported room
 loop's render 0x48c150 never ran as port code).  After installing the hooks rhost retargets every slot holding a
-replaced VA to the hook's wrapper (retail's convention) and `g_eng.retail` returns it — except a port's
-deliberate delegation to retail's own version (the integrator's unported special poses: `integrate_442a70`).
+replaced VA to the hook's wrapper (retail's convention) and `g_eng.retail` returns it.  The shadow GUARDS (`gd_*`:
+a port phase reaching an external effect aborts its comparison) call through `rh_retail` too (2026-10-23): before,
+a guarded slot (the input re-poll, DirectInput, the BGM player, the talk steps, …) ran retail's body even with its
+callee replaced — 17 functions `coverage --hybrid` caught.  By-address functions (window procedures, the CRT's
+static initializers, callbacks) take an entry patch under REPLACE (`BYADDR`, rh_hooks.c).
 
 ## Hooks — port functions vs retail on identical state (`--hook shadow:NAME[@N],replace:NAME`)
 

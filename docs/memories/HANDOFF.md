@@ -14,21 +14,27 @@ REPLACE_ONLY / VERIFY lists in `rhost.py`) → `corpus --check --hook replace:..
 AND `--target wine` (600-frame sem series) → commit.  Debug: `rhost.py run SCEN --dump-at F` + `rhs.py A B` (state
 diff), `--extra="--watch-write VA@F"` (who writes), `--trap VA` (retail code only).
 
-- **Coverage:** 98.2% of engine functions touched (ledger), 100.0% of code bytes, the frontier EMPTY; the hybrid
-  gate replaces retail with ~1,320 port functions.  The later chapters' STORY SCRIPTS are port code (`src/story_scripts.c`, UNVERIFIED:
+- **Coverage:** 99.9% of engine-proper functions touched (ledger), 100.0% of code bytes, the frontier EMPTY; the hybrid
+  gate replaces retail with 1,338 port functions, and under it the ONLY retail code that runs is the MSVC CRT
+  (`rhost.py coverage --hybrid` 2026-10-23: 4 CRT-internal functions / 79 B outside FLIRT's names — srand behind
+  rhost's seed stub, 0x5c071e / 0x5c7c05 / 0x5c8d47).  Re-run it after wiring anything by address / through a slot.  The later chapters' STORY SCRIPTS are port code (`src/story_scripts.c`, UNVERIFIED:
   unreached; `story_find` + rhost's second script range H_ST_FIRST..H_ST_LAST).  Left: tiny CRT static-init
   thunks.  The decomp2c modules' remaining `RC_` calls are by design: the Flip 0x5b8fc0 and srand 0x5bf4fb
   (rhost's stubs), the CRT 0x5c0907, and 0x43c110 (hand-ported as `input_poll_consume`, src/input.c — not bound by
   name).  NEXT: recordings that reach the UNVERIFIED modules (story scripts, menus, the ending, …).  Every chapter-1 chapter script
   (35) is on in the hybrid set (0x49f7c0 since its book-record fix).
 - **UNVERIFIED modules** (unreached by the corpus; compile-checked, REPLACE-wired): char_types, char_handlers2,
-  actor_behave, sjis_text, gamepad, story_scripts; PARTLY (each header lists what rh-early-game reached, 2026-10-23):
+  actor_behave, sjis_text, gamepad, story_scripts, char_special's poses other than 0x78 (0x75 / 0x76 / 0x77 / 0x79 /
+  0x7a / 0x81); PARTLY (each header lists what rh-early-game reached, 2026-10-23):
   menu_screens (all but the level-up screen 0x5915c0 / 0x592020), menu_helpers, title_extra, ending (3 helpers),
   engine_rest (13).  A new recording that reaches them verifies them for free (the hybrid gate already replaces
   retail with them).
 - **New scenario ⇒ calibrate volatiles:** a recording reaching new system-pointer slots (sound buffers, menu screens)
   leaves Windows / wine `state_sem` unstable at its end (pure runs disagree; rhs.py shows only ext-ptr / volatile
   rows).  `det SCEN -n 3 --calibrate` → re-bless EVERY scenario on both targets (the mask changes every sem).
+- **rhost wiring rules (2026-10-23):** a shadow GUARD (`gd_*`) must call through `rh_retail(va)`, never the raw VA (a
+  guarded slot otherwise runs retail's body under REPLACE); a function reached only by address (WndProc, _initterm,
+  callbacks, jmp-thunk targets) needs its VA in `BYADDR` (entry patch) + a REPLACE_ONLY_HOOKS row.
 - **decomp2c traps met** (each now a converter rule; see PROGRESS 2026-10-23): member-deref precedence, unsigned Win32
   returns, offset-only arrays, `trailer`'s byte, class-pointer `++` anywhere, `this + <sum>`, by-address functions
   (retail's address + rhost's entry patch), the Flip / easer never bound to ports.  IDA misreads to watch for: a

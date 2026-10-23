@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **1518** (98.2% of engine-proper) — tested 249, ported 1269
-- code bytes touched: **100.0%** (1,776,237 / 1,776,526 B of engine-proper)
-- unported: **306**
+- touched: **1543** (99.9% of engine-proper) — tested 249, ported 1294
+- code bytes touched: **100.0%** (1,776,512 / 1,776,526 B of engine-proper)
+- unported: **281**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -273,13 +273,28 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (1269) — reimplemented, no host test yet
+## ported (1294) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
+| 0x401030 | sub_401030 | 5 | static_init.h |
+| 0x401040 | sub_401040 | 19 | static_init.h |
+| 0x401060 | sub_401060 | 5 | static_init.h |
+| 0x401070 | sub_401070 | 19 | static_init.h |
+| 0x401090 | sub_401090 | 5 | static_init.h |
+| 0x4010a0 | sub_4010A0 | 19 | static_init.h |
+| 0x4010c0 | sub_4010C0 | 5 | static_init.h |
+| 0x4010d0 | sub_4010D0 | 19 | static_init.h |
+| 0x4010f0 | sub_4010F0 | 10 | static_init.h |
+| 0x401100 | sub_401100 | 11 | static_init.h |
+| 0x401130 | sub_401130 | 5 | static_init.h |
 | 0x401140 | sub_401140 | 89 | leftovers.h |
+| 0x4011a0 | sub_4011A0 | 5 | static_init.h |
 | 0x4011b0 | sub_4011B0 | 89 | leftovers.h |
 | 0x401210 | sub_401210 | 327 | leftovers.h |
+| 0x401360 | sub_401360 | 5 | static_init.h |
+| 0x401370 | sub_401370 | 18 | static_init.h |
+| 0x401390 | sub_401390 | 5 | static_init.h |
 | 0x4013a0 | sub_4013A0 | 32 | leftovers.h |
 | 0x4013c0 | DialogFunc | 875 | leftovers.h |
 | 0x401730 | sub_401730 | 107 | leftovers.h |
@@ -632,7 +647,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x442920 | sub_442920 | 149 | char_integrate.h |
 | 0x4429c0 | sub_4429C0 | 86 | npc_ai.h |
 | 0x442a20 | sub_442A20 | 76 | npc_ai.h |
-| 0x442a70 | sub_442A70 | 12026 | char_handlers.c, char_integrate.c, char_integrate.h |
+| 0x442a70 | sub_442A70 | 12026 | char_handlers.c, char_integrate.c, char_integrate.h (+2) |
 | 0x445ce0 | sub_445CE0 | 67 | shots.h |
 | 0x445d30 | sub_445D30 | 124 | char_integrate.h |
 | 0x445db0 | sub_445DB0 | 150 | actor_update.c, actor_update.h |
@@ -1419,7 +1434,17 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b5d50 | sub_5B5D50 | 52 | win_app.h |
 | 0x5b5eb0 | sub_5B5EB0 | 59 | render_platform.h |
 | 0x5b5ef0 | sub_5B5EF0 | 87 | win_app.h |
+| 0x5b5fa0 | sub_5B5FA0 | 5 | static_init.h |
+| 0x5b5fb0 | sub_5B5FB0 | 19 | static_init.h |
+| 0x5b5fd0 | sub_5B5FD0 | 5 | static_init.h |
+| 0x5b5fe0 | sub_5B5FE0 | 19 | static_init.h |
+| 0x5b6000 | sub_5B6000 | 5 | static_init.h |
+| 0x5b6010 | sub_5B6010 | 19 | static_init.h |
+| 0x5b6030 | sub_5B6030 | 5 | static_init.h |
+| 0x5b6040 | sub_5B6040 | 19 | static_init.h |
 | 0x5b6060 | sub_5B6060 | 53 | file_stream.h |
+| 0x5b60a0 | sub_5B60A0 | 5 | static_init.h |
+| 0x5b60b0 | sub_5B60B0 | 19 | static_init.h |
 | 0x5b60d0 | sub_5B60D0 | 5 | file_stream.h |
 | 0x5b60e0 | sub_5B60E0 | 202 | file_stream.h |
 | 0x5b61b0 | sub_5B61B0 | 68 | file_stream.h |
