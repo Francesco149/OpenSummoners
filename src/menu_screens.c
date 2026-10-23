@@ -2854,8 +2854,11 @@ LABEL_22:
 LABEL_35:
   if ( a3 == 0 )
   {
-    v22 = 10101;
+    /* the skill table's first id: IDA folds it to 10101; retail loads dword_6826C0 (0x5959ee) and tests it for 0 */
+    v22 = ((int32_t *)D(0x6826c0))[0];
     v23 = 0;
+    if ( v22 == 0 )
+      goto LABEL_47;
     while ( v22 != F32(16 * F32((F32(v8, 372) + 20), 0) + F32((v8 + 380), 0), 4) )
     {
       v22 = ((int32_t *)D(0x6826c0))[192 * ++v23];
@@ -2865,8 +2868,10 @@ LABEL_35:
     v24 = &((int32_t *)D(0x6826c0))[192 * v23];
     if ( v24 != 0 )
     {
+      /* the name is the RECORD's +0xc4 (0x595a3f `lea edi, [edx+0C4h]`, before edx is reloaded with the cost
+       * +0x2d4); IDA's `strcpy(v47, v25 + 196)` reorders that reload (f32682 rh-early-game: read of 0xc4) */
       v25 = v24[181];
-      strcpy(v47, (const char *)(v25 + 196));
+      strcpy(v47, (const char *)v24 + 0xc4);
       if ( v25 > 0 )
       {
         g_eng.h5bf3ee(v49, "(MP Cost:%d)", v25);
