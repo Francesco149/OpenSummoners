@@ -71,6 +71,7 @@
 #include "ai_skill.h"
 #include "script_io.h"
 #include "frame_load.h"
+#include "win_main.h"
 #include "asset_load.h"
 #include "win_app.h"
 #include "zdd_dev.h"
@@ -400,6 +401,7 @@ typedef struct {
     X(H_ZD5B9740, "zd_5b9740", 0x5b9740u) X(H_ZD5BCFF0, "zd_5bcff0", 0x5bcff0u) X(H_ZD5BD020, "zd_5bd020", 0x5bd020u) \
     X(H_ZD5BD040, "zd_5bd040", 0x5bd040u) X(H_ZD5BD380, "zd_5bd380", 0x5bd380u) X(H_ZD5BD3B0, "zd_5bd3b0", 0x5bd3b0u) \
     X(H_ZD5BD3D0, "zd_5bd3d0", 0x5bd3d0u) X(H_ZD5BD4D0, "zd_5bd4d0", 0x5bd4d0u) X(H_ZD5BD520, "zd_5bd520", 0x5bd520u) \
+    X(H_WM5B12E0, "wm_5b12e0", 0x5b12e0u) X(H_ID5BA200, "id_5ba200", 0x5ba200u) \
     X(H_WM5AFB00, "wm_5afb00", 0x5afb00u) X(H_WM5AFB90, "wm_5afb90", 0x5afb90u) X(H_WM5AFBF0, "wm_5afbf0", 0x5afbf0u) \
     X(H_WM5AFC90, "wm_5afc90", 0x5afc90u) X(H_WM5AFF00, "wm_5aff00", 0x5aff00u) X(H_WM5AFF20, "wm_5aff20", 0x5aff20u) \
     X(H_WM5AFFE0, "wm_5affe0", 0x5affe0u) X(H_WM5B01E0, "wm_5b01e0", 0x5b01e0u) X(H_WM5B0260, "wm_5b0260", 0x5b0260u) \
@@ -420,6 +422,9 @@ typedef struct {
     X(H_AL57A260, "al_57a260", 0x57a260u) X(H_AL582B80, "al_582b80", 0x582b80u) X(H_AL582D00, "al_582d00", 0x582d00u) \
     X(H_AL582D10, "al_582d10", 0x582d10u) X(H_AL583C90, "al_583c90", 0x583c90u) X(H_AL583EE0, "al_583ee0", 0x583ee0u) \
     X(H_AL563EF0, "al_563ef0", 0x563ef0u) \
+    X(H_WN5A4770, "wn_5a4770", 0x5a4770u) X(H_WN562210, "wn_562210", 0x562210u) X(H_WN5624C0, "wn_5624c0", 0x5624c0u) \
+    X(H_WN562B50, "wn_562b50", 0x562b50u) X(H_WN562B70, "wn_562b70", 0x562b70u) X(H_WN560900, "wn_560900", 0x560900u) \
+    X(H_WN58FFA0, "wn_58ffa0", 0x58ffa0u) X(H_WN5B9AB0, "wn_5b9ab0", 0x5b9ab0u) X(H_WN5B9AC0, "wn_5b9ac0", 0x5b9ac0u) \
     /* (wire.py: new modules' rows go above this line) */ \
     X(H_SC401D80, "sc_401d80", 0x401d80u) X(H_SC402030, "sc_402030", 0x402030u) X(H_SC4020A0, "sc_4020a0", 0x4020a0u) \
     X(H_SC4024E0, "sc_4024e0", 0x4024e0u) X(H_SC402610, "sc_402610", 0x402610u) X(H_SC402F40, "sc_402f40", 0x402f40u) \
@@ -4710,6 +4715,9 @@ TC_HOOK(H_ZD5BD3D0, "zd_5bd3d0", 1, 1, return (intptr_t)zd_5bd3d0((wl_char *)sel
 TC_HOOK0(H_ZD5BD4D0, "zd_5bd4d0", 1, return (intptr_t)zd_5bd4d0((wl_char *)self))
 TC_HOOK0(H_ZD5BD520, "zd_5bd520", 0, zd_5bd520((wl_char *)self); return 0)
 /* the application shell under WinMain (src/win_app.c; decomp2c): REPLACE only (files, the window, the pump; the window procedure 0x5b12e0 is registered by WinMain: no call site) */
+/* reached by address only (an entry patch: the window procedure, the EnumDevices callback) */
+ST_HOOK(H_WM5B12E0, "wm_5b12e0", 4, 1, return (intptr_t)wm_5b12e0(a1, a2, a3, a4))
+ST_HOOK(H_ID5BA200, "id_5ba200", 2, 1, return (intptr_t)id_5ba200((void *)a1, a2))
 TC_HOOK(H_WM5AFB00, "wm_5afb00", 3, 1, return (intptr_t)wm_5afb00((wl_char *)self, (char *)a1, U16(a2), a3))
 TC_HOOK(H_WM5AFB90, "wm_5afb90", 4, 1, return (intptr_t)wm_5afb90((wl_char *)self, U16(a1), a2, a3, (void *)a4))
 TC_HOOK(H_WM5AFBF0, "wm_5afbf0", 3, 1, return (intptr_t)wm_5afbf0((wl_char *)self, U16(a1), a2, a3))
@@ -4767,6 +4775,16 @@ ST_HOOK(H_AL582D10, "al_582d10", 9, 1, return (intptr_t)al_582d10(U16(a1), U16(a
 TC_HOOK(H_AL583C90, "al_583c90", 1, 1, return (intptr_t)al_583c90((wl_char *)self, a1))
 ST_HOOK0(H_AL583EE0, "al_583ee0", 1, return (intptr_t)al_583ee0())
 TC_HOOK(H_AL563EF0, "al_563ef0", 6, 1, return (intptr_t)al_563ef0((wl_char *)self, (void *)a1, (void *)a2, U16(a3), U16(a4), U16(a5), a6))
+/* the program's top (src/win_main.c; decomp2c): REPLACE only (_WinMain runs the whole session) */
+TC_HOOK(H_WN5A4770, "wn_5a4770", 1, 1, return (intptr_t)wn_5a4770((wl_char *)self, a1))
+ST_HOOK(H_WN562210, "wn_562210", 4, 1, return (intptr_t)wn_562210(a1, a2, (char *)a3, a4))
+TC_HOOK0(H_WN5624C0, "wn_5624c0", 0, wn_5624c0((wl_char *)self); return 0)
+TC_HOOK(H_WN562B50, "wn_562b50", 1, 1, return (intptr_t)wn_562b50((wl_char *)self, a1))
+ST_HOOK(H_WN562B70, "wn_562b70", 1, 1, return (intptr_t)wn_562b70((intptr_t *)a1))
+TC_HOOK0(H_WN560900, "wn_560900", 1, return (intptr_t)wn_560900((wl_char *)self))
+TC_HOOK(H_WN58FFA0, "wn_58ffa0", 1, 0, wn_58ffa0((wl_char *)self, a1); return 0)
+TC_HOOK0(H_WN5B9AB0, "wn_5b9ab0", 1, return (intptr_t)wn_5b9ab0((wl_char *)self))
+TC_HOOK0(H_WN5B9AC0, "wn_5b9ac0", 1, return (intptr_t)wn_5b9ac0((wl_char *)self))
 /* (wire.py: new modules' hook rows go above this line) */
 /* the chapter scripts' file / sound / DirectX-free callees (src/script_helpers.c; 0x4a5e40 0x4cbfb0 0x4cbfd0 0x4d6490
  * read their caller's ecx: thiscall wrappers) */
@@ -5200,9 +5218,19 @@ void rh_hooks_install(void)
             rh_log("hook %s:%s @%08x: the flip stub's jmp\n", mode, name, h->va);
             continue;
         }
+        /* reached BY ADDRESS too (a window procedure, the atexit shutdown, the EnumDevices callback): the port stores
+         * retail's address there, so REPLACE also patches the entry with a jmp to the wrapper (the body is dead) */
+        static const uint32_t BYADDR[] = { 0x5b12e0u, 0x5b10d0u, 0x5ba200u };
+        int byaddr = 0;
+        for (size_t k = 0; k < sizeof BYADDR / sizeof BYADDR[0]; k++) byaddr |= h->va == BYADDR[k];
+        if (byaddr && h->mode == 2) {
+            uint8_t *e = (uint8_t *)(uintptr_t)h->va;
+            e[0] = 0xE9; *(int32_t *)(e + 1) = (int32_t)((uint32_t)(uintptr_t)h->wrapper - (h->va + 5));
+            rh_log("hook %s:%s @%08x: entry patched (reached by address)\n", mode, name, h->va);
+        }
         int n = redirect_calls_chain(h->va, h->wrapper);
         rh_log("hook %s:%s @%08x every=%u: %d call sites\n", mode, name, h->va, every, n);
-        if (!n) rh_fatal("hook %s: no direct call sites", name);
+        if (!n && !(byaddr && h->mode == 2)) rh_fatal("hook %s: no direct call sites", name);
     }
     /* Port code reaches a REPLACED function through its engine-call slot (bound to retail's VA) or an RC_ call too —
      * not only through retail's call sites: those land on the hook's wrapper (retail's convention) as well.  Before,

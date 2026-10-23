@@ -1,6 +1,12 @@
 # rhost volatile addresses: slots that hold system-DLL/COM pointers (masked in state_sem).
 # Learned by `rhost.py det SCEN --calibrate` (only diffs that are external pointers in BOTH runs).
+# + stack-address slots (2026-10-23): WinMain keeps &local in 008a6b3c (read only by the launcher window proc 0x401210);
+#   the CRT setlocale leaves pointers into its own frame in 008a9d9c / 008a9da0 — their values follow the frame layout
+#   (a ported WinMain's frames differ), not game state
+008a6b3c
 008a6e68
+008a9d9c
+008a9da0
 500220b0
 500220d0
 500220f0

@@ -179,8 +179,8 @@ def asm_offset_only(edition, va, names):
         if int(m.group(1), 16) >= end:
             break
         ops = m.group(2).split(";")[0]
-        for n in names:
-            for mm in re.finditer(r"(\boffset\s+)?\b%s\b" % n, ops):
+        for n in names:   # (by the VA: the asm may label it differently — `offset unk_628670` for C's dword_628670)
+            for mm in re.finditer(r"(\boffset\s+)?\b(?:dword|word|byte|unk|off|stru|asc)_%s\b" % n.split("_")[-1], ops):
                 (addr if mm.group(1) else seen).add(n)
     return addr - seen
 
@@ -656,7 +656,7 @@ WIN_ALIAS = {"struct tagRECT": "RECT", "tagRECT": "RECT", "struct tagPOINT": "PO
              "struct tagSIZE": "SIZE",
              "LPCSTR": "char *", "LPSTR": "char *", "LPBITMAPINFO": "BITMAPINFO *", "LPPOINT": "POINT *",
              "LPRECT": "RECT *", "WORD": "uint16_t", "BYTE": "uint8_t", "LPBYTE": "uint8_t *", "HPSTR": "char *"}
-TYPEMAP = [("unsigned __int16", "uint16_t"), ("__int16", "int16_t"), ("unsigned int", "uint32_t"),
+TYPEMAP = [("_BOOL1", "uint8_t"), ("_BOOL2", "uint16_t"), ("_BOOL4", "int32_t"), ("unsigned __int16", "uint16_t"), ("__int16", "int16_t"), ("unsigned int", "uint32_t"),
            ("unsigned __int8", "uint8_t"), ("_DWORD", "int32_t"), ("_WORD", "uint16_t"), ("_BYTE", "uint8_t"),
            ("__int64", "int64_t"), ("unsigned __int64", "uint64_t"), ("long double", "double"), ("char", "char"), ("unsigned char", "uint8_t"), ("bool", "int"), ("int", "int32_t")]
 
@@ -757,7 +757,8 @@ def convert(text, names, widths, this):
             n1, n2 = re.match(r".*?\b(\w+)$", ps[0]).group(1), re.match(r".*?\b(\w+)$", ps[1]).group(1)
             if not re.search(r"\b%s\b" % n2, bt):
                 t1 = re.match(r"(.*?)\s*\b\w+$", ps[0]).group(1)   # its own type: an `int` a1 adds bytes
-                ps = [t1 + " this"] + ps[2:]
+                ps = [(t1.rstrip() + "this") if t1.rstrip().endswith("*") else (t1 + " this")] + ps[2:]   # (`cls_X *this`:
+                # the class layout keys on that spelling)
                 head = hm.group(1).replace("__fastcall", "__thiscall") + ", ".join(ps) + hm.group(3)
                 body = [re.sub(r"\b%s\b" % n1, "this", l) for l in body]
                 FASTLOCAL.add(CUR[0])
@@ -839,8 +840,14 @@ def convert(text, names, widths, this):
     if tsize > 1:   # `this + n` (no cast) moves by whole objects, as in the asm
         s = re.sub(r"(?<![\w)*])this \+ ((?:[\w.]+|\((?:[^()]|\([^()]*\))*\))(?: [*/] (?:[\w.]+|\([^()]*\)))*)(?=\s*[;,)])",
                    lambda m: f"this + {tsize} * ({m.group(1)})", s)   # (one operand: 0x5bb180's `this + 1, 0)` keeps its 0)
+        if tsize in (1, 2, 4, 8):   # `*(this + n)` of a word-sized class: the whole object by value (0x42b5f0's `*(this + 7) = ...`)
+            s = re.sub(r"\*\(this \+ %d \* \(([^()]+)\)\)" % tsize,
+                       lambda m: f"{ {1: 'F8', 2: 'F16', 4: 'F32', 8: 'F64'}[tsize]}(this, {tsize} * ({m.group(1)}))", s)
     s = re.sub(r"this->field_([0-9A-F]+)", lambda m: fld(this, int(m.group(1), 16), tfields, tgaps), s)
     s = re.sub(r"this->gap([0-9A-F]+)\[([^\]]+)\]", lambda m: f"GAP({this}, 0x{tgaps.get(int(m.group(1), 16), int(m.group(1), 16)):x}, {m.group(2)})", s)
+    if tm and tsize:   # `this[k].gapN[i]`: past the object by whole objects (0x456d30's `this[1].gap0[37820]`)
+        s = re.sub(r"\bthis\[(\d+)\]\.gap([0-9A-F]+)\[([^\]]+)\]",
+                   lambda m: f"GAP({this}, 0x{int(m.group(1)) * tsize + tgaps.get(int(m.group(2), 16), int(m.group(2), 16)):x}, {m.group(3)})", s)
     s = re.sub(r"\bsizeof\(this->gap([0-9A-F]+)\)", lambda m: str(gap_size(tm.group(1) if tm else CLS[0], int(m.group(1), 16))), s)
     s = re.sub(r"this->gap([0-9A-F]+)\b(?!\s*\[)", lambda m: f"((uint8_t *)({this}) + 0x{tgaps.get(int(m.group(1), 16), int(m.group(1), 16)):x})", s)
     def vgap(m):   # any class-pointer local's gap byte, at its class's real gap offset
@@ -975,7 +982,7 @@ def convert(text, names, widths, this):
         if not re.search(r"\b%s\b(?=\s*[,)])|\b%s\b" % (name, name), head):
             s = re.sub(r"(?<![\w.>:])%s\b" % name, f"(*(intptr_t *)D(0x{va:x}))", s)
     for name, va in SYMS.items():
-        if not re.search(r"\b%s\b" % re.escape(name), s) or name.startswith(("sub_", "p_cls_")) or name in ("Format", "Buffer", "stru_8A6B60") \
+        if not re.search(r"\b%s\b" % re.escape(name), s) or name.startswith(("sub_", "p_cls_")) or name in ("Buffer", "stru_8A6B60") \
                 or re.search(r"\b%s\b" % re.escape(name), head) or name in DECLNAMES:   # (a1..: a parameter only when in the head)
             continue
         if re.match(r"^a[A-Z0-9]", name):   # a string's element address: &aText[i]
@@ -1013,8 +1020,12 @@ def convert(text, names, widths, this):
             s = re.sub(r"(?<![\w.])%s\b" % name, f"(*({mt} *)D(0x{va:x}))", s)
     s = re.sub(r"&(?:unk|byte|dword|word|asc|off|stru|o_cls_\w+?)_(?!8A6B60\b)([0-9A-F]{6})\b", lambda m: f"D(0x{int(m.group(1), 16):x})", s)
     s = re.sub(r"(?<![\w&])o_cls_\w+?_([0-9A-F]{6})\b", lambda m: f"D(0x{int(m.group(1), 16):x})", s)   # a vtable (an array: its address)
-    for kind, f in (("dword", "F32"), ("word", "F16"), ("byte", "F8")):   # a global's value (not in data_xrefs)
-        s = re.sub(r"(?<![\w&.])%s_([0-9A-F]{6})\b(?!\s*\[)" % kind, lambda m, f=f: f"{f}(D(0x{int(m.group(1), 16):x}), 0)", s)
+    for kind, f in (("dword", "F32"), ("word", "F16"), ("byte", "F8")):   # a global's value (not in data_xrefs) — or, an
+        # array the asm only takes the address of, its address (0x5a4770's `dword_628670` is `push offset unk_628670`)
+        ct = {"dword": "int32_t", "word": "uint16_t", "byte": "uint8_t"}[kind]
+        s = re.sub(r"(?<![\w&.])%s_([0-9A-F]{6})\b(?!\s*\[)" % kind,
+                   lambda m, f=f, ct=ct, kind=kind: f"(({ct} *)D(0x{int(m.group(1), 16):x}))" if f"{kind}_{m.group(1)}" in INDEXED
+                   else f"{f}(D(0x{int(m.group(1), 16):x}), 0)", s)
 
     DSB = {0x5bb870: "g_eng.dsb_volume_5bb870", 0x5bb880: "g_eng.dsb_pan_5bb880", 0x5bb890: "g_eng.dsb_freq_5bb890",
            0x5bb8c0: "g_eng.dsb_play_5bb8c0", 0x5bb8e0: "g_eng.dsb_stop_5bb8e0",
@@ -1161,11 +1172,16 @@ static inline int32_t abs32(int32_t x) { return x < 0 ? (int32_t)(0u - (uint32_t
 #include <stdbool.h>
 #endif
 typedef int32_t _DWORD;
+typedef uint8_t _UNKNOWN;   /* IDA's untyped byte (casts: `(_UNKNOWN *)p`) */
+typedef uint8_t _BOOL1;
+typedef uint16_t _BOOL2;
+typedef int32_t _BOOL4;
 typedef uint16_t _WORD;
 typedef uint8_t _BYTE;
 typedef uint64_t _QWORD;
 #define GAP(p, o, i) F8(p, (o) + (i))   /* IDA's gapN[i]: the byte at +N + i */
 #define qmemcpy memcpy   /* IDA's inline memcpy */
+static inline void *memset32(void *d, uint32_t v, size_t n) { uint32_t *p = d; while (n--) *p++ = v; return d; }   /* IDA's rep stosd */
 typedef char CHAR;
 #define SETLO(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff0000u) | (uint16_t)(v)))
 #define SETHI(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffu) | ((uint32_t)(uint16_t)(v) << 16)))
@@ -1373,15 +1389,9 @@ def main():
         if not pn:
             RETAIL.add(v)
             return f"((intptr_t)g_eng.retail(0x{v:x}u))"
-        conv, na = cc.get(v, ("stdcall", 0))
-        attr = {"stdcall": " __attribute__((stdcall))", "thiscall": " __attribute__((thiscall))",
-                "fastcall": " __attribute__((fastcall))"}.get(conv, "")
-        ps = ", ".join(f"intptr_t a{i}" for i in range(na)) or "void"
-        cl = ", ".join(f"a{i}" for i in range(na))
-        rt = rets.get(pn) or (protos[pn][0] if pn in protos else "intptr_t")
-        body = f"{pn}({cl}); return 0;" if rt == "void" else f"return (intptr_t){pn}({cl});"
-        shims[pn] = f"static intptr_t{attr} cb_{pn}({ps}) {{ {body} }}   /* 0x{v:x} by address: retail's {conv} */"
-        return f"((intptr_t)cb_{pn})"
+        # a ported function stored by address (a window procedure, an atexit / EnumDevices callback): retail's own
+        # address — game memory never holds a port pointer; rhost patches that function's entry to its REPLACE wrapper
+        return f"((intptr_t)D(0x{v:x}) /* {pn} by address */)"
     def fp_params(f):   # a vtable call's function-pointer type: its class / word-shell parameters are words
         out, pos = [], 0
         for m in re.finditer(r"\((?:__stdcall|__thiscall|__cdecl|__fastcall) \*+\)\(", f):

@@ -474,11 +474,16 @@ static LRESULT CALLBACK filt1(HWND h, UINT m, WPARAM w, LPARAM l) { return filte
 static LRESULT CALLBACK filt2(HWND h, UINT m, WPARAM w, LPARAM l) { return filter_proc(h, m, w, l, g_wndproc_orig[2]); }
 static LRESULT CALLBACK filt3(HWND h, UINT m, WPARAM w, LPARAM l) { return filter_proc(h, m, w, l, g_wndproc_orig[3]); }
 static WNDPROC g_filt[4] = { filt0, filt1, filt2, filt3 };
+static WNDPROC g_game_proc;   /* the game window class's own procedure (retail's 0x5b12e0 or the port's) */
 static ATOM WINAPI my_RegisterClassExA(const WNDCLASSEXA *wc)
 {
     if (g_nclass >= 4) rh_fatal("more than 4 window classes");
     WNDCLASSEXA c = *wc;
     g_wndproc_orig[g_nclass] = c.lpfnWndProc;
+    if ((uint32_t)(uintptr_t)c.lpfnWndProc == g_ed->wndproc ||   /* the game window's class: retail's procedure, or the
+                                                                   * port's (a ported WinMain registers its own) */
+        (HIWORD((uintptr_t)c.lpszClassName) && !strcmp(c.lpszClassName, "CLASS_LIZSOFT_SOTES")))
+        g_game_proc = c.lpfnWndProc;
     c.lpfnWndProc = g_filt[g_nclass];
     c.hbrBackground = rh_gdi_real(c.hbrBackground);   /* retail made it via the fake-numbered CreateBrushIndirect */
     ATOM a = RegisterClassExA(&c);
@@ -497,7 +502,7 @@ static void maybe_activate(HWND hw)
 {
     WNDPROC orig = (WNDPROC)(uintptr_t)GetClassLongPtrA(hw, GCLP_WNDPROC);
     for (int i = 0; i < g_nclass; i++) if (orig == g_filt[i]) orig = g_wndproc_orig[i];
-    if ((uint32_t)(uintptr_t)orig == g_ed->wndproc && !g_activated) {
+    if (orig && orig == g_game_proc && !g_activated) {
         g_activated = 1;
         rh_log("synthetic WM_ACTIVATEAPP(1) to the game window (frame %u)\n", g_frame);
         CallWindowProcA(orig, hw, WM_ACTIVATEAPP, 1, 0);

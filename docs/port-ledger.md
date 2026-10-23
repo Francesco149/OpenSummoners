@@ -14,9 +14,9 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **1259** (81.3% of engine-proper) — tested 249, ported 1010
-- code bytes touched: **64.5%** (1,145,828 / 1,776,526 B of engine-proper)
-- unported: **565**
+- touched: **1262** (81.5% of engine-proper) — tested 249, ported 1013
+- code bytes touched: **64.6%** (1,147,255 / 1,776,526 B of engine-proper)
+- unported: **562**
 - orphan refs in src/ not in this table: 0
 
 ## tested (249) — ported + host unit suite
@@ -123,10 +123,10 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x54ded0 | sub_54DED0 | 1555 | collision.c, collision.h |
 | 0x54e5c0 | mover_vertical_54E5C0 | 945 | entity_move.c, entity_move.h |
 | 0x54e990 | sub_54E990 | 861 | collision.c, collision.h |
-| 0x560900 | sub_560900 | 251 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c |
+| 0x560900 | sub_560900 | 251 | cs_dispatch.c, cs_dispatch.h, cs_dispatch_win32.c (+1) |
 | 0x560e60 | actor_slot_reset_560E60 | 42 | game_map.c, game_map.h, scene_loop.h |
 | 0x561c90 | sub_561C90 | 94 | game_map.h, game_world.h, scene_loop.h |
-| 0x562210 | _WinMain@16 | 688 | app_pump.h, rng.h |
+| 0x562210 | _WinMain@16 | 688 | app_pump.h, rng.h, win_main.h |
 | 0x562a10 | sub_562A10 | 92 | asset_register.c, asset_register.h, title_menu.h |
 | 0x562ea0 | build_title_drive_562EA0 | 4062 | app_flow.c, app_flow.h, asset_register.c (+11) |
 | 0x563ef0 | sub_563EF0 | 445 | asset_load.h, asset_register.c, asset_register.h |
@@ -176,10 +176,10 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x58c910 | game_bank_dims_58C910 | 347 | main.c, map_decode.c, map_grid.c (+1) |
 | 0x58ca80 | sub_58CA80 | 167 | map_decode.c, map_grid.c, map_grid.h |
 | 0x58cb30 | layer_hdr_u32_58CB30 | 1065 | map_decode.c, map_decode.h |
-| 0x58ffa0 | sub_58FFA0 | 23 | wnd_proc.h, wnd_proc_win32.c |
+| 0x58ffa0 | sub_58FFA0 | 23 | win_main.h, wnd_proc.h, wnd_proc_win32.c |
 | 0x59f2c0 | sub_59F2C0 | 3522 | game_map.c, game_map.h, game_world.c (+5) |
 | 0x5a00c0 | sub_5A00C0 | 13690 | map_data.h |
-| 0x5a4770 | sub_5A4770 | 45963 | app_pump.h, main.c |
+| 0x5a4770 | sub_5A4770 | 45963 | app_pump.h, main.c, win_main.h |
 | 0x5b1030 | sub_5B1030 | 156 | app_pump.c, app_pump.h, title_scene.c (+3) |
 | 0x5b12e0 | sub_5B12E0 | 441 | win_app.h, wnd_proc.c, wnd_proc.h |
 | 0x5b14c0 | sub_5B14C0 | 287 | win_app.h, wnd_proc.h, wnd_proc_win32.c |
@@ -244,8 +244,8 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5b98c0 | sub_5B98C0 | 73 | render_platform.h, zdd.c, zdd.h |
 | 0x5b9910 | sub_5B9910 | 291 | frame_load.h, zdd.c, zdd.h |
 | 0x5b9a40 | blt_onto_5B9A40 | 112 | main.c, parallax.h, render_platform.h (+3) |
-| 0x5b9ab0 | sub_5B9AB0 | 10 | zdd.h |
-| 0x5b9ac0 | sub_5B9AC0 | 22 | zdd.c, zdd.h |
+| 0x5b9ab0 | sub_5B9AB0 | 10 | win_main.h, zdd.h |
+| 0x5b9ac0 | sub_5B9AC0 | 22 | win_main.h, zdd.c, zdd.h |
 | 0x5b9ae0 | blt_rects_5B9AE0 | 140 | render_platform.h, zdd.c, zdd.h |
 | 0x5b9b70 | blt_keyed_5B9B70 | 122 | hud.h, main.c, map_present.c (+5) |
 | 0x5b9bf0 | blt_clipped_5B9BF0 | 256 | main.c, map_present.c, map_present.h (+4) |
@@ -273,7 +273,7 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0934 | _xtoa | 92 | zdd.c |
 | 0x5c123f | _free | 47 | asset_register.c |
 
-## ported (1010) — reimplemented, no host test yet
+## ported (1013) — reimplemented, no host test yet
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -1002,8 +1002,11 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x561bf0 | sub_561BF0 | 152 | save_game.h |
 | 0x561cf0 | sub_561CF0 | 43 | save_game.h |
 | 0x561d20 | sub_561D20 | 1259 | save_game.h |
+| 0x5624c0 | sub_5624C0 | 1355 | win_main.h |
 | 0x562a70 | sub_562A70 | 127 | scene_loop.h |
 | 0x562af0 | sub_562AF0 | 82 | title_menu.h |
+| 0x562b50 | sub_562B50 | 30 | win_main.h |
+| 0x562b70 | sub_562B70 | 42 | win_main.h |
 | 0x562ba0 | sub_562BA0 | 432 | scene_loop.h |
 | 0x562d50 | sub_562D50 | 239 | room_load.h |
 | 0x562e40 | sub_562E40 | 30 | scene_loop.h |

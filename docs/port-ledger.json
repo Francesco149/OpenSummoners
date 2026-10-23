@@ -7,16 +7,16 @@
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
   "tested": 249,
-  "ported": 1010,
-  "unported": 565,
+  "ported": 1013,
+  "unported": 562,
   "orphan_refs_not_in_function_table": 0,
-  "touched": 1259,
-  "pct_touched": 81.3,
+  "touched": 1262,
+  "pct_touched": 81.5,
   "pct_tested": 15.7,
-  "engine_proper_touched": 1246,
+  "engine_proper_touched": 1249,
   "bytes_total": 1776526,
-  "bytes_touched": 1145828,
-  "pct_bytes_touched": 64.5
+  "bytes_touched": 1147255,
+  "pct_bytes_touched": 64.6
  },
  "orphan_refs": [],
  "functions": [
@@ -9973,7 +9973,8 @@
    "src": [
     "src/cs_dispatch.c",
     "src/cs_dispatch.h",
-    "src/cs_dispatch_win32.c"
+    "src/cs_dispatch_win32.c",
+    "src/win_main.h"
    ]
   },
   {
@@ -10136,7 +10137,8 @@
    "status": "tested",
    "src": [
     "src/app_pump.h",
-    "src/rng.h"
+    "src/rng.h",
+    "src/win_main.h"
    ]
   },
   {
@@ -10144,8 +10146,10 @@
    "name": "sub_5624C0",
    "size": 1355,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/win_main.h"
+   ]
   },
   {
    "va": "0x562a10",
@@ -10184,16 +10188,20 @@
    "name": "sub_562B50",
    "size": 30,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/win_main.h"
+   ]
   },
   {
    "va": "0x562b70",
    "name": "sub_562B70",
    "size": 42,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/win_main.h"
+   ]
   },
   {
    "va": "0x562ba0",
@@ -11693,6 +11701,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/win_main.h",
     "src/wnd_proc.h",
     "src/wnd_proc_win32.c"
    ]
@@ -12587,7 +12596,8 @@
    "status": "tested",
    "src": [
     "src/app_pump.h",
-    "src/main.c"
+    "src/main.c",
+    "src/win_main.h"
    ]
   },
   {
@@ -14358,6 +14368,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/win_main.h",
     "src/zdd.h"
    ]
   },
@@ -14368,6 +14379,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
+    "src/win_main.h",
     "src/zdd.c",
     "src/zdd.h"
    ]
