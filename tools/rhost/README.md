@@ -16,6 +16,9 @@ python3 tools/rhost/rhost.py det rh-intro-errands -n 3                  # determ
 python3 tools/rhost/rhost.py corpus                                     # every rh-* scenario
 python3 tools/rhost/rhost.py verify                                     # every scenario × every shadow hook
 python3 tools/rhost/rhost.py coverage                                   # first-hit coverage of all IDA functions
+python3 tools/rhost/rhost.py coverage --hybrid                          # ... with every port REPLACING retail: the retail
+#   code that still runs (retail_still_run.tsv: unreplaced / replaced-but-reached-indirectly) = the drop-in's gap
+python3 tools/rhost/rhost.py run X --hybrid --extra="--trap VA"         # who still enters retail VA under the hybrid (ret=)
 python3 tools/rhost/rhost.py record my-scenario [--save USERDIR|TGZ]    # HUMAN PLAY → tests/scenarios/<name>/
 python3 tools/rhost/rhost.py boot --edition ense-en                     # the EN Steam SE build
 python3 tools/rhost/rhost.py run X --extra="--watch-write 2005cb90@0"   # who writes this address?

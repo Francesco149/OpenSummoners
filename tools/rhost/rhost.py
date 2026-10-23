@@ -444,6 +444,9 @@ def print_results(results, names):
 
 # ---------------------------------------------------------------- commands
 def cmd_run(a):
+    if a.hybrid:    # every ported function REPLACING retail (as corpus --hybrid)
+        hs = hybrid_hooks()
+        a.hook = ",".join(["replace:" + h for h in hs] + ([a.hook] if a.hook else []))
     runs = resolve_runs(a.scenarios, a)
     fetch = ("rhost.log", "shot_*.png", "stdout.txt", "stderr.txt", "grid_*.bin") + (("state_*.rhs",) if a.dump_at else ())
     batch, bdir, res, out = run_batch(a, runs, "run", fetch=fetch)
@@ -748,6 +751,10 @@ def cmd_coverage(a):
     open(cov_in, "w").write("\n".join(vas) + "\n")
     a.coverage_file = cov_in
     names = all_scenarios(a.only) if not a.scenarios else a.scenarios
+    if a.hybrid:    # every port REPLACING retail: what's hit is retail code that STILL runs (the standalone's gap)
+        hs = hybrid_hooks()
+        a.hook = ",".join(["replace:" + h for h in hs] + ([a.hook] if a.hook else []))
+        print(f"hybrid coverage: {len(hs)} hooks replacing retail")
     runs = resolve_runs(names, a)
     batch, bdir, res, out = run_batch(a, runs, "coverage", fetch=("rhost.log", "coverage.txt"))
     print_results(res, [r[0] for r in runs])
@@ -771,6 +778,38 @@ def cmd_coverage(a):
             if v in hit:
                 f.write(f"{v}\t{sizes[v]}\t{','.join(hit[v])}\n")
     print(f"→ {bdir}/coverage_union.tsv")
+    if a.hybrid:
+        # a REPLACED function's entry hit = its retail body reached past the call-site redirect (an indirect call
+        # through a table / jmp thunk), except the entry-patched by-address ones (their jmp goes to the port)
+        rep, patched = {}, set()
+        for n, *_ in runs:
+            p = os.path.join(bdir, n, "rhost.log")
+            if not os.path.exists(p):
+                continue
+            for l in open(p, errors="replace"):
+                m = re.search(r"hook replace:(\S+) @([0-9a-f]{8})", l)
+                if m:
+                    rep[m.group(2)] = m.group(1)
+                    if "entry patched" in l:
+                        patched.add(m.group(2))
+        frm = {}
+        for n, *_ in runs:
+            p = os.path.join(bdir, n, "coverage.txt")
+            if os.path.exists(p):
+                for l in open(p):
+                    va, fr = l.split()
+                    frm.setdefault(va, (n, fr))
+        with open(os.path.join(bdir, "retail_still_run.tsv"), "w") as f:
+            f.write("va\tsize\tlib\tkind\tfirst\tscenarios\n")
+            for v in vas:
+                if v not in hit or v in patched:
+                    continue
+                kind = "replaced-indirect:" + rep[v] if v in rep else "unreplaced"
+                f.write(f"{v}\t{sizes[v]}\t{int(v in libs)}\t{kind}\t{frm.get(v, ('', ''))[0]}@{frm.get(v, ('', ''))[1]}"
+                        f"\t{','.join(hit[v])}\n")
+        nl = [v for v in vas if v in hit and v not in patched and v not in libs]
+        print(f"RETAIL STILL RUN (game, non-FLIRT): {len(nl)} functions, {sum(sizes[v] for v in nl)} bytes "
+              f"({sum(1 for v in nl if v in rep)} replaced but reached indirectly) → {bdir}/retail_still_run.tsv")
 
 
 # DIK press → ring ids, the retail producer 0x46a880 (quirk #126); used to drive the PORT, which
@@ -999,7 +1038,7 @@ def main():
     sub.add_parser("build").set_defaults(fn=cmd_build)
     sub.add_parser("stage").set_defaults(fn=cmd_stage)
     sub.add_parser("setup").set_defaults(fn=cmd_setup)
-    p = sub.add_parser("run"); p.add_argument("scenarios", nargs="+"); common(p); p.set_defaults(fn=cmd_run)
+    p = sub.add_parser("run"); p.add_argument("scenarios", nargs="+"); p.add_argument("--hybrid", action="store_true", help="every ported function REPLACES retail (as corpus --hybrid)"); common(p); p.set_defaults(fn=cmd_run)
     p = sub.add_parser("boot"); common(p); p.set_defaults(fn=cmd_boot)
     p = sub.add_parser("det"); p.add_argument("scenario"); p.add_argument("-n", type=int, default=3)
     p.add_argument("--calibrate", action="store_true")
@@ -1014,7 +1053,7 @@ def main():
     common(p); p.set_defaults(fn=cmd_verify)
     p = sub.add_parser("hookbisect"); p.add_argument("scenario"); p.add_argument("--hooks", help="candidate hook names (default: the hybrid set)")
     p.add_argument("--groups", type=int, default=8); common(p); p.set_defaults(fn=cmd_hookbisect)
-    p = sub.add_parser("coverage"); p.add_argument("--only"); p.add_argument("scenarios", nargs="*"); common(p); p.set_defaults(fn=cmd_coverage)
+    p = sub.add_parser("coverage"); p.add_argument("--only"); p.add_argument("scenarios", nargs="*"); p.add_argument("--hybrid", action="store_true", help="with every port REPLACING retail: list the retail code that still runs"); common(p); p.set_defaults(fn=cmd_coverage)
     p = sub.add_parser("portshots"); p.add_argument("scenario"); p.add_argument("--at", required=True)
     p.add_argument("--port-realtime", action="store_true", help="run the port on its wall clock instead of --det-clock")
     p.add_argument("--search", type=int, help="also find the best-matching retail flip within ±W of each port frame")
