@@ -1014,7 +1014,7 @@ void wm_5b10d0(void)
   }
   if ( F32(D(0x8a9b68), 0) != 0 )
   {
-    v1 = (int32_t *)D(0x8a9b68);
+    v1 = (int32_t *)(intptr_t)F32(D(0x8a9b68), 0);   /* the app object (retail: mov eax, dword_8A9B68) */
     if ( SYS32(788) != 0 )
     {
       API_FreeLibrary((intptr_t)(*(intptr_t *)&SYSB(788)));

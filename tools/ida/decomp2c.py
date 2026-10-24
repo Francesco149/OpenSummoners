@@ -193,8 +193,19 @@ def asm_named_offset_only(edition, va, name):
 def asm_offset_only(edition, va, names):
     """the globals among names this function's asm only ever takes the address of (`push offset byte_8A47F8`): a C
     array IDA prints bare as a pointer argument (0x5b6650's message strings) — its bare name is its address"""
+    addr, seen = asm_global_refs(edition, va, names)
+    return addr - seen
+
+
+def asm_offset_taken(edition, va, names):
+    """the globals among names whose address this function's asm takes at least once (`mov ecx, offset dword_6907C0`)"""
+    return asm_global_refs(edition, va, names)[0]
+
+
+def asm_global_refs(edition, va, names):
+    """(names the function's asm takes the address of, names it reads / writes as a value)"""
     if va is None or not names:
-        return set()
+        return set(), set()
     if edition not in _ASM:
         ecx_in(edition, va, 0)   # (builds the asm index)
     if edition not in _SIZES:
@@ -213,7 +224,7 @@ def asm_offset_only(edition, va, names):
         for n in names:   # (by the VA: the asm may label it differently — `offset unk_628670` for C's dword_628670)
             for mm in re.finditer(r"(\boffset\s+)?\b(?:dword|word|byte|unk|off|stru|asc)_%s\b" % n.split("_")[-1], ops):
                 (addr if mm.group(1) else seen).add(n)
-    return addr - seen
+    return addr, seen
 
 
 def frame_expr(fmap, off, addr):
@@ -1127,9 +1138,14 @@ def convert(text, names, widths, this):
     s = re.sub(r"\bflt_([0-9A-F]{6})\b", lambda m: f"(*(const float *)D(0x{int(m.group(1), 16):x}))", s)
     for kind, f in (("dword", "int32_t"), ("word", "uint16_t"), ("byte", "uint8_t")):
         s = re.sub(r"\b%s_([0-9A-F]{6})\[" % kind, lambda m: f"(({f} *)D(0x{int(m.group(1), 16):x}))[", s)
-    for kind, ct in (("dword", "int32_t"), ("word", "uint16_t"), ("byte", "uint8_t")):   # an array into a pointer local:
-        s = re.sub(r"\b(\w+) = %s_([0-9A-F]{6});" % kind,                               # its address (0x560a40's v12)
-                   lambda m, ct=ct: f"{m.group(1)} = ({ct} *)D(0x{int(m.group(2), 16):x});" if m.group(1) in PTRVARS else m.group(0), s)
+    offs = asm_offset_taken(EDITION[0], CURVA[0], set(re.findall(r"\b(?:dword|word|byte)_[0-9A-F]{6}\b", s)))
+    for kind, ct, acc in (("dword", "int32_t", "F32"), ("word", "uint16_t", "F16"), ("byte", "uint8_t", "F8")):
+        # a global into a pointer local: an array's address when the asm takes it (0x560a40's v12: `offset dword_6907C0`),
+        # else the global's VALUE, a pointer (0x5b10d0's `v1 = dword_8A9B68`: mov eax, dword_8A9B68)
+        s = re.sub(r"\b(\w+) = %s_([0-9A-F]{6});" % kind,
+                   lambda m, kind=kind, ct=ct, acc=acc: m.group(0) if m.group(1) not in PTRVARS else
+                   f"{m.group(1)} = ({ct} *)D(0x{int(m.group(2), 16):x});" if f"{kind}_{m.group(2)}" in offs else
+                   f"{m.group(1)} = ({ct} *)(intptr_t){acc}(D(0x{int(m.group(2), 16):x}), 0);", s)
     for name, va in NAMED_DWORDS.items():   # named word globals (`::hInstance` where a parameter shadows it)
         if name in DECLNAMES:
             continue

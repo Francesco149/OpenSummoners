@@ -582,7 +582,8 @@ def cmd_corpus(a):
         got = {k: res.get(n, {}).get(k) for k in keys}
         series = sem_series(os.path.join(bdir, n, "rhost.log"), getattr(a, "target", "win"))
         fbs = fb_series(os.path.join(bdir, n, "rhost.log"))
-        if a.bless and res.get(n, {}).get("status") == "ok":
+        r = res.get(n, {})
+        if a.bless and (r.get("status") == "ok" or r.get("reason") == "game-exit"):   # (rh-title-exit ends by quitting)
             if series and a.hash_every == SERIES_EVERY:
                 got["sem_series"] = series
             if fbs and a.hash_every == SERIES_EVERY:

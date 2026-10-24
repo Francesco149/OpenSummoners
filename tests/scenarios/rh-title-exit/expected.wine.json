@@ -1,0 +1,15 @@
+{
+ "frame": "762",
+ "tick": "0",
+ "rng": "40d00581",
+ "state_sem": "da93a1cec8189a60",
+ "fb": "d1f9f2d31e092ec2",
+ "sem_series": {
+  "0": "039a57d43ecd1eb9",
+  "600": "b3bf173ae28eb0ff"
+ },
+ "fb_series": {
+  "0": "0d67c7ca9c4fbc08",
+  "600": "3fe65ba07f3d360e"
+ }
+}

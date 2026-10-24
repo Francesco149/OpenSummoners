@@ -1,0 +1,12 @@
+# rhost scenario (EN-old): title → Down x4 → Exit → Enter: the game's exit path (the app teardown 0x5b10d0, the CRT's exit).
+{"meta": {"edition": "enold"}}
+{"frame":620,"keys":[208]}
+{"frame":624,"keys":[]}
+{"frame":640,"keys":[208]}
+{"frame":644,"keys":[]}
+{"frame":660,"keys":[208]}
+{"frame":664,"keys":[]}
+{"frame":680,"keys":[208]}
+{"frame":684,"keys":[]}
+{"frame":710,"keys":[28]}
+{"frame":714,"keys":[]}
