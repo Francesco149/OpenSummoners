@@ -11,17 +11,91 @@ the game.
 **Not distributed:** no game assets, no decompiled binary code, no copyrighted
 content of any kind.  You supply your own copy of the game (Steam).
 
-## Status
+## Status (October 2026)
 
-**Early development — the port is not yet playable.** The engine core boots and the
-opening arc (title → town intro → arrival cutscenes) already renders 1:1 against the
-retail exe, but a playable game is still a long way off. In the meantime the project
-ships two **finished, usable tools** — the resource explorer and the Japanese voice
-patch below.
+**The whole engine is ported, and the game runs on it with no original code at all.**
+`opensummoners-standalone.exe` plays the English 2012 release using only the *data* from
+your own `sotes.exe` and its DLLs (strings, tables, maps, sprites, sound). Every
+instruction it executes is OpenSummoners' C code. In the recorded playthroughs below, the
+port's output matches the original pixel for pixel.
 
-Development detail: [`docs/STATUS.md`](docs/STATUS.md) (current front),
-[`docs/PLAN.md`](docs/PLAN.md) (roadmap), [`docs/PROGRESS.md`](docs/PROGRESS.md)
+[![three frames from a recorded playthrough, played by the port](docs/media/standalone-frames.png)](docs/media/standalone-frames.png)
+
+*Frames from a recorded play session, rendered by the standalone port. Each is
+pixel-identical to the original game at the same frame (`differ_px = 0`).*
+
+- **Verified against the original game** on 10 recorded scenarios of the 2012 edition
+  (about 240,000 frames: intro, town and house errands, item finds, combat with a party
+  ally, a game over and retry, statue saves, the shop, the main menus, quitting). Every
+  presented frame has the same pixels, and each run ends on the same frame, tick count
+  and random-number state.
+- **Proven not to contain or run original code.** Each run writes an audit (which byte
+  ranges were read from your files, that every code byte is a trap, that nothing outside
+  the port is executable). `tools/standalone/prove_no_retail_code.py` re-checks the
+  binaries and sources independently.
+- **Coverage:** 1,558 of the 1,824 functions in `sotes.exe` are reimplemented, which is
+  100% of the engine's code bytes. The rest are almost all C-runtime internals the game
+  never calls directly (the port has its own small C runtime). If a play session ever
+  reached original code with no port, the game would stop with a message naming the
+  address. None is known.
+- **Limits:** English 2012 edition only (the 2020 Special Edition comes later). Windows
+  only. The C runtime's heap places memory blocks differently from the original (no
+  visible effect; tracked in [`docs/port-debt.md`](docs/port-debt.md)). Long-play audio
+  hasn't been checked yet.
+
+Details: [`docs/standalone.md`](docs/standalone.md) (how the standalone works, the proof),
+[`docs/STATUS.md`](docs/STATUS.md) (current front), [`docs/PROGRESS.md`](docs/PROGRESS.md)
 (changelog).
+
+## How the port got done so fast
+
+The first two months (May–July 2026) went the classic way: run the original and the port
+side by side and compare screenshots and traces. That reached **233 functions** (boot, the
+title, the opening arc) because every mismatch had to be traced back from pixels to code.
+The project then switched methods, and **from October 14 to 24 the remaining ~1,300
+functions were ported and verified**:
+
+1. **rhost, the original game as a test fixture.** `tools/rhost/` loads your `sotes.exe`
+   into our own process and runs it deterministically: virtual clock, scripted keyboard,
+   fixed heap, handles and stack. The same input recording gives the same game state,
+   bit for bit, at about 1,000 frames per second.
+2. **Verify each function in isolation.** Once a function is written in C, rhost runs the
+   original and the port on the same game state at every call during a recorded play
+   ("shadow" mode) and compares the results. A divergence names the function,
+   the call and the field.
+3. **Then replace it.** The port takes over from the original (`--hook replace:NAME`) and
+   the recorded corpus is replayed. Final game state, RNG, tick count and every presented
+   frame's pixels must match the original's.
+4. **A mechanical first draft.** `tools/ida/decomp2c.py` turns the IDA decompilation
+   (with recovered C++ classes) into compilable C that keeps the original's control flow,
+   stack layout and calling conventions. A person reviews and cleans it up, and steps 2–3
+   decide whether it's right.
+5. **The hybrid, then nothing.** With every ported function replacing the original at
+   once, rhost's coverage mode lists whatever original code still runs. That list went to
+   zero, and the standalone maps only the data sections of `sotes.exe`: code is filled with
+   traps plus jumps into the port.
+
+Method notes: [`CLAUDE.md`](CLAUDE.md) (the loop and gates), [`tools/rhost/`](tools/rhost)
+(the host), [`docs/audits/2026-10-14-rhost-methodology.md`](docs/audits/2026-10-14-rhost-methodology.md)
+(why the switch).
+
+## Play it (Windows)
+
+You need your own copy of **Fortune Summoners: Secret of the Elemental Stone** (Steam,
+2012). The stock Steam `sotes.exe` works as is.
+
+1. Build `opensummoners-standalone.exe` (see *Building* below; not yet in the nightly
+   downloads).
+2. Copy it into a folder holding `sotes.exe`, `sotesd.dll`, `sotesw.dll`, `sotesp.dll` and
+   `lizsoft.spl`, either the Steam install or a copy of it.
+3. Run it. The game's own launcher appears as usual. Saves and settings go to that
+   folder's `user\`.
+
+Notes: **Zoom Mode** is a borderless window covering the whole desktop (the original
+does the same), so it looks like fullscreen. **Fullscreen Mode** needs Windows' 16-bit
+color emulation, which the exe applies to itself (without it, the original can fail to
+start fullscreen on Windows 11). A log and the run's audit land in
+`opensummoners-standalone\`.
 
 ## Get the game (support the author)
 
@@ -72,64 +146,38 @@ JP audio) — something no official English release ever shipped. Install by pas
 and installs; re-run to uninstall. The exe is not modified. One-liner + manual zip:
 [`tools/ennse_voice/README.md`](tools/ennse_voice/README.md).
 
-### The port — `opensummoners.exe`
+### `opensummoners.exe` (nightly)
 
-Drop it beside your Fortune Summoners install. Early development (see Status);
-today it is a developer artifact, not a way to play the game.
+The earlier from-scratch front end (its own boot and title drive). The playable build is
+the standalone above, built from source for now.
 
-## Getting started (NixOS / WSL2)
+## Building
+
+Everything builds on Linux / WSL2 inside the Nix dev shell (mingw-w64 cross compiler;
+no game files needed to build):
 
 ```fish
 nix develop
-./tools/setup.sh         # symlinks game into vendor/, runs Steamless, hashes binaries
+bash tools/rhost/build.sh      # build/rhost/opensummoners-standalone.exe (+ rhost.exe)
+bash tools/ci/build_all.sh     # the port, the tools, the host test suite: the pre-push gate
 ```
 
-This enters a dev shell with the full RE toolchain (Ghidra, radare2, mingw-w64
-32-bit cross-compiler, Frida, Pillow/numpy/scikit-image, …) and prepares the
-game files for analysis.
-
-`sotes.exe` is **Steam-DRM packed** — the entry point lives in a `.bind`
-section appended by the SteamStub wrapper.  `tools/setup.sh` runs
-[Steamless](https://github.com/atom0s/Steamless) to produce a clean
-`vendor/unpacked/sotes.unpacked.exe` that Ghidra can decompile directly.
+Porting work needs more: your game files (`./tools/setup.sh` links them and unpacks the
+Steam DRM with [Steamless](https://github.com/atom0s/Steamless)), a Windows machine
+reachable as `ssh win` for rhost runs (wine works for most of them), and IDA 9.4 for the
+decompile export (`tools/ida/`).
 
 ## Layout
 
 ```
-docs/         design notes, file-format specs, progress log, engine quirks
-src/          our C reimplementation (cross-compiled with mingw32)
-tests/        unit suite + scenario harness (golden BMP + audio/input traces)
-tools/        setup, build, extract, capture, contact-sheet, ghidra-headless,
-              Frida agent + capture driver, Job-Object launcher
-vendor/       game files (gitignored) — symlinked from the user's Steam install
-              + Steamless-unpacked sotes
-ghidra/       Ghidra projects (gitignored — derived from the original binary)
-runs/         test artifacts (gitignored)
+src/            the port: the engine reimplemented in C (one module per subsystem)
+tools/rhost/    the in-process host: deterministic retail runs, shadow / replace hooks,
+                corpus gates, the standalone (rhost.c built -DRH_PRODUCT)
+tools/ida/      IDA export (class recovery, knowledge pack) + decomp2c
+tools/standalone/  the no-retail-code prover, the play-folder installer
+tests/          host unit suite + tests/scenarios/rh-* (recorded plays + expected hashes)
+docs/           status, plans, findings (engine quirks, formats), proofs
 ```
-
-## Workflow
-
-Heavy use of a Frida-based harness against the retail exe for ground-truth
-probing, with hidden-window + turbo + silent-audio defaults so a harness run
-never disrupts the desktop:
-
-- **Hidden window + turbo** from day 1 — the agent rewrites `ShowWindow` →
-  `SW_HIDE`, virtualises `timeGetTime`, and no-ops `Sleep`, so the engine
-  ticks as fast as the host can churn through it.
-- **MessageBox auto-dismiss** in both the harness (Frida-side hook) and the
-  drop-in (`dev_hooks.c` patches `user32!MessageBoxA/W` to log → IDOK).  A
-  blocked modal dialog never silently stalls the run.
-- **Job-Object launcher** wraps every `.exe` spawn so a SIGKILL on the WSL
-  side atomically tears down the Windows-side game process — no stray
-  processes after a botched run, ever.
-- **Bit-exact frame diffs** between retail and our re-impl (once the DDraw7
-  surface-lock hook lands), with red-tint overlay on mismatch.
-- **Input trace** sparse JSONL format the harness replays into both targets
-  for deterministic side-by-side runs.
-
-The harness grows into a **TAS bot** that drives a whole game session at
-inhuman speed, exercising different subsystems against retail and our
-re-impl in lock-step.
 
 ## Sibling projects
 
