@@ -6,6 +6,29 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-24 — the standalone on real Windows: the ZDI exit, fullscreen, the exit routine
+
+- USER report: the product exe stops at "It failed in the initialization of ZDI".  Cause: retail's
+  `DirectInputCreateEx(hInstance, 0x700, …)` (0x5b9f80) gets the hand-mapped image's 0x400000; real dinput validates
+  the instance with GetModuleFileName → 0x80070126.  wine doesn't check, which is why the wine live test passed.  Live
+  mode now hands dinput the host exe's handle (`live_DirectInputCreateEx`).  Windowed boots to the title on the user's
+  Windows 11.
+- The user's saved launcher choice is Fullscreen: `SetDisplayMode(640,480,16)` = DDERR_UNSUPPORTED → "It failed in the
+  display mode setting".  Retail sotes.exe does the same on that machine: quirk #177.  `DWM8And16BitMitigation` fixes
+  both.  The product relaunches itself once under `__COMPAT_LAYER` (`--no-compat-layer`).  Verified: fullscreen boots
+  to the title (shots), including copies at never-seen paths / hashes.  Ruled out on the way (probe exes): the window's
+  HINSTANCE, LAA / fixed base, NX_COMPAT, COM / DirectInput / DirectSound order, rhost's fixed stack, address
+  reservations.
+- live: the game's OutputDebugStringA / MessageBoxA mirrored into rhost.log (`ods:` lines — the ZDD error text lives
+  only there); `--screen N` for the emulated launcher.
+- Port bug: `wm_5b10d0` (the app teardown, every game exit) used the address of `dword_8A9B68`, not its value.  Fixed,
+  and decomp2c fixed at the source (a pointer local gets a global's address only when the asm takes its `offset`).
+  New corpus scenario `rh-title-exit` (title → Exit; the corpus never reached a game exit), blessed Windows + wine.
+  Pure ≡ `--hook replace:wm_5b10d0` ≡ `--hybrid` at the exit (sem 74d716b19b367874); the old line → 88c5078f84eddc82.
+  `--check --hybrid` / `--standalone` PASS on both targets.
+- Gates: `corpus --check --hybrid` Windows PASS 11/11; `rh-title-exit` `--hybrid` + `--standalone` PASS Windows + wine;
+  host 1124 pass / 0 fail / 6 skip; build_all green; prover 10/10.
+
 ## 2026-10-23 (late night) — the STANDALONE: the port runs with no retail code (+ the proof it copies none)
 
 - USER decisions (2026-10-23): CRT = a custom one covering only what the game uses (surface proved small); real Win32

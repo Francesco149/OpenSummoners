@@ -78,9 +78,30 @@ to the title menu (shots), audit OK incl. `.bind`.
 Windows box: `C:\OpenSummoners\` (the user's game files from the Steam folder + the exe) and the desktop / Start Menu
 shortcut "OpenSummoners (standalone)" — `tools/standalone/install-play.sh` (re-run after a rebuild to refresh the exe;
 never overwrites game files or saves). Log + audit: `C:\OpenSummoners\opensummoners-standalone\`. Elsewhere: copy
-`opensummoners-standalone.exe` into any folder holding sotes.exe (stock or unpacked) + the three DLLs. First-time paths
-rhost never exercised (and so unverified): the real launcher dialog (falls back to the emulation if Windows refuses the
-hand-mapped template), fullscreen DirectDraw, real DirectSound / DirectShow output, window activation.
+`opensummoners-standalone.exe` into any folder holding sotes.exe (stock or unpacked) + the three DLLs. Verified on the user's
+Windows 11 (2026-10-24, desktop session via the oss-rhost runner, real DirectInput / DirectDraw, DirectSound created
+but the tests ran `--silent`): windowed and fullscreen boot to the title menu (shots); the real launcher dialog (the
+user's own launch got past it).  Not yet exercised: audible DirectSound / DirectShow BGM over a long play, window
+activation edge cases.
+
+## The real platform (`--live`): what the host adds on Windows (2026-10-24)
+The game's HINSTANCE is the hand-mapped image 0x400000 (`GetModuleHandleA(NULL)` → 0x400000: its resources live there).
+The loader doesn't know that image as a module; resource loads (LoadIconA, the launcher's DialogBoxParamA, FindResourceA)
+work on it as is, but:
+- **DirectInput** validates the instance (`GetModuleFileName`) → 0x80070126 → retail's exit "It failed in the
+  initialization of ZDI" (0x562ea0) — the user's first launch.  wine's dinput doesn't check, so the wine live test
+  passed.  `live_DirectInputCreateEx` hands it the host exe's own handle.
+- **Fullscreen** fails as retail's does on Windows 11 (quirk #177: `SetDisplayMode(640,480,16)` DDERR_UNSUPPORTED →
+  "It failed in the display mode setting").  The product relaunches itself once under `__COMPAT_LAYER=
+  DWM8And16BitMitigation` (appended to any layers already set; the parent waits and returns the child's exit code: two
+  processes in Task Manager).  `--no-compat-layer`: no relaunch.  The child logs `product: __COMPAT_LAYER=…`.
+- The game's own diagnostics are mirrored into `rhost.log`: `ods: …` (OutputDebugStringA: the ZDD / ZDI error texts, the
+  boot steps) and `MessageBoxA [caption] text`; the real box is still shown.
+- `--screen N` sets the emulated launcher's Screen Mode (3 Windowed = default, 4 Fullscreen, 5 Zoom 1280x960), so a
+  test can drive fullscreen without the dialog: `--no-launcher --screen 4`.
+- DEP: on that machine `GetProcessDEPPolicy` reports DEP off and permanent for every 32-bit process, including a
+  minimal mingw probe with or without NX_COMPAT (system policy OptIn).  So its audits read `dep set=0 flags=0
+  permanent=1`.  The other audit checks don't depend on DEP.
 
 ## Gaps the standalone surfaced (closed)
 - `0x401000 → 0x401010`: the static-init table's FIRST entry (pi/180 into 0x8a9a38) — IDA defines no function there,
@@ -94,6 +115,13 @@ hand-mapped template), fullscreen DirectDraw, real DirectSound / DirectShow outp
   DirectInput (live) crashed on 0xCC. The port passes the SDK's own formats (mingw `libdinput`: identical 256 / 44
   objects, compared field by field) — `src/input_dev.c`. The prover's source check now flags any `D(va)` of a
   structure holding a pointer to `.text` bytes outside every function.
+- The app teardown `wm_5b10d0` (0x5b10d0, runs at every game exit) took `v1` = the ADDRESS of `dword_8A9B68` where
+  retail loads its value (`mov eax, dword_8A9B68`).  So the exit read the box caption / GDI handle off the wrong memory
+  and `op_delete`d a global's address.  Visible as the caption "[ Ver]" (retail: "Fortune Summoners Ver1.2").  The
+  cause was decomp2c: "pointer local = `dword_X`" always emitted the address; now only when the function's asm takes it
+  (`offset`), else the value.  No other instance in `src/` (each `= (int32_t *)D(..)` checked against data_xrefs
+  kinds).  The corpus never reached a game exit: `rh-title-exit` (title → Exit, game-exit at frame 762) now does —
+  the old line gives a different state hash there under `--hook replace:wm_5b10d0`.
 Retail code still reachable but unported = none known; the INT3 trap names any the user's play finds.
 
 ## Open

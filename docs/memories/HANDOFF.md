@@ -6,7 +6,18 @@
 > `findings/`. Keep this to: the current checkpoint, the next move, the module layout, and
 > open RE threads.
 
-## Where we are — 2026-10-23 late night: THE STANDALONE runs (no retail code); `docs/standalone.md`
+## Where we are — 2026-10-24: the standalone runs on the USER's real Windows 11 (`docs/standalone.md` "The real platform")
+
+- Live-mode host fixes: `live_DirectInputCreateEx` (host HINSTANCE for dinput's validation), the product's
+  self-relaunch under `__COMPAT_LAYER=DWM8And16BitMitigation` (fullscreen; quirk #177; `--no-compat-layer`),
+  `ods:` / `MessageBoxA` lines in rhost.log, `--screen N` (emulated launcher).  Test on the desktop: a job through
+  `rhost.win_job` (the oss-rhost runner) starting the product with `--no-launcher --screen 3|4 --frames N --shot-at …`.
+  Windows auto-registers `AppCompatFlags\Layers` entries for any exe asking for 16-bit modes: a test exe that
+  "works" may only work because of a registry entry left by an earlier run.  Check HKCU + HKLM Layers first.
+- `wm_5b10d0` fixed (address vs value of `dword_8A9B68`); decomp2c's pointer-local rule now asks the asm (`offset`).
+  `rh-title-exit` = the corpus' first game exit.
+
+## Before — 2026-10-23 late night: THE STANDALONE runs (no retail code); `docs/standalone.md`
 
 - **Binaries:** `build/rhost/opensummoners-standalone.exe` (rhost.c `-DRH_PRODUCT`: `--standalone --live` always, code
   copy compiled out; staged to `C:\oss-rhost\bin\`), `rhost.exe --standalone` (deterministic; `rhost.py run / corpus

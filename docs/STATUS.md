@@ -36,7 +36,7 @@ understates how much actual instruction volume is ported.
   USER decisions (audit §7): deterministic cadence = rhost 1 update/flip; EN-old first (SE = a later
   delta layer); Frida retail drive RETIRED (legacy, don't extend). Port boot "Now Loading" frames now
   DEFAULT (`--no-boot-loading` = legacy axis; old port-timed traces keep working).
-  Corpus: 10 scenarios incl. the USER's `rh-early-game` (137.7k flips, 2026-10-23: more of the story, a statue save,
+  Corpus: 11 scenarios (+ `rh-title-exit` 2026-10-24: title → Exit, the game-exit path) incl. the USER's `rh-early-game` (137.7k flips, 2026-10-23: more of the story, a statue save,
   selling at the shop, the main menu's Status / Items / Abilities / Party Commands) + `rh-my-play` (15.7k flips: intro → house errands → town → shop;
   10 room loads) + `rh-errands-items` (16.4k flips: errands, item finds, the storage box) + `rh-combat` (57.6k
   flips, the USER 2026-10-16: combat on the way to school, a party ally fighting, a statue save, the main menu, a game
@@ -169,6 +169,11 @@ understates how much actual instruction volume is ported.
   9/9 Windows + wine (state hashes: PORT-DEBT(crt-heap)).  Proof: every run writes `standalone_audit.txt` (refuses to
   run if it fails); `tools/standalone/prove_no_retail_code.py` re-derives it from the files (image / binary / source /
   audit).  Survey: no script / bytecode format in the exe (`findings/exe-data-interpreted.md`).
+  **Real Windows (2026-10-24):** the USER's launch stopped at "It failed in the initialization of ZDI" (real dinput
+  rejects the hand-mapped HINSTANCE 0x400000; wine doesn't check) → fixed in live mode; fullscreen fails as RETAIL's
+  own does on Windows 11 (quirk #177) → the product relaunches itself under `DWM8And16BitMitigation`.  Windowed +
+  fullscreen boot to the title on the USER's box.  The exit routine `wm_5b10d0` read a global's address for its value
+  (decomp2c rule, fixed at the source); new scenario `rh-title-exit` covers the game exit.
 - **Next (port side):**
   0000000000. The USER plays the standalone: any INT3 stop names a retail VA the play reached with no port (log +
   message box) → port it, add its row.  Then: PORT-DEBT(crt-heap) (MSVC6's SBH from the decompile → standalone state

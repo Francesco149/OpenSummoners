@@ -5086,6 +5086,21 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   CRT-only (`___onexitinit`, `___initstdio`, `___initmbctable`, the unhandled-exception filter 0x5c7c05); the exit
   tables 0x85405c (`___endstdio`) / 0x854068 (0x5c7c16).  The atexit'd 0x401120 = `mov ecx, 0x8a6b50; jmp 0x5b5a90`.
 
+### #177 — Fullscreen (exclusive 640x480x16) fails on Windows 11 without the 8/16-bit mitigation layer (2026-10-24)
+- Launcher "Fullscreen Mode" (screen radio 4) → 0x562ea0 `SetCooperativeLevel(hwnd, 0x13)` OK → 0x582e90
+  `SetDisplayMode(640, 480, 16, 0, 0)` = DDERR_UNSUPPORTED 0x80004001.  The ZDD error text goes to OutputDebugStringA only
+  (0x5b80d0: "Warning,exists ZDD errors,DirectDraw.SetDisplayMode failed,Error Code 80004001.").  fs_warning.log gets
+  "[00000126] The specified module could not be found." + "It failed in the display mode setting.": the `[N]` prefix is
+  `GetLastError()` at log time (stale), not the failure code.  Then a message box, exit.  The box caption = the app
+  object's +132 (ProductName) + " Ver" + its +212 (version) — the version resource, read by 0x5b5af0 — built in the
+  teardown 0x5b10d0: "Fortune Summoners Ver1.2".
+- Observed with retail `sotes.exe` (unpacked) itself on Windows 11 build 26100, first launches.  Under the compatibility
+  layer `DWM8And16BitMitigation` (`__COMPAT_LAYER`; also `16BITCOLOR`, the "Reduced color mode" setting) it reaches the
+  title menu.  Windows writes `DWM8And16BitMitigation` to HKCU + HKLM `AppCompatFlags\Layers` for each exe path that
+  asks for a 16-bit mode.  Later in the same session, exe paths and file hashes Windows had never seen (retail renamed,
+  the port) succeeded without the layer: the trigger for the first failures is not pinned.  Windowed and zoom modes
+  change no display mode: unaffected.
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`
