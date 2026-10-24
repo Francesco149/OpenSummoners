@@ -33,11 +33,23 @@ pixel-identical to the original game at the same frame (`differ_px = 0`).*
   ranges were read from your files, that every code byte is a trap, that nothing outside
   the port is executable). `tools/standalone/prove_no_retail_code.py` re-checks the
   binaries and sources independently.
-- **Coverage:** 1,558 of the 1,824 functions in `sotes.exe` are reimplemented, which is
+- **Ported:** 1,558 of the 1,824 functions in `sotes.exe` are reimplemented, which is
   100% of the engine's code bytes. The rest are almost all C-runtime internals the game
   never calls directly (the port has its own small C runtime). If a play session ever
   reached original code with no port, the game would stop with a message naming the
   address. None is known.
+- **Ported is not the same as verified or documented.** Only code the recorded plays
+  actually run is checked against the original. The recordings enter 1,165 of the 1,550
+  game functions at least once (63% of the code bytes), and many branches inside those
+  never run. The rest (mostly later chapters' event scripts, plus most character and
+  monster types, the ending, the bonus menu, gamepad input and the Japanese text paths) is
+  translated from the decompilation and compiles, but no recording has exercised it yet.
+  Bugs there will surface as those parts get played. Much of the port is also still
+  undocumented: more than half of the ported functions are decomp2c's translation, named
+  after their address, with structure fields as raw offsets. Full coverage, every
+  function exercised, verified and documented, is a long-term goal, and it takes many
+  more recorded playthroughs. Each new recording of new content becomes another
+  regression gate.
 - **Limits:** English 2012 edition only (the 2020 Special Edition comes later). Windows
   only. The C runtime's heap places memory blocks differently from the original (no
   visible effect; tracked in [`docs/port-debt.md`](docs/port-debt.md)). Long-play audio
@@ -53,7 +65,8 @@ The first two months (May–July 2026) went the classic way: run the original an
 side by side and compare screenshots and traces. That reached **233 functions** (boot, the
 title, the opening arc) because every mismatch had to be traced back from pixels to code.
 The project then switched methods, and **from October 14 to 24 the remaining ~1,300
-functions were ported and verified**:
+functions were ported**, with everything the recorded plays reach verified against the
+original:
 
 1. **rhost, the original game as a test fixture.** `tools/rhost/` loads your `sotes.exe`
    into our own process and runs it deterministically: virtual clock, scripted keyboard,
