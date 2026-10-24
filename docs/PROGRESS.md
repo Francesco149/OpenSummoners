@@ -18,6 +18,16 @@ specific commits where relevant.
   Restore + the first 12 failing surface calls; `--log-ddraw` for all) and the surface FORMAT PIN (the primary's format for
   formatless surfaces when the display's differs).  The round-trip verification of the pin is pending: the
   automation can't take focus while the USER's elevated Task Manager is in front (UIPI drops injected input).
+- Alt-tab VERIFIED by the USER: their log showed the display at 32-bit (ff0000/ff00/ff) vs the 16-bit 565 primary at
+  reactivation, and the pins.  The windowed path names its 16-bit format itself; the exclusive modes don't (#180).
+  `--log-ddraw` now works in deterministic runs (logging only): pure vs standalone failure logs identical over
+  rh-title-options / rh-my-play / rh-early-game; the failing Blt in the USER's log (DDERR_INVALIDRECT, colorkeyed) is
+  retail's own (#180).
+- Pure coverage over the 10 EN-old scenarios: 1,165 / 1,550 game functions entered, 63.4% of game code bytes.  Never
+  reached, by port module: story_scripts.c 427 KB, char_handlers2.c 56 KB, char_types.c 28 KB, title_extra.c 20 KB,
+  ending.c 17 KB … (batch 20261024-060632-coverage).  887 of the ~1,558 ported functions still carry decomp2c's
+  `prefix_<va>` names.  README says so (USER: ported ≠ exercised ≠ documented; full coverage = a long-term goal that
+  needs many more gameplay traces).
 - README rewritten: status (the standalone, the gates, the limits), how the port went from 233 functions (May–July)
   to the whole engine in Oct 14–24 (rhost, shadow / replace, decomp2c, hybrid coverage → standalone), how to play /
   build; `docs/media/standalone-frames.png` (rh-my-play frames 5200 / 8000 / 14500, differ_px 0 vs pure retail).

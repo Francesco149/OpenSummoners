@@ -5118,10 +5118,21 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   DDERR_UNSUPPORTED 0x80004001 (`flags DDBLT_WAIT`, caller 0x5b9be2 in 0x5b9ae0).  Nothing overwrites the composition
   surface, so the previous frame stays and additive draws pile up: the selected title item becomes a white blob,
   moving things leave trails.  The restored surfaces themselves still work (the frame still reaches the screen).
-- Not yet pinned: WHY the recreated surfaces mismatch.  They are created without DDSD_PIXELFORMAT ("the display's
-  format"); a different display format at recreation time than at boot (16-bit emulation not back yet) is the
-  working hypothesis.  Native retail not driven yet (the runner could not take focus while an elevated window was
-  in front).
+- Cause (confirmed 2026-10-24, the USER's machine): the recreated surfaces carry no DDSD_PIXELFORMAT ("the display's
+  format"), and at reactivation the display reports 32-bit while the restored surfaces are 16-bit 565 (see #180).
+  Native retail not driven (the runner could not take focus while an elevated window was in front); retail code under
+  rhost fails identically.
+
+### #180 — retail issues colorkeyed Blts DirectDraw rejects (DDERR_INVALIDRECT), every frame in stretches (2026-10-24)
+- `Blt(…, DDBLT_WAIT | DDBLT_KEYSRC)` through the blit wrapper 0x5b9ae0 returns 0x88760096 DDERR_INVALIDRECT once per
+  frame for long stretches of normal play: `rh-my-play` frames 3169–3445 and 3547–…, `rh-early-game` from 9205 (rhost
+  `--log-ddraw`, windowed).  The call draws nothing.  Pure retail and the standalone log the identical sequence (same
+  op, flags, result, frame), and the corpus pixels match — retail behaviour, reproduced; not a port bug.  Which draw it
+  is (a rect past the surface edge, no clipper) is not pinned yet.
+- Related, #179: in windowed mode the game creates its offscreen surfaces WITH a pixel format (`DDSD_PIXELFORMAT`,
+  16-bit; the desktop is 32-bit); in Fullscreen / Zoom without one (`flags 7`), relying on the display being 16-bit.
+  Hence the alt-tab breakage only in the exclusive modes.  Confirmed on the USER's machine: at reactivation the display
+  reported 32-bit (ff0000/ff00/ff) against the 16-bit 565 primary; the host's pin fired and the trails were gone.
 
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
