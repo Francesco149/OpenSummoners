@@ -533,7 +533,8 @@ static HRESULT WINAPI live_DirectInputCreateEx(HINSTANCE hi, DWORD ver, REFIID i
 }
 
 /* live: DirectDraw from the game's side — every Restore and the surface calls that FAIL (Blt / BltFast / Flip / Lock),
- * with their caller (cheap: logged only on failure); --log-ddraw adds every surface created (caps, size, format).
+ * with their caller (cheap: logged only on failure); --log-ddraw adds every surface created (caps, size, format), and
+ * turns the same logging on in deterministic runs (pure vs port: the same failures at the same frames = retail's).
  * (Lost-surface hunting: alt-tab in exclusive mode.) */
 typedef HRESULT (WINAPI *dd_cs_t)(void *, DDSURFACEDESC2 *, void **, void *);
 typedef HRESULT (WINAPI *dd_gas_t)(void *, DDSCAPS2 *, void **);
@@ -544,7 +545,7 @@ typedef HRESULT (WINAPI *dd_lock_t)(void *, RECT *, void *, DWORD, HANDLE);
 typedef HRESULT (WINAPI *dd_one_t)(void *);
 static dd_cs_t dl_cs; static dd_gas_t dl_gas; static dd_blt_t dl_blt; static dd_bltf_t dl_bltf; static dd_flip_t dl_flip;
 static dd_lock_t dl_lock; static dd_one_t dl_restore;
-static unsigned g_ddlog_n;   /* failures + restores: the first 12 always (live), 300 with --log-ddraw */
+static unsigned g_ddlog_n, g_ddcs_n;   /* failures + restores: the first 12 always (live), 300 with --log-ddraw */
 #define DDLOG(...) do { if (g_ddlog_n++ < (O.log_ddraw ? 300u : 12u)) rh_log(__VA_ARGS__); } while (0)
 static void dl_patch(void **vt, int i, void *fn, void **orig)
 {
@@ -613,7 +614,7 @@ static HRESULT WINAPI dl_CreateSurface(void *dd, DDSURFACEDESC2 *d, void **out, 
     DDSURFACEDESC2 sd = { .dwSize = sizeof sd }, md = { .dwSize = sizeof md }, pinned;
     ((gsd_t)(*(void ***)dd)[12])(dd, &md);                                               /* GetDisplayMode */
     const DDPIXELFORMAT *dp = &md.ddpfPixelFormat;
-    if (g_pin_have && !(d->dwFlags & DDSD_PIXELFORMAT) && !(d->ddsCaps.dwCaps & DDSCAPS_PRIMARYSURFACE) &&
+    if (O.live && g_pin_have && !(d->dwFlags & DDSD_PIXELFORMAT) && !(d->ddsCaps.dwCaps & DDSCAPS_PRIMARYSURFACE) &&
         (dp->dwRGBBitCount != g_pin_pf.dwRGBBitCount || dp->dwRBitMask != g_pin_pf.dwRBitMask ||
          dp->dwGBitMask != g_pin_pf.dwGBitMask || dp->dwBBitMask != g_pin_pf.dwBBitMask)) {
         pinned = *d; pinned.dwFlags |= DDSD_PIXELFORMAT; pinned.ddpfPixelFormat = g_pin_pf; d = &pinned;
@@ -627,7 +628,7 @@ static HRESULT WINAPI dl_CreateSurface(void *dd, DDSURFACEDESC2 *d, void **out, 
     if (r == DD_OK && (d->ddsCaps.dwCaps & DDSCAPS_PRIMARYSURFACE)) { g_pin_pf = sd.ddpfPixelFormat; g_pin_have = 1; }
     if (r == DD_OK && out && *out) dl_surface(*out);
     if (O.log_ddraw) {
-        DDLOG("ddlog: CreateSurface flags %lx caps %lx %lux%lu -> %p %lubpp (display %lux%lux%lu) = %08lx (caller %p, frame %u)\n",
+        if (g_ddcs_n++ < 300) rh_log("ddlog: CreateSurface flags %lx caps %lx %lux%lu -> %p %lubpp (display %lux%lux%lu) = %08lx (caller %p, frame %u)\n",
               d->dwFlags, d->ddsCaps.dwCaps, d->dwWidth, d->dwHeight, out ? *out : NULL, sd.ddpfPixelFormat.dwRGBBitCount,
               md.dwWidth, md.dwHeight, md.ddpfPixelFormat.dwRGBBitCount, (unsigned long)r, __builtin_return_address(0), g_frame);
         if (r == DD_OK && out && *out) dl_patch(*(void ***)*out, 12, (void *)dl_GetAttachedSurface, (void **)&dl_gas);
@@ -1555,6 +1556,9 @@ int main(int argc, char **argv)
     iat_override("SetTimer", my_SetTimer);
     iat_override("KillTimer", my_KillTimer);
     iat_override("WaitMessage", my_WaitMessage);
+    if (O.log_ddraw) {   /* deterministic: the logging only (the pin is live-only); rh_scrub wraps this in turn */
+        dl_ddce = (ddce_t)iat_lookup("DirectDrawCreateEx"); iat_override("DirectDrawCreateEx", dl_DirectDrawCreateEx);
+    }
     if (!O.no_arena) rh_heap_install();
     if (!O.no_overlay) rh_files_install();
     rh_handles_install();                            /* after files: wraps their overrides */
