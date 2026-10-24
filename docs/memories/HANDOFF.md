@@ -15,6 +15,10 @@
   Windows auto-registers `AppCompatFlags\Layers` entries for any exe asking for 16-bit modes: a test exe that
   "works" may only work because of a registry entry left by an earlier run.  Check HKCU + HKLM Layers first.
 - `wm_5b10d0` fixed (address vs value of `dword_8A9B68`); decomp2c's pointer-local rule now asks the asm (`offset`).
+- OPEN: alt-tab trails in Fullscreen / Zoom (quirk #179, retail code too).  The host's surface format pin is in, but
+  unverified: run one round trip (`alttab` job: real launcher → BM_CLICK the radio → Alt+Tab → restore + click) and
+  read `ddraw:` / `ddlog:` lines.  Needs the desktop's foreground free (an elevated Task Manager in front blocks the
+  runner's injected input: UIPI).  If the pin doesn't fire, `--log-ddraw` shows the recreated surfaces' formats.
   `rh-title-exit` = the corpus' first game exit.
 
 ## Before — 2026-10-23 late night: THE STANDALONE runs (no retail code); `docs/standalone.md`

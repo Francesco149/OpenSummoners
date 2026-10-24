@@ -5101,6 +5101,28 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   the port) succeeded without the layer: the trigger for the first failures is not pinned.  Windowed and zoom modes
   change no display mode: unaffected.
 
+### #178 — "Zoom Mode" is a borderless popup the size of the desktop: it looks like fullscreen (2026-10-24)
+- Launcher radio 10025 "Zoom Mode(1280x960)" (screen 5) → settings screen 2 → 0x562ea0 case 4: target 1280x960; when
+  the desktop is at least that big, the window takes the DESKTOP's client size instead.  IDA prints the RECT read at
+  `&Rect.top`, so the fields look shifted: width = desktop width, height = desktop height.  Then style WS_POPUP,
+  exstyle WS_EX_TOPMOST, SetWindowPos(0, 0, w, h).  Exclusive cooperative level like Fullscreen (0x13).  Observed (retail
+  code, Windows 11, 1920x1080 desktop): window 0,0-1920,1080, style 0x94000000; display mode 1920x1080x16 (emulated).
+- The radio 10026 "Zoom Mode(1920x1440)" (settings screen 3) is hidden by the launcher (ShowWindow 0).
+
+### #179 — after an alt-tab round trip in an exclusive mode, recreated surfaces don't blit: trails (2026-10-24)
+- On WM_ACTIVATEAPP(1) the WndProc 0x5b12e0 calls 0x5b14c0: if the primary / back / the two offscreen surfaces report
+  lost (0x5b91d0, IsLost = vtable +96), it restores them (0x5b9240 / 0x5b9ab0, Restore = +108), frees every sprite-slot
+  frame (0x4184a0 over the 909 slots) and the title frames ([10068] list), which are then recreated on demand.
+- Observed with retail's own code (inside rhost, Zoom mode, Windows 11 + DWM8And16BitMitigation): after the round trip,
+  every frame's Blt from a recreated title frame (640x480 offscreen) into the 640x480 composition surface fails
+  DDERR_UNSUPPORTED 0x80004001 (`flags DDBLT_WAIT`, caller 0x5b9be2 in 0x5b9ae0).  Nothing overwrites the composition
+  surface, so the previous frame stays and additive draws pile up: the selected title item becomes a white blob,
+  moving things leave trails.  The restored surfaces themselves still work (the frame still reaches the screen).
+- Not yet pinned: WHY the recreated surfaces mismatch.  They are created without DDSD_PIXELFORMAT ("the display's
+  format"); a different display format at recreation time than at boot (16-bit emulation not back yet) is the
+  working hypothesis.  Native retail not driven yet (the runner could not take focus while an elevated window was
+  in front).
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

@@ -97,6 +97,14 @@ work on it as is, but:
   processes in Task Manager).  `--no-compat-layer`: no relaunch.  The child logs `product: __COMPAT_LAYER=…`.
 - The game's own diagnostics are mirrored into `rhost.log`: `ods: …` (OutputDebugStringA: the ZDD / ZDI error texts, the
   boot steps) and `MessageBoxA [caption] text`; the real box is still shown.
+- **Alt-tab in Fullscreen / Zoom** leaves trails, with retail's code as much as the port's (quirk #179: after the
+  round trip, Blts from recreated surfaces fail DDERR_UNSUPPORTED).  Applied, verification pending: the format pin.
+  When the game creates a surface without a pixel format while the display's format differs from the primary's, the
+  host gives it the primary's format and logs `ddraw: surface WxH pinned …`.  It never fires otherwise (no pin in
+  normal runs).  Live mode always logs every `Restore` and the first 12 failing surface calls (`ddlog:` lines);
+  `--log-ddraw` adds every surface created (caps, size, format) and raises the cap to 300.
+- The launcher's result is logged: `launcher: dialog -> screen … sound … launch …` (screen low word 3 Windowed,
+  4 Fullscreen, 5 Zoom — Zoom covers the whole desktop, like retail: quirk #178).
 - `--screen N` sets the emulated launcher's Screen Mode (3 Windowed = default, 4 Fullscreen, 5 Zoom 1280x960), so a
   test can drive fullscreen without the dialog: `--no-launcher --screen 4`.
 - DEP: on that machine `GetProcessDEPPolicy` reports DEP off and permanent for every 32-bit process, including a

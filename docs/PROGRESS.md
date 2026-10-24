@@ -6,6 +6,22 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-24 (later) — Zoom mode, alt-tab trails, the README
+
+- USER: "Windowed still goes fullscreen", "alt-tab back from fullscreen leaves trails", "update the README".
+- Windowed works (real launcher, BM_CLICK on 10020: a 646x509 captioned window, in a test folder and in the USER's
+  play folder).  The USER's saved choice is ZOOM (radio 10025): retail's Zoom = a borderless topmost popup the size of
+  the desktop (quirk #178), the same under pure retail code.  rhost logs the launcher result now.
+- Alt-tab: retail code (rhost --live) and the port fail identically.  After the round trip, the recreated title
+  frames' Blts into the composition surface return DDERR_UNSUPPORTED every frame (quirk #179); the
+  frame never gets cleared, so the menu glow piles up and moving things trail.  New live diagnostics (always on:
+  Restore + the first 12 failing surface calls; `--log-ddraw` for all) and the surface FORMAT PIN (the primary's format for
+  formatless surfaces when the display's differs).  The round-trip verification of the pin is pending: the
+  automation can't take focus while the USER's elevated Task Manager is in front (UIPI drops injected input).
+- README rewritten: status (the standalone, the gates, the limits), how the port went from 233 functions (May–July)
+  to the whole engine in Oct 14–24 (rhost, shadow / replace, decomp2c, hybrid coverage → standalone), how to play /
+  build; `docs/media/standalone-frames.png` (rh-my-play frames 5200 / 8000 / 14500, differ_px 0 vs pure retail).
+
 ## 2026-10-24 — the standalone on real Windows: the ZDI exit, fullscreen, the exit routine
 
 - USER report: the product exe stops at "It failed in the initialization of ZDI".  Cause: retail's
