@@ -76,6 +76,8 @@ typedef struct {
     int standalone;             /* --standalone: NO retail code — the data sections only (code range INT3 + a jmp thunk
                                  * into the port at every replaced VA), the port CRT (src/msvc_crt.c) as the entry */
     int no_launcher;            /* --no-launcher (--live): the launcher's Windowed+Launch emulated, as rhost always does */
+    int no_compat_layer;        /* --no-compat-layer (product): no relaunch under DWM8And16BitMitigation */
+    int screen;                 /* --screen N: the emulated launcher's Screen Mode radio (3 Windowed, 4 Fullscreen, 5 Zoom 1280x960) */
     int live;                   /* --live: the real platform (clock, input, sound, window, launcher, saves in the game
                                  * dir) instead of the deterministic stand-ins — playing, not replaying */
 } rh_opts_t;

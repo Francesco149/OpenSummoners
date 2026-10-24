@@ -36,6 +36,8 @@
  *   --live            the real platform (clock, DirectInput, DirectSound, window, launcher, saves in --game) in place
  *                     of the deterministic stand-ins: play, not replay (with --standalone: the playable port);
  *                     --no-launcher skips the launcher dialog (Windowed + Launch, as every rhost run)
+ *   --screen N        the emulated launcher's Screen Mode: 3 Windowed (default), 4 Fullscreen, 5 Zoom 1280x960
+ *   --no-compat-layer (product) no self-relaunch under DWM8And16BitMitigation (then fullscreen fails as retail's does)
  * Output: <rundir>\rhost.log; last line "RESULT ..." (key=value, parsed by rhost.py). */
 #include "rhost.h"
 #include "msvc_crt.h"
@@ -495,7 +497,7 @@ static INT_PTR WINAPI my_DialogBoxParamA(HINSTANCE hi, LPCSTR tmpl, HWND parent,
     uint32_t scr = G32(g_ed->cfg_screen), snd = G32(g_ed->cfg_sound);
     uint16_t vram = (uint16_t)(scr >> 16), slo = (uint16_t)snd, shi = (uint16_t)(snd >> 16);
     shi = shi == 4 ? 4 : 3;
-    G32(g_ed->cfg_screen) = 3u | ((uint32_t)vram << 16);      /* Windowed */
+    G32(g_ed->cfg_screen) = (uint32_t)O.screen | ((uint32_t)vram << 16);   /* 3 Windowed (--screen) */
     G32(g_ed->cfg_sound) = slo | ((uint32_t)shi << 16);
     G32(g_ed->launch_flag) = 1;
     rh_log("launcher: emulated Windowed+Launch (screen %08x -> %08x, sound %08x -> %08x)\n", scr, G32(g_ed->cfg_screen), snd, G32(g_ed->cfg_sound));
@@ -513,6 +515,24 @@ static INT_PTR WINAPI live_DialogBoxParamA(HINSTANCE hi, LPCSTR tmpl, HWND paren
     }
     return r;
 }
+
+/* --live: real DirectInput validates its HINSTANCE (dinput's hresValidInstanceVer: GetModuleFileName) — the hand-mapped
+ * 0x400000 is no loader module → 0x80070126 "The specified module could not be found" → retail's exit(0) "It failed in
+ * the initialization of ZDI" (0x562ea0).  wine's dinput does not check.  The host exe's own handle stands in. */
+typedef HRESULT (WINAPI *dice_t)(HINSTANCE, DWORD, REFIID, LPVOID *, LPUNKNOWN);
+static dice_t g_real_dice;
+static HRESULT WINAPI live_DirectInputCreateEx(HINSTANCE hi, DWORD ver, REFIID iid, LPVOID *out, LPUNKNOWN outer)
+{
+    if (hi == (HINSTANCE)0x400000) hi = GetModuleHandleA(NULL);
+    HRESULT r = g_real_dice(hi, ver, iid, out, outer);
+    if (r) rh_log("DirectInputCreateEx(%p, %#lx) failed %08lx\n", (void *)hi, ver, (unsigned long)r);
+    return r;
+}
+
+/* --live: the game's own diagnostics (ZDD/ZDI error text 0x5b80d0 → OutputDebugStringA; fatal boxes) into rhost.log too */
+static void WINAPI live_OutputDebugStringA(LPCSTR s) { rh_log("ods: %s\n", s ? s : ""); OutputDebugStringA(s); }
+static int WINAPI live_MessageBoxA(HWND h, LPCSTR text, LPCSTR cap, UINT t)
+{ rh_log("MessageBoxA [%s] %s (frame %u)\n", cap ? cap : "", text ? text : "", g_frame); return MessageBoxA(h, text, cap, t); }
 
 /* ---- window + message hermeticity ----
  * The WndProc (0x5b12e0) reacts to WM_ACTIVATEAPP (active flag, input re-acquire, music
@@ -1136,7 +1156,7 @@ static void parse_list(const char *s, uint32_t *out, int *n, int max)
 static void parse(int argc, char **argv)
 {
     O.seed = 0x4f5347; O.has_seed = 1; O.tail = 120; O.log_every = 600; O.frames = 0; O.quiet = 1;
-    O.step_ms = 16; O.creep_after = 2000; O.stall_wall_ms = 60000; O.scrub_kb = 32; O.trap_max = 50;
+    O.step_ms = 16; O.creep_after = 2000; O.stall_wall_ms = 60000; O.scrub_kb = 32; O.trap_max = 50; O.screen = 3;
     int seed_given = 0;
 #ifdef RH_PRODUCT
     O.standalone = O.live = 1;   /* the product: the port alone, on the real platform */
@@ -1153,6 +1173,8 @@ static void parse(int argc, char **argv)
         else if (!strcmp(a, "--standalone")) O.standalone = 1;
         else if (!strcmp(a, "--live")) O.live = 1;
         else if (!strcmp(a, "--no-launcher")) O.no_launcher = 1;
+        else if (!strcmp(a, "--screen")) O.screen = (int)strtoul(ARG(), 0, 0);
+        else if (!strcmp(a, "--no-compat-layer")) O.no_compat_layer = 1;
         else if (!strcmp(a, "--no-seed")) O.has_seed = 0;
         else if (!strcmp(a, "--trace")) O.trace = ARG();
         else if (!strcmp(a, "--record")) { O.record = ARG(); O.realtime = 1; O.quiet = 0; O.audible = 1; }
@@ -1236,6 +1258,7 @@ static void parse(int argc, char **argv)
         if (!O.frames) O.frames = 0xfffffff0u;
         if (O.record || O.trace) { fprintf(stderr, "--live plays the real keyboard: no --trace / --record\n"); usage(); }
     }
+    if (O.screen < 3 || O.screen > 5) { fprintf(stderr, "--screen 3|4|5\n"); usage(); }
     if (O.silent) O.audible = 0;
     static char rec_abs[MAX_PATH];
     if (O.record && !strchr(O.record, ':') && O.record[0] != '\\') { snprintf(rec_abs, sizeof rec_abs, "%s\\%s", O.rundir, O.record); O.record = rec_abs; }
@@ -1295,14 +1318,48 @@ void *rh_scrub_skip[] = { (void *)my_GetTickCount, (void *)my_WaitMessage, (void
 
 RETAIL_HOLE_DEFINE
 
+#ifdef RH_PRODUCT
+/* Windows 8+ has no native 8/16-bit display modes: retail's fullscreen SetDisplayMode(640,480,16) (0x582e90) returns
+ * DDERR_UNSUPPORTED → "It failed in the display mode setting" (retail sotes.exe itself on Windows 11, 2026-10-24) unless
+ * the process runs under the compatibility layer DWM8And16BitMitigation (what Windows' "Reduced color mode" setting
+ * applies; with it retail reaches the title menu).  Layers apply at process creation: the product relaunches itself
+ * once with the layer added to __COMPAT_LAYER (--no-compat-layer: not). */
+static void compat_relaunch(void)
+{
+    static const char want[] = "DWM8And16BitMitigation";
+    char cur[512] = "", nv[600], self[MAX_PATH], cmd[32768];
+    DWORD n = GetEnvironmentVariableA("__COMPAT_LAYER", cur, sizeof cur);
+    if (n >= sizeof cur || strstr(cur, want) || GetEnvironmentVariableA("OSS_COMPAT_RELAUNCHED", NULL, 0)) return;
+    snprintf(nv, sizeof nv, "%s%s%s", cur, *cur ? " " : "", want);
+    snprintf(cmd, sizeof cmd, "%s", GetCommandLineA());
+    if (!GetModuleFileNameA(NULL, self, sizeof self) || !SetEnvironmentVariableA("__COMPAT_LAYER", nv) ||
+        !SetEnvironmentVariableA("OSS_COMPAT_RELAUNCHED", "1")) return;
+    STARTUPINFOA si = { .cb = sizeof si }; PROCESS_INFORMATION pi;
+    if (!CreateProcessA(self, cmd, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {   /* run here, without the layer */
+        SetEnvironmentVariableA("__COMPAT_LAYER", n ? cur : NULL);
+        return;
+    }
+    CloseHandle(pi.hThread);
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    DWORD code = 0; GetExitCodeProcess(pi.hProcess, &code);
+    ExitProcess(code);
+}
+#endif
+
 int main(int argc, char **argv)
 {
     parse(argc, argv);
+#ifdef RH_PRODUCT
+    if (!O.no_compat_layer) compat_relaunch();
+#endif
     QueryPerformanceFrequency(&g_qf); QueryPerformanceCounter(&g_t0);
     CreateDirectoryA(O.rundir, NULL);
     char lp[MAX_PATH]; snprintf(lp, sizeof lp, "%s\\rhost.log", O.rundir);
     g_logf = fopen(lp, "w");
     g_log = stdout;
+#ifdef RH_PRODUCT
+    { char cl[512] = ""; GetEnvironmentVariableA("__COMPAT_LAYER", cl, sizeof cl); rh_log("product: __COMPAT_LAYER=%s\n", cl); }
+#endif
     if (!O.live && !O.no_arena && rh_heap_init()) rh_fatal("heap arena reservation failed");
     if (!O.live && rh_media_reserve()) rh_fatal("rh_media: cannot reserve the sound pool");
     if (asset_reserve()) rh_fatal("cannot reserve the asset DLL range %08x..%08x", ASSET_LO, ASSET_HI);
@@ -1353,6 +1410,10 @@ int main(int argc, char **argv)
     iat_override("GetCommandLineA", my_GetCommandLineA);
     if (O.live) {   /* the real platform: only the launcher keeps a fallback */
         iat_override("DialogBoxParamA", O.no_launcher ? my_DialogBoxParamA : live_DialogBoxParamA);
+        g_real_dice = (dice_t)iat_lookup("DirectInputCreateEx");
+        iat_override("DirectInputCreateEx", live_DirectInputCreateEx);
+        iat_try("OutputDebugStringA", live_OutputDebugStringA);
+        iat_override("MessageBoxA", live_MessageBoxA);
         goto platform_done;
     }
     iat_try("GetEnvironmentStrings", my_GetEnvironmentStrings);
