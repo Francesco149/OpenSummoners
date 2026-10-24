@@ -64,6 +64,7 @@ typedef struct {
     int silent;                 /* force audible off (also in --record) */
     int no_arena, no_overlay, no_uninit_fix, perturb_dlls;
     int log_files, log_heap, log_ext, log_media, log_input;
+    int log_ddraw;              /* --log-ddraw (live): surfaces created / restored, failing surface calls + callers */
     const char *coverage;
     uint32_t stall_ms;
     const char *hooks;          /* hook spec, see rh_hooks.c */

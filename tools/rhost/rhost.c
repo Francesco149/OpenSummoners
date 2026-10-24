@@ -41,6 +41,7 @@
  * Output: <rundir>\rhost.log; last line "RESULT ..." (key=value, parsed by rhost.py). */
 #include "rhost.h"
 #include "msvc_crt.h"
+#include <ddraw.h>
 
 rh_opts_t O;
 volatile uint32_t g_frame, g_ticks;
@@ -513,6 +514,8 @@ static INT_PTR WINAPI live_DialogBoxParamA(HINSTANCE hi, LPCSTR tmpl, HWND paren
         rh_log("launcher: DialogBoxParamA failed (%lu) — emulating Windowed+Launch\n", GetLastError());
         return my_DialogBoxParamA(hi, tmpl, parent, proc, lp);
     }
+    if ((uint32_t)(uintptr_t)proc == g_ed->dlgproc)
+        rh_log("launcher: dialog -> screen %08x sound %08x launch %u\n", G32(g_ed->cfg_screen), G32(g_ed->cfg_sound), G32(g_ed->launch_flag));
     return r;
 }
 
@@ -526,6 +529,117 @@ static HRESULT WINAPI live_DirectInputCreateEx(HINSTANCE hi, DWORD ver, REFIID i
     if (hi == (HINSTANCE)0x400000) hi = GetModuleHandleA(NULL);
     HRESULT r = g_real_dice(hi, ver, iid, out, outer);
     if (r) rh_log("DirectInputCreateEx(%p, %#lx) failed %08lx\n", (void *)hi, ver, (unsigned long)r);
+    return r;
+}
+
+/* live: DirectDraw from the game's side — every Restore and the surface calls that FAIL (Blt / BltFast / Flip / Lock),
+ * with their caller (cheap: logged only on failure); --log-ddraw adds every surface created (caps, size, format).
+ * (Lost-surface hunting: alt-tab in exclusive mode.) */
+typedef HRESULT (WINAPI *dd_cs_t)(void *, DDSURFACEDESC2 *, void **, void *);
+typedef HRESULT (WINAPI *dd_gas_t)(void *, DDSCAPS2 *, void **);
+typedef HRESULT (WINAPI *dd_blt_t)(void *, RECT *, void *, RECT *, DWORD, void *);
+typedef HRESULT (WINAPI *dd_bltf_t)(void *, DWORD, DWORD, void *, RECT *, DWORD);
+typedef HRESULT (WINAPI *dd_flip_t)(void *, void *, DWORD);
+typedef HRESULT (WINAPI *dd_lock_t)(void *, RECT *, void *, DWORD, HANDLE);
+typedef HRESULT (WINAPI *dd_one_t)(void *);
+static dd_cs_t dl_cs; static dd_gas_t dl_gas; static dd_blt_t dl_blt; static dd_bltf_t dl_bltf; static dd_flip_t dl_flip;
+static dd_lock_t dl_lock; static dd_one_t dl_restore;
+static unsigned g_ddlog_n;   /* failures + restores: the first 12 always (live), 300 with --log-ddraw */
+#define DDLOG(...) do { if (g_ddlog_n++ < (O.log_ddraw ? 300u : 12u)) rh_log(__VA_ARGS__); } while (0)
+static void dl_patch(void **vt, int i, void *fn, void **orig)
+{
+    if (vt[i] == fn) return;
+    DWORD old; VirtualProtect(&vt[i], 4, PAGE_READWRITE, &old);
+    if (!*orig) *orig = vt[i];
+    else if (*orig != vt[i]) rh_log("ddlog: vtable %p slot %d = %p, not %p (second implementation)\n", (void *)vt, i, vt[i], *orig);
+    vt[i] = fn;
+    VirtualProtect(&vt[i], 4, old, &old);
+}
+static HRESULT WINAPI dl_Blt(void *s, RECT *dr, void *src, RECT *sr, DWORD f, void *fx)
+{
+    HRESULT r = dl_blt(s, dr, src, sr, f, fx);
+    if (r) DDLOG("ddlog: Blt %p <- %p flags %lx = %08lx (caller %p, frame %u)\n", s, src, f, (unsigned long)r, __builtin_return_address(0), g_frame);
+    return r;
+}
+static HRESULT WINAPI dl_BltFast(void *s, DWORD x, DWORD y, void *src, RECT *sr, DWORD f)
+{
+    HRESULT r = dl_bltf(s, x, y, src, sr, f);
+    if (r) DDLOG("ddlog: BltFast %p <- %p at %lu,%lu = %08lx (caller %p, frame %u)\n", s, src, x, y, (unsigned long)r, __builtin_return_address(0), g_frame);
+    return r;
+}
+static HRESULT WINAPI dl_Flip(void *s, void *t, DWORD f)
+{
+    HRESULT r = dl_flip(s, t, f);
+    if (r) DDLOG("ddlog: Flip %p = %08lx (caller %p, frame %u)\n", s, (unsigned long)r, __builtin_return_address(0), g_frame);
+    return r;
+}
+static HRESULT WINAPI dl_Lock(void *s, RECT *rc, void *d, DWORD f, HANDLE e)
+{
+    HRESULT r = dl_lock(s, rc, d, f, e);
+    if (r) DDLOG("ddlog: Lock %p = %08lx (caller %p, frame %u)\n", s, (unsigned long)r, __builtin_return_address(0), g_frame);
+    return r;
+}
+static HRESULT WINAPI dl_Restore(void *s)
+{
+    HRESULT r = dl_restore(s);
+    DDLOG("ddlog: Restore %p = %08lx (caller %p, frame %u)\n", s, (unsigned long)r, __builtin_return_address(0), g_frame);
+    return r;
+}
+static void dl_surface(void *s)
+{
+    void **vt = *(void ***)s;
+    dl_patch(vt, 5, (void *)dl_Blt, (void **)&dl_blt);
+    dl_patch(vt, 7, (void *)dl_BltFast, (void **)&dl_bltf);
+    dl_patch(vt, 11, (void *)dl_Flip, (void **)&dl_flip);
+    dl_patch(vt, 25, (void *)dl_Lock, (void **)&dl_lock);
+    dl_patch(vt, 27, (void *)dl_Restore, (void **)&dl_restore);
+}
+static HRESULT WINAPI dl_GetAttachedSurface(void *s, DDSCAPS2 *c, void **out)
+{
+    HRESULT r = dl_gas(s, c, out);
+    DDLOG("ddlog: GetAttachedSurface %p caps %lx -> %p = %08lx\n", s, c ? c->dwCaps : 0, out ? *out : NULL, (unsigned long)r);
+    return r;
+}
+/* --live: the surface format pin.  Exclusive modes (Fullscreen / Zoom) run under DWM8And16BitMitigation's emulated
+ * 16-bit display.  After an alt-tab round trip the game (0x5b12e0 -> 0x5b14c0, retail and port alike) restores its
+ * surfaces and recreates its title frames / sprite cache; the recreated offscreen surfaces (no DDSD_PIXELFORMAT: "the
+ * display's format") no longer match the restored 16-bit ones, and every Blt between them fails DDERR_UNSUPPORTED
+ * 0x80004001 — nothing redraws the composition surface: trails.  A surface created without a format while the
+ * display's format differs from the primary's gets the primary's format.  Never fires otherwise. */
+static DDPIXELFORMAT g_pin_pf; static int g_pin_have; static unsigned g_pin_n;
+static HRESULT WINAPI dl_CreateSurface(void *dd, DDSURFACEDESC2 *d, void **out, void *o)
+{
+    typedef HRESULT (WINAPI *gsd_t)(void *, DDSURFACEDESC2 *);
+    DDSURFACEDESC2 sd = { .dwSize = sizeof sd }, md = { .dwSize = sizeof md }, pinned;
+    ((gsd_t)(*(void ***)dd)[12])(dd, &md);                                               /* GetDisplayMode */
+    const DDPIXELFORMAT *dp = &md.ddpfPixelFormat;
+    if (g_pin_have && !(d->dwFlags & DDSD_PIXELFORMAT) && !(d->ddsCaps.dwCaps & DDSCAPS_PRIMARYSURFACE) &&
+        (dp->dwRGBBitCount != g_pin_pf.dwRGBBitCount || dp->dwRBitMask != g_pin_pf.dwRBitMask ||
+         dp->dwGBitMask != g_pin_pf.dwGBitMask || dp->dwBBitMask != g_pin_pf.dwBBitMask)) {
+        pinned = *d; pinned.dwFlags |= DDSD_PIXELFORMAT; pinned.ddpfPixelFormat = g_pin_pf; d = &pinned;
+        if (g_pin_n++ < 20)
+            rh_log("ddraw: surface %lux%lu pinned to the primary's %lubpp %04lx/%04lx/%04lx (display %lubpp %lx/%lx/%lx) frame %u\n",
+                   d->dwWidth, d->dwHeight, g_pin_pf.dwRGBBitCount, g_pin_pf.dwRBitMask, g_pin_pf.dwGBitMask, g_pin_pf.dwBBitMask,
+                   dp->dwRGBBitCount, dp->dwRBitMask, dp->dwGBitMask, dp->dwBBitMask, g_frame);
+    }
+    HRESULT r = dl_cs(dd, d, out, o);
+    if (r == DD_OK && out && *out) ((gsd_t)(*(void ***)*out)[22])(*out, &sd);             /* GetSurfaceDesc */
+    if (r == DD_OK && (d->ddsCaps.dwCaps & DDSCAPS_PRIMARYSURFACE)) { g_pin_pf = sd.ddpfPixelFormat; g_pin_have = 1; }
+    if (r == DD_OK && out && *out) dl_surface(*out);
+    if (O.log_ddraw) {
+        DDLOG("ddlog: CreateSurface flags %lx caps %lx %lux%lu -> %p %lubpp (display %lux%lux%lu) = %08lx (caller %p, frame %u)\n",
+              d->dwFlags, d->ddsCaps.dwCaps, d->dwWidth, d->dwHeight, out ? *out : NULL, sd.ddpfPixelFormat.dwRGBBitCount,
+              md.dwWidth, md.dwHeight, md.ddpfPixelFormat.dwRGBBitCount, (unsigned long)r, __builtin_return_address(0), g_frame);
+        if (r == DD_OK && out && *out) dl_patch(*(void ***)*out, 12, (void *)dl_GetAttachedSurface, (void **)&dl_gas);
+    }
+    return r;
+}
+typedef HRESULT (WINAPI *ddce_t)(GUID *, void **, REFIID, IUnknown *);
+static ddce_t dl_ddce;
+static HRESULT WINAPI dl_DirectDrawCreateEx(GUID *g, void **out, REFIID iid, IUnknown *o)
+{
+    HRESULT r = dl_ddce(g, out, iid, o);
+    if (r == DD_OK && out && *out) dl_patch(*(void ***)*out, 6, (void *)dl_CreateSurface, (void **)&dl_cs);
     return r;
 }
 
@@ -1208,6 +1322,7 @@ static void parse(int argc, char **argv)
         else if (!strcmp(a, "--log-ext")) O.log_ext = 1;
         else if (!strcmp(a, "--log-media")) O.log_media = 1;
         else if (!strcmp(a, "--log-input")) O.log_input = 1;
+        else if (!strcmp(a, "--log-ddraw")) O.log_ddraw = 1;
         else if (!strcmp(a, "--watch-write")) {
             char b[256]; snprintf(b, sizeof b, "%s", ARG());
             for (char *t = strtok(b, ","); t && g_nw < 4; t = strtok(NULL, ",")) {
@@ -1414,6 +1529,7 @@ int main(int argc, char **argv)
         iat_override("DirectInputCreateEx", live_DirectInputCreateEx);
         iat_try("OutputDebugStringA", live_OutputDebugStringA);
         iat_override("MessageBoxA", live_MessageBoxA);
+        dl_ddce = (ddce_t)iat_lookup("DirectDrawCreateEx"); iat_override("DirectDrawCreateEx", dl_DirectDrawCreateEx);
         goto platform_done;
     }
     iat_try("GetEnvironmentStrings", my_GetEnvironmentStrings);
