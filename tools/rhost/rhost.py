@@ -374,14 +374,50 @@ def run_batch_wine(a, runs, tag, fetch):
     subprocess.run(["wineserver", "-k"], env=env, capture_output=True)
     subprocess.run(["wineserver", "-w"], env=env, capture_output=True, timeout=60)
 
+    def kill_run(run_path):
+        # the run's own rhost.exe only: its --run dir (batch-stamped) is unique to it
+        for pid in filter(str.isdigit, os.listdir("/proc")):
+            try:
+                cl = open(f"/proc/{pid}/cmdline", "rb").read().decode(errors="replace")
+            except OSError:
+                continue
+            if run_path in cl and "rhost.exe" in cl:
+                try:
+                    os.kill(int(pid), 9)
+                except OSError:
+                    pass
+
     def one(ir):
         i, r = ir
         name = r[0]
         argv = json.load(open(os.path.join(bdir, name, "argv.json")))
-        out = subprocess.run(["wine", f"{WROOT}\\bin\\rhost.exe"] + argv,
-                             capture_output=True, text=True, env=env, timeout=a.wine_timeout)
-        open(os.path.join(bdir, name, "wine.out"), "w").write(out.stdout[-4000:] + out.stderr[-4000:])
         log = os.path.join(bdir, name, "rhost.log")
+        run_path = argv[argv.index("--run") + 1]
+        note = ""
+        with open(os.path.join(bdir, name, "wine.out"), "w") as wo:
+            p = subprocess.Popen(["wine", f"{WROOT}\\bin\\rhost.exe"] + argv, stdout=wo, stderr=subprocess.STDOUT,
+                                 env=env)
+            # wine sometimes hangs in the process exit after the RESULT line (2026-10-30: 61 threads parked,
+            # the main thread in a wait): the run is over, so its process is killed a minute later
+            t0, seen = time.time(), None
+            while p.poll() is None:
+                time.sleep(2)
+                if seen is None and os.path.exists(log):
+                    with open(log, "rb") as f:
+                        f.seek(max(0, os.path.getsize(log) - 4096))
+                        if b"\nRESULT " in f.read():
+                            seen = time.time()
+                if (seen and time.time() - seen > 60) or time.time() - t0 > a.wine_timeout:
+                    note = "exit hang after RESULT" if seen else f"timeout {a.wine_timeout}s"
+                    kill_run(run_path)
+                    try:
+                        p.wait(timeout=30)
+                    except subprocess.TimeoutExpired:
+                        p.kill()
+                    break
+        if note:
+            open(os.path.join(bdir, name, "wine.out"), "a").write(f"\n[rhost.py: killed: {note}]\n")
+            print(f"  {name}: killed ({note})")
         return name, open(log, errors="replace").read() if os.path.exists(log) else ""
     t0 = time.time()
     results, out_lines = {}, []
