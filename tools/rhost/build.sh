@@ -62,3 +62,8 @@ if (( 0x$HOLE > 0x400000 )); then echo "rhost.exe: .text/.data reach past 0x4000
 HOLE2=$(i686-w64-mingw32-nm "$B/opensummoners-standalone.exe" | awk '$3=="_g_retail_hole"{print $1}')
 if (( 0x$HOLE2 > 0x400000 )); then echo "opensummoners-standalone.exe: .text/.data reach past 0x400000" >&2; exit 1; fi
 echo "built $B/rhost.exe (port std: $PORT_STD, SizeOfImage pinned $IMG_SIZE, retail hole from 0x$HOLE) + $B/opensummoners-standalone.exe"
+# every hook's wrapper pops what retail's function pops (a REPLACE wrapper with the wrong `ret N` corrupts its
+# caller's stack: 0x556e50, 2026-10-30); needs the IDA export, skipped without it
+if [[ -f /mnt/ephemeral/opensummoners/decompiled-ida/enold/all_ida.asm ]]; then
+    python3 "$H/hook_abi.py" --exe "$B/rhost.exe" || { echo "rhost.exe: a hook wrapper's ret disagrees with retail's (hook_abi.py)" >&2; exit 1; }
+fi

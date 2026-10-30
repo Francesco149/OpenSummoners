@@ -4599,7 +4599,7 @@ TC_HOOK(H_TM419900, "tm_419900", 2, 1, return (intptr_t)tm_419900((wl_char *)sel
 TC_HOOK0(H_TM5658C0, "tm_5658c0", 1, return (intptr_t)tm_5658c0((wl_char *)self))
 TC_HOOK(H_TM565D10, "tm_565d10", 5, 1, return (intptr_t)tm_565d10((wl_char *)self, (int32_t *)a1, (int16_t)a2, (int32_t *)a3, a4, (uint32_t)a5))
 TC_HOOK(H_TM566250, "tm_566250", 1, 1, return (intptr_t)tm_566250((wl_char *)self, a1))
-TC_HOOK(H_TM566350, "tm_566350", 1, 1, return (intptr_t)tm_566350((wl_char *)self, (int32_t *)a1))
+TC_HOOK0(H_TM566350, "tm_566350", 1, return (intptr_t)tm_566350((wl_char *)self, NULL))   /* (IDA fastcall: edx unread; retn) */
 ST_HOOK(H_TM566A80, "tm_566a80", 3, 1, return (intptr_t)tm_566a80((int16_t)a1, a2, (char *)a3))
 TC_HOOK(H_TM56DA40, "tm_56da40", 3, 1, return (intptr_t)tm_56da40((wl_char *)self, (char *)a1, a2, a3))
 TC_HOOK(H_TM56DAA0, "tm_56daa0", 10, 1, return (intptr_t)tm_56daa0((wl_char *)self, a1, (int16_t)a2, a3, a4, (int16_t)a5, a6, a7, (int16_t *)a8, U16(a9), (int16_t)a10))
@@ -5157,7 +5157,7 @@ TC_HOOK(H_EL4C5AF0, "el_4c5af0", 3, 1, return (intptr_t)el_4c5af0((wl_char *)sel
 TC_HOOK(H_EL4CC0E0, "el_4cc0e0", 1, 0, el_4cc0e0((wl_char *)self, a1); return 0)
 ST_HOOK0(H_EL54ED80, "el_54ed80", 1, return (intptr_t)el_54ed80())
 TC_HOOK(H_EL5534D0, "el_5534d0", 3, 1, return (intptr_t)el_5534d0((wl_char *)self, a1, a2, a3))
-ST_HOOK(H_EL556E50, "el_556e50", 5, 0, el_556e50(a1, a2, a3, a4, a5); return 0)
+ST_HOOK(H_EL556E50, "el_556e50", 3, 0, el_556e50(0, 0, a1, a2, a3); return 0)   /* (stdcall, retn 0Ch: IDA's fastcall ecx / edx unread) */
 TC_HOOK0(H_EL55FDB0, "el_55fdb0", 0, el_55fdb0((wl_char *)self); return 0)
 /* the later chapters' story scripts + helpers (src/story_scripts.c): UNVERIFIED (unreached), REPLACE only; the script engine's by-VA calls reach the scripts through rh_script_call */
 TC_HOOK0(H_CHS4E1D10, "chs_4e1d10", 1, return (intptr_t)chs_4e1d10((wl_char *)self))
@@ -5260,7 +5260,7 @@ TC_HOOK(H_SC4CC470, "sc_4cc470", 3, 1, return (intptr_t)sc_4cc470((wl_char *)sel
 TC_HOOK(H_SC4CCA20, "sc_4cca20", 2, 1, return (intptr_t)sc_4cca20((wl_char *)self, a1, a2))
 TC_HOOK(H_SC4CCA50, "sc_4cca50", 2, 1, return (intptr_t)sc_4cca50((wl_char *)self, a1, (int16_t)a2))
 TC_HOOK(H_SC4D6490, "sc_4d6490", 2, 1, return (intptr_t)sc_4d6490((intptr_t)self, a1, a2))
-ST_HOOK(H_SC5B4330, "sc_5b4330", 4, 1, return (intptr_t)sc_5b4330(a1, a2, a3, a4))
+TC_HOOK(H_SC5B4330, "sc_5b4330", 2, 1, return (intptr_t)sc_5b4330((int32_t)(intptr_t)self, 0, a1, a2))   /* (thiscall, retn 8: IDA's fastcall edx unread) */
 /* the book reader (a frame loop) + the sprite set free (surface frees) — REPLACE only */
 TC_HOOK(H_BOOK, "book_read", 1, 1, return book_read(self, CP(a1)))
 TC_HOOK(H_SSETFREE, "sprite_set_free", 1, 0, sprite_set_free(self, U16(a1)); return 0)
