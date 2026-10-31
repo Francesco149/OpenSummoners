@@ -39,11 +39,12 @@ pixel-identical to the original game at the same frame (`differ_px = 0`).*
   reached original code with no port, the game would stop with a message naming the
   address. None is known.
 - **Ported is not the same as verified or documented.** Only code the recorded plays
-  actually run is checked against the original. The recordings enter 1,165 of the 1,550
-  game functions at least once (63% of the code bytes), and many branches inside those
-  never run. The rest (mostly later chapters' event scripts, plus most character and
-  monster types, the ending, the bonus menu, gamepad input and the Japanese text paths) is
-  translated from the decompilation and compiles, but no recording has exercised it yet.
+  actually run is checked against the original. The recordings enter 1,304 of the 1,550
+  game functions at least once (90% of the code bytes, counting a function as reached
+  when its entry runs), and many branches inside those never run. The rest (mostly the
+  ending, the character types and move handlers not met yet, gamepad input, the title's
+  extras and the Japanese text paths) is translated from the decompilation and compiles,
+  but no recording has exercised it yet.
   Bugs there will surface as those parts get played. Much of the port is also still
   undocumented: more than half of the ported functions are decomp2c's translation, named
   after their address, with structure fields as raw offsets. Full coverage, every

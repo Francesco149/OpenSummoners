@@ -80,6 +80,15 @@ after changes that touch the relevant render path.
 
 _(R1 moved to Confirmed bit-exact above.)_
 
+### R9 — rh-after-prologue hybrid ≠ pure from f102660: retail's skill AI reads stack leftovers (OPEN, 2026-10-31)
+- Pillar: logic/data, but the data is undefined — `0x481ac0`'s dry-run body keeps a leftover stack byte as f68
+  (quirk #182); the port zeroes its frame.  Retail: probe hit at dry-run tick 30 → `act` 15, state 0; port: stage 2,
+  `act` 14.  Everything before f102660 is hybrid ≡ pure (sem series, every shadow 0 divergences).
+- Not fixable in the port alone (the byte = the low byte of a heap pointer the physics step left at that depth).
+  Zeroing the frame in retail (rhost site E) makes retail match, but changes the recorded play (the replay no longer
+  writes `savedata05.sdt`, rh-water-shrine's start).  USER decision: neutralize + re-record rh-after-prologue (and
+  rh-water-shrine on top of it), or keep this as a known residual.
+
 ### R3 — intro pacing: RESOLVED as a render-rate artifact + frame-drop bug (ckpt 29)
 
 The "port rushes the intro" framing was **wrong**. Measured both sides

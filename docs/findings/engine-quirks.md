@@ -5144,6 +5144,25 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
 - Seen first in `rh-water-shrine` (a room with the flag set): retail stores 0x58fff9f8, a port caller's frame sits
   0x1e4 deeper.  The value is a stack ADDRESS; the object's contents are what the game uses.
 
+### #182 — the state-6 skill AI dry-runs the cast on uninitialized stack bodies (2026-10-31)
+- `0x481ac0` (`0x47b990`'s `ai_state` 6: an AI character about to use a skill, `ai_sub` != 0) dry-runs up to 31
+  ticks of the cast: a command `{act 14, skill = rec+4, kind 210}` (0x479e10) → the integrator `0x442a70(c, cmd,
+  in, out, 2, n)` → the hazard probe `0x440f40(c, n, out, 0)`, ping-ponging `out` between two 0x294-byte bodies in
+  its own frame (`ebp-0x528` / `ebp-0x294`, never cleared; frame `sub esp, 5FCh`).  A probe hit (or no record) →
+  `+0x1428a` = `+0xc8a0`, `act` 15, `ai_state` / `ai_sub` 0 (back to the default behaviour); else the stages go on
+  (`ai_sub` 1 → 2: `act` 14 while the charge `+0x66` < 1000).
+- The integrator copies `in → out` field by field and never writes `out +0x68` (f68; it only clears it when `+0x66`
+  is 0), and the skill stage `0x45db20` does not charge `+0x66` while f68 != 0.  So the dry run's second body keeps
+  whatever byte the stack held there.  `rh-after-prologue` f102660 (char 0x30189010, code 50011, `ai_sub` 2): the
+  slot (0x58ff03e8) holds `0x20bf431c`, a body pointer the physics step `0x467bb0` keeps in its frame (0x467bc2),
+  left by another character's prediction loop at the same depth → f68 = 0x1c → the dry run stalls the charge, the
+  simulated body ends elsewhere and the probe hits at tick 30 (`act` 15, state 0; the real tick's skill stage then
+  starts `0x40a540(body, 8, 210)`).  A zeroed frame charges, never hits, stays in stage 2 (`act` 14).
+- Not portable: the byte is the low byte of a heap address left by whichever function last used that stack depth.
+  Zeroing the frame in retail (rhost site E, tried) makes retail match a zeroed port, but changes the recorded play:
+  rh-after-prologue's replay then never writes the human's last save (`savedata05.sdt`, rh-water-shrine's start).
+  SE: `0x47e5f0`.
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

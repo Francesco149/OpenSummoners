@@ -11,7 +11,9 @@
   USER decisions (audit §7): deterministic cadence = rhost 1 update/flip; EN-old first (SE = a later
   delta layer); Frida retail drive RETIRED (legacy, don't extend). Port boot "Now Loading" frames now
   DEFAULT (`--no-boot-loading` = legacy axis; old port-timed traces keep working).
-  Corpus: 11 scenarios (+ `rh-title-exit` 2026-10-24: title → Exit, the game-exit path) incl. the USER's `rh-early-game` (137.7k flips, 2026-10-23: more of the story, a statue save,
+  Corpus: 15 scenarios (2026-10-30: + the USER's save chain `rh-early-game` → `-2` (197.6k flips) → `-3` (72.5k) →
+  `rh-after-prologue` (242.6k) → `rh-water-shrine` (146.8k); hybrid PASS on all but rh-after-prologue from f102660 =
+  parity-ledger R9, quirk #182: retail's skill AI reads a stack leftover; USER decision pending) + `rh-title-exit` (title → Exit) incl. the USER's `rh-early-game` (137.7k flips, 2026-10-23: more of the story, a statue save,
   selling at the shop, the main menu's Status / Items / Abilities / Party Commands) + `rh-my-play` (15.7k flips: intro → house errands → town → shop;
   10 room loads) + `rh-errands-items` (16.4k flips: errands, item finds, the storage box) + `rh-combat` (57.6k
   flips, the USER 2026-10-16: combat on the way to school, a party ally fighting, a statue save, the main menu, a game

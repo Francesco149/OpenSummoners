@@ -1,4 +1,4 @@
-# Session handoff — rolling current state (last updated 2026-10-23)
+# Session handoff — rolling current state (last updated 2026-10-31)
 
 > **This is a ROLLING file — rewrite the current-state + next-move sections in place
 > each checkpoint; do NOT append.** The dated per-checkpoint narrative is the
@@ -6,7 +6,24 @@
 > `findings/`. Keep this to: the current checkpoint, the next move, the module layout, and
 > open RE threads.
 
-## Where we are — 2026-10-24: the standalone runs on the USER's real Windows 11 (`docs/standalone.md` "The real platform")
+## Where we are — 2026-10-31: 15-scenario corpus (the USER's save chain), hybrid 14/15; R9 needs a USER call
+
+- New recordings verified: `rh-early-game-2` / `-3` / `rh-after-prologue` / `rh-water-shrine` (chain from
+  rh-early-game).  det PASS, re-blessed (win + wine), hybrid PASS on Windows + wine and standalone PASS (Windows,
+  13/14 EN-old) except rh-after-prologue (it ends exactly where a zeroed-frame retail does).
+- **OPEN, USER decision — parity-ledger R9 / quirk #182:** from f102660 rh-after-prologue's hybrid ≠ pure because
+  retail's state-6 skill AI `0x481ac0` dry-runs a cast on stack bodies that keep a leftover byte as f68 (the low
+  byte of a heap pointer the physics step left at that depth).  The port zeroes its frame.  rhost site E (zero
+  0x481ac0's frame) makes retail match but desyncs the recording (the replay never writes savedata05.sdt, which
+  rh-water-shrine starts from).  Options: neutralize + re-record rh-after-prologue and rh-water-shrine, or keep R9
+  as a known residual.  Don't bless rh-after-prologue's hybrid result.
+- Fixed: hook wrappers popping the wrong byte count (el_556e50 etc.; `hook_abi.py` now gates build.sh); the world's
+  caller-stack pointer masked in the semantic hash (quirk #181); wine runs killed 60 s after a RESULT-then-hang.
+- New probes: `--shadow-from F` (shadows only from flip F: a late divergence in a 100k+ trace), `--trap-mem
+  REG±OFF:LEN`; rhost.py `SAVE_EPOCH` (bump when an rhost change alters pure replays: chain saves re-derive).
+- Next: verify (shadow) over the four new scenarios has not run yet (hours; `--split 8`).
+
+## Before — 2026-10-24: the standalone runs on the USER's real Windows 11 (`docs/standalone.md` "The real platform")
 
 - Live-mode host fixes: `live_DirectInputCreateEx` (host HINSTANCE for dinput's validation), the product's
   self-relaunch under `__COMPAT_LAYER=DWM8And16BitMitigation` (fullscreen; quirk #177; `--no-compat-layer`),

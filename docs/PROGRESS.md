@@ -6,6 +6,24 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-31 — four new recordings verified; hybrid 14/15; R9 = retail reads a stack leftover
+
+- USER: "verify all the new traces on rhost and fix gaps".  New: `rh-early-game-2` / `-3` / `rh-after-prologue` /
+  `rh-water-shrine` (a save chain from rh-early-game; 15 scenarios).  det -n 3 PASS; volatile re-calibrated
+  (36,338 slots); every expected re-blessed on Windows and wine (wine's fb changed with the host's wine 11.20 / mesa
+  26.2.6 upgrade).
+- Gaps fixed: three hook wrappers popped the wrong byte count (el_556e50 crashed the water shrine; `hook_abi.py`
+  now checks every wrapper's `ret N` against retail's `retn N` at build time); the world's caller-stack pointer
+  (+0x27ac / +0x27b0, quirk #181) masked in the semantic hash; wine runs that hang after RESULT are killed.
+- Hybrid gate (1344 hooks), Windows + wine: 14/15 PASS.  rh-after-prologue differs from f102660: `verify
+  --shadow-from` named `char_behave` → `beh_481ac0`; `--trap-mem` dumps of its dry-run bodies (raw vs a zeroed
+  frame) found f68 (+0x68) of the second body = 0x1c, the low byte of a pointer the physics step 0x467bb0 left at
+  that stack depth (quirk #182).  Zeroing the frame in retail (site E) matched the port but desynced the recording
+  (no savedata05.sdt for rh-water-shrine), so it was reverted: parity-ledger R9, USER decision (re-record or keep).
+- Coverage, 14 EN-old scenarios: 1,304 / 1,550 game functions entered, 89.8% of game code bytes (was 1,165 / 63.4%).
+  Largest unreached: the ending 0x5a00c0, story script 0x4e23d0, char_handlers2 (0x4539b0 …), SJIS text, gamepad,
+  char_types (batch 20261031-055656-coverage).
+
 ## 2026-10-24 (later) — Zoom mode, alt-tab trails, the README
 
 - USER: "Windowed still goes fullscreen", "alt-tab back from fullscreen leaves trails", "update the README".
