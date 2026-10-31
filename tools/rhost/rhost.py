@@ -14,7 +14,7 @@
                                           --from = continue SCEN's play from its final save (Load at the title)
   rhost.py final-save SCEN [--refresh]    the user\\ dir (saves) SCEN's pure replay leaves (cached, _saves/)
   rhost.py coverage [--only RE]           first-hit coverage of every IDA function over the corpus
-  rhost.py portshots SCEN --at F,F        retail (rhost) | port exe at the same flips → cmp PNGs + differ_px
+  rhost.py newhooks SCEN... --coverage B   the verify hooks SCEN... first reach (B = a coverage batch)
 
 Common opts: --frames N --seed S --hook SPEC --dump-at F,..|end --shot-at F,..|end
              --shot-every N --hash-every N --edition E -j J --extra "raw rhost args"
@@ -889,103 +889,30 @@ def cmd_coverage(a):
               f"({sum(1 for v in nl if v in rep)} replaced but reached indirectly) → {bdir}/retail_still_run.tsv")
 
 
-# DIK press → ring ids, the retail producer 0x46a880 (quirk #126); used to drive the PORT, which
-# injects ring ids (--input-trace) + held levels (--held-trace) instead of emulating DirectInput
-DIK_IDS = {0x1c: [20, 36], 0xc8: [1, 35], 0xd0: [3], 0xcb: [2], 0xcd: [4], 0x01: [39], 0x0e: [39],
-           0x3b: [16], 0x3c: [21], 0x3d: [22], 0x3e: [23], 0x3f: [10], 0x40: [11], 0xc5: [18], 0x57: [19], 0x42: [34]}
-DIK_IDS.update({0x02 + i: [24 + i] for i in range(10)})
-
-
-def port_traces(trace, out_dir):
-    held, ids, prev = [], [], set()
-    for line in open(trace):
-        line = line.strip()
-        if not line.startswith("{") or '"keys"' not in line:
-            continue
-        d = json.loads(line)
-        cur = set(d["keys"])
-        held.append({"frame": d["frame"], "keys": sorted(cur)})
-        pressed = sorted(cur - prev)
-        ii = [i for k in pressed for i in DIK_IDS.get(k, [])]
-        if ii:
-            ids.append({"frame": d["frame"], "ids": ii})
-        prev = cur
-    hp, ip = os.path.join(out_dir, "port_held.jsonl"), os.path.join(out_dir, "port_ids.jsonl")
-    open(hp, "w").write("".join(json.dumps(x) + "\n" for x in held))
-    open(ip, "w").write("".join(json.dumps(x) + "\n" for x in ids))
-    return hp, ip
-
-
-def cmd_portshots(a):
-    """retail (rhost) | port at the same flips, same scenario; the port runs --det-clock (rhost's clock model)"""
-    from PIL import Image, ImageChops
-    ensure_staged()
-    sh(["nix", "develop", ROOT, "--command", "make", "-s", "-C", os.path.join(ROOT, "src")])
-    ssh_win(f"New-Item -ItemType Directory -Force {WROOT}\\port | Out-Null; "
-            f"if (!(Test-Path {WROOT}\\portgame\\sotesd.dll)) {{ Copy-Item -Recurse {WROOT}\\game\\enold {WROOT}\\portgame }}; exit 0")
-    scp(os.path.join(ROOT, "build", "opensummoners.exe"), f"{WIN}:C:/oss-rhost/port/opensummoners.exe")
-    tr, save, ed = scenario_inputs(a.scenario, a)
-    frames = sorted(int(x) for x in a.at.split(","))
-    W = a.search or 0
-    # numbering: the port's capture N = the N-th present (1-based, g_present_frame after ++);
-    # rhost's shot fK = the frame presented by flip K+1 (0-based) ⇒ port N ≡ retail shot N-1
-    rframes = sorted({g - 1 for f in frames for g in range(max(1, f - W), f + W + 1)})
-    if len(rframes) > 64:
-        a.shot_at = None; a.shot_every = 1                       # dense window: every flip
-    else:
-        a.shot_at = ",".join(str(f) for f in rframes)
-    a.frames = max(frames) + W + 2
-    frames = [f for f in frames if f >= 1]
-    a.jobs = 2
-    batch, bdir = make_batch(a, [("retail", tr, save, ed)], "portshots")
-    pdir = os.path.join(bdir, "port"); os.makedirs(pdir)
-    port_traces(tr, pdir)
-    pw = f"{WROOT}\\runs\\{batch}\\port"
-    pargs = ["--hide-window", "--allow-multi"] + ([] if a.port_realtime else ["--det-clock"]) + ["--frames", str(max(frames) + 2), "--capture-frames", ",".join(map(str, frames)),
-             "--capture-dir", pw, "--input-trace", pw + "\\port_ids.jsonl", "--held-trace", pw + "\\port_held.jsonl"] \
-        + shlex.split(a.port_extra or "")
-    go = open(os.path.join(bdir, "go.ps1"), newline="").read().split("\r\n")
-    i = next(k for k, l in enumerate(go) if l.startswith("$procs | ForEach"))
-    go.insert(i, f"$env:OPENSUMMONERS_GAME_DIR='{WROOT}\\portgame'; $procs += Start-Process -FilePath '{WROOT}\\port\\opensummoners.exe' "
-                 f"-ArgumentList @({','.join(chr(39) + x.replace(chr(39), chr(39) * 2) + chr(39) for x in pargs)}) -PassThru -WindowStyle Hidden -WorkingDirectory '{WROOT}\\portgame'")
-    open(os.path.join(bdir, "go.ps1"), "w").write("\r\n".join(go))
-    scp(bdir, f"{WIN}:C:/oss-rhost/runs/", recursive=True)
-    out = win_job(batch, f"{WROOT}\\runs\\{batch}\\go.ps1")
-    scp(f"{WIN}:C:/oss-rhost/runs/{batch}/retail/*", os.path.join(bdir, "retail"), recursive=True, check=False)
-    scp(f"{WIN}:C:/oss-rhost/runs/{batch}/port/*", pdir, recursive=True, check=False)
-    rows = []
-    for f in frames:
-        rp = os.path.join(bdir, "retail", f"shot_f{f - 1:06d}.png")
-        pp = os.path.join(pdir, f"port_frame_{f:05d}.bmp")
-        if not (os.path.exists(rp) and os.path.exists(pp)):
-            print(f"f{f}: missing {'retail' if not os.path.exists(rp) else 'port'} frame"); continue
-        r = Image.open(rp).convert("RGB"); q = Image.open(pp).convert("RGB")
-        if q.size != r.size:
-            q = q.resize(r.size)
-        d = ImageChops.difference(r, q)
-        n = sum(1 for px in d.getdata() if px != (0, 0, 0))
-        rows.append((f, n))
-        m = Image.new("RGB", (r.width * 3, r.height))
-        m.paste(r, (0, 0)); m.paste(q, (r.width, 0)); m.paste(d.point(lambda v: min(255, v * 8)), (r.width * 2, 0))
-        m.save(os.path.join(bdir, f"cmp_f{f:06d}.png"))
-    for f, n in rows:
-        line = f"f{f:6d}  differ_px={n}"
-        if W:
-            pp = os.path.join(pdir, f"port_frame_{f:05d}.bmp")
-            q = Image.open(pp).convert("RGB")
-            best = None
-            for g in range(max(1, f - W), f + W + 1):
-                rp = os.path.join(bdir, "retail", f"shot_f{g - 1:06d}.png")
-                if not os.path.exists(rp):
-                    continue
-                d = ImageChops.difference(Image.open(rp).convert("RGB"), q.resize(Image.open(rp).size))
-                n2 = sum(1 for px in d.getdata() if px != (0, 0, 0))
-                if best is None or n2 < best[1]:
-                    best = (g, n2)
-            if best:
-                line += f"   best retail flip {best[0]} ({best[0] - f:+d}) differ_px={best[1]}"
-        print(line)
-    print(f"→ {bdir}/cmp_f*.png  (retail | port | diff×8)")
+def cmd_newhooks(a):
+    """the VERIFY_HOOKS a set of scenarios is the FIRST to reach (per a coverage batch's coverage_union.tsv):
+    the shadow set worth running over a new recording.  A full `verify` shadows every hook on every frame
+    (~1.5 fps per run on a 200k-frame scenario: days); these few run at ~80 fps.  Prints a --hooks list."""
+    new = set(a.scenarios)
+    cov = os.path.join(a.coverage, "coverage_union.tsv") if os.path.isdir(a.coverage) else a.coverage
+    first = set()
+    for l in open(cov).readlines()[1:]:
+        va, _, sc = l.rstrip("\n").split("\t")
+        if set(sc.split(",")) <= new:
+            first.add(int(va, 16))
+    src = open(os.path.join(HERE, "rh_hooks.c")).read()
+    va_of = {m.group(1): int(m.group(2), 16)
+             for m in re.finditer(r'X\(\s*H_\w+\s*,\s*"([^"]+)"\s*,\s*0x([0-9a-f]+)u?\s*\)', src)}
+    for m in re.finditer(r'\[H_\w+\]\s*=\s*\{\s*"([^"]+)"\s*,\s*(0x[0-9a-f]+|0)u?', src):
+        va_of.setdefault(m.group(1), int(m.group(2), 16))
+    names = [h.split("@")[0] for h in VERIFY_HOOKS]
+    unmapped = [h for h in names if h not in va_of]
+    if unmapped:
+        print(f"warning: no VA for {len(unmapped)} hooks: {','.join(unmapped[:10])}", file=sys.stderr)
+    sel = [h for h in names if va_of.get(h) in first]
+    print(f"{len(first)} functions first reached by {','.join(sorted(new))}; {len(sel)} of {len(names)} verify hooks",
+          file=sys.stderr)
+    print(",".join(sel))
 
 
 def hybrid_hooks():
@@ -1145,11 +1072,9 @@ def main():
     p = sub.add_parser("hookbisect"); p.add_argument("scenario"); p.add_argument("--hooks", help="candidate hook names (default: the hybrid set)")
     p.add_argument("--groups", type=int, default=8); common(p); p.set_defaults(fn=cmd_hookbisect)
     p = sub.add_parser("coverage"); p.add_argument("--only"); p.add_argument("scenarios", nargs="*"); p.add_argument("--hybrid", action="store_true", help="with every port REPLACING retail: list the retail code that still runs"); common(p); p.set_defaults(fn=cmd_coverage)
-    p = sub.add_parser("portshots"); p.add_argument("scenario"); p.add_argument("--at", required=True)
-    p.add_argument("--port-realtime", action="store_true", help="run the port on its wall clock instead of --det-clock")
-    p.add_argument("--search", type=int, help="also find the best-matching retail flip within ±W of each port frame")
-    p.add_argument("--port-extra", help="extra port args, e.g. --port-extra=--boot-loading")
-    common(p); p.set_defaults(fn=cmd_portshots)
+    p = sub.add_parser("newhooks", help="the verify hooks SCENARIOS are the first to reach (a --hooks list)")
+    p.add_argument("scenarios", nargs="+"); p.add_argument("--coverage", required=True, help="a coverage batch dir or its coverage_union.tsv")
+    p.set_defaults(fn=cmd_newhooks)
     p = sub.add_parser("diff"); p.add_argument("a"); p.add_argument("b"); p.add_argument("--show", type=int, default=40); p.set_defaults(fn=cmd_diff)
     p = sub.add_parser("record"); p.add_argument("name"); p.add_argument("--save"); p.add_argument("--force", action="store_true")
     p.add_argument("--from", dest="from_scen", help="start from SCEN's final save (its replay's user\\ dir); the trace records it")

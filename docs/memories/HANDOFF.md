@@ -33,8 +33,11 @@
   caller-stack pointer masked in the semantic hash (quirk #181); wine runs killed 60 s after a RESULT-then-hang.
 - New probes: `--shadow-from F` (shadows only from flip F: a late divergence in a 100k+ trace), `--trap-mem
   REG±OFF:LEN`; rhost.py `SAVE_EPOCH` (bump when an rhost change alters pure replays: chain saves re-derive).
-- Next: verify (shadow) over the four new scenarios — RUNNING since 2026-10-31 ~15:10 (Windows, `--split 8`;
-  log: the session scratchpad; results land in /mnt/ephemeral/opensummoners/rhost-runs/<batch>-verify).
+- Verify (shadow) over the four new scenarios: the full set (684 hooks × every frame) ran ~1.5 fps/run (days) and a
+  run tripped the 60 s no-Flip watchdog at f698 — stopped.  RUNNING instead (2026-10-31 15:36, batch
+  `20261031-153625-verify`, Windows, `--split 4`): the 59 hooks these recordings are the FIRST to reach
+  (`rhost.py newhooks … --coverage 20261031-055656-coverage`), ~80 fps/run.  The rest is covered end-to-end by
+  the hybrid gate (PASS on all four but R9).
 
 ## Before — 2026-10-24: the standalone runs on the USER's real Windows 11 (`docs/standalone.md` "The real platform")
 

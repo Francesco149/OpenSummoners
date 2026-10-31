@@ -17,6 +17,9 @@ python3 tools/rhost/rhost.py corpus                                     # every 
 python3 tools/rhost/rhost.py verify                                     # every scenario × every shadow hook
 python3 tools/rhost/rhost.py verify --only X --frames 102665 --shadow-from 102600 --split 8 --hooks A@1,B@1,...
 #   shadows compare only from that flip on (retail alone before, ~full speed): a late divergence in a long trace
+python3 tools/rhost/rhost.py newhooks NEW1 NEW2 --coverage RUNS/<batch>-coverage  # the verify hooks NEW* are the
+#   FIRST to reach → `verify --only ... --hooks <that list>`: a new recording's shadow pass at ~80 fps/run (every
+#   hook on every frame of a 200k-frame recording runs ~1.5 fps: days)
 python3 tools/rhost/rhost.py coverage                                   # first-hit coverage of all IDA functions
 python3 tools/rhost/rhost.py coverage --hybrid                          # ... with every port REPLACING retail: the retail
 #   code that still runs (retail_still_run.tsv: unreplaced / replaced-but-reached-indirectly) = the drop-in's gap
