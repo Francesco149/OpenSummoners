@@ -24,6 +24,12 @@ specific commits where relevant.
   wine flake, not the port.  Standalone: PASS 14/14 EN-old.  Windows: not run yet (the box ran the verify).  Unexercised:
   `realloc` / `__sbh_resize_block` (no scenario calls them), `_callnewh` (no new handler).
 - Ledger 1573 touched.
+- The new recordings' verify (the 59 hooks they first reach, `newhooks`; Windows, batch `20261031-153625-verify`):
+  rh-early-game-2 / -3 every split clean; one divergence, `sc_41a3a0` on rh-water-shrine (82 bytes, the clock 123
+  frames ahead): the call spans frames (its `script_wait` 0x439690 runs the message's wait, quirk #183 — entered
+  before f139600, returned f139688), so the shadow's port re-run waits for input retail's run consumed.  REPLACE is
+  exact there (the hybrid PASSES rh-water-shrine).  The five `script_wait` helpers are REPLACE-only now (verify 684
+  → 679 shadows; the hybrid set unchanged).
 
 ## 2026-10-31 (evening) — the pre-rhost loop removed; first manual nightly ships the standalone
 

@@ -5705,6 +5705,7 @@ void rh_hooks_install(void)
         if ((h == &H[H_RLOOP] || h == &H[H_REPOLL] || h == &H[H_LROOM] || h == &H[H_SLOOP] || h == &H[H_MPACE] || h == &H[H_MRUN] ||
              h == &H[H_UM_PAGES] || h == &H[H_ST_DEP] || h == &H[H_ST_WD] || h == &H[H_ST_RUN] || h == &H[H_IFIND] ||
              h == &H[H_FURN] || h == &H[H_UM_PCLOSE] || h == &H[H_SC_YN] || h == &H[H_IGIVE] || h == &H[H_BOOK] || h == &H[H_SSETFREE] ||
+             h == &H[H_SC406AB0] || h == &H[H_SC41A3A0] || h == &H[H_SC49E6C0] || h == &H[H_SC4B3F30] || h == &H[H_SC4B4570] ||
              (h >= &H[H_CS_FIRST] && h <= &H[H_CS_LAST]) || (h >= &H[H_ST_FIRST] && h <= &H[H_ST_LAST])) && h->mode == 1)
             rh_fatal("%s: replace only (it runs a room / repolls DirectInput)", h->name);
         if (h >= &H[H_HP_FIRST] && h <= &H[H_HP_LAST] && h->mode != 2)

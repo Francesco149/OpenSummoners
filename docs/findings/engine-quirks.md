@@ -5210,3 +5210,10 @@ deluxe) AND redirect the `deluxe_id==0` skip `je 0x59cd55 → je 0x59cd08` (one 
 instead would send them to bank=`sotesx_s` (the deluxe branch's hardcoded bank), which lacks monster
 sounds → still silent. `findings/ense-voice-combat-init.md`. (Corrects an earlier "worker-thread heap
 race" misdiagnosis: the mob silence is this deterministic deluxe-skip, not a heap race.)
+
+### #183 — a script helper's wait runs the frame loop INSIDE the call (2026-10-31)
+- The chapter-script helpers that end in `script_wait` (`0x439690`, through the event's script context) —
+  `0x406ab0`, `0x41a3a0`, `0x49e6c0`, `0x4b3f30`, `0x4b4570` — can return many frames after they were entered: the
+  wait runs the game's frames until the shown message is dismissed.  `0x41a3a0` (raise the progress value `cfg+0xadc`,
+  look its row up in `cfg+0xae4`, show message 3 `0x854ddc`, wait) on `rh-water-shrine`: entered before f139600,
+  returned f139688; the frames inside read input and write timestamps (`GetTickCount` values) into state.
