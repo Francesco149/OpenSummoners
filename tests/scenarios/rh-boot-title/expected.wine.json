@@ -2,16 +2,16 @@
  "frame": "1620",
  "tick": "0",
  "rng": "404a0a8f",
- "state_sem": "5e78e00131df0c57",
- "fb": "bc47f0fe5305144f",
+ "state_sem": "c44700fc021ce382",
+ "fb": "a8452a700733945c",
  "sem_series": {
-  "0": "039a57d43ecd1eb9",
-  "600": "b3bf173ae28eb0ff",
-  "1200": "0009e1db843ed53b"
+  "0": "58eeb368bd09c09c",
+  "600": "0ec0055cab975bad",
+  "1200": "72cca435c55c7495"
  },
  "fb_series": {
-  "0": "0d67c7ca9c4fbc08",
-  "600": "3fe65ba07f3d360e",
-  "1200": "672fbc7e6e15d85b"
+  "0": "57331737831376eb",
+  "600": "e33adf0158fedd2d",
+  "1200": "3dc6a62ab6ee7e20"
  }
 }
