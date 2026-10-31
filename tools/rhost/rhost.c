@@ -58,15 +58,15 @@ static const rh_edition_t EDITIONS[] = {
       0x5b8fc0u, 0x43d1d0u, 0x5bf4fbu, 0x5bf505u, 0x8a4f94u, 0x8a9b64u, 0x8a952cu,
       /* dlgproc   launch     cfg_screen cfg_sound  zdd        wndproc */
       0x4013c0u, 0x8a9a40u, 0x8a9b48u, 0x8a9b4cu, 0x8a93ccu, 0x5b12e0u,
-      /* hwnd_slot  pump_wait_off */
-      0x8a93ecu, 0x1cu },
+      /* hwnd_slot  pump_wait_off  world_ptr  world_stackref */
+      0x8a93ecu, 0x1cu, 0x8a9b50u, { 0x27acu, 0x27b0u } },
     /* EN Steam SE (sotes_en.exe, buildid 24635888 / 2026-08-10, unpacked sha256 36a0294df405):
      * every VA from tools/ida/crosswalk.py (functions: bytes/mnem/graph matches; globals: xref
      * votes) except flip (0x5e14e0) + cfg_sound (0x92dfd4), read off the SE pseudocode. */
     { "ense-en", 0x4502000u, 0x5f0d7bu,
       0x5e14e0u, 0x438760u, 0x5ef169u, 0x5ef173u, 0x927304u, 0x92dfecu, 0x92d9b0u,
       0x4015a0u, 0x92dec8u, 0x92dfd0u, 0x92dfd4u, 0x92d850u, 0x5d95a0u,
-      0x92d870u, 0x20u },
+      0x92d870u, 0x20u, 0x92dfd8u, { 0x37b0u, 0x37b4u } },
 };
 const rh_edition_t *g_ed;
 

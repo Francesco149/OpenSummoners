@@ -5134,6 +5134,16 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   Hence the alt-tab breakage only in the exclusive modes.  Confirmed on the USER's machine: at reactivation the display
   reported 32-bit (ff0000/ff00/ff) against the 16-bit 565 primary; the host's pin fired and the trails were gone.
 
+### #181 — the world keeps a pointer into a caller's stack frame for the whole room (2026-10-30)
+- `load_room 0x586010` stores its 13th argument (`arg_30`) at world `+0x27b0` (0x586228), and at `+0x27ac` when its
+  12th (`arg_2C`, kept at `+0x27b4`) is 1 (0x587533; else `+0x27ac` = 0, 0x5875c8).  The value comes from the room
+  change `0x585ae0`'s 5th argument: an object in ITS caller's frame (`0x584710` / `0x59dc60` / `0x59e230` /
+  `0x59e5d0`), alive while the room runs.  Readers of `+0x27ac`: the scene runner (0x4396a7, 0x43adcf…0x43b8a4), a
+  behaviour (0x47d5a9), the room loop (0x58f526, 0x58fe3d), the event zones (0x59a6b1); of `+0x27b0`: the render
+  (0x48c585), 0x4e226d, 0x58fb87.  SE: `+0x37b4` / `+0x37b0`, flag `+0x37b8` (its world class is 0x1004 larger).
+- Seen first in `rh-water-shrine` (a room with the flag set): retail stores 0x58fff9f8, a port caller's frame sits
+  0x1e4 deeper.  The value is a stack ADDRESS; the object's contents are what the game uses.
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

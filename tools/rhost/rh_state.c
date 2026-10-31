@@ -5,7 +5,8 @@
  * full hash     : every byte.
  * semantic hash : every dword except those at VOLATILE ADDRESSES: the game HWND +
  *                 <rundir>\volatile.txt (slots that hold system-DLL/COM pointers,
- *                 calibrated by `rhost.py calibrate` from a 2-run dump diff).
+ *                 calibrated by `rhost.py calibrate` from a 2-run dump diff) + the
+ *                 world's caller-stack pointer fields (stackref_slots).
  *                 Masking is by ADDRESS only. Masking by VALUE ("points into a
  *                 DLL mapping") was tried and is inherently flaky: heap pixel/audio
  *                 data is effectively random bits, so ~10% of it lands in whatever
@@ -100,6 +101,29 @@ void rh_state_ext_report(void)
 }
 static int is_ext(uint32_t v) { return v >= 0x10000u && (g_ext[v >> 15] >> ((v >> 12) & 7) & 1); }
 
+/* world fields pointing into a CALLER'S stack frame: load_room 0x586010 stores its 13th argument (the room change
+ * 0x585ae0's 5th: an object in its caller's frame) at world +0x27b0, and at +0x27ac when its 12th (+0x27b4) is 1 (SE
+ * +0x37b4 / +0x37b0, flag +0x37b8); the scene runner, the behaviours, the room loop and the event zones read +0x27ac
+ * while the room runs.  The value is the caller's stack DEPTH, which port frames do not reproduce (rh-water-shrine:
+ * retail 0x58fff9f8, the hybrid 0x58fff814), so it is
+ * masked in the semantic hash while it holds a retail-stack address — by the field, not by a heap address (the world
+ * is allocated wherever a scenario's heap leaves room).  Dumps list it as volatile. */
+#define RETAIL_STACK_LO 0x58800000u   /* retail's stack [RETAIL_LO, MAIN_STACK_HI) (rh_scrub.c / rhost.c) */
+#define RETAIL_STACK_HI 0x59000000u
+static int stackref_slots(uint32_t out[2])
+{
+    int n = 0;
+    out[0] = out[1] = 0;
+    if (!g_ed || !g_ed->world_ptr) return 0;
+    uint32_t w = *(const uint32_t *)(uintptr_t)g_ed->world_ptr;
+    if (!w || !rh_is_det_addr(w)) return 0;
+    for (int k = 0; k < 2; k++) {
+        uint32_t a = w + g_ed->world_stackref[k], v = *(const uint32_t *)(uintptr_t)a;
+        if (v >= RETAIL_STACK_LO && v < RETAIL_STACK_HI) out[n++] = a;
+    }
+    return n;
+}
+
 static int state_ranges(uint32_t (*r)[2])
 {
     r[0][0] = RT_DATA_LO; r[0][1] = RT_DATA_HI & ~3u;
@@ -111,13 +135,15 @@ void rh_state_hash(rh_hash_t *h)
     static uint32_t r[MAXR][2];
     int n = state_ranges(r);
     build_ext_map();
+    uint32_t sr[2];
+    stackref_slots(sr);
     uint64_t f = 1469598103934665603ull, s = f, sv = f;
     uint32_t masked = 0, bytes = 0;
     for (int i = 0; i < n; i++) {
         for (const uint32_t *p = (const uint32_t *)(uintptr_t)r[i][0]; p < (const uint32_t *)(uintptr_t)r[i][1]; p++) {
-            uint32_t v = *p;
+            uint32_t v = *p, pa = (uint32_t)(uintptr_t)p;
             f ^= v; f *= 1099511628211ull;
-            if (g_nvol && is_vol((uint32_t)(uintptr_t)p)) { v = 0x9e3779b9u; masked++; }
+            if ((g_nvol && is_vol(pa)) || pa == sr[0] || pa == sr[1]) { v = 0x9e3779b9u; masked++; }
             s ^= v; s *= 1099511628211ull;
             if (is_ext(v)) v = 0x7f4a7c15u;
             sv ^= v; sv *= 1099511628211ull;
@@ -140,7 +166,8 @@ int rh_state_dump(const char *path)
     fwrite(r, 8, n, f);
     for (int i = 0; i < n; i++) fwrite((void *)(uintptr_t)r[i][0], 1, r[i][1] - r[i][0], f);
     fwrite(g_ext, 1, sizeof g_ext, f);
-    uint32_t nv = (uint32_t)g_nvol; fwrite(&nv, 4, 1, f); fwrite(g_vol, 4, g_nvol, f);
+    uint32_t sr[2]; int nsr = stackref_slots(sr);
+    uint32_t nv = (uint32_t)(g_nvol + nsr); fwrite(&nv, 4, 1, f); fwrite(g_vol, 4, g_nvol, f); fwrite(sr, 4, nsr, f);
     fclose(f);
     rh_log("dump frame=%u ranges=%d -> %s\n", g_frame, n, path);
     return 0;
