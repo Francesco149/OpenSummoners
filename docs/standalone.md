@@ -75,6 +75,8 @@ exe, the STOCK packed sotes.exe, real DirectInput / DirectSound / window, `--no-
 to the title menu (shots), audit OK incl. `.bind`.
 
 ## Playing it
+Download: the rolling `nightly` pre-release ships `opensummoners-standalone.exe` (CI builds it with `tools/rhost/build.sh`
+in the lean `.#ci` shell, asset-gated; `nightly.yml` runs by hand only, `release.yml` on a `v*` tag).
 Windows box: `C:\OpenSummoners\` (the user's game files from the Steam folder + the exe) and the desktop / Start Menu
 shortcut "OpenSummoners (standalone)" — `tools/standalone/install-play.sh` (re-run after a rebuild to refresh the exe;
 never overwrites game files or saves). Log + audit: `C:\OpenSummoners\opensummoners-standalone\`. Elsewhere: copy

@@ -23,15 +23,17 @@ jobs:
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@main
 
-      - name: Build — port + resource explorer + voice patch
+      # tools/rhost/build.sh = the standalone (opensummoners-standalone.exe) + rhost.exe
+      # (the deterministic host it shares its code with); its IDA-export ABI check skips here
+      - name: Build — standalone port + resource explorer + voice patch
         run: |
-          nix develop .#ci --command make -C src
+          nix develop .#ci --command bash tools/rhost/build.sh
           nix develop .#ci --command make -C tools/res_explorer
           nix develop .#ci --command make -C tools/ennse_voice
 
       - name: Gate — no embedded game assets
         run: nix develop .#ci --command python3 tools/ci/no_proprietary_bytes.py
-             build/opensummoners.exe build/res_explorer.exe build/version.dll
+             build/rhost/opensummoners-standalone.exe build/res_explorer.exe build/version.dll
 
       - name: Host unit suite (ASan/UBSan)
         run: nix develop .#ci --command make -C tests run

@@ -98,8 +98,8 @@ Method notes: [`CLAUDE.md`](CLAUDE.md) (the loop and gates), [`tools/rhost/`](to
 You need your own copy of **Fortune Summoners: Secret of the Elemental Stone** (Steam,
 2012). The stock Steam `sotes.exe` works as is.
 
-1. Build `opensummoners-standalone.exe` (see *Building* below; not yet in the nightly
-   downloads).
+1. Download **[`opensummoners-standalone.exe`](https://github.com/Francesco149/OpenSummoners/releases/download/nightly/opensummoners-standalone.exe)** (the nightly build, see
+   *Downloads*), or build it (see *Building* below).
 2. Copy it into a folder holding `sotes.exe`, `sotesd.dll`, `sotesw.dll`, `sotesp.dll` and
    `lizsoft.spl`, either the Steam install or a copy of it.
 3. Run it. The game's own launcher appears as usual. Saves and settings go to that
@@ -131,8 +131,14 @@ game and support Lizsoft:
 
 Every build is produced by CI and published to **[Releases](../../releases)** — each
 ships **no game assets** (everything reads your own legitimately-owned files at
-runtime). The rolling **`nightly`** pre-release always carries the latest build;
+runtime). The rolling **`nightly`** pre-release carries the latest build (rebuilt by
+hand when enough has changed; its notes list the commits since the previous one);
 tagged `vX.Y` releases are cut at milestones.
+
+### The port — `opensummoners-standalone.exe`
+
+The game itself, running on OpenSummoners' code (see *Status* and *Play it* above).
+**[Download the nightly build](https://github.com/Francesco149/OpenSummoners/releases/download/nightly/opensummoners-standalone.exe)** · docs: [`docs/standalone.md`](docs/standalone.md).
 
 ### Resource explorer — `res_explorer.exe`
 
@@ -159,11 +165,6 @@ JP audio) — something no official English release ever shipped. Install by pas
 **one line into PowerShell** — it auto-detects your game + your JP `sotesx_s.dll`
 and installs; re-run to uninstall. The exe is not modified. One-liner + manual zip:
 [`tools/ennse_voice/README.md`](tools/ennse_voice/README.md).
-
-### `opensummoners.exe` (nightly)
-
-The earlier from-scratch front end (its own boot and title drive). The playable build is
-the standalone above, built from source for now.
 
 ## Building
 
