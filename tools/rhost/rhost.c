@@ -867,6 +867,16 @@ static LONG CALLBACK trap_veh(EXCEPTION_POINTERS *e)
                        " args %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x\n", a, g_frame,
                        sp[0], c->Eax, c->Ebx, c->Ecx, c->Edx, c->Esi, c->Edi, c->Ebp, c->Esp,
                        sp[1], sp[2], sp[3], sp[4], sp[5], sp[6], sp[7], sp[8], sp[9], sp[10], sp[11]);
+                if (O.trap_mem_len) {
+                    const DWORD regs[8] = { c->Eax, c->Ebx, c->Ecx, c->Edx, c->Esi, c->Edi, c->Ebp, c->Esp };
+                    uint32_t base = (uint32_t)regs[O.trap_mem_reg] + (uint32_t)O.trap_mem_off;
+                    for (uint32_t o = 0; o < O.trap_mem_len; o += 32) {
+                        char line[160]; int n = snprintf(line, sizeof line, "trap-mem %08x +%03x:", base, o);
+                        for (uint32_t k = o; k < o + 32 && k < O.trap_mem_len; k += 4)
+                            n += snprintf(line + n, sizeof line - n, " %08x", *(const uint32_t *)(uintptr_t)(base + k));
+                        rh_log("%s\n", line);
+                    }
+                }
             }
             *(volatile uint8_t *)(uintptr_t)a = g_torig[i];
             c->Eip = a; c->EFlags |= 0x100; g_trearm = i;     /* single-step, then re-arm */
@@ -1334,6 +1344,14 @@ static void parse(int argc, char **argv)
         }
         else if (!strcmp(a, "--trap-max")) O.trap_max = strtoul(ARG(), 0, 0);
         else if (!strcmp(a, "--heap-trace")) { const char *v = ARG(); O.htrace_f0 = strtoul(v, 0, 0); const char *d = strchr(v, '-'); O.htrace_f1 = d ? strtoul(d + 1, 0, 0) : O.htrace_f0; }
+        else if (!strcmp(a, "--trap-mem")) {     /* REG±OFF:LEN, e.g. ebx+0:0x294 (REG: eax ebx ecx edx esi edi ebp esp) */
+            static const char *rn[8] = { "eax", "ebx", "ecx", "edx", "esi", "edi", "ebp", "esp" };
+            const char *v = ARG(); int r = -1;
+            for (int k = 0; k < 8; k++) if (!strncmp(v, rn[k], 3)) r = k;
+            const char *c = strchr(v, ':');
+            if (r < 0 || !c) rh_fatal("--trap-mem REG+OFF:LEN");
+            O.trap_mem_reg = r; O.trap_mem_off = (int32_t)strtol(v + 3, 0, 0); O.trap_mem_len = (strtoul(c + 1, 0, 0) + 3) & ~3u;
+        }
         else if (!strcmp(a, "--trap-frames")) { const char *v = ARG(); O.trap_f0 = strtoul(v, 0, 0); const char *d = strchr(v, '-'); O.trap_f1 = d ? strtoul(d + 1, 0, 0) : O.trap_f0; }
         else if (!strcmp(a, "--trap-census")) {     /* VA:OFF (hex), one per flag; no register log */
             char *t = ARG(), *c = strchr(t, ':');

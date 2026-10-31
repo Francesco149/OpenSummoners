@@ -55,6 +55,7 @@ typedef struct {
     int bgm_fail;               /* test: the N-th BGM RenderFile's first attempt fails (the retry path) */   /* log the address-space map (VirtualQuery, by allocation) at these frames */
     uint32_t shot_at[64]; int n_shot; uint32_t shot_every;
     uint32_t trap_f0, trap_f1;
+    int trap_mem_reg; int32_t trap_mem_off; uint32_t trap_mem_len;   /* --trap-mem REG±OFF:LEN: dump at each logged hit */
     uint32_t htrace_f0, htrace_f1; /* --heap-trace A-B: every HeapAlloc / HeapFree in this frame window */   /* --trap-frames A-B: traps log only inside this frame window */
     int fb_hash;              /* --fb-hash: chain a hash of every Flip's back buffer (the render gate) */
     uint32_t hash_every;        /* log state hash every N frames (0 = only at end) */
