@@ -21,7 +21,7 @@ specific commits where relevant.
   600-frame state hash — heap blocks included — RNG, pixels; rh-combat: 233k `new`, 225k `free` through the port).
   Hybrid (1360 hooks): PASS 15/15 (rh-after-prologue: its known gap).  In the full batch rh-early-game-2's wine
   process vanished at f157200 (no AV / stall / kill note; all 263 samples until then = pure); alone it PASSES — a
-  wine flake, not the port.  Standalone: PASS 14/14 EN-old.  Windows: not run yet (the box ran the verify).  Unexercised:
+  wine flake, not the port.  Standalone: PASS 14/14 EN-old.  Windows hybrid (1360 hooks, after the verify): PASS 15/15.  Unexercised:
   `realloc` / `__sbh_resize_block` (no scenario calls them), `_callnewh` (no new handler).
 - Ledger 1573 touched.
 - The new recordings' verify (the 59 hooks they first reach, `newhooks`; Windows, batch `20261031-153625-verify`):

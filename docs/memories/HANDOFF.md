@@ -10,8 +10,7 @@
 
 - **The CRT heap is PORTED** (`src/msvc_crt.c`: MSVC 6's SBH + malloc / free / realloc / calloc, 16 functions over
   retail's globals; hybrid set; the standalone's new / delete).  Wine: pure + heap REPLACE PASS (4 scenarios), hybrid
-  15/15, standalone 14/14.  NOT yet: the Windows hybrid gate with it (run `corpus --check --hybrid` there next), a
-  scenario that reaches `realloc` / `__sbh_resize_block`.  Next on PORT-DEBT(crt-heap): the pre-WinMain allocations
+  15/15, standalone 14/14; Windows hybrid 15/15.  NOT yet: a scenario that reaches `realloc` / `__sbh_resize_block`.  Next on PORT-DEBT(crt-heap): the pre-WinMain allocations
   (port-debt row) → standalone state hashes = retail's.
 
 - New recordings verified: `rh-early-game-2` / `-3` / `rh-after-prologue` / `rh-water-shrine` (chain from
