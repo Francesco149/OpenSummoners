@@ -29,7 +29,9 @@ specific commits where relevant.
   frames ahead): the call spans frames (its `script_wait` 0x439690 runs the message's wait, quirk #183 — entered
   before f139600, returned f139688), so the shadow's port re-run waits for input retail's run consumed.  REPLACE is
   exact there (the hybrid PASSES rh-water-shrine).  The five `script_wait` helpers are REPLACE-only now (verify 684
-  → 679 shadows; the hybrid set unchanged).
+  → 679 shadows; the hybrid set unchanged).  Final (8100 s, 4/4 complete): the other 58 hooks 0 divergences
+  (count_riders 1.24M calls compared, char_knockdown 131.8k, beh_442640 127.6k, …); `beh_483de0` / `beh_484bc0`
+  compared 0 although coverage enters them (by address?) — open.
 
 ## 2026-10-31 (evening) — the pre-rhost loop removed; first manual nightly ships the standalone
 

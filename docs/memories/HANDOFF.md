@@ -44,9 +44,11 @@
   `20261031-153625-verify`, Windows, `--split 4`): the 59 hooks these recordings are the FIRST to reach
   (`rhost.py newhooks … --coverage 20261031-055656-coverage`), ~80 fps/run.  The rest is covered end-to-end by
   the hybrid gate (PASS on all four but R9).  So far: rh-early-game-2 / -3 clean; `sc_41a3a0` (rh-water-shrine)
-  diverged = a frame-spanning call (quirk #183) → the five `script_wait` helpers are REPLACE-only.  When the batch
-  ends (rh-after-prologue~1, rh-water-shrine~1/~2 left at 17:40): read its VERIFY table (`rhost.py` prints it; the
-  run logs: C:\oss-rhost\runs\20261031-153625-verify).
+  diverged = a frame-spanning call (quirk #183) → the five `script_wait` helpers are REPLACE-only.  DONE (8100 s, 4/4
+  complete): every other hook 0 divergences (e.g. count_riders 1.24M, char_knockdown / body_switch_touch 131.8k,
+  beh_442640 127.6k, shot_476e20 84k compared).  OPEN: `beh_483de0` / `beh_484bc0` compared 0 though coverage enters
+  them — likely reached by address (a behaviour slot) past the call-site hooks: check `coverage --hybrid` on the four
+  (retail_still_run.tsv) and add them to BYADDR if retail's body still runs.
 
 ## Before — 2026-10-24: the standalone runs on the USER's real Windows 11 (`docs/standalone.md` "The real platform")
 
