@@ -114,7 +114,7 @@ void crt_delete(void *p)
     if (p) { heap_init(); p_free(g_heap, 0, p); }
 }
 
-/* ---- atexit / exit (0x5beecd _onexit, 0x5bf5fd doexit) ---- */
+/* ---- atexit / exit (0x5beecd _onexit; FUN_005bf5fd doexit = crt_exit's body) ---- */
 #define ONEXIT_MAX 64
 static uint32_t g_onexit[ONEXIT_MAX];
 static int g_nonexit, g_exiting;

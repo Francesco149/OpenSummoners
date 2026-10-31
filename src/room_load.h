@@ -127,7 +127,7 @@ void *pool_head_delete(uint8_t *h, int32_t flags);
 /* 0x40e0c0 (thiscall menu / dialog controller): free its geometry — the confirm source (+0x170: its
  * caption record +0xc, +0 / +8 buffers), +0x164, +0x178, the rows (+0x17c, 16 B, cells +0xc of 24 B:
  * +0 a record with an owned buffer, +4, +8; the counts from the header +0x174: rows +4, cells +8),
- * the header — through retail's allocator (menu_list.c's menu_ctrl_clear is the port-heap twin) */
+ * the header — through retail's allocator */
 void ctrl_geometry_free(uint8_t *c);
 /* the engine's fatal path (inlined across retail): 0x560900 (the last OS error to the error log),
  * the message appended to the log's error box text (+4), the log line (0x406440), exit(0) */

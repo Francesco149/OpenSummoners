@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Build rhost.exe into build/rhost/. Host links at 0x200000 without ASLR so retail's
 # 0x400000.. range is ours (a .bss hole reserves it; rhost.x puts .bss FIRST, so the code size never pushes it). Port code for hooks is compiled with
-# the port's own -std (src/Makefile CFLAGS).
+# the port's own -std (c11, as tests/Makefile).
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/../.." && pwd); S=$ROOT/src; H=$ROOT/tools/rhost; B=$ROOT/build/rhost
 CC=${RHOST_CC:-i686-w64-mingw32-gcc}
 LDF=(-Wl,--image-base,0x200000 -Wl,--large-address-aware -Wl,--disable-dynamicbase -Wl,-T,"$ROOT/tools/rhost/rhost.x" -static-libgcc)
-PORT_STD=${PORT_STD:-$(sed -n 's/^CFLAGS *?= *\(-std=[a-z0-9]*\).*/\1/p' "$S/Makefile")}
+PORT_STD=${PORT_STD:--std=c11}
 mkdir -p "$B"
 PORT_OBJS=()
 MODS="rng input collision map_grid entity_move map_data map_decode camera_follow char_ai engine_calls char_physics char_integrate char_special npc_ai char_apply world_tick entity_fx actor_update particle_tick char_behave behave_ops sound_fx entity_life char_state actor_ops particle_spawn grid_refresh particle_init gimmick event room_loop input_dik room_load world_alloc sprite_slot device_init char_def char_init party_member scene_loop arche_pose script_engine scene_cmd char_status room_tick ui_core ui_text ui_menu ui_run scene_box scene_cast scene_run screen_fx hud_view char_attack sana_skills char_hit char_monster arche_sword skill_cast shots behave_helpers char_handlers script_helpers chapter_scripts render_platform render_draw title_menu field_menu save_game ai_skill script_io glyph_text frame_load file_stream input_dev sound_dev zdd_dev win_app asset_load win_main menu_helpers menu_screens char_types char_handlers2 actor_behave sjis_text gamepad ending title_extra leftovers static_init engine_rest story_scripts msvc_crt"

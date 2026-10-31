@@ -42,9 +42,6 @@ extern "C" {
 #include <map>
 #include <set>
 
-// asset_register_win32.c taps font creation into the OSR recorder; this tool
-// never records, so stub the tap instead of linking the osr_emit chain.
-extern "C" void osr_emit_font_create(void *, const void *) {}
 
 // ── DX11 boilerplate (stock ImGui win32+dx11 example, as in osr_view) ───────
 static ID3D11Device*           g_dev  = nullptr;

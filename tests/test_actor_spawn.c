@@ -15,8 +15,6 @@
 #include "actor_render.h"
 #include "character.h"
 #include "butterfly.h"
-#include "ambient.h"
-#include "town_npc.h"
 #include "draw_pool.h"
 #include "rng.h"
 #include "t.h"
@@ -751,90 +749,6 @@ int test_butterfly_motion(void)
         T_ASSERT(p.b[0].world_x >= p.b[0].bound3 - 3 * 0xc80);
         T_ASSERT(p.b[0].world_x <= p.b[0].bound1 + 3 * 0xc80);
     }
-    return 0;
-}
-
-/* The town's four IRREGULAR per-tick ambient/event timers (engine-quirk #95;
- * ambient.c) — the residual that desynced the settled-town stream past the
- * REVEAL.  Each fires once in the window; the draw counts + fire ticks are the
- * seed-pinned ground truth (runs/ambient-timer). */
-int test_ambient_pertick(void)
-{
-    ambient_pool a;
-
-    /* The 0x467380 (0xe2a5) event timer: spawn-set to 184, it decrements
-     * silently for 183 ticks, then fires 4 draws at tick 183 (the cd==1 arm:
-     * fire + FUN_004099a0 x2 + reload). */
-    ambient_reset(&a);
-    T_ASSERT_EQ_I(a.event.cd, 184);
-    T_ASSERT_EQ_I(a.event.armed, 1);
-    for (int t = 0; t < 183; t++)
-        T_ASSERT_EQ_I(ambient_effect_step(&a), 0);   /* ticks 0..182: decrement */
-    T_ASSERT_EQ_I(ambient_effect_step(&a), 4);        /* tick 183: FIRE          */
-
-    /* The CHARACTER-band timers (0x1136f, 0x11370, the wagon's idle-wander) init
-     * at tick 0 with one (rand*300)>>15 draw each.  Seeded at the post-spawn LCG
-     * state + the 20 regular draws (14 butterfly + 6 fountain) that precede them
-     * in the 0x46cd70 walk, the three countdowns are 189 / 33 / 134 — so they
-     * fire at ticks 189 / 33 / 134 respectively (bit-exact vs the census). */
-    ambient_reset(&a);
-    rng_srand(0x9c2b551du);
-    for (int i = 0; i < 20; i++) (void)rng_rand();
-    T_ASSERT_EQ_I(ambient_character_step(&a), 3);   /* tick 0: three init draws */
-    T_ASSERT_EQ_I(a.sound_a.cd, 188);   /* 0x1136f: 189 - 1 (the tick-0 decrement) */
-    T_ASSERT_EQ_I(a.sound_b.cd, 32);    /* 0x11370: 33 - 1                         */
-    T_ASSERT_EQ_I(a.wagon.cd,  133);    /* wagon:   134 - 1                        */
-
-    /* Step ticks 1..32 (all silent), then tick 33 the 0x11370 emitter fires +3
-     * (reload + pick + sound-param); the other two only decrement. */
-    int total = 0;
-    for (int t = 1; t <= 33; t++) total += ambient_character_step(&a);
-    T_ASSERT_EQ_I(total, 3);
-    T_ASSERT_EQ_I(a.sound_b.cd >= 300, 1);   /* 0x11370 reloaded to (rand*300>>15)+300 */
-    T_ASSERT_EQ_I(a.sound_a.cd, 188 - 33);   /* 0x1136f still counting down (-> tick 189) */
-    T_ASSERT_EQ_I(a.wagon.cd,  133 - 33);    /* wagon still counting down (-> tick 134)   */
-
-    /* NULL guards. */
-    ambient_reset(NULL);
-    T_ASSERT_EQ_I(ambient_effect_step(NULL), 0);
-    T_ASSERT_EQ_I(ambient_character_step(NULL), 0);
-    return 0;
-}
-
-/* The settled-town wander NPC's per-tick LCG draw (0x43f880:415, ckpt 194): it
- * draws exactly ONE rand per census tick over the seed-pinned walk window
- * [972,1077], and nothing outside it — the +1/tick the port omitted. */
-int test_town_npc_pertick(void)
-{
-    town_npc_pool p;
-    town_npc_reset(&p);
-    T_ASSERT_EQ_I(p.walk_start, 972);
-    T_ASSERT_EQ_I(p.walk_end,  1077);
-
-    /* Outside the window (before): no draw, LCG untouched. */
-    uint64_t c0 = rng_call_count();
-    for (int t = 0; t < 972; t++)
-        T_ASSERT_EQ_I(town_npc_step(&p, t), 0);
-    T_ASSERT_EQ_I((int)(rng_call_count() - c0), 0);
-
-    /* Inside the window: exactly 1 draw per tick, 972..1077 inclusive (106 ticks). */
-    uint64_t c1 = rng_call_count();
-    int total = 0;
-    for (int t = 972; t <= 1077; t++)
-        total += town_npc_step(&p, t);
-    T_ASSERT_EQ_I(total, 106);
-    T_ASSERT_EQ_I((int)(rng_call_count() - c1), 106);
-
-    /* Boundaries: the first tick (972) draws, the tick after the last (1078) does not. */
-    town_npc_reset(&p);
-    T_ASSERT_EQ_I(town_npc_step(&p, 971), 0);
-    T_ASSERT_EQ_I(town_npc_step(&p, 972), 1);
-    T_ASSERT_EQ_I(town_npc_step(&p, 1077), 1);
-    T_ASSERT_EQ_I(town_npc_step(&p, 1078), 0);
-
-    /* NULL guard. */
-    town_npc_reset(NULL);
-    T_ASSERT_EQ_I(town_npc_step(NULL, 1000), 0);
     return 0;
 }
 

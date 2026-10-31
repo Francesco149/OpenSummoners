@@ -1,3 +1,8 @@
+// DATA for the IDA knowledge pack: tools/ida/gen_knowledge.py parses the TAGS array below
+// ((addr, class, prototype) rows → thiscall prototypes in the KB).  Add a row when you
+// recover a thiscall method + its struct.  Formerly a Ghidra script (the Ghidra tooling
+// was removed 2026-10-31); the run notes below are historical.
+//
 // Ghidra script: apply class namespace + __thiscall + signature to a
 // fixed list of functions, so the decompile shows `this->field` reads
 // matching our C ports.

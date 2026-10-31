@@ -5,14 +5,14 @@ tools/ida/oss_ida_export.py (kb=...). EN-old VAs only (the port's target edition
   python3 tools/ida/gen_knowledge.py -o knowledge.json
 
 Sources (the repo is the source of truth; nothing here is hand-maintained twice):
-  names   tools/flow/retail_fields.json (curated engine names) + port provenance: a C function
+  names   tools/ida/retail_fields.json (curated engine names) + port provenance: a C function
           in src/*.c whose leading comment names exactly one `FUN_<va>` → `<c_name>` (a VA claimed
           by two port functions is skipped); retail fields win.
   globals GLOBALS below (well-established singletons from docs/findings) + retail_fields globals
   decls   retail-layout structs from src/*.h (headers with _Static_assert(offsetof ..)):
           preprocessed with the mingw32 cc, only declarations from src/ kept, typedef/struct/
           enum/union only (prototypes, inline bodies and asserts dropped)
-  protos  thiscall prototypes from tools/ghidra-scripts/TagThiscallFunctions.java TAGS
+  protos  thiscall prototypes from tools/ida/TagThiscallFunctions.java TAGS
           (Ghidra type words mapped to C)
 Every applied name keeps the VA: `<name>_<VA>` so grep-by-address still works.
 """
@@ -83,7 +83,7 @@ def port_names():
 
 
 def retail_fields():
-    d = json.load(open(os.path.join(ROOT, "tools/flow/retail_fields.json")))["fields"]
+    d = json.load(open(os.path.join(ROOT, "tools/ida/retail_fields.json")))["fields"]
     names, gl = {}, {}
     for k, v in d.items():
         va = int(k, 0)
@@ -140,7 +140,7 @@ def struct_decls():
 
 
 def thiscall_protos(names):
-    j = open(os.path.join(ROOT, "tools/ghidra-scripts/TagThiscallFunctions.java")).read()
+    j = open(os.path.join(ROOT, "tools/ida/TagThiscallFunctions.java")).read()
     rows = re.findall(r'\{\s*0x([0-9a-fA-F]+)L,\s*"(\w+)",\s*((?:"[^"]*"\s*\+?\s*)+)\}', j)
     protos = {}
     for va, cls, parts in rows:

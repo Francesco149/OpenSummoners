@@ -22,68 +22,31 @@ CFLAGS  := -std=c11 -g -O1 -Wall -Wextra -Wno-unused-parameter \
            -I../src $(SAN)
 LDFLAGS := $(SAN) -lm
 
-SRCS_PORTED  := ../src/pixel_drawer.c ../src/asset_register.c \
-                ../src/bitmap_session.c ../src/wnd_proc.c \
-                ../src/zdd.c ../src/cs_dispatch.c \
-                ../src/app_pump.c ../src/title_scene.c \
-                ../src/call_trace.c ../src/input.c \
-                ../src/obj_container.c ../src/menu_list.c \
-                ../src/title_render.c ../src/title_sink.c \
-                ../src/title_drive.c ../src/input_trace.c \
-                ../src/rng.c ../src/title_particles.c \
-                ../src/app_flow.c ../src/glyph_text.c \
-                ../src/glyph_render.c ../src/newgame_menu.c \
-                ../src/newgame_scene.c ../src/newgame_drive.c \
-                ../src/newgame_box.c ../src/newgame_cursor.c \
-                ../src/glyph_wrap.c ../src/newgame_picker.c \
-                ../src/prologue_stone.c ../src/prologue_drive.c \
-                ../src/game_drive.c ../src/game_world.c \
-                ../src/game_map.c ../src/world_tables_data.c \
-                ../src/map_data.c ../src/map_grid.c \
-                ../src/map_decode.c ../src/map_render.c \
-                ../src/draw_pool.c ../src/map_present.c \
-                ../src/parallax.c ../src/town_render.c \
-                ../src/color_grade.c ../src/camera_follow.c \
-                ../src/anim_clip.c ../src/render_id.c \
-                ../src/letterbox.c ../src/actor_render.c \
-                ../src/actor_spawn.c ../src/particle.c \
-                ../src/party.c ../src/base_stat_table.c \
-                ../src/scene_fade.c ../src/butterfly.c \
-                ../src/ambient.c ../src/town_npc.c ../src/banner.c \
-                ../src/exe_strings.c ../src/dialogue.c \
-                ../src/collision.c ../src/held_trace.c \
-                ../src/character.c ../src/input_live.c ../src/cutscene.c \
-                ../src/portrait.c ../src/portrait_face_data.c \
-                ../src/osr_replay.c ../src/osr_emit.c \
-                ../src/sword_trail.c ../src/hud.c \
-                ../src/entity_move.c ../src/char_ai.c ../src/engine_calls.c ../src/char_physics.c ../src/char_integrate.c ../src/char_special.c ../src/npc_ai.c ../src/char_apply.c ../src/world_tick.c ../src/entity_fx.c ../src/actor_update.c ../src/particle_tick.c ../src/char_behave.c ../src/behave_ops.c ../src/sound_fx.c ../src/entity_life.c ../src/char_state.c ../src/actor_ops.c ../src/particle_spawn.c ../src/grid_refresh.c ../src/particle_init.c ../src/gimmick.c ../src/event.c ../src/room_loop.c ../src/input_dik.c ../src/room_load.c ../src/world_alloc.c ../src/sprite_slot.c ../src/device_init.c ../src/char_def.c ../src/char_init.c ../src/party_member.c ../src/scene_loop.c ../src/arche_pose.c ../src/script_engine.c ../src/scene_cmd.c ../src/char_status.c ../src/room_tick.c ../src/ui_core.c ../src/ui_text.c ../src/ui_menu.c ../src/ui_run.c ../src/scene_box.c ../src/scene_cast.c ../src/scene_run.c ../src/screen_fx.c ../src/hud_view.c ../src/char_attack.c ../src/sana_skills.c ../src/char_hit.c ../src/char_monster.c ../src/arche_sword.c ../src/skill_cast.c ../src/shots.c ../src/behave_helpers.c ../src/char_handlers.c ../src/script_helpers.c ../src/chapter_scripts.c ../src/msvc_crt.c
-SRCS_TESTS   := test_main.c host_stubs.c test_pixel_drawer.c test_asset_register.c \
-                test_bitmap_session.c test_wnd_proc.c test_zdd.c \
-                test_cs_dispatch.c test_app_pump.c test_title_scene.c \
-                test_call_trace.c test_input.c test_obj_container.c \
-                test_menu_list.c test_title_render.c test_title_sink.c \
-                test_title_drive.c test_input_trace.c test_title_particles.c \
-                test_app_flow.c test_glyph_text.c test_glyph_render.c \
-                test_newgame_menu.c test_newgame_scene.c \
-                test_newgame_drive.c test_newgame_box.c \
-                test_newgame_cursor.c test_glyph_wrap.c \
-                test_newgame_picker.c test_prologue_stone.c \
-                test_prologue_drive.c test_game_drive.c \
-                test_game_world.c test_game_map.c test_map_data.c \
-                test_map_grid.c test_map_decode.c test_map_render.c \
-                test_draw_pool.c test_map_present.c \
-                test_parallax.c test_town_render.c \
-                test_color_grade.c test_camera_follow.c \
-                test_anim_clip.c test_render_id.c \
-                test_letterbox.c test_actor_render.c \
-                test_actor_spawn.c test_particle.c \
-                test_party.c test_scene_fade.c test_banner.c \
-                test_exe_strings.c test_dialogue.c \
-                test_collision.c test_held_trace.c \
-                test_character.c test_input_live.c test_cutscene.c \
-                test_portrait.c test_osr_format.c test_osr_replay.c \
-                test_osr_emit.c test_sword_trail.c test_hud.c \
-                test_entity_move.c test_char_ai.c test_char_physics.c test_msvc_crt.c
+SRCS_PORTED := ../src/asset_register.c ../src/bitmap_session.c ../src/input.c ../src/rng.c \
+               ../src/glyph_text.c ../src/map_data.c ../src/map_grid.c ../src/map_decode.c \
+               ../src/map_render.c ../src/draw_pool.c ../src/camera_follow.c ../src/anim_clip.c \
+               ../src/render_id.c ../src/actor_render.c ../src/actor_spawn.c ../src/party.c \
+               ../src/base_stat_table.c ../src/butterfly.c ../src/collision.c ../src/entity_move.c \
+               ../src/char_ai.c ../src/engine_calls.c ../src/char_physics.c ../src/char_integrate.c \
+               ../src/char_special.c ../src/npc_ai.c ../src/char_apply.c ../src/world_tick.c \
+               ../src/entity_fx.c ../src/actor_update.c ../src/particle_tick.c ../src/char_behave.c \
+               ../src/behave_ops.c ../src/sound_fx.c ../src/entity_life.c ../src/char_state.c \
+               ../src/actor_ops.c ../src/particle_spawn.c ../src/grid_refresh.c ../src/particle_init.c \
+               ../src/gimmick.c ../src/event.c ../src/room_loop.c ../src/input_dik.c ../src/room_load.c \
+               ../src/world_alloc.c ../src/sprite_slot.c ../src/device_init.c ../src/char_def.c \
+               ../src/char_init.c ../src/party_member.c ../src/scene_loop.c ../src/arche_pose.c \
+               ../src/script_engine.c ../src/scene_cmd.c ../src/char_status.c ../src/room_tick.c \
+               ../src/ui_core.c ../src/ui_text.c ../src/ui_menu.c ../src/ui_run.c ../src/scene_box.c \
+               ../src/scene_cast.c ../src/scene_run.c ../src/screen_fx.c ../src/hud_view.c \
+               ../src/char_attack.c ../src/sana_skills.c ../src/char_hit.c ../src/char_monster.c \
+               ../src/arche_sword.c ../src/skill_cast.c ../src/shots.c ../src/behave_helpers.c \
+               ../src/char_handlers.c ../src/script_helpers.c ../src/chapter_scripts.c ../src/msvc_crt.c
+
+SRCS_TESTS := test_main.c host_stubs.c test_asset_register.c test_bitmap_session.c test_input.c \
+              test_glyph_text.c test_map_data.c test_map_grid.c test_map_decode.c test_map_render.c \
+              test_draw_pool.c test_camera_follow.c test_anim_clip.c test_render_id.c test_actor_render.c \
+              test_actor_spawn.c test_party.c test_collision.c test_entity_move.c test_char_ai.c \
+              test_char_physics.c test_msvc_crt.c
 
 OUT := build/run_tests
 

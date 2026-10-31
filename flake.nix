@@ -17,16 +17,15 @@
         # i686 to match the original's process bitness.
         mingw32 = pkgs.pkgsCross.mingw32.buildPackages;
 
-        # Dear ImGui sources for the Trace Studio v2 native frame viewer
-        # (tools/osr_view).  We compile the .cpp directly into the mingw32
-        # Windows PE (DX11 backend) — ImGui is source-vendored, not a lib, so we
-        # only need the checkout.  IMGUI_DIR is exported into the dev shell.
+        # Dear ImGui sources for the resource explorer (tools/res_explorer) and
+        # the trainer UI.  We compile the .cpp directly into the mingw32 Windows
+        # PE (DX11 backend) — ImGui is source-vendored, not a lib, so we only
+        # need the checkout.  IMGUI_DIR is exported into the dev shell.
         imguiSrc = pkgs.imgui.src;
 
         # Python environment for tooling.  Same shape as the OpenMare /
         # openrecet siblings so authoring habits transfer:
         #   - pillow / numpy / scikit-image / opencv4 for frame work
-        #   - frida 17.x for Windows-side instrumentation
         #   - construct for binary-format parsers
         #   - rich for nicer CLI output
         pythonEnv = pkgs.python3.withPackages (ps: with ps; [
@@ -39,7 +38,6 @@
           pyyaml
           construct
           rich
-          frida-python
         ]);
 
       in {
@@ -48,7 +46,7 @@
 
           packages = with pkgs; [
             # ── reverse engineering ───────────────────────────────────
-            ghidra
+            # (the decompile is IDA 9.4 on the Windows box: tools/ida/)
             radare2
             rizin
             cutter
@@ -59,15 +57,6 @@
             binutils          # nm, objdump, strings
             icoutils          # wrestool/icotool — extract resources from PE
 
-            # ── dynamic analysis / instrumentation ────────────────────
-            # frida-tools is the CLI.  The Windows-side frida-server.exe
-            # runs on the host (binds 0.0.0.0:27042); we talk to it via the
-            # WSL NAT.  Same instance serves all three sibling projects.
-            # No wine: sotes.exe runs through WSLInterop directly on the
-            # Windows host so DirectDraw / DirectSound / DirectInput all
-            # work with zero setup.
-            frida-tools
-
             # ── build toolchain (32-bit Win32 target) ─────────────────
             mingw32.gcc       # i686-w64-mingw32-gcc — produces Win32 PE
             mingw32.binutils
@@ -76,10 +65,9 @@
             ninja
             pkg-config
 
-            # ── headless testing ──────────────────────────────────────
-            # The exe runs via WSLInterop on the host Windows desktop.
-            # The Frida agent applies hide-window from inside the process;
-            # no Xvfb / scrot / wine needed.
+            # ── media ─────────────────────────────────────────────────
+            # (rhost runs on the Windows box over ssh, or locally under the
+            # host's wine + Xvfb: tools/rhost/README.md)
             ffmpeg            # frame extraction from any video captures
 
             # ── image/asset processing ────────────────────────────────
@@ -120,25 +108,14 @@
             export MINGW_AR=i686-w64-mingw32-ar
             export MINGW_STRIP=i686-w64-mingw32-strip
 
-            # Dear ImGui source checkout for the native frame viewer
-            # (tools/osr_view — DX11 backend compiled into the Windows PE).
+            # Dear ImGui source checkout (res_explorer / the trainer UI —
+            # DX11 backend compiled into the Windows PE).
             export IMGUI_DIR=${imguiSrc}
-
-            # Shared Frida instance.  cutestation.soy is the Windows host's
-            # LAN-resolvable name; frida-server.exe binds 0.0.0.0:27042 there
-            # and serves all three sibling RE projects.  We do NOT default to
-            # 127.0.0.1 because WSL2's NAT layer doesn't loop back to the
-            # Windows host's localhost binding — the LAN hostname is the
-            # reliable path.  Override OPENSUMMONERS_FRIDA_REMOTE explicitly
-            # to use a different host/port.
-            export OPENSUMMONERS_FRIDA_REMOTE="''${OPENSUMMONERS_FRIDA_REMOTE:-cutestation.soy:27042}"
 
             echo "opensummoners dev shell ready"
             echo "  game dir:   $OPENSUMMONERS_GAME_DIR"
             echo "  steamless:  $OPENSUMMONERS_STEAMLESS_DIR"
             echo "  mingw cc:   $(command -v $MINGW_CC || echo '(missing)')"
-            echo "  frida:      $OPENSUMMONERS_FRIDA_REMOTE (Windows host)"
-            echo "  exe runs via WSLInterop (no wine)"
             echo ""
             echo "Bootstrap: ./tools/setup.sh"
           '';
@@ -146,7 +123,7 @@
 
         # Lean CI shell — just the cross toolchain + native gcc + make + python
         # (stdlib) + zip.  Used by .github/workflows/* so cold builds stay fast:
-        # the default shell pulls ghidra/frida/cutter/imhex/… (a huge closure).
+        # the default shell pulls cutter/imhex/opencv/… (a big closure).
         # No game assets are ever needed — the port/patch/tools are pure code.
         devShells.ci = pkgs.mkShell {
           name = "opensummoners-ci";
@@ -163,31 +140,6 @@
           shellHook = ''
             export IMGUI_DIR=${imguiSrc}
           '';
-        };
-
-        # Package output: the opensummoners.exe binary cross-compiled with
-        # mingw32.  Stub — wired up properly once src/ has a buildable program.
-        packages.opensummoners = pkgs.stdenv.mkDerivation {
-          pname = "opensummoners";
-          version = "0.0.0-dev";
-          src = ./src;
-
-          nativeBuildInputs = [ mingw32.gcc mingw32.binutils pkgs.gnumake ];
-
-          buildPhase = ''
-            echo "opensummoners build stub — src/ has only a skeleton WinMain"
-            make
-            mkdir -p $out/bin
-            cp ../build/opensummoners.exe $out/bin/opensummoners.exe || true
-          '';
-
-          installPhase = "true";
-
-          meta = with pkgs.lib; {
-            description = "Open-source drop-in for Fortune Summoners' sotes.exe (educational/preservation)";
-            license = licenses.mit;
-            platforms = [ "x86_64-linux" ];
-          };
         };
       });
 }

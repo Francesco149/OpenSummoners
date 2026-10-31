@@ -67,10 +67,6 @@ imgui.ini
 /fs_boot.log
 /fs_warning.log
 
-# vamap: cross-edition VA map — derived from the user's binaries, regenerate via
-# tools/vamap/gen_vamap.sh.  Tool + README are tracked; the data is not.
-docs/vamap/*.jsonl
-docs/vamap/*.csv
 
 # rhost / IDA derived outputs (scenario saves = user data)
 tools/rhost/__pycache__/

@@ -6,13 +6,13 @@
   "non_thunk_functions": 1824,
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
-  "tested": 268,
-  "ported": 1290,
+  "tested": 119,
+  "ported": 1439,
   "unported": 266,
   "orphan_refs_not_in_function_table": 2,
   "touched": 1558,
   "pct_touched": 99.9,
-  "pct_tested": 15.7,
+  "pct_tested": 6.1,
   "engine_proper_touched": 1531,
   "bytes_total": 1776526,
   "bytes_touched": 1776522,
@@ -499,9 +499,8 @@
    "name": "sub_4031C0",
    "size": 815,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/glyph_wrap.h",
     "src/ui_text.h"
    ]
   },
@@ -570,11 +569,8 @@
    "name": "cs_fail_406440",
    "size": 184,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/cs_dispatch.c",
-    "src/cs_dispatch.h",
-    "src/cs_dispatch_win32.c",
     "src/leftovers.h"
    ]
   },
@@ -774,10 +770,9 @@
    "name": "sub_408B90",
    "size": 419,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/script_io.h",
-    "src/wnd_proc.h"
+    "src/script_io.h"
    ]
   },
   {
@@ -926,7 +921,7 @@
    "name": "sub_40A540",
    "size": 133,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
     "src/char_integrate.h",
     "src/character.h"
@@ -1121,9 +1116,8 @@
    "name": "sub_40DEE0",
    "size": 85,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/main.c",
     "src/ui_core.h"
    ]
   },
@@ -1142,10 +1136,8 @@
    "name": "menu_ctrl_clear_40E0C0",
    "size": 555,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/menu_list.c",
-    "src/menu_list.h",
     "src/room_load.h"
    ]
   },
@@ -1164,9 +1156,8 @@
    "name": "sub_40E360",
    "size": 636,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/main.c",
     "src/ui_text.h"
    ]
   },
@@ -1175,11 +1166,8 @@
    "name": "wrap_class_40E5E0",
    "size": 2553,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/glyph_wrap.c",
-    "src/glyph_wrap.h",
-    "src/main.c",
     "src/ui_text.h"
    ]
   },
@@ -1188,10 +1176,8 @@
    "name": "wrap_parse_40F040",
    "size": 379,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/glyph_wrap.c",
-    "src/glyph_wrap.h",
     "src/ui_text.h"
    ]
   },
@@ -1210,11 +1196,8 @@
    "name": "sub_40F3E0",
    "size": 434,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/menu_list.c",
-    "src/menu_list.h",
-    "src/newgame_menu.c",
     "src/ui_core.h"
    ]
   },
@@ -1233,10 +1216,8 @@
    "name": "menu_ctrl_build_40F5C0",
    "size": 563,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/menu_list.c",
-    "src/menu_list.h",
     "src/ui_core.h"
    ]
   },
@@ -1255,14 +1236,8 @@
    "name": "sub_40FA00",
    "size": 800,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/glyph_text.c",
-    "src/glyph_text.h",
-    "src/newgame_menu.c",
-    "src/newgame_menu.h",
-    "src/newgame_picker.c",
-    "src/newgame_scene.c",
     "src/ui_text.h"
    ]
   },
@@ -1432,11 +1407,8 @@
    "name": "sub_411940",
    "size": 770,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/main.c",
-    "src/newgame_picker.c",
-    "src/newgame_picker.h",
     "src/ui_core.h"
    ]
   },
@@ -1465,12 +1437,8 @@
    "name": "sub_411F40",
    "size": 444,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/menu_list.c",
-    "src/menu_list.h",
-    "src/newgame_menu.c",
-    "src/newgame_menu.h",
     "src/ui_core.h"
    ]
   },
@@ -1489,12 +1457,8 @@
    "name": "sub_412160",
    "size": 459,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/newgame_menu.c",
-    "src/newgame_menu.h",
-    "src/newgame_picker.c",
-    "src/newgame_picker.h",
     "src/ui_core.h"
    ]
   },
@@ -1583,10 +1547,8 @@
    "name": "sub_412C10",
    "size": 46,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/obj_container.c",
-    "src/obj_container.h",
     "src/ui_core.h"
    ]
   },
@@ -1725,10 +1687,8 @@
    "name": "sub_414080",
    "size": 63,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/obj_container.c",
-    "src/obj_container.h",
     "src/ui_core.h"
    ]
   },
@@ -2026,8 +1986,7 @@
    "src": [
     "src/asset_register.c",
     "src/asset_register.h",
-    "src/sprite_slot.h",
-    "src/wnd_proc.h"
+    "src/sprite_slot.h"
    ]
   },
   {
@@ -2063,9 +2022,6 @@
    "src": [
     "src/actor_render.h",
     "src/actor_spawn.c",
-    "src/color_grade.c",
-    "src/color_grade.h",
-    "src/main.c",
     "src/render_draw.h"
    ]
   },
@@ -2088,12 +2044,8 @@
    "src": [
     "src/asset_register.c",
     "src/asset_register.h",
-    "src/color_grade.h",
-    "src/main.c",
     "src/render_draw.h",
-    "src/render_id.h",
-    "src/title_render.c",
-    "src/title_sink.h"
+    "src/render_id.h"
    ]
   },
   {
@@ -2106,8 +2058,7 @@
     "src/asset_register.c",
     "src/asset_register.h",
     "src/bitmap_session.h",
-    "src/frame_load.h",
-    "src/main.c"
+    "src/frame_load.h"
    ]
   },
   {
@@ -2157,11 +2108,8 @@
    "name": "sub_4192B0",
    "size": 52,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/menu_list.c",
-    "src/menu_list.h",
-    "src/newgame_picker.c",
     "src/ui_core.h"
    ]
   },
@@ -2180,10 +2128,8 @@
    "name": "picker_seek_value_419900",
    "size": 128,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/newgame_picker.c",
-    "src/newgame_picker.h",
     "src/title_menu.h"
    ]
   },
@@ -2763,11 +2709,8 @@
    "name": "sub_426110",
    "size": 610,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/cs_dispatch.c",
-    "src/cs_dispatch.h",
-    "src/cs_dispatch_win32.c",
     "src/engine_rest.h"
    ]
   },
@@ -2907,10 +2850,9 @@
    "name": "sub_426F50",
    "size": 26,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/char_integrate.h",
-    "src/character.c"
+    "src/char_integrate.h"
    ]
   },
   {
@@ -3755,10 +3697,8 @@
    "name": "sub_43B980",
    "size": 783,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/cutscene.c",
-    "src/dialogue.h",
     "src/ui_run.h"
    ]
   },
@@ -3767,12 +3707,8 @@
    "name": "sub_43BCA0",
    "size": 1105,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/cutscene.c",
-    "src/dialogue.h",
-    "src/newgame_drive.c",
-    "src/newgame_drive.h",
     "src/ui_run.h"
    ]
   },
@@ -3784,9 +3720,7 @@
    "status": "tested",
    "src": [
     "src/input.c",
-    "src/input.h",
-    "src/newgame_scene.h",
-    "src/prologue_stone.c"
+    "src/input.h"
    ]
   },
   {
@@ -3814,9 +3748,8 @@
    "name": "sub_43C2E0",
    "size": 795,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/main.c",
     "src/ui_run.h"
    ]
   },
@@ -3865,13 +3798,8 @@
    "name": "menu_list_nav_43CA40",
    "size": 970,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/cutscene.c",
-    "src/dialogue.c",
-    "src/dialogue.h",
-    "src/menu_list.c",
-    "src/menu_list.h",
     "src/ui_run.h"
    ]
   },
@@ -3880,12 +3808,8 @@
    "name": "menu_list_latch_43CE50",
    "size": 220,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/cutscene.c",
-    "src/dialogue.h",
-    "src/menu_list.c",
-    "src/menu_list.h",
     "src/ui_run.h"
    ]
   },
@@ -3917,8 +3841,7 @@
    "status": "tested",
    "src": [
     "src/camera_follow.c",
-    "src/camera_follow.h",
-    "src/main.c"
+    "src/camera_follow.h"
    ]
   },
   {
@@ -4027,9 +3950,8 @@
    "name": "sub_43E250",
    "size": 334,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/main.c",
     "src/render_draw.h"
    ]
   },
@@ -4749,8 +4671,7 @@
     "src/actor_spawn.c",
     "src/actor_spawn.h",
     "src/char_status.h",
-    "src/draw_pool.h",
-    "src/main.c"
+    "src/draw_pool.h"
    ]
   },
   {
@@ -4788,10 +4709,8 @@
    "name": "sub_44E640",
    "size": 49,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/hud.c",
-    "src/hud.h",
     "src/npc_ai.h"
    ]
   },
@@ -4800,10 +4719,8 @@
    "name": "sub_44E680",
    "size": 59,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/hud.c",
-    "src/hud.h",
     "src/npc_ai.h"
    ]
   },
@@ -5520,12 +5437,10 @@
    "name": "sub_46A880",
    "size": 8890,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
     "src/input_dik.c",
-    "src/input_dik.h",
-    "src/input_live.c",
-    "src/input_live.h"
+    "src/input_dik.h"
    ]
   },
   {
@@ -5694,9 +5609,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/camera_follow.h",
-    "src/hud.c",
-    "src/hud.h"
+    "src/camera_follow.h"
    ]
   },
   {
@@ -5947,7 +5860,6 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/character.c",
     "src/character.h",
     "src/input.c",
     "src/input.h",
@@ -6035,7 +5947,6 @@
    "status": "tested",
    "src": [
     "src/char_ai.h",
-    "src/character.c",
     "src/character.h",
     "src/input.c",
     "src/input.h"
@@ -7004,9 +6915,8 @@
    "name": "sub_48C820",
    "size": 873,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/newgame_cursor.h",
     "src/render_draw.h"
    ]
   },
@@ -7025,11 +6935,8 @@
    "name": "widget_box_frame_48CF80",
    "size": 1095,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/main.c",
-    "src/newgame_box.c",
-    "src/newgame_box.h",
     "src/render_draw.h"
    ]
   },
@@ -7038,9 +6945,8 @@
    "name": "sub_48D3D0",
    "size": 664,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/newgame_box.c",
     "src/render_draw.h"
    ]
   },
@@ -7049,9 +6955,8 @@
    "name": "sub_48D670",
    "size": 154,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/newgame_box.c",
     "src/render_draw.h"
    ]
   },
@@ -7070,11 +6975,8 @@
    "name": "sub_48D940",
    "size": 300,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/main.c",
-    "src/newgame_cursor.c",
-    "src/newgame_cursor.h",
     "src/render_draw.h"
    ]
   },
@@ -7103,11 +7005,8 @@
    "name": "sub_48E200",
    "size": 1221,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/glyph_render.c",
-    "src/glyph_render.h",
-    "src/main.c",
     "src/render_draw.h"
    ]
   },
@@ -7116,10 +7015,8 @@
    "name": "glyph_ruby_draw_48E6D0",
    "size": 389,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/glyph_render.c",
-    "src/glyph_render.h",
     "src/render_draw.h"
    ]
   },
@@ -7128,11 +7025,8 @@
    "name": "sub_48E860",
    "size": 181,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/glyph_render.c",
-    "src/glyph_render.h",
-    "src/main.c",
     "src/render_draw.h"
    ]
   },
@@ -7141,12 +7035,9 @@
    "name": "scene_fade_grid_render_48E920",
    "size": 403,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/main.c",
-    "src/render_draw.h",
-    "src/scene_fade.c",
-    "src/scene_fade.h"
+    "src/render_draw.h"
    ]
   },
   {
@@ -7154,14 +7045,9 @@
    "name": "sub_48EAC0",
    "size": 1131,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/main.c",
-    "src/map_present.c",
-    "src/map_present.h",
-    "src/render_draw.h",
-    "src/town_render.c",
-    "src/town_render.h"
+    "src/render_draw.h"
    ]
   },
   {
@@ -7231,11 +7117,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/camera_follow.h",
-    "src/dialogue.c",
-    "src/map_present.c",
-    "src/map_present.h",
-    "src/town_render.h"
+    "src/camera_follow.h"
    ]
   },
   {
@@ -7243,15 +7125,9 @@
    "name": "sub_490CD0",
    "size": 603,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/color_grade.h",
-    "src/main.c",
-    "src/parallax.c",
-    "src/parallax.h",
-    "src/render_draw.h",
-    "src/town_render.c",
-    "src/town_render.h"
+    "src/render_draw.h"
    ]
   },
   {
@@ -7261,16 +7137,10 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/color_grade.h",
     "src/draw_pool.h",
-    "src/main.c",
-    "src/map_present.h",
     "src/map_render.c",
     "src/map_render.h",
-    "src/parallax.h",
-    "src/render_draw.h",
-    "src/town_render.c",
-    "src/town_render.h"
+    "src/render_draw.h"
    ]
   },
   {
@@ -7349,7 +7219,6 @@
     "src/actor_spawn.h",
     "src/draw_pool.c",
     "src/draw_pool.h",
-    "src/map_present.h",
     "src/render_draw.h"
    ]
   },
@@ -7511,8 +7380,6 @@
    "status": "tested",
    "src": [
     "src/base_stat_table.h",
-    "src/hud.c",
-    "src/hud.h",
     "src/party.c",
     "src/party.h",
     "src/render_draw.h"
@@ -7593,11 +7460,8 @@
    "name": "sub_4962A0",
    "size": 242,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/hud.c",
-    "src/hud.h",
-    "src/main.c",
     "src/render_draw.h"
    ]
   },
@@ -7636,11 +7500,8 @@
    "name": "sub_4969B0",
    "size": 1272,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/hud.c",
-    "src/hud.h",
-    "src/main.c",
     "src/render_draw.h"
    ]
   },
@@ -7731,10 +7592,8 @@
    "name": "sub_498620",
    "size": 82,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/hud.h",
-    "src/main.c",
     "src/render_draw.h"
    ]
   },
@@ -7743,11 +7602,8 @@
    "name": "hud_bar_row_geom_498680",
    "size": 401,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/hud.c",
-    "src/hud.h",
-    "src/main.c",
     "src/render_draw.h"
    ]
   },
@@ -7776,10 +7632,8 @@
    "name": "sub_498F10",
    "size": 344,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/hud.h",
-    "src/main.c",
     "src/render_draw.h"
    ]
   },
@@ -7808,11 +7662,8 @@
    "name": "parallax_strip_499560",
    "size": 271,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/color_grade.h",
-    "src/parallax.c",
-    "src/parallax.h",
     "src/render_draw.h"
    ]
   },
@@ -7922,10 +7773,8 @@
    "name": "sf_pattern_edges_in_49A740",
    "size": 336,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/scene_fade.c",
-    "src/scene_fade.h",
     "src/screen_fx.h"
    ]
   },
@@ -7934,10 +7783,8 @@
    "name": "sf_pattern_center_out_49A890",
    "size": 361,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/scene_fade.c",
-    "src/scene_fade.h",
     "src/screen_fx.h"
    ]
   },
@@ -7946,10 +7793,8 @@
    "name": "sf_pattern_sweep_down_49AA00",
    "size": 216,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/scene_fade.c",
-    "src/scene_fade.h",
     "src/screen_fx.h"
    ]
   },
@@ -7958,10 +7803,8 @@
    "name": "sf_pattern_sweep_up_49AAE0",
    "size": 234,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/scene_fade.c",
-    "src/scene_fade.h",
     "src/screen_fx.h"
    ]
   },
@@ -8080,9 +7923,8 @@
    "name": "sub_49C640",
    "size": 720,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/dialogue.c",
     "src/scene_box.h"
    ]
   },
@@ -8681,10 +8523,8 @@
    "name": "map_resolve_room_key_4C5350",
    "size": 1169,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/game_map.c",
-    "src/game_map.h",
     "src/party_member.h"
    ]
   },
@@ -10362,11 +10202,8 @@
    "name": "sub_560900",
    "size": 251,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/cs_dispatch.c",
-    "src/cs_dispatch.h",
-    "src/cs_dispatch_win32.c",
     "src/win_main.h"
    ]
   },
@@ -10395,10 +10232,8 @@
    "name": "actor_slot_reset_560E60",
    "size": 42,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/game_map.c",
-    "src/game_map.h",
     "src/scene_loop.h"
    ]
   },
@@ -10497,10 +10332,8 @@
    "name": "sub_561C90",
    "size": 94,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/game_map.h",
-    "src/game_world.h",
     "src/scene_loop.h"
    ]
   },
@@ -10529,9 +10362,8 @@
    "name": "_WinMain@16",
    "size": 688,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/app_pump.h",
     "src/rng.h",
     "src/win_main.h"
    ]
@@ -10645,20 +10477,9 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/app_flow.c",
-    "src/app_flow.h",
     "src/asset_register.c",
     "src/asset_register.h",
-    "src/color_grade.c",
-    "src/color_grade.h",
-    "src/main.c",
-    "src/pixel_drawer.c",
-    "src/pixel_drawer.h",
-    "src/prologue_stone.h",
-    "src/title_drive.c",
-    "src/title_drive.h",
-    "src/title_menu.h",
-    "src/title_scene.h"
+    "src/title_menu.h"
    ]
   },
   {
@@ -10698,10 +10519,8 @@
    "name": "sub_564160",
    "size": 376,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/newgame_drive.c",
-    "src/newgame_drive.h",
     "src/title_menu.h"
    ]
   },
@@ -10750,15 +10569,8 @@
    "name": "sub_564780",
    "size": 4067,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/newgame_drive.c",
-    "src/newgame_drive.h",
-    "src/newgame_menu.c",
-    "src/newgame_menu.h",
-    "src/newgame_picker.h",
-    "src/newgame_scene.c",
-    "src/newgame_scene.h",
     "src/title_menu.h"
    ]
   },
@@ -10767,11 +10579,8 @@
    "name": "newgame_picker_dispatch_5657F0",
    "size": 31,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/newgame_drive.c",
-    "src/newgame_picker.c",
-    "src/newgame_picker.h",
     "src/title_menu.h"
    ]
   },
@@ -10820,11 +10629,8 @@
    "name": "sub_565D10",
    "size": 1228,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/main.c",
-    "src/newgame_drive.c",
-    "src/newgame_drive.h",
     "src/title_menu.h"
    ]
   },
@@ -10863,11 +10669,8 @@
    "name": "newgame_option_label_566570",
    "size": 485,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/newgame_menu.c",
-    "src/newgame_menu.h",
-    "src/newgame_picker.h",
     "src/title_menu.h"
    ]
   },
@@ -10876,12 +10679,8 @@
    "name": "sub_566850",
    "size": 337,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/newgame_menu.c",
-    "src/newgame_menu.h",
-    "src/newgame_scene.c",
-    "src/newgame_scene.h",
     "src/title_menu.h"
    ]
   },
@@ -10890,13 +10689,8 @@
    "name": "newgame_option_value_566A80",
    "size": 2781,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/newgame_menu.c",
-    "src/newgame_menu.h",
-    "src/newgame_picker.c",
-    "src/newgame_picker.h",
-    "src/newgame_scene.c",
     "src/title_menu.h"
    ]
   },
@@ -10905,13 +10699,8 @@
    "name": "sub_567BA0",
    "size": 1647,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/main.c",
-    "src/newgame_drive.c",
-    "src/newgame_drive.h",
-    "src/newgame_picker.c",
-    "src/newgame_picker.h",
     "src/title_menu.h"
    ]
   },
@@ -10920,11 +10709,8 @@
    "name": "sub_568320",
    "size": 964,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/newgame_drive.c",
-    "src/newgame_picker.c",
-    "src/newgame_picker.h",
     "src/title_menu.h"
    ]
   },
@@ -11035,21 +10821,8 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/app_flow.h",
     "src/input.h",
-    "src/main.c",
-    "src/menu_list.h",
-    "src/obj_container.h",
-    "src/title_drive.c",
-    "src/title_drive.h",
-    "src/title_menu.h",
-    "src/title_particles.c",
-    "src/title_particles.h",
-    "src/title_scene.c",
-    "src/title_scene.h",
-    "src/title_sink.c",
-    "src/title_sink.h",
-    "src/zdd.h"
+    "src/title_menu.h"
    ]
   },
   {
@@ -11067,10 +10840,9 @@
    "name": "sub_56C030",
    "size": 62,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/title_menu.h",
-    "src/title_particles.c"
+    "src/title_menu.h"
    ]
   },
   {
@@ -11078,13 +10850,10 @@
    "name": "drive_spawn_sparkle_56C070",
    "size": 265,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/main.c",
     "src/rng.h",
-    "src/title_menu.h",
-    "src/title_particles.c",
-    "src/title_particles.h"
+    "src/title_menu.h"
    ]
   },
   {
@@ -11092,15 +10861,9 @@
    "name": "title_compositor_resolve_56C180",
    "size": 297,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/main.c",
-    "src/title_menu.h",
-    "src/title_particles.c",
-    "src/title_particles.h",
-    "src/title_render.c",
-    "src/title_render.h",
-    "src/title_sink.h"
+    "src/title_menu.h"
    ]
   },
   {
@@ -11108,12 +10871,9 @@
    "name": "sub_56C2B0",
    "size": 373,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/main.c",
-    "src/title_menu.h",
-    "src/title_particles.c",
-    "src/title_particles.h"
+    "src/title_menu.h"
    ]
   },
   {
@@ -11131,12 +10891,9 @@
    "name": "sub_56C470",
    "size": 107,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/title_menu.h",
-    "src/title_render.c",
-    "src/title_render.h",
-    "src/title_sink.c"
+    "src/title_menu.h"
    ]
   },
   {
@@ -11144,11 +10901,9 @@
    "name": "sub_56C4E0",
    "size": 155,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/title_menu.h",
-    "src/title_render.c",
-    "src/title_render.h"
+    "src/title_menu.h"
    ]
   },
   {
@@ -11156,12 +10911,9 @@
    "name": "title_render_sparkle_56C580",
    "size": 133,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/title_menu.h",
-    "src/title_render.c",
-    "src/title_render.h",
-    "src/title_scene.c"
+    "src/title_menu.h"
    ]
   },
   {
@@ -11169,11 +10921,9 @@
    "name": "title_draw_sprite_56C610",
    "size": 35,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/title_menu.h",
-    "src/title_render.c",
-    "src/title_render.h"
+    "src/title_menu.h"
    ]
   },
   {
@@ -11201,10 +10951,8 @@
    "name": "menu_owner_transition_step_56C930",
    "size": 607,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/menu_list.c",
-    "src/menu_list.h",
     "src/title_menu.h"
    ]
   },
@@ -11233,13 +10981,8 @@
    "name": "sub_56CD20",
    "size": 2275,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/main.c",
-    "src/prologue_drive.c",
-    "src/prologue_drive.h",
-    "src/prologue_stone.c",
-    "src/prologue_stone.h",
     "src/title_menu.h"
    ]
   },
@@ -11308,9 +11051,8 @@
    "name": "sub_56DC20",
    "size": 344,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/main.c",
     "src/title_menu.h"
    ]
   },
@@ -11397,8 +11139,7 @@
    "src": [
     "src/asset_load.h",
     "src/asset_register.c",
-    "src/asset_register.h",
-    "src/main.c"
+    "src/asset_register.h"
    ]
   },
   {
@@ -11406,10 +11147,9 @@
    "name": "sub_5752E0",
    "size": 17310,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/asset_load.h",
-    "src/main.c"
+    "src/asset_load.h"
    ]
   },
   {
@@ -11613,14 +11353,9 @@
    "name": "sub_582E90",
    "size": 3560,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/asset_load.h",
-    "src/cs_dispatch.c",
-    "src/cs_dispatch.h",
-    "src/main.c",
-    "src/zdd.c",
-    "src/zdd.h"
+    "src/asset_load.h"
    ]
   },
   {
@@ -11708,13 +11443,9 @@
    "name": "gw_cross_reference_585000",
    "size": 413,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/game_world.c",
-    "src/game_world.h",
-    "src/scene_loop.h",
-    "src/world_tables_data.c",
-    "src/world_tables_data.h"
+    "src/scene_loop.h"
    ]
   },
   {
@@ -11826,8 +11557,6 @@
    "src": [
     "src/asset_register.c",
     "src/asset_register.h",
-    "src/game_world.h",
-    "src/main.c",
     "src/map_data.h",
     "src/map_decode.h",
     "src/room_load.h"
@@ -11850,14 +11579,11 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/main.c",
     "src/map_data.c",
     "src/map_data.h",
     "src/map_decode.h",
     "src/map_grid.h",
-    "src/room_load.h",
-    "src/town_render.c",
-    "src/town_render.h"
+    "src/room_load.h"
    ]
   },
   {
@@ -11909,14 +11635,11 @@
    "src": [
     "src/asset_register.h",
     "src/collision.h",
-    "src/game_world.h",
     "src/map_data.c",
     "src/map_data.h",
     "src/map_decode.c",
     "src/map_decode.h",
-    "src/room_load.h",
-    "src/town_render.c",
-    "src/town_render.h"
+    "src/room_load.h"
    ]
   },
   {
@@ -11944,7 +11667,6 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/main.c",
     "src/map_decode.c",
     "src/map_grid.c",
     "src/map_grid.h"
@@ -12158,11 +11880,9 @@
    "name": "sub_58FFA0",
    "size": 23,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/win_main.h",
-    "src/wnd_proc.h",
-    "src/wnd_proc_win32.c"
+    "src/win_main.h"
    ]
   },
   {
@@ -12955,16 +12675,10 @@
    "name": "sub_59F2C0",
    "size": 3522,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/game_map.c",
-    "src/game_map.h",
-    "src/game_world.c",
-    "src/game_world.h",
     "src/scene_loop.c",
-    "src/scene_loop.h",
-    "src/world_tables_data.c",
-    "src/world_tables_data.h"
+    "src/scene_loop.h"
    ]
   },
   {
@@ -13143,10 +12857,8 @@
    "name": "sub_5A4770",
    "size": 45963,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/app_pump.h",
-    "src/main.c",
     "src/win_main.h"
    ]
   },
@@ -13345,14 +13057,9 @@
    "name": "sub_5B1030",
    "size": 156,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/app_pump.c",
-    "src/app_pump.h",
-    "src/title_scene.c",
-    "src/title_scene.h",
-    "src/win_app.h",
-    "src/wnd_proc.h"
+    "src/win_app.h"
    ]
   },
   {
@@ -13370,11 +13077,9 @@
    "name": "sub_5B12E0",
    "size": 441,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/win_app.h",
-    "src/wnd_proc.c",
-    "src/wnd_proc.h"
+    "src/win_app.h"
    ]
   },
   {
@@ -13382,11 +13087,9 @@
    "name": "sub_5B14C0",
    "size": 287,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/win_app.h",
-    "src/wnd_proc.h",
-    "src/wnd_proc_win32.c"
+    "src/win_app.h"
    ]
   },
   {
@@ -13674,11 +13377,9 @@
    "name": "zdd_busy_wait_ms_5B5AC0",
    "size": 39,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/win_app.h",
-    "src/zdd.h",
-    "src/zdd_win32.c"
+    "src/win_app.h"
    ]
   },
   {
@@ -13718,9 +13419,8 @@
    "name": "sub_5B5DC0",
    "size": 214,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/main.c",
     "src/win_app.h"
    ]
   },
@@ -14286,7 +13986,6 @@
    "src": [
     "src/bitmap_session.c",
     "src/bitmap_session.h",
-    "src/bitmap_session_win32.c",
     "src/frame_load.h"
    ]
   },
@@ -14408,10 +14107,8 @@
    "name": "sub_5B7EE0",
    "size": 153,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/main.c",
-    "src/zdd.h",
     "src/zdd_dev.h"
    ]
   },
@@ -14420,10 +14117,8 @@
    "name": "zdd_ctor_5B7F80",
    "size": 94,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/zdd.c",
-    "src/zdd.h",
     "src/zdd_dev.h"
    ]
   },
@@ -14432,9 +14127,8 @@
    "name": "sub_5B7FE0",
    "size": 90,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/zdd.h",
     "src/zdd_dev.h"
    ]
   },
@@ -14443,9 +14137,8 @@
    "name": "sub_5B8040",
    "size": 139,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/zdd.h",
     "src/zdd_dev.h"
    ]
   },
@@ -14454,10 +14147,8 @@
    "name": "sub_5B80D0",
    "size": 826,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/zdd.c",
-    "src/zdd.h",
     "src/zdd_dev.h"
    ]
   },
@@ -14466,12 +14157,9 @@
    "name": "zdd_create_primary_surface_5B8480",
    "size": 1088,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/zdd.c",
-    "src/zdd.h",
-    "src/zdd_dev.h",
-    "src/zdd_win32.c"
+    "src/zdd_dev.h"
    ]
   },
   {
@@ -14479,11 +14167,9 @@
    "name": "zdd_directdraw_create_ex_5B88C0",
    "size": 57,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/zdd.h",
-    "src/zdd_dev.h",
-    "src/zdd_win32.c"
+    "src/zdd_dev.h"
    ]
   },
   {
@@ -14491,12 +14177,9 @@
    "name": "zdd_set_display_mode_5B8900",
    "size": 74,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/cs_dispatch.c",
-    "src/zdd.h",
-    "src/zdd_dev.h",
-    "src/zdd_win32.c"
+    "src/zdd_dev.h"
    ]
   },
   {
@@ -14504,11 +14187,9 @@
    "name": "zdd_get_display_mode_5B8950",
    "size": 126,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/zdd.h",
-    "src/zdd_dev.h",
-    "src/zdd_win32.c"
+    "src/zdd_dev.h"
    ]
   },
   {
@@ -14516,12 +14197,9 @@
    "name": "zdd_set_coop_level_5B89D0",
    "size": 71,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/main.c",
-    "src/zdd.h",
-    "src/zdd_dev.h",
-    "src/zdd_win32.c"
+    "src/zdd_dev.h"
    ]
   },
   {
@@ -14529,12 +14207,9 @@
    "name": "sub_5B8A20",
    "size": 181,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/zdd.c",
-    "src/zdd.h",
-    "src/zdd_dev.h",
-    "src/zdd_win32.c"
+    "src/zdd_dev.h"
    ]
   },
   {
@@ -14542,10 +14217,8 @@
    "name": "pd_format_get_masks_5B8AE0",
    "size": 30,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/pixel_drawer.c",
-    "src/pixel_drawer.h",
     "src/zdd_dev.h"
    ]
   },
@@ -14554,11 +14227,9 @@
    "name": "zdd_color_convert_5B8B00",
    "size": 59,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/render_platform.h",
-    "src/zdd.c",
-    "src/zdd.h"
+    "src/render_platform.h"
    ]
   },
   {
@@ -14566,12 +14237,9 @@
    "name": "sub_5B8B40",
    "size": 184,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/cs_dispatch.c",
-    "src/render_platform.h",
-    "src/zdd.c",
-    "src/zdd.h"
+    "src/render_platform.h"
    ]
   },
   {
@@ -14579,12 +14247,9 @@
    "name": "zdd_create_surface_5B8C00",
    "size": 372,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/render_platform.h",
-    "src/zdd.c",
-    "src/zdd.h",
-    "src/zdd_win32.c"
+    "src/render_platform.h"
    ]
   },
   {
@@ -14592,9 +14257,8 @@
    "name": "sub_5B8DA0",
    "size": 33,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/zdd.h",
     "src/zdd_dev.h"
    ]
   },
@@ -14603,10 +14267,8 @@
    "name": "sub_5B8DD0",
    "size": 33,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/cs_dispatch.c",
-    "src/zdd.h",
     "src/zdd_dev.h"
    ]
   },
@@ -14615,11 +14277,9 @@
    "name": "sub_5B8E00",
    "size": 157,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/zdd.h",
-    "src/zdd_dev.h",
-    "src/zdd_win32.c"
+    "src/zdd_dev.h"
    ]
   },
   {
@@ -14627,10 +14287,8 @@
    "name": "zdd_object_upscale_16bpp_5B8EA0",
    "size": 285,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/zdd.c",
-    "src/zdd.h",
     "src/zdd_dev.h"
    ]
   },
@@ -14639,20 +14297,9 @@
    "name": "flip_5B8FC0",
    "size": 335,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/call_trace.h",
-    "src/game_drive.h",
-    "src/main.c",
-    "src/newgame_drive.h",
-    "src/prologue_drive.h",
-    "src/title_drive.h",
-    "src/title_scene.h",
-    "src/title_sink.h",
-    "src/zdd.c",
-    "src/zdd.h",
-    "src/zdd_dev.h",
-    "src/zdd_win32.c"
+    "src/zdd_dev.h"
    ]
   },
   {
@@ -14660,15 +14307,9 @@
    "name": "sub_5B9130",
    "size": 151,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/main.c",
-    "src/wnd_proc.h",
-    "src/wnd_proc_win32.c",
-    "src/zdd.c",
-    "src/zdd.h",
-    "src/zdd_dev.h",
-    "src/zdd_win32.c"
+    "src/zdd_dev.h"
    ]
   },
   {
@@ -14676,9 +14317,8 @@
    "name": "sub_5B91D0",
    "size": 109,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/zdd.h",
     "src/zdd_dev.h"
    ]
   },
@@ -14687,9 +14327,8 @@
    "name": "sub_5B9240",
    "size": 60,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/zdd.h",
     "src/zdd_dev.h"
    ]
   },
@@ -14698,11 +14337,9 @@
    "name": "sub_5B9280",
    "size": 203,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/frame_load.h",
-    "src/zdd.c",
-    "src/zdd.h"
+    "src/frame_load.h"
    ]
   },
   {
@@ -14710,11 +14347,9 @@
    "name": "sub_5B9350",
    "size": 50,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/render_platform.h",
-    "src/zdd.c",
-    "src/zdd.h"
+    "src/render_platform.h"
    ]
   },
   {
@@ -14726,12 +14361,7 @@
    "src": [
     "src/asset_register.c",
     "src/asset_register.h",
-    "src/cs_dispatch.c",
-    "src/main.c",
-    "src/render_platform.h",
-    "src/zdd.c",
-    "src/zdd.h",
-    "src/zdd_win32.c"
+    "src/render_platform.h"
    ]
   },
   {
@@ -14739,11 +14369,9 @@
    "name": "zdd_object_local_free_5B93E0",
    "size": 42,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/render_platform.h",
-    "src/zdd.h",
-    "src/zdd_win32.c"
+    "src/render_platform.h"
    ]
   },
   {
@@ -14751,12 +14379,8 @@
    "name": "zdd_object_clear_5B9410",
    "size": 49,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/main.c",
-    "src/osr_format.h",
-    "src/zdd.c",
-    "src/zdd.h",
     "src/zdd_dev.h"
    ]
   },
@@ -14775,12 +14399,9 @@
    "name": "sub_5B9490",
    "size": 63,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/render_platform.h",
-    "src/zdd.c",
-    "src/zdd.h",
-    "src/zdd_win32.c"
+    "src/render_platform.h"
    ]
   },
   {
@@ -14788,12 +14409,9 @@
    "name": "sub_5B94D0",
    "size": 15,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/render_platform.h",
-    "src/zdd.c",
-    "src/zdd.h",
-    "src/zdd_win32.c"
+    "src/render_platform.h"
    ]
   },
   {
@@ -14801,13 +14419,9 @@
    "name": "sub_5B94E0",
    "size": 29,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/render_platform.h",
-    "src/wnd_proc.h",
-    "src/zdd.c",
-    "src/zdd.h",
-    "src/zdd_win32.c"
+    "src/render_platform.h"
    ]
   },
   {
@@ -14815,13 +14429,9 @@
    "name": "sub_5B9500",
    "size": 17,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/render_platform.h",
-    "src/wnd_proc.h",
-    "src/zdd.c",
-    "src/zdd.h",
-    "src/zdd_win32.c"
+    "src/render_platform.h"
    ]
   },
   {
@@ -14829,12 +14439,9 @@
    "name": "sub_5B9520",
    "size": 157,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/render_platform.h",
-    "src/zdd.c",
-    "src/zdd.h",
-    "src/zdd_win32.c"
+    "src/render_platform.h"
    ]
   },
   {
@@ -14842,11 +14449,9 @@
    "name": "sub_5B95C0",
    "size": 110,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/render_platform.h",
-    "src/zdd.c",
-    "src/zdd.h"
+    "src/render_platform.h"
    ]
   },
   {
@@ -14854,11 +14459,9 @@
    "name": "sub_5B9630",
    "size": 268,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/frame_load.h",
-    "src/zdd.c",
-    "src/zdd.h"
+    "src/frame_load.h"
    ]
   },
   {
@@ -14866,11 +14469,9 @@
    "name": "zdd_get_attached_surface_5B9740",
    "size": 153,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/zdd.h",
-    "src/zdd_dev.h",
-    "src/zdd_win32.c"
+    "src/zdd_dev.h"
    ]
   },
   {
@@ -14878,11 +14479,9 @@
    "name": "sub_5B97E0",
    "size": 66,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/render_platform.h",
-    "src/zdd.c",
-    "src/zdd.h"
+    "src/render_platform.h"
    ]
   },
   {
@@ -14890,12 +14489,9 @@
    "name": "zdd_surface_set_color_key_5B9830",
    "size": 138,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/render_platform.h",
-    "src/zdd.c",
-    "src/zdd.h",
-    "src/zdd_win32.c"
+    "src/render_platform.h"
    ]
   },
   {
@@ -14903,11 +14499,9 @@
    "name": "sub_5B98C0",
    "size": 73,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/render_platform.h",
-    "src/zdd.c",
-    "src/zdd.h"
+    "src/render_platform.h"
    ]
   },
   {
@@ -14915,11 +14509,9 @@
    "name": "sub_5B9910",
    "size": 291,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/frame_load.h",
-    "src/zdd.c",
-    "src/zdd.h"
+    "src/frame_load.h"
    ]
   },
   {
@@ -14927,14 +14519,9 @@
    "name": "blt_onto_5B9A40",
    "size": 112,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/main.c",
-    "src/parallax.h",
-    "src/render_platform.h",
-    "src/town_render.h",
-    "src/zdd.c",
-    "src/zdd.h"
+    "src/render_platform.h"
    ]
   },
   {
@@ -14942,10 +14529,9 @@
    "name": "sub_5B9AB0",
    "size": 10,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/win_main.h",
-    "src/zdd.h"
+    "src/win_main.h"
    ]
   },
   {
@@ -14953,11 +14539,9 @@
    "name": "sub_5B9AC0",
    "size": 22,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/win_main.h",
-    "src/zdd.c",
-    "src/zdd.h"
+    "src/win_main.h"
    ]
   },
   {
@@ -14965,11 +14549,9 @@
    "name": "blt_rects_5B9AE0",
    "size": 140,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/render_platform.h",
-    "src/zdd.c",
-    "src/zdd.h"
+    "src/render_platform.h"
    ]
   },
   {
@@ -14977,16 +14559,9 @@
    "name": "blt_keyed_5B9B70",
    "size": 122,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/hud.h",
-    "src/main.c",
-    "src/map_present.c",
-    "src/map_present.h",
-    "src/newgame_cursor.h",
-    "src/render_platform.h",
-    "src/zdd.c",
-    "src/zdd.h"
+    "src/render_platform.h"
    ]
   },
   {
@@ -14994,15 +14569,9 @@
    "name": "blt_clipped_5B9BF0",
    "size": 256,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/main.c",
-    "src/map_present.c",
-    "src/map_present.h",
-    "src/newgame_box.h",
-    "src/render_platform.h",
-    "src/zdd.c",
-    "src/zdd.h"
+    "src/render_platform.h"
    ]
   },
   {
@@ -15130,11 +14699,9 @@
    "name": "sub_5BA290",
    "size": 30,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/input_dev.h",
-    "src/wnd_proc.h",
-    "src/wnd_proc_win32.c"
+    "src/input_dev.h"
    ]
   },
   {
@@ -15382,10 +14949,9 @@
    "name": "sub_5BAD20",
    "size": 26,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/sound_dev.h",
-    "src/wnd_proc.h"
+    "src/sound_dev.h"
    ]
   },
   {
@@ -15393,10 +14959,9 @@
    "name": "sub_5BAD40",
    "size": 26,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/sound_dev.h",
-    "src/wnd_proc.h"
+    "src/sound_dev.h"
    ]
   },
   {
@@ -15444,10 +15009,9 @@
    "name": "sub_5BAE30",
    "size": 60,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/sound_dev.h",
-    "src/wnd_proc.h"
+    "src/sound_dev.h"
    ]
   },
   {
@@ -15455,10 +15019,9 @@
    "name": "sub_5BAE70",
    "size": 30,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/sound_dev.h",
-    "src/wnd_proc.h"
+    "src/sound_dev.h"
    ]
   },
   {
@@ -15756,11 +15319,9 @@
    "name": "sub_5BBD20",
    "size": 140,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/sound_dev.h",
-    "src/wnd_proc.h",
-    "src/wnd_proc_win32.c"
+    "src/sound_dev.h"
    ]
   },
   {
@@ -15918,10 +15479,8 @@
    "name": "sub_5BCFF0",
    "size": 42,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/pixel_drawer.c",
-    "src/pixel_drawer.h",
     "src/zdd_dev.h"
    ]
   },
@@ -15930,10 +15489,8 @@
    "name": "pd_channel_init_5BD020",
    "size": 26,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/pixel_drawer.c",
-    "src/pixel_drawer.h",
     "src/zdd_dev.h"
    ]
   },
@@ -15942,10 +15499,8 @@
    "name": "build_lut_small_5BD040",
    "size": 801,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/pixel_drawer.c",
-    "src/pixel_drawer.h",
     "src/zdd_dev.h"
    ]
   },
@@ -15954,10 +15509,8 @@
    "name": "pd_channel_mask_to_shift_5BD380",
    "size": 39,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/pixel_drawer.c",
-    "src/pixel_drawer.h",
     "src/zdd_dev.h"
    ]
   },
@@ -15966,10 +15519,8 @@
    "name": "pd_blend_set_color_5BD3B0",
    "size": 30,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/pixel_drawer.c",
-    "src/pixel_drawer.h",
     "src/zdd_dev.h"
    ]
   },
@@ -15978,10 +15529,8 @@
    "name": "pd_blend_commit_5BD3D0",
    "size": 241,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/pixel_drawer.c",
-    "src/pixel_drawer.h",
     "src/zdd_dev.h"
    ]
   },
@@ -15990,10 +15539,8 @@
    "name": "pd_blend_init_5BD4D0",
    "size": 71,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/pixel_drawer.c",
-    "src/pixel_drawer.h",
     "src/zdd_dev.h"
    ]
   },
@@ -16012,19 +15559,9 @@
    "name": "blt_alpha_5BD550",
    "size": 302,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/hud.h",
-    "src/main.c",
-    "src/map_present.c",
-    "src/map_present.h",
-    "src/newgame_box.h",
-    "src/newgame_cursor.h",
-    "src/render_platform.h",
-    "src/scene_fade.h",
-    "src/zdd.c",
-    "src/zdd.h",
-    "src/zdd_win32.c"
+    "src/render_platform.h"
    ]
   },
   {
@@ -16032,11 +15569,9 @@
    "name": "sub_5BD680",
    "size": 1072,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/render_platform.h",
-    "src/zdd.c",
-    "src/zdd.h"
+    "src/render_platform.h"
    ]
   },
   {
@@ -16148,12 +15683,7 @@
    "src": [
     "src/asset_register.c",
     "src/asset_register.h",
-    "src/cs_dispatch.c",
-    "src/menu_list.c",
-    "src/msvc_crt.h",
-    "src/pixel_drawer.c",
-    "src/zdd.c",
-    "src/zdd.h"
+    "src/msvc_crt.h"
    ]
   },
   {
@@ -16325,7 +15855,6 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/cs_dispatch_win32.c",
     "src/msvc_crt.h"
    ]
   },
@@ -16336,7 +15865,6 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/cs_dispatch_win32.c",
     "src/msvc_crt.h"
    ]
   },
@@ -16347,7 +15875,6 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/cs_dispatch_win32.c",
     "src/msvc_crt.h"
    ]
   },
@@ -16366,9 +15893,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/cs_dispatch_win32.c",
-    "src/msvc_crt.h",
-    "src/wnd_proc.h"
+    "src/msvc_crt.h"
    ]
   },
   {
@@ -16388,10 +15913,8 @@
    "name": "rand_draw_5BF505",
    "size": 30,
    "is_thunk": false,
-   "status": "tested",
+   "status": "ported",
    "src": [
-    "src/cutscene.c",
-    "src/main.c",
     "src/rng.c",
     "src/rng.h"
    ]
@@ -16419,15 +15942,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/app_pump.c",
-    "src/app_pump.h",
-    "src/app_pump_win32.c",
-    "src/cs_dispatch.h",
-    "src/cs_dispatch_win32.c",
-    "src/msvc_crt.h",
-    "src/wnd_proc.c",
-    "src/wnd_proc.h",
-    "src/zdd.c"
+    "src/msvc_crt.h"
    ]
   },
   {
@@ -16445,7 +15960,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/wnd_proc.h"
+    "src/msvc_crt.c"
    ]
   },
   {
@@ -16652,9 +16167,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/msvc_crt.h",
-    "src/zdd.c",
-    "src/zdd.h"
+    "src/msvc_crt.h"
    ]
   },
   {
@@ -16664,8 +16177,7 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/msvc_crt.h",
-    "src/zdd.c"
+    "src/msvc_crt.h"
    ]
   },
   {
