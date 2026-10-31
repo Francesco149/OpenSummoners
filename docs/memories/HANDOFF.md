@@ -6,17 +6,21 @@
 > `findings/`. Keep this to: the current checkpoint, the next move, the module layout, and
 > open RE threads.
 
-## Where we are — 2026-10-31: 15-scenario corpus (the USER's save chain), hybrid 14/15; R9 needs a USER call
+## Where we are — 2026-10-31: 15-scenario corpus (the USER's save chain), hybrid 14/15 + R9 a known gap; CI ships the standalone
 
 - New recordings verified: `rh-early-game-2` / `-3` / `rh-after-prologue` / `rh-water-shrine` (chain from
   rh-early-game).  det PASS, re-blessed (win + wine), hybrid PASS on Windows + wine and standalone PASS (Windows,
   13/14 EN-old) except rh-after-prologue (it ends exactly where a zeroed-frame retail does).
-- **OPEN, USER decision — parity-ledger R9 / quirk #182:** from f102660 rh-after-prologue's hybrid ≠ pure because
+- **Releases:** CI (`ci.yml` / `nightly.yml` / `release.yml`) builds `tools/rhost/build.sh` in `.#ci`; the
+  standalone replaces the legacy `opensummoners.exe` on releases (nightly prunes stale assets).  Nightly = manual
+  trigger only (`gh workflow run nightly.yml`); its notes list the commits since the previous nightly tag.
+- **KNOWN GAP (USER 2026-10-31: keep; zero it in rhost only if it starts causing problems) — parity-ledger R9 /
+  quirk #182:** from f102660 rh-after-prologue's hybrid ≠ pure because
   retail's state-6 skill AI `0x481ac0` dry-runs a cast on stack bodies that keep a leftover byte as f68 (the low
   byte of a heap pointer the physics step left at that depth).  The port zeroes its frame.  rhost site E (zero
   0x481ac0's frame) makes retail match but desyncs the recording (the replay never writes savedata05.sdt, which
-  rh-water-shrine starts from).  Options: neutralize + re-record rh-after-prologue and rh-water-shrine, or keep R9
-  as a known residual.  Don't bless rh-after-prologue's hybrid result.
+  rh-water-shrine starts from).  `rhost.py KNOWN_GAPS` makes the hybrid / standalone checks compare it before
+  f102660 only (+ completion); `--bless` with them skips it.
 - Fixed: hook wrappers popping the wrong byte count (el_556e50 etc.; `hook_abi.py` now gates build.sh); the world's
   caller-stack pointer masked in the semantic hash (quirk #181); wine runs killed 60 s after a RESULT-then-hang.
 - New probes: `--shadow-from F` (shadows only from flip F: a late divergence in a 100k+ trace), `--trap-mem

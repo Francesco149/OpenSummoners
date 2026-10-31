@@ -6,6 +6,19 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-31 (later) — releases ship the standalone; nightly is manual; R9 kept as a known gap
+
+- USER: "make the CI build the new standalone exe and get rid of the old opensummoners.exe so the standalone is
+  available on releases"; nightly by hand, no cron.  `ci.yml` / `nightly.yml` / `release.yml` build
+  `tools/rhost/build.sh` in the lean `.#ci` shell (19 s warm locally; the IDA-dependent `hook_abi.py` check skips
+  without the export) and asset-gate `build/rhost/opensummoners-standalone.exe`; `make -C src` dropped from CI (the
+  legacy front end still builds in `build_all.sh`).  Nightly: `workflow_dispatch` only (GitHub disables crons after
+  60 inactive days), notes = the commits since the previous `nightly` tag, assets no longer built are deleted from
+  the rolling release (`opensummoners.exe`).
+- USER decision on R9: keep it as a gap; zero the frame in rhost if it starts causing problems.  `rhost.py
+  KNOWN_GAPS`: hybrid / standalone `corpus --check` compares rh-after-prologue before f102660 only (+ completion);
+  `--bless` skips it.
+
 ## 2026-10-31 — four new recordings verified; hybrid 14/15; R9 = retail reads a stack leftover
 
 - USER: "verify all the new traces on rhost and fix gaps".  New: `rh-early-game-2` / `-3` / `rh-after-prologue` /

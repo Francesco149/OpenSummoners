@@ -566,6 +566,10 @@ def cmd_det(a):
 
 
 SERIES_EVERY = 600   # corpus --bless / --check: the state_sem every N frames (expected.json "sem_series")
+# scenarios a port-replaced run (--hybrid / --standalone) is KNOWN to take off pure retail at frame F: corpus --check
+# compares only the sem / fb series before F (wine; Windows has no series there) + that the run completes, never the end
+# state; --bless skips them.  USER 2026-10-31: R9 stays a gap; zero the frame in rhost (site E) if it starts causing problems
+KNOWN_GAPS = {"rh-after-prologue": (102660, "parity-ledger R9 / quirk #182: retail's skill AI 0x481ac0 reads a stack leftover")}
 
 
 def sem_series(log, target="wine"):
@@ -618,13 +622,17 @@ def cmd_corpus(a):
         if a.bless:
             sys.exit("--standalone checks against the pure-retail expected.json: no --bless")
         keys = ("frame", "tick", "rng", "fb")
+    gaps = KNOWN_GAPS if getattr(a, "hybrid", False) or getattr(a, "standalone", False) else {}
     bad = 0
     for n in names:
+        gap = gaps.get(n)
         ep = os.path.join(SCEN, n, "expected.json" if getattr(a, "target", "win") == "win" else f"expected.{a.target}.json")
         got = {k: res.get(n, {}).get(k) for k in keys}
         series = sem_series(os.path.join(bdir, n, "rhost.log"), getattr(a, "target", "win"))
         fbs = fb_series(os.path.join(bdir, n, "rhost.log"))
         r = res.get(n, {})
+        if a.bless and gap:
+            print(f"  not blessing {n}: a port-replaced run leaves pure retail at f{gap[0]} ({gap[1]})"); continue
         if a.bless and (r.get("status") == "ok" or r.get("reason") == "game-exit"):   # (rh-title-exit ends by quitting)
             if series and a.hash_every == SERIES_EVERY:
                 got["sem_series"] = series
@@ -633,18 +641,24 @@ def cmd_corpus(a):
             json.dump({k: v for k, v in got.items() if v is not None}, open(ep, "w"), indent=1); continue
         if a.check and os.path.exists(ep):
             exp = json.load(open(ep))
-            diff = {k: (exp.get(k), got[k]) for k in keys if (k in exp or k != "fb") and exp.get(k) != got[k]}
-            ef = exp.get("fb_series") or {}
+            diff = {} if gap else {k: (exp.get(k), got[k]) for k in keys if (k in exp or k != "fb") and exp.get(k) != got[k]}
+            if gap and not (r.get("status") == "ok" or r.get("reason") == "game-exit"):   # past the gap it must still run
+                diff["status"] = ("ok", f"{r.get('status')} {r.get('reason')}")
+            ef = {f: v for f, v in (exp.get("fb_series") or {}).items() if not gap or int(f) < gap[0]}
             ff = next((f for f in sorted(ef, key=int) if f in fbs and fbs[f] != ef[f]), None)
             if ff is not None:   # the earliest sampled frame by which a presented frame's pixels differ
                 diff[f"fb@f{ff}"] = (ef[ff], fbs[ff])
             es = {} if getattr(a, "standalone", False) else exp.get("sem_series") or {}
+            es = {f: v for f, v in es.items() if not gap or int(f) < gap[0]}
             first = next((f for f in sorted(es, key=int) if f in series and series[f] != es[f]), None)
             if first is not None:   # the earliest frame whose state differs (+ how many sampled frames differ)
                 nd = sum(1 for f in es if f in series and series[f] != es[f])
                 diff[f"sem@f{first}"] = (es[first], f"{series[first]} ({nd}/{len(es)} sampled frames differ)")
             elif es and not series:
                 print(f"  note {n}: no sem series in this run (--hash-every {SERIES_EVERY} missing?)")
+            if gap:
+                print(f"  known gap {n}: leaves pure retail at f{gap[0]} ({gap[1]}); compared {len(es)} sem / {len(ef)} fb "
+                      f"samples before it, not the end state")
             if diff:
                 bad += 1; print(f"  REGRESSION {n}: " + ", ".join(f"{k} {e}→{g}" for k, (e, g) in diff.items()))
     if a.bless:

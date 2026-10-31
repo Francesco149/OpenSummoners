@@ -13,7 +13,8 @@
   DEFAULT (`--no-boot-loading` = legacy axis; old port-timed traces keep working).
   Corpus: 15 scenarios (2026-10-30: + the USER's save chain `rh-early-game` → `-2` (197.6k flips) → `-3` (72.5k) →
   `rh-after-prologue` (242.6k) → `rh-water-shrine` (146.8k); hybrid PASS on all but rh-after-prologue from f102660 =
-  parity-ledger R9, quirk #182: retail's skill AI reads a stack leftover; USER decision pending) + `rh-title-exit` (title → Exit) incl. the USER's `rh-early-game` (137.7k flips, 2026-10-23: more of the story, a statue save,
+  parity-ledger R9, quirk #182: retail's skill AI reads a stack leftover; USER 2026-10-31: KEPT as a known gap — `rhost.py
+  KNOWN_GAPS`, hybrid / standalone checks compare it before f102660 only; zero the frame in rhost if it starts causing problems) + `rh-title-exit` (title → Exit) incl. the USER's `rh-early-game` (137.7k flips, 2026-10-23: more of the story, a statue save,
   selling at the shop, the main menu's Status / Items / Abilities / Party Commands) + `rh-my-play` (15.7k flips: intro → house errands → town → shop;
   10 room loads) + `rh-errands-items` (16.4k flips: errands, item finds, the storage box) + `rh-combat` (57.6k
   flips, the USER 2026-10-16: combat on the way to school, a party ally fighting, a statue save, the main menu, a game
@@ -151,6 +152,9 @@
   own does on Windows 11 (quirk #177) → the product relaunches itself under `DWM8And16BitMitigation`.  Windowed +
   fullscreen boot to the title on the USER's box.  The exit routine `wm_5b10d0` read a global's address for its value
   (decomp2c rule, fixed at the source); new scenario `rh-title-exit` covers the game exit.
+  **Releases (2026-10-31):** CI builds it (`tools/rhost/build.sh` in `.#ci`, asset-gated); nightly + `v*` releases ship
+  `opensummoners-standalone.exe` in place of the legacy `opensummoners.exe` (src/Makefile: still built locally by
+  build_all.sh, no longer shipped).  `nightly.yml` = MANUAL trigger only (no cron; notes = commits since the last one).
 - **Next (port side):**
   0000000000. The USER plays the standalone: any INT3 stop names a retail VA the play reached with no port (log +
   message box) → port it, add its row.  Then: PORT-DEBT(crt-heap) (MSVC6's SBH from the decompile → standalone state
