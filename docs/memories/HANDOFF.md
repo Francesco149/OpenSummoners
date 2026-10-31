@@ -8,6 +8,12 @@
 
 ## Where we are — 2026-10-31: 15-scenario corpus (the USER's save chain), hybrid 14/15 + R9 a known gap; CI ships the standalone
 
+- **The CRT heap is PORTED** (`src/msvc_crt.c`: MSVC 6's SBH + malloc / free / realloc / calloc, 16 functions over
+  retail's globals; hybrid set; the standalone's new / delete).  Wine: pure + heap REPLACE PASS (4 scenarios), hybrid
+  15/15, standalone 14/14.  NOT yet: the Windows hybrid gate with it (run `corpus --check --hybrid` there next), a
+  scenario that reaches `realloc` / `__sbh_resize_block`.  Next on PORT-DEBT(crt-heap): the pre-WinMain allocations
+  (port-debt row) → standalone state hashes = retail's.
+
 - New recordings verified: `rh-early-game-2` / `-3` / `rh-after-prologue` / `rh-water-shrine` (chain from
   rh-early-game).  det PASS, re-blessed (win + wine), hybrid PASS on Windows + wine and standalone PASS (Windows,
   13/14 EN-old) except rh-after-prologue (it ends exactly where a zeroed-frame retail does).

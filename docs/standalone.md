@@ -37,7 +37,11 @@ Windowed + Launch, as every rhost run). rhost's pure / hybrid modes are unchange
 fclose / fprintf / fscanf / fseek, time / localtime / strftime, setlocale, srand, sprintf, _itoa) — ported from
 retail's LIBC functions, every OS effect through retail's import slots (so the deterministic platform stays under
 it), observable CRT state at retail's VAs (tz globals, the static `struct tm` 0x8a9d08, day tables, "C" lc_time).
-Not reproduced: the heap's block placement (PORT-DEBT(crt-heap)) and the stream buffering (PORT-DEBT(crt-stdio)).
+The heap is retail's own algorithm (2026-10-31): MSVC 6's small-block heap (`_heap_init` 0x5c6394 ..
+`__sbh_resize_block` 0x5c78b2, malloc / free / realloc / calloc), over retail's globals, proven by REPLACING retail's under
+rhost (pure + heap REPLACE: every state hash = pure retail; it is part of the hybrid set).  Not reproduced: the
+allocations retail's `start` makes before WinMain (`_ioinit`, the environment copy, argv / envp — so the standalone's
+block addresses still differ: PORT-DEBT(crt-heap)) and the stream buffering (PORT-DEBT(crt-stdio)).
 
 **Stock Steam exe works:** SteamStub (`.bind`) encrypts only `.text`; `.rdata/.data/.rsrc` + the import directory are
 byte-identical to the Steamless output (verified 2026-10-23), so data-only mode reads the packed `sotes.exe` as is —

@@ -6,6 +6,25 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-31 (night) — the CRT heap ported: MSVC 6's small-block heap over retail's globals
+
+- `src/msvc_crt.c`: `_heap_init` 0x5c6394, `__sbh_heap_init` / find / free / alloc / new_region / new_group /
+  resize (0x5c7069..0x5c78b2), `_heap_alloc`, `_nh_malloc`, `malloc`, `free`, `_msize`, `_callnewh`, `realloc`,
+  `calloc` — 16 functions on retail's own globals (header list 0x8ab1b8, count 0x8ab1b4, defer 0x8ab1b0 / 0x8ab1a8,
+  scan 0x8ab1ac, threshold 0x8a5db0), so each can REPLACE retail's alone.  rhost: REPLACE-only rows (a shadow would
+  VirtualAlloc twice), `___sbh_alloc_block` entry-patched (uninit-fix site D owns its call sites); the ported call
+  sites zero like site D (`crt_sbh_zero`).  The standalone's operator new / delete = `_nh_malloc(n, 1)` / `free`,
+  `crt_start` calls `_heap_init(0)` first (the old Win32-heap stand-in is gone).
+- One bug on the way: the in-use block's sizeBack written one byte off (the size helper took esz + 1 as the
+  offset) — an AV at frame 0 freeing the environment block in `_setenvp`.
+- Gates (wine): pure + the 16 heap REPLACEs, rh-title-exit / rh-my-play / rh-errands-items / rh-combat: PASS (every
+  600-frame state hash — heap blocks included — RNG, pixels; rh-combat: 233k `new`, 225k `free` through the port).
+  Hybrid (1360 hooks): PASS 15/15 (rh-after-prologue: its known gap).  In the full batch rh-early-game-2's wine
+  process vanished at f157200 (no AV / stall / kill note; all 263 samples until then = pure); alone it PASSES — a
+  wine flake, not the port.  Standalone: PASS 14/14 EN-old.  Windows: not run yet (the box ran the verify).  Unexercised:
+  `realloc` / `__sbh_resize_block` (no scenario calls them), `_callnewh` (no new handler).
+- Ledger 1573 touched.
+
 ## 2026-10-31 (evening) — the pre-rhost loop removed; first manual nightly ships the standalone
 
 - USER: "push and trigger the build … get rid of stuff that isnt related to the new methodology".  Pushed; CI +

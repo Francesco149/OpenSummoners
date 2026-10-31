@@ -12,10 +12,10 @@
 
 | status      | count | what it means                                          |
 |-------------|------:|--------------------------------------------------------|
-| tested      |   119 | ported + module covered by the host unit suite       |
+| tested      |   134 | ported + module covered by the host unit suite       |
 | ported      |  1439 | reimplemented in src/, no host test for that module  |
-| **touched** | **1558** | tested + ported (FUN_ provenance ref in src/)    |
-| unported    |   266 | exists in engine, never referenced from src/         |
+| **touched** | **1573** | tested + ported (FUN_ provenance ref in src/)    |
+| unported    |   251 | exists in engine, never referenced from src/         |
 
 **Denominator note (read this before judging the %):** the headline % is over
 **engine-proper** functions — the **1532** below
@@ -183,9 +183,11 @@ understates how much actual instruction volume is ported.
   cron; notes = commits since the last one).  First manual nightly: `57b8ccb` (all 4 assets, links checked).
 - **Next (port side):**
   0000000000. The USER plays the standalone: any INT3 stop names a retail VA the play reached with no port (log +
-  message box) → port it, add its row.  Then: PORT-DEBT(crt-heap) (MSVC6's SBH from the decompile → standalone state
-  hashes = retail's: the full corpus gate), the format docs the survey owes (text markup, MPED2DT, anim clip 0x194,
-  sotesd res 1986).
+  message box) → port it, add its row.  Then: the rest of PORT-DEBT(crt-heap) — the SBH ITSELF IS PORTED (2026-10-31:
+  16 functions, REPLACING retail's: pure + heap and the hybrid state-hash gates PASS, the standalone runs on it); left:
+  the pre-WinMain allocations (_ioinit 0x5c61e9, the environment copy 0x5c60b7, _setargv 0x5c5e6a, _setenvp 0x5c5db1,
+  __initstdio 0x5c7e8a) + crt-stdio's buffers → standalone state hashes = retail's (the full corpus gate); the format
+  docs the survey owes (text markup, MPED2DT, anim clip 0x194, sotesd res 1986).
   000000000. (2026-10-23 night, no new traces) WHAT RETAIL CODE STILL RUNS under the full hybrid: `rhost.py coverage
      --hybrid` (INT3 on every retail entry while all ports replace retail) found 51 game functions / 18 KB — now 4 / 79
      BYTES, all CRT internals (srand behind rhost's seed stub, 0x5c071e / 0x5c7c05 / 0x5c8d47); the rest of what runs

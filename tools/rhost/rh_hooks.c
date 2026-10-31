@@ -563,9 +563,18 @@ typedef struct {
     X(H_CRT_FPRINTF, "crt_fprintf", 0x5bf496u) X(H_CRT_FSCANF, "crt_fscanf", 0x5c08f1u) X(H_CRT_FSEEK, "crt_fseek", 0x5c0865u) \
     X(H_CRT_TIME, "crt_time", 0x5bf6dfu) X(H_CRT_LOCALTIME, "crt_localtime", 0x5c00ccu) \
     X(H_CRT_STRFTIME, "crt_strftime", 0x5bf865u) X(H_CRT_SETLOCALE, "crt_setlocale", 0x5c022cu) \
-    X(H_CRT_SPRINTF, "crt_sprintf", 0x5bf3eeu) X(H_CRT_ITOA, "crt_itoa", 0x5c0907u)
+    X(H_CRT_SPRINTF, "crt_sprintf", 0x5bf3eeu) X(H_CRT_ITOA, "crt_itoa", 0x5c0907u) \
+    X(H_HP_INIT, "crt_heap_init", 0x5c6394u) X(H_HP_SINIT, "crt_sbh_heap_init", 0x5c7069u) \
+    X(H_HP_FIND, "crt_sbh_find_block", 0x5c70a7u) X(H_HP_SFREE, "crt_sbh_free_block", 0x5c70d2u) \
+    X(H_HP_SALLOC, "crt_sbh_alloc_block", 0x5c73fdu) X(H_HP_REGION, "crt_sbh_alloc_new_region", 0x5c7706u) \
+    X(H_HP_GROUP, "crt_sbh_alloc_new_group", 0x5c77b7u) X(H_HP_RESIZE, "crt_sbh_resize_block", 0x5c78b2u) \
+    X(H_HP_ALLOC, "crt_heap_alloc", 0x5c1209u) X(H_HP_NHMALLOC, "crt_nh_malloc", 0x5c11ddu) \
+    X(H_HP_MALLOC, "crt_malloc", 0x5c11cbu) X(H_HP_FREE, "crt_free", 0x5c123fu) X(H_HP_MSIZE, "crt_msize", 0x5c11a2u) \
+    X(H_HP_NEWH, "crt_callnewh", 0x5c704eu) X(H_HP_REALLOC, "crt_realloc", 0x5c1082u) X(H_HP_CALLOC, "crt_calloc", 0x5c86abu)
 #define H_CRT_FIRST H_CRT_NEW
 #define H_CRT_LAST H_CRT_ITOA
+#define H_HP_FIRST H_HP_INIT   /* the heap: over retail's own globals, so it mixes with retail's CRT (REPLACE only) */
+#define H_HP_LAST H_HP_CALLOC
 #define CDEF_ENUM(id, n, va) id,
 
 static hook_t H[];
@@ -5309,6 +5318,22 @@ static char *__cdecl H_CRT_SETLOCALE_w(int32_t c, const char *l) { CRT_CALL(H_CR
 static int32_t __cdecl H_CRT_SPRINTF_w(char *b, const char *fmt, ...)
 { CRT_CALL(H_CRT_SPRINTF) va_list ap; va_start(ap, fmt); int32_t r = crt_vsprintf(b, fmt, ap); va_end(ap); return r; }
 static char *__cdecl H_CRT_ITOA_w(int32_t v, char *b, int32_t r) { CRT_CALL(H_CRT_ITOA) return crt_itoa(v, b, r); }
+static int32_t __cdecl H_HP_INIT_w(int32_t mt) { CRT_CALL(H_HP_INIT) return crt_heap_init(mt); }
+static int32_t __cdecl H_HP_SINIT_w(void) { CRT_CALL(H_HP_SINIT) return crt_sbh_heap_init(); }
+static uint8_t *__cdecl H_HP_FIND_w(const void *p) { CRT_CALL(H_HP_FIND) return crt_sbh_find_block(p); }
+static uint32_t __cdecl H_HP_SFREE_w(uint8_t *h, uint8_t *p) { CRT_CALL(H_HP_SFREE) return crt_sbh_free_block(h, p); }
+static void *__cdecl H_HP_SALLOC_w(int32_t n) { CRT_CALL(H_HP_SALLOC) return crt_sbh_alloc_block(n); }
+static uint8_t *__cdecl H_HP_REGION_w(void) { CRT_CALL(H_HP_REGION) return crt_sbh_alloc_new_region(); }
+static int32_t __cdecl H_HP_GROUP_w(uint8_t *h) { CRT_CALL(H_HP_GROUP) return crt_sbh_alloc_new_group(h); }
+static int32_t __cdecl H_HP_RESIZE_w(uint8_t *h, uint8_t *p, int32_t n) { CRT_CALL(H_HP_RESIZE) return crt_sbh_resize_block(h, p, n); }
+static void *__cdecl H_HP_ALLOC_w(uint32_t n) { CRT_CALL(H_HP_ALLOC) return crt_heap_alloc(n); }
+static void *__cdecl H_HP_NHMALLOC_w(uint32_t n, int32_t f) { CRT_CALL(H_HP_NHMALLOC) return crt_nh_malloc(n, f); }
+static void *__cdecl H_HP_MALLOC_w(uint32_t n) { CRT_CALL(H_HP_MALLOC) return crt_malloc(n); }
+static void __cdecl H_HP_FREE_w(void *p) { CRT_CALL(H_HP_FREE) crt_free(p); }
+static uint32_t __cdecl H_HP_MSIZE_w(void *p) { CRT_CALL(H_HP_MSIZE) return crt_msize(p); }
+static int32_t __cdecl H_HP_NEWH_w(uint32_t n) { CRT_CALL(H_HP_NEWH) return crt_callnewh(n); }
+static void *__cdecl H_HP_REALLOC_w(void *p, uint32_t n) { CRT_CALL(H_HP_REALLOC) return crt_realloc(p, n); }
+static void *__cdecl H_HP_CALLOC_w(uint32_t c, uint32_t n) { CRT_CALL(H_HP_CALLOC) return crt_calloc(c, n); }
 
 static hook_t H[H_N] = {
     [H_RAND] = { "rand", 0, (void *)w_rand, 0, 1, 0, 0, 0, 0, "" },
@@ -5682,6 +5707,8 @@ void rh_hooks_install(void)
              h == &H[H_FURN] || h == &H[H_UM_PCLOSE] || h == &H[H_SC_YN] || h == &H[H_IGIVE] || h == &H[H_BOOK] || h == &H[H_SSETFREE] ||
              (h >= &H[H_CS_FIRST] && h <= &H[H_CS_LAST]) || (h >= &H[H_ST_FIRST] && h <= &H[H_ST_LAST])) && h->mode == 1)
             rh_fatal("%s: replace only (it runs a room / repolls DirectInput)", h->name);
+        if (h >= &H[H_HP_FIRST] && h <= &H[H_HP_LAST] && h->mode != 2)
+            rh_fatal("%s: REPLACE only (a shadow would run its VirtualAlloc / HeapAlloc twice)", h->name);
         if (h >= &H[H_CRT_FIRST] && h <= &H[H_CRT_LAST] && (!O.standalone || h->mode != 2))
             rh_fatal("%s: --standalone REPLACE only (the port CRT's heap / streams are its own: mixed with retail's CRT "
                      "they would cross)", h->name);
@@ -5710,7 +5737,8 @@ void rh_hooks_install(void)
                                            0x401140u, 0x4011b0u, 0x4013a0u, 0x401210u,
                                            /* the CRT's static initializers (_initterm's table) */
                                            0x401030u, 0x401060u, 0x401090u, 0x4010c0u, 0x4010f0u, 0x401130u, 0x4011a0u,
-                                           0x401360u, 0x401390u, 0x5b5fa0u, 0x5b5fd0u, 0x5b6000u, 0x5b6030u, 0x5b60a0u };   /* (+ reached through jmp thunks) */
+                                           0x401360u, 0x401390u, 0x5b5fa0u, 0x5b5fd0u, 0x5b6000u, 0x5b6030u, 0x5b60a0u,   /* (+ reached through jmp thunks) */
+                                           0x5c73fdu };   /* ___sbh_alloc_block: uninit-fix site D's wrapper owns its call sites */
         int byaddr = 0;
         for (size_t k = 0; k < sizeof BYADDR / sizeof BYADDR[0]; k++) byaddr |= h->va == BYADDR[k];
         if (byaddr && h->mode == 2) {

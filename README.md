@@ -33,7 +33,7 @@ pixel-identical to the original game at the same frame (`differ_px = 0`).*
   ranges were read from your files, that every code byte is a trap, that nothing outside
   the port is executable). `tools/standalone/prove_no_retail_code.py` re-checks the
   binaries and sources independently.
-- **Ported:** 1,558 of the 1,824 functions in `sotes.exe` are reimplemented, which is
+- **Ported:** 1,573 of the 1,824 functions in `sotes.exe` are reimplemented, which is
   100% of the engine's code bytes. The rest are almost all C-runtime internals the game
   never calls directly (the port has its own small C runtime). If a play session ever
   reached original code with no port, the game would stop with a message naming the

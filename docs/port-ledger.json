@@ -6,11 +6,11 @@
   "non_thunk_functions": 1824,
   "engine_proper_functions": 1532,
   "library_tail_functions": 292,
-  "tested": 119,
+  "tested": 134,
   "ported": 1439,
-  "unported": 266,
+  "unported": 251,
   "orphan_refs_not_in_function_table": 2,
-  "touched": 1558,
+  "touched": 1573,
   "pct_touched": 99.9,
   "pct_tested": 6.1,
   "engine_proper_touched": 1531,
@@ -16339,40 +16339,50 @@
    "name": "_realloc",
    "size": 288,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/msvc_crt.h"
+   ]
   },
   {
    "va": "0x5c11a2",
    "name": "__msize",
    "size": 41,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/msvc_crt.h"
+   ]
   },
   {
    "va": "0x5c11cb",
    "name": "_malloc",
    "size": 18,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/msvc_crt.h"
+   ]
   },
   {
    "va": "0x5c11dd",
    "name": "__nh_malloc",
    "size": 44,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/msvc_crt.h"
+   ]
   },
   {
    "va": "0x5c1209",
    "name": "__heap_alloc",
    "size": 54,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/msvc_crt.h"
+   ]
   },
   {
    "va": "0x5c123f",
@@ -16381,7 +16391,8 @@
    "is_thunk": false,
    "status": "tested",
    "src": [
-    "src/asset_register.c"
+    "src/asset_register.c",
+    "src/msvc_crt.h"
    ]
   },
   {
@@ -17159,8 +17170,11 @@
    "name": "__heap_init",
    "size": 60,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/msvc_crt.c",
+    "src/msvc_crt.h"
+   ]
   },
   {
    "va": "0x5c63d0",
@@ -17359,64 +17373,81 @@
    "name": "__callnewh",
    "size": 27,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/msvc_crt.h"
+   ]
   },
   {
    "va": "0x5c7069",
    "name": "___sbh_heap_init",
    "size": 62,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/msvc_crt.h"
+   ]
   },
   {
    "va": "0x5c70a7",
    "name": "___sbh_find_block",
    "size": 43,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/msvc_crt.h"
+   ]
   },
   {
    "va": "0x5c70d2",
    "name": "___sbh_free_block",
    "size": 811,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/msvc_crt.h"
+   ]
   },
   {
    "va": "0x5c73fd",
    "name": "___sbh_alloc_block",
    "size": 777,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/msvc_crt.h"
+   ]
   },
   {
    "va": "0x5c7706",
    "name": "___sbh_alloc_new_region",
    "size": 177,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/msvc_crt.h"
+   ]
   },
   {
    "va": "0x5c77b7",
    "name": "___sbh_alloc_new_group",
    "size": 251,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/msvc_crt.h"
+   ]
   },
   {
    "va": "0x5c78b2",
    "name": "___sbh_resize_block",
    "size": 758,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/msvc_crt.c",
+    "src/msvc_crt.h"
+   ]
   },
   {
    "va": "0x5c7ba8",
@@ -17599,8 +17630,10 @@
    "name": "_calloc",
    "size": 125,
    "is_thunk": false,
-   "status": "unported",
-   "src": []
+   "status": "tested",
+   "src": [
+    "src/msvc_crt.h"
+   ]
   },
   {
    "va": "0x5c8728",

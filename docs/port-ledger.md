@@ -14,12 +14,12 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 - engine-proper functions (below `0x5bdab0`): **1532** — the real port universe
 - library tail (MSVC CRT, linked not ported): 292
 - non-thunk engine functions total: 1824 (of 1824 incl. thunks)
-- touched: **1558** (99.9% of engine-proper) — tested 119, ported 1439
+- touched: **1573** (99.9% of engine-proper) — tested 134, ported 1439
 - code bytes touched: **100.0%** (1,776,522 / 1,776,526 B of engine-proper)
-- unported: **266**
+- unported: **251**
 - orphan refs in src/ not in this table: 2
 
-## tested (119) — ported + host unit suite
+## tested (134) — ported + host unit suite
 
 | VA | name | size | src |
 |----|------|-----:|-----|
@@ -136,12 +136,27 @@ has a matching `tests/test_<stem>.c`. This is the answer to
 | 0x5c0907 | hex32_lower_5C0907 | 45 | msvc_crt.h |
 | 0x5c0934 | _xtoa | 92 | msvc_crt.h |
 | 0x5c0a8f | start | 246 | msvc_crt.h |
-| 0x5c123f | _free | 47 | asset_register.c |
+| 0x5c1082 | _realloc | 288 | msvc_crt.h |
+| 0x5c11a2 | __msize | 41 | msvc_crt.h |
+| 0x5c11cb | _malloc | 18 | msvc_crt.h |
+| 0x5c11dd | __nh_malloc | 44 | msvc_crt.h |
+| 0x5c1209 | __heap_alloc | 54 | msvc_crt.h |
+| 0x5c123f | _free | 47 | asset_register.c, msvc_crt.h |
 | 0x5c2a94 | ___loctotime_t | 194 | msvc_crt.h |
 | 0x5c301a | __tzset | 606 | msvc_crt.h |
 | 0x5c3278 | __isindst | 428 | msvc_crt.h |
 | 0x5c3424 | _cvtdate | 320 | msvc_crt.h |
 | 0x5c35fc | _gmtime | 249 | msvc_crt.h |
+| 0x5c6394 | __heap_init | 60 | msvc_crt.c, msvc_crt.h |
+| 0x5c704e | __callnewh | 27 | msvc_crt.h |
+| 0x5c7069 | ___sbh_heap_init | 62 | msvc_crt.h |
+| 0x5c70a7 | ___sbh_find_block | 43 | msvc_crt.h |
+| 0x5c70d2 | ___sbh_free_block | 811 | msvc_crt.h |
+| 0x5c73fd | ___sbh_alloc_block | 777 | msvc_crt.h |
+| 0x5c7706 | ___sbh_alloc_new_region | 177 | msvc_crt.h |
+| 0x5c77b7 | ___sbh_alloc_new_group | 251 | msvc_crt.h |
+| 0x5c78b2 | ___sbh_resize_block | 758 | msvc_crt.c, msvc_crt.h |
+| 0x5c86ab | _calloc | 125 | msvc_crt.h |
 
 ## ported (1439) — reimplemented, no host test yet
 

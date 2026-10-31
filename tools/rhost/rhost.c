@@ -956,6 +956,7 @@ static int uninit_fix_install(void)
     g_sbh_alloc_va = u->sbh_alloc;
     n += redirect_calls(u->sbh_alloc, w_sbh_alloc);
     rh_heap_zero_alloc = 1;
+    crt_sbh_zero = 1;   /* the ported SBH call sites (msvc_crt.c) zero the same way */
     static const uint8_t want_b[7] = { 0x8D, 0xB4, 0x24, 0x18, 0x04, 0x00, 0x00 };   /* lea esi,[esp+0x418] */
     uint8_t *q = (uint8_t *)(uintptr_t)u->b;
     if (!memcmp(q, want_b, 7)) {                            /* site B: inline palette before rep movsd */
@@ -1594,7 +1595,7 @@ platform_done:
         if (!nf || !ne || ns != 1) rh_fatal("engine call sites flip=%d easer=%d srand=%d (want >0/>0/1)", nf, ne, ns);
         rh_log("hooks: flip %d sites, easer %d, srand %d\n", nf, ne, ns);
         if (!O.no_uninit_fix) rh_log("uninit-fix: %d site(s) patched (quirk #123)\n", uninit_fix_install());
-    } else if (!O.no_uninit_fix) rh_heap_zero_alloc = 1;   /* site D on the arena (the port CRT zeroes its own blocks) */
+    } else if (!O.no_uninit_fix) rh_heap_zero_alloc = crt_sbh_zero = 1;   /* site D on the arena + the port CRT's SBH */
     load_volatile();
     rh_trace_init();
     rh_hooks_install();

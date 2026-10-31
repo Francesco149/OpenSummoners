@@ -770,7 +770,11 @@ REPLACE_ONLY_HOOKS = ["si_401000", "si_401120", "el_54c5e0", "el_5851a0", "input
                       "shop_run", "shop_buy", "shop_who", "menu_ctx_clear", "scene_run",
                       "world_new", "world_free",
                       "menu_party_close", "msg_pages", "storage_deposit", "storage_withdraw", "storage_run",
-                      "item_find", "furniture_search", "scene_yes_no", "item_give", "book_read", "sprite_set_free"]   # (their shadows skip: the grid's 2.9 MB block moves the arena commit)
+                      "item_find", "furniture_search", "scene_yes_no", "item_give", "book_read", "sprite_set_free",   # (their shadows skip: the grid's 2.9 MB block moves the arena commit)
+                      # the CRT heap (msvc_crt.c: the small-block heap over retail's own globals; a shadow would VirtualAlloc twice)
+                      "crt_heap_init", "crt_sbh_heap_init", "crt_sbh_find_block", "crt_sbh_free_block", "crt_sbh_alloc_block",
+                      "crt_sbh_alloc_new_region", "crt_sbh_alloc_new_group", "crt_sbh_resize_block", "crt_heap_alloc",
+                      "crt_nh_malloc", "crt_malloc", "crt_free", "crt_msize", "crt_callnewh", "crt_realloc", "crt_calloc"]
 SHADOW_ONLY_HOOKS = ["map_decode"]     # its REPLACE form is the load_room port (the decode needs the recorded resource)
 # the MSVC CRT the game calls (src/msvc_crt.c): --standalone only (its heap / streams are the port's own)
 CRT_HOOKS = ["crt_new", "crt_delete", "crt_atexit", "crt_exit", "crt_fopen", "crt_fclose", "crt_fprintf", "crt_fscanf",

@@ -91,27 +91,394 @@ void crt_fpmath(void)
 #endif
 }
 
-/* ---- the heap: PORT-DEBT(crt-heap) ---- */
-static uintptr_t g_heap;
-static api_heapalloc_t p_alloc;
-static api_heapfree_t p_free;
-static void heap_init(void)
+/* ---- the small-block heap (FUN_005c6394 _heap_init .. FUN_005c78b2 __sbh_resize_block), over retail's globals ----
+ * Blocks <= __sbh_threshold come from 1 MB regions (VirtualAlloc reserved), each 32 groups of 32 KB committed on
+ * demand; a group = 8 pages, 64 free lists (by size / 16, the last one open-ended).  An entry = sizeFront (bit 0:
+ * in use) | next | prev ... sizeBack; list i's head is a fake entry at group + 8 i.  The bit vectors: per header
+ * hi (lists 0..31) / lo (32..63) = "some group has list i non-empty", per group the same, commit = uncommitted. */
+#define V_HHEAP      0x8ab1bcu   /* _crtheap */
+#define V_SBH_LIST   0x8ab1b8u   /* __sbh_pHeaderList: the region headers (20 B each) */
+#define V_SBH_CNT    0x8ab1b4u   /* __sbh_cntHeaderList */
+#define V_SBH_DEFER  0x8ab1b0u   /* __sbh_pHeaderDefer: the header of the group to decommit next */
+#define V_SBH_SCAN   0x8ab1acu   /* __sbh_pHeaderScan: where the next search starts */
+#define V_SBH_DGRP   0x8ab1a8u   /* __sbh_indGroupDefer */
+#define V_SBH_SIZE   0x8ab1a4u   /* __sbh_sizeHeaderList (capacity, +16 per grow) */
+#define V_SBH_THRESH 0x8a5db0u   /* __sbh_threshold (0x3f8) */
+#define V_PNH        0x8a9ef0u   /* _pnhHeap: the new handler */
+#define V_NEWMODE    0x8a9ef4u   /* _newmode: malloc calls the new handler too */
+enum { H_HI = 0, H_LO = 4, H_COMMIT = 8, H_DATA = 12, H_REGION = 16, H_SIZE = 20 };   /* region header */
+enum { R_GRPUSE = 0, R_CNT = 4, R_GHI = 68, R_GLO = 196, R_GROUP = 324, R_GSIZE = 516 };   /* REGION */
+enum { E_SIZE = 0, E_NEXT = 4, E_PREV = 8 };   /* a free entry */
+#define HA(x) ((uint8_t *)(uintptr_t)(uint32_t)(x))   /* a retail address kept in a 32-bit field */
+#define HV(p) ((uint32_t)(uintptr_t)(p))
+#define HW(p, o) (*(uint32_t *)((uint8_t *)(p) + (o)))
+#define HS(p, o) (*(int32_t *)((uint8_t *)(p) + (o)))
+typedef void *(ENG_STDCALL *api_heaprealloc_t)(uintptr_t, uint32_t, void *, uint32_t);
+typedef uint32_t (ENG_STDCALL *api_heapsize_t)(uintptr_t, uint32_t, const void *);
+typedef int32_t (ENG_STDCALL *api_heapdestroy_t)(uintptr_t);
+typedef void *(ENG_STDCALL *api_valloc_t)(void *, uint32_t, uint32_t, uint32_t);
+typedef int32_t (ENG_STDCALL *api_vfree_t)(void *, uint32_t, uint32_t);
+#define HHEAP ((uintptr_t)(uint32_t)G32(V_HHEAP))
+
+static uint32_t sbh_list_of(int32_t size)   /* the free list of a block size (capped at the open-ended 63) */
 {
-    if (g_heap) return;
-    g_heap = API(api_heapcreate_t, "HeapCreate")(1u /* HEAP_NO_SERIALIZE: -ML */, 0x1000u, 0);   /* _heap_init(0) */
-    p_alloc = API(api_heapalloc_t, "HeapAlloc");
-    p_free = API(api_heapfree_t, "HeapFree");
+    uint32_t i = (uint32_t)((size >> 4) - 1);
+    return i > 63 ? 63 : i;
 }
+/* list i of group g lost its last entry: its group bit, the region's count, the header bit at 0 */
+static void sbh_list_emptied(uint8_t *hdr, uint8_t *rgn, uint32_t g, uint32_t i)
+{
+    uint32_t m = i >= 32 ? ~(0x80000000u >> (i - 32)) : ~(0x80000000u >> i);
+    HW(rgn, (i >= 32 ? R_GLO : R_GHI) + 4 * g) &= m;
+    if (rgn[R_CNT + i]-- == 1) HW(hdr, i >= 32 ? H_LO : H_HI) &= m;
+}
+static void sbh_unlink(uint8_t *hdr, uint8_t *rgn, uint32_t g, uint8_t *e, uint32_t i)
+{
+    if (HW(e, E_NEXT) == HW(e, E_PREV)) sbh_list_emptied(hdr, rgn, g, i);
+    HW(HA(HW(e, E_PREV)), E_NEXT) = HW(e, E_NEXT);
+    HW(HA(HW(e, E_NEXT)), E_PREV) = HW(e, E_PREV);
+}
+static void sbh_link(uint8_t *hdr, uint8_t *rgn, uint32_t g, uint8_t *e, uint32_t i)   /* at the list's head */
+{
+    uint8_t *head = rgn + R_GROUP + R_GSIZE * g + 8 * i;
+    HW(e, E_NEXT) = HW(head, E_NEXT);
+    HW(e, E_PREV) = HV(head);
+    HW(head, E_NEXT) = HV(e);
+    HW(HA(HW(e, E_NEXT)), E_PREV) = HV(e);
+    if (HW(e, E_NEXT) == HW(e, E_PREV)) {   /* the list was empty */
+        uint8_t was = rgn[R_CNT + i]++;
+        uint32_t m = i >= 32 ? 0x80000000u >> (i - 32) : 0x80000000u >> i;
+        if (!was) HW(hdr, i >= 32 ? H_LO : H_HI) |= m;
+        HW(rgn, (i >= 32 ? R_GLO : R_GHI) + 4 * g) |= m;
+    }
+}
+static void sbh_set_size(uint8_t *e, int32_t size) { HS(e, E_SIZE) = size; HS(e, size - 4) = size; }   /* a FREE entry */
+int crt_sbh_zero;
+static void *sbh_alloc(int32_t n)   /* the SBH call sites of _heap_alloc / realloc / calloc */
+{
+    void *p = crt_sbh_alloc_block(n);
+    if (p && crt_sbh_zero) memset(p, 0, (size_t)n);
+    return p;
+}
+
+int32_t crt_heap_init(int32_t mt)
+{
+    uintptr_t h = API(api_heapcreate_t, "HeapCreate")(mt == 0, 0x1000u, 0);
+    G32(V_HHEAP) = (int32_t)h;
+    if (!h) return 0;
+    if (!crt_sbh_heap_init()) { API(api_heapdestroy_t, "HeapDestroy")(h); return 0; }
+    return 1;
+}
+
+int32_t crt_sbh_heap_init(void)
+{
+    void *l = API(api_heapalloc_t, "HeapAlloc")(HHEAP, 0, 0x140u);
+    G32(V_SBH_LIST) = (int32_t)HV(l);
+    if (!l) return 0;
+    G32(V_SBH_DEFER) = 0;
+    G32(V_SBH_CNT) = 0;
+    G32(V_SBH_SCAN) = (int32_t)HV(l);
+    G32(V_SBH_SIZE) = 16;
+    return 1;
+}
+
+uint8_t *crt_sbh_find_block(const void *p)
+{
+    for (uint8_t *h = HA(G32(V_SBH_LIST)); h < HA(G32(V_SBH_LIST)) + H_SIZE * G32(V_SBH_CNT); h += H_SIZE)
+        if (HV(p) - HW(h, H_DATA) < 0x100000u) return h;
+    return NULL;
+}
+
+uint32_t crt_sbh_free_block(uint8_t *hdr, uint8_t *p)
+{
+    uint8_t *rgn = HA(HW(hdr, H_REGION)), *e = p - 4;
+    uint32_t g = (HV(p) - HW(hdr, H_DATA)) >> 15;
+    uint8_t *grp = rgn + R_GROUP + R_GSIZE * g;
+    int32_t size = HS(e, E_SIZE) - 1, prevsz = HS(p, -8);
+    uint8_t *nx = e + size;
+    int32_t nxsz = HS(nx, E_SIZE);
+    if (!(nxsz & 1)) {   /* the next block is free: absorb it */
+        sbh_unlink(hdr, rgn, g, nx, sbh_list_of(nxsz));
+        size += nxsz;
+    }
+    uint32_t li = sbh_list_of(size), pli = 0;
+    if (!(prevsz & 1)) {   /* the previous one is free: merge into it (it keeps its list if the size class holds) */
+        uint8_t *pv = e - prevsz;
+        pli = sbh_list_of(prevsz);
+        size += prevsz;
+        li = sbh_list_of(size);
+        if (pli != li) sbh_unlink(hdr, rgn, g, pv, pli);
+        e = pv;
+    }
+    if ((prevsz & 1) || pli != li) sbh_link(hdr, rgn, g, e, li);
+    sbh_set_size(e, size);
+    uint32_t ret = HV(grp);
+    if (HS(grp, 0)-- == 1) {   /* the group is empty: decommit the PREVIOUSLY deferred one, defer this one */
+        uint8_t *res = hdr, *dh = HA(G32(V_SBH_DEFER));
+        if (dh) {
+            uint32_t dg = (uint32_t)G32(V_SBH_DGRP);
+            uint8_t *drg = HA(HW(dh, H_REGION));
+            API(api_vfree_t, "VirtualFree")(HA(HW(dh, H_DATA) + (dg << 15)), 0x8000u, 0x4000u /* MEM_DECOMMIT */);
+            HW(dh, H_COMMIT) |= 0x80000000u >> dg;
+            HW(drg, R_GLO + 4 * dg) = 0;
+            if (--drg[R_CNT + 63] == 0) HW(dh, H_LO) &= ~1u;
+            if (HW(dh, H_COMMIT) == 0xffffffffu) {   /* the region's last group: release the region */
+                uint8_t *list = HA(G32(V_SBH_LIST));
+                API(api_vfree_t, "VirtualFree")(HA(HW(dh, H_DATA)), 0, 0x8000u /* MEM_RELEASE */);
+                API(api_heapfree_t, "HeapFree")(HHEAP, 0, HA(HW(dh, H_REGION)));
+                memmove(dh, dh + H_SIZE, (size_t)(list + H_SIZE * G32(V_SBH_CNT) - dh - H_SIZE));
+                G32(V_SBH_CNT)--;
+                if (hdr > dh) res = hdr - H_SIZE;
+                G32(V_SBH_SCAN) = (int32_t)HV(list);
+            }
+        }
+        G32(V_SBH_DEFER) = (int32_t)HV(res);
+        G32(V_SBH_DGRP) = (int32_t)g;
+        ret = HV(res);
+    }
+    return ret;
+}
+
+void *crt_sbh_alloc_block(int32_t n)
+{
+    uint8_t *list = HA(G32(V_SBH_LIST)), *end = list + H_SIZE * G32(V_SBH_CNT), *scan = HA(G32(V_SBH_SCAN));
+    int32_t esz = (n + 23) & ~15;   /* + sizeFront / sizeBack, to the paragraph */
+    int32_t idx = (esz >> 4) - 1;
+    uint32_t mhi = idx >= 32 ? 0 : 0xffffffffu >> idx, mlo = idx >= 32 ? 0xffffffffu >> (idx - 32) : 0xffffffffu;
+#define FITS(h) ((mhi & HW(h, H_HI)) | (mlo & HW(h, H_LO)))
+    uint8_t *h = scan;
+    while (h < end && !FITS(h)) h += H_SIZE;
+    if (h == end) {
+        for (h = list; h < scan && !FITS(h); h += H_SIZE) ;
+        if (h == scan) {   /* no list fits anywhere: commit a group (in a region with room, else a new region) */
+            while (h < end && !HW(h, H_COMMIT)) h += H_SIZE;
+            if (h == end) {
+                for (h = list; h < scan && !HW(h, H_COMMIT); h += H_SIZE) ;
+                if (h == scan && !(h = crt_sbh_alloc_new_region())) return NULL;
+            }
+            HS(HA(HW(h, H_REGION)), R_GRPUSE) = crt_sbh_alloc_new_group(h);
+            if (HS(HA(HW(h, H_REGION)), R_GRPUSE) == -1) return NULL;
+        }
+    }
+#undef FITS
+    G32(V_SBH_SCAN) = (int32_t)HV(h);
+    uint8_t *rgn = HA(HW(h, H_REGION));
+    int32_t g = HS(rgn, R_GRPUSE);
+#define GFITS(g) ((mhi & HW(rgn, R_GHI + 4 * (g))) | (mlo & HW(rgn, R_GLO + 4 * (g))))
+    if (g == -1 || !GFITS(g))
+        for (g = 0; !GFITS(g); g++) ;
+#undef GFITS
+    uint8_t *grp = rgn + R_GROUP + R_GSIZE * g;
+    uint32_t m = mhi & HW(rgn, R_GHI + 4 * g), li = 0;
+    if (!m) { m = mlo & HW(rgn, R_GLO + 4 * g); li = 32; }
+    while (!(m & 0x80000000u)) { m <<= 1; li++; }   /* the smallest fitting non-empty list */
+    uint8_t *e = HA(HW(grp + 8 * li, E_NEXT));
+    int32_t rest = HS(e, E_SIZE) - esz;
+    int32_t rli = (rest >> 4) - 1;   /* signed (jle): an exact fit is -1, never list 63 */
+    if (rli > 63) rli = 63;
+    if (rli != (int32_t)li) {   /* the remainder changes size class (or is nothing) */
+        sbh_unlink(h, rgn, (uint32_t)g, e, li);
+        if (rest) sbh_link(h, rgn, (uint32_t)g, e, (uint32_t)rli);
+    }
+    if (rest) sbh_set_size(e, rest);   /* the remainder stays at the front, the block is the tail */
+    uint8_t *b = e + rest;
+    HS(b, E_SIZE) = esz + 1;   /* in use: the size word carries bit 0, its position doesn't */
+    HS(b, esz - 4) = esz + 1;
+    if (HS(grp, 0)++ == 0 && h == HA(G32(V_SBH_DEFER)) && g == G32(V_SBH_DGRP)) G32(V_SBH_DEFER) = 0;
+    HS(rgn, R_GRPUSE) = g;
+    return b + 4;
+}
+
+uint8_t *crt_sbh_alloc_new_region(void)
+{
+    if (G32(V_SBH_CNT) == G32(V_SBH_SIZE)) {
+        void *l = API(api_heaprealloc_t, "HeapReAlloc")(HHEAP, 0, HA(G32(V_SBH_LIST)),
+                                                         4u * (5u * (uint32_t)G32(V_SBH_SIZE) + 80u));
+        if (!l) return NULL;
+        G32(V_SBH_SIZE) += 16;
+        G32(V_SBH_LIST) = (int32_t)HV(l);
+    }
+    uint8_t *h = HA(G32(V_SBH_LIST)) + H_SIZE * G32(V_SBH_CNT);
+    void *r = API(api_heapalloc_t, "HeapAlloc")(HHEAP, 8u /* HEAP_ZERO_MEMORY */, 0x41c4u);
+    HW(h, H_REGION) = HV(r);
+    if (!r) return NULL;
+    void *d = API(api_valloc_t, "VirtualAlloc")(NULL, 0x100000u, 0x2000u /* MEM_RESERVE */, 4u /* PAGE_READWRITE */);
+    HW(h, H_DATA) = HV(d);
+    if (!d) { API(api_heapfree_t, "HeapFree")(HHEAP, 0, r); return NULL; }
+    HW(h, H_COMMIT) = 0xffffffffu;
+    HW(h, H_HI) = 0;
+    HW(h, H_LO) = 0;
+    G32(V_SBH_CNT)++;
+    HS(r, R_GRPUSE) = -1;
+    return h;
+}
+
+int32_t crt_sbh_alloc_new_group(uint8_t *hdr)
+{
+    uint8_t *rgn = HA(HW(hdr, H_REGION));
+    uint32_t c = HW(hdr, H_COMMIT), g = 0;
+    while (!(c & 0x80000000u)) { c <<= 1; g++; }   /* the first uncommitted group */
+    uint8_t *grp = rgn + R_GROUP + R_GSIZE * g;
+    for (int i = 0; i < 63; i++) HW(grp + 8 * i, E_PREV) = HW(grp + 8 * i, E_NEXT) = HV(grp + 8 * i);
+    uint8_t *pg = HA(HW(hdr, H_DATA) + (g << 15));
+    if (!API(api_valloc_t, "VirtualAlloc")(pg, 0x8000u, 0x1000u /* MEM_COMMIT */, 4u)) return -1;
+    for (uint8_t *q = pg; q <= pg + 0x7000; q += 0x1000) {   /* each page: one 4080-byte free block between -1 guards */
+        HW(q, 8) = 0xffffffffu;
+        HW(q, 4092) = 0xffffffffu;
+        HW(q, 12) = 4080;
+        HW(q, 16) = HV(q + 0x1000 + 12);
+        HW(q, 20) = HV(q - 0x1000 + 12);
+        HW(q, 4088) = 4080;
+    }
+    uint8_t *head = grp + 8 * 63;   /* the 8 blocks are list 63 */
+    HW(head, E_NEXT) = HV(pg + 12);
+    HW(pg + 12, E_PREV) = HV(head);
+    HW(head, E_PREV) = HV(pg + 0x7000 + 12);
+    HW(pg + 0x7000 + 12, E_NEXT) = HV(head);
+    HW(rgn, R_GHI + 4 * g) = 0;
+    HW(rgn, R_GLO + 4 * g) = 1;
+    if (rgn[R_CNT + 63]++ == 0) HW(hdr, H_LO) |= 1u;   /* (list 63's count doubles as the committed groups) */
+    HW(hdr, H_COMMIT) &= ~(0x80000000u >> g);
+    return (int32_t)g;
+}
+
+int32_t crt_sbh_resize_block(uint8_t *hdr, uint8_t *p, int32_t n)
+{
+    uint8_t *rgn = HA(HW(hdr, H_REGION));
+    int32_t nsz = (n + 23) & ~15;
+    uint32_t g = (HV(p) - HW(hdr, H_DATA)) >> 15;
+    int32_t osz = HS(p, -4) - 1;
+    uint8_t *nx = p - 4 + osz;
+    int32_t nxsz = HS(nx, E_SIZE);
+    if (nsz <= osz) {
+        if (nsz < osz) {   /* shrink: the tail becomes a free block (merged with a free next one) */
+            int32_t rest = osz - nsz;
+            uint8_t *e = p - 4 + nsz;
+            HS(p, -4) = nsz + 1;
+            HS(e, -4) = nsz + 1;
+            if (!(nxsz & 1)) {
+                sbh_unlink(hdr, rgn, g, nx, sbh_list_of(nxsz));
+                rest += nxsz;
+            }
+            sbh_link(hdr, rgn, g, e, sbh_list_of(rest));
+            sbh_set_size(e, rest);
+        }
+        return 1;
+    }
+    if ((nxsz & 1) || nsz > osz + nxsz) return 0;   /* grow: only into a free next block big enough */
+    sbh_unlink(hdr, rgn, g, nx, sbh_list_of(nxsz));
+    int32_t rest = osz - nsz + nxsz;
+    if (rest > 0) {
+        uint8_t *e = p - 4 + nsz;
+        sbh_link(hdr, rgn, g, e, sbh_list_of(rest));
+        sbh_set_size(e, rest);
+    }
+    HS(p, -4) = nsz + 1;
+    HS(p, nsz - 8) = nsz + 1;
+    return 1;
+}
+
+void *crt_heap_alloc(uint32_t n)
+{
+    void *p;
+    if (n <= (uint32_t)G32(V_SBH_THRESH) && (p = sbh_alloc((int32_t)n))) return p;
+    if (!n) n = 1;
+    return API(api_heapalloc_t, "HeapAlloc")(HHEAP, 0, (n + 15u) & ~15u);
+}
+
+void *crt_nh_malloc(uint32_t n, int32_t nhflag)
+{
+    if (n > 0xffffffe0u) return NULL;
+    for (;;) {
+        void *p = crt_heap_alloc(n);
+        if (p || !nhflag) return p;
+        if (!crt_callnewh(n)) return NULL;
+    }
+}
+
+void *crt_malloc(uint32_t n) { return crt_nh_malloc(n, G32(V_NEWMODE)); }
+
+void crt_free(void *p)
+{
+    if (!p) return;
+    uint8_t *h = crt_sbh_find_block(p);
+    if (h) crt_sbh_free_block(h, p);
+    else API(api_heapfree_t, "HeapFree")(HHEAP, 0, p);
+}
+
+uint32_t crt_msize(void *p)
+{
+    if (crt_sbh_find_block(p)) return HW(p, -4) - 9;
+    return API(api_heapsize_t, "HeapSize")(HHEAP, 0, p);
+}
+
+int32_t crt_callnewh(uint32_t n)
+{
+    uint32_t pnh = (uint32_t)G32(V_PNH);
+    return pnh && ((int32_t (*)(uint32_t))g_eng.retail(pnh))(n) != 0;
+}
+
+void *crt_realloc(void *p, uint32_t n)
+{
+    if (!p) return crt_malloc(n);
+    if (!n) { crt_free(p); return NULL; }
+    for (;;) {
+        void *q = NULL;
+        if (n <= 0xffffffe0u) {
+            uint8_t *h = crt_sbh_find_block(p);
+            if (!h) {
+                n = n ? (n + 15u) & ~15u : 16u;
+                if ((q = API(api_heaprealloc_t, "HeapReAlloc")(HHEAP, 0, p, n))) return q;
+            } else {
+                if (n <= (uint32_t)G32(V_SBH_THRESH)) {
+                    if (crt_sbh_resize_block(h, p, (int32_t)n)) return p;
+                    if ((q = sbh_alloc((int32_t)n))) {
+                        uint32_t c = HW(p, -4) - 1;   /* the entry's size (retail copies that much, capped) */
+                        memcpy(q, p, c < n ? c : n);
+                        crt_sbh_free_block(h, p);
+                        return q;
+                    }
+                }
+                n = n ? (n + 15u) & ~15u : 16u;
+                if ((q = API(api_heapalloc_t, "HeapAlloc")(HHEAP, 0, n))) {
+                    uint32_t c = HW(p, -4) - 1;
+                    memcpy(q, p, c < n ? c : n);
+                    crt_sbh_free_block(h, p);
+                    return q;
+                }
+            }
+        }
+        if (!G32(V_NEWMODE)) return q;
+        if (!crt_callnewh(n)) return NULL;
+    }
+}
+
+/* operator new / delete (0x5bf00d / 0x5bef0e): _nh_malloc(n, 1) / free.  Zeroed under site D: under rhost that
+ * repeats what the SBH call sites / the arena already zeroed; live, the big blocks come from the real HeapAlloc */
 void *crt_new(uint32_t n)
 {
-    heap_init();
-    /* _heap_alloc: 0 -> 1, rounded up to the 16-byte paragraph */
-    n = n ? (n + 15u) & ~15u : 16u;
-    return p_alloc(g_heap, 8u /* HEAP_ZERO_MEMORY */, n);
+    void *p = crt_nh_malloc(n, 1);
+    if (p && crt_sbh_zero) memset(p, 0, n);
+    return p;
 }
-void crt_delete(void *p)
+void crt_delete(void *p) { crt_free(p); }
+
+void *crt_calloc(uint32_t cnt, uint32_t size)
 {
-    if (p) { heap_init(); p_free(g_heap, 0, p); }
+    uint32_t req = size * cnt, n = req;
+    if (n <= 0xffffffe0u) n = n ? (n + 15u) & ~15u : 16u;
+    do {
+        void *p = NULL;
+        if (n <= 0xffffffe0u) {
+            if (req <= (uint32_t)G32(V_SBH_THRESH) && (p = sbh_alloc((int32_t)req))) {
+                memset(p, 0, req);
+                return p;
+            }
+            if ((p = API(api_heapalloc_t, "HeapAlloc")(HHEAP, 8u /* HEAP_ZERO_MEMORY */, n))) return p;
+        }
+        if (!G32(V_NEWMODE)) return p;
+    } while (crt_callnewh(n));
+    return NULL;
 }
 
 /* ---- atexit / exit (0x5beecd _onexit; FUN_005bf5fd doexit = crt_exit's body) ---- */
@@ -731,12 +1098,12 @@ char *crt_itoa(int32_t v, char *buf, int32_t radix)
 typedef int32_t (ENG_STDCALL *winmain_t)(uintptr_t hinst, uintptr_t prev, char *cmd, int32_t show);
 void crt_start(void)
 {
-    /* GetVersion -> _osver / _winver / _winmajor / _winminor: the game never reads them.  _heap_init, _ioinit,
-     * _acmdln / _aenvptr, _setargv / _setenvp: this module's own state.  _cinit: __fpmath, the C initializers
+    /* GetVersion -> _osver / _winver / _winmajor / _winminor: the game never reads them.  _ioinit, _acmdln /
+     * _aenvptr, _setargv / _setenvp: not reproduced (PORT-DEBT(crt-heap): their blocks come first in retail's heap).  _cinit: __fpmath, the C initializers
      * 0x854044..0x854058 (the onexit table, stdio, the MBCS table, the unhandled-exception filter — none needed
      * here), then the C++ ones 0x854000..0x854040 through their VAs (src/static_init.c) */
+    if (!crt_heap_init(0)) API(api_exit_t, "ExitProcess")(255u);   /* fast_error_exit(_RT_HEAPINIT) */
     crt_fpmath();
-    heap_init();
     for (uint32_t va = 0x854000u; va < 0x854040u; va += 4) {
         uint32_t fn = *(uint32_t *)D(va);
         if (fn) ((void (*)(void))g_eng.retail(fn))();
