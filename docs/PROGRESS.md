@@ -6,6 +6,22 @@ specific commits where relevant.
 
 ---
 
+## 2026-10-31 (evening) — the pre-rhost loop removed; first manual nightly ships the standalone
+
+- USER: "push and trigger the build … get rid of stuff that isnt related to the new methodology".  Pushed; CI +
+  the manual nightly green on GitHub (2m43s / 2m13s cold); the nightly carries opensummoners-standalone.exe
+  (4,775,998 B), res_explorer.exe, version.dll, ennse-voice-patch.zip; the old opensummoners.exe asset pruned (404);
+  every release link in the docs (README, the voice patch's web-install.ps1) answers 200.
+- Removed: the from-scratch front end (src/main.c + 61 modules + 50 headers + src/Makefile; host tests 1118 → 363
+  pass / 2 skip, the rest covered the deleted modules), Frida (drive, agent, probe daemon + MCP, the voice patch's
+  repro probe), Ghidra tooling, the diff lenses, Trace Studio v1/v2, capture proxy, launcher, vamap, the legacy
+  table generators, the tool manuals + the old front end's plans; port-debt rows that lived only there (56).
+  `glyph_text.c` keeps only glyph_token_search (its cell layout was a legacy twin of grid_cell_text 0x40fa00).
+  Ledger: 1558 touched (`_doexit` 0x5bf5fd re-tagged at crt_exit, its real port).  CLAUDE.md rewritten for the
+  rhost-only loop.
+- Gates after the removal (wine): `corpus --check --hybrid` and `--standalone`, rh-title-exit / rh-my-play /
+  rh-errands-items: PASS (state / RNG / every frame's pixels; standalone: frame / tick / RNG / pixels).
+
 ## 2026-10-31 (later) — releases ship the standalone; nightly is manual; R9 kept as a known gap
 
 - USER: "make the CI build the new standalone exe and get rid of the old opensummoners.exe so the standalone is

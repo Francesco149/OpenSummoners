@@ -12,8 +12,16 @@
   rh-early-game).  det PASS, re-blessed (win + wine), hybrid PASS on Windows + wine and standalone PASS (Windows,
   13/14 EN-old) except rh-after-prologue (it ends exactly where a zeroed-frame retail does).
 - **Releases:** CI (`ci.yml` / `nightly.yml` / `release.yml`) builds `tools/rhost/build.sh` in `.#ci`; the
-  standalone replaces the legacy `opensummoners.exe` on releases (nightly prunes stale assets).  Nightly = manual
+  standalone replaces the removed `opensummoners.exe` on releases (nightly prunes stale assets).  Nightly = manual
   trigger only (`gh workflow run nightly.yml`); its notes list the commits since the previous nightly tag.
+  First manual nightly from `57b8ccb`: standalone / res_explorer / version.dll / voice zip, every doc link 200.
+- **The pre-rhost loop REMOVED (USER 2026-10-31; CLAUDE.md "Removed"):** src/main.c + 61 drive modules (title /
+  newgame / prologue / town / zdd / osr / call_trace …) + 50 headers, src/Makefile, 48 host-test files + 3 old
+  port-drive scenarios, Frida (tools/frida*, probe daemon + its MCP), Ghidra tooling, the diff lenses, Trace Studio
+  v1/v2 + capture proxy, the launcher, vamap.  Kept: everything rhost links (build.sh MODS) + res_explorer's src
+  deps (bitmap_session, map_render, draw_pool, asset_register(_win32), render_id, actor_spawn / _render,
+  butterfly, party, base_stat_table, anim_clip); the IDA KB inputs moved to tools/ida/ (retail_fields.json,
+  TagThiscallFunctions.java).  Host suite 363 / 0 / 2.  Last commit with the old tree: `57b8ccb`.
 - **KNOWN GAP (USER 2026-10-31: keep; zero it in rhost only if it starts causing problems) — parity-ledger R9 /
   quirk #182:** from f102660 rh-after-prologue's hybrid ≠ pure because
   retail's state-6 skill AI `0x481ac0` dry-runs a cast on stack bodies that keep a leftover byte as f68 (the low
@@ -25,7 +33,8 @@
   caller-stack pointer masked in the semantic hash (quirk #181); wine runs killed 60 s after a RESULT-then-hang.
 - New probes: `--shadow-from F` (shadows only from flip F: a late divergence in a 100k+ trace), `--trap-mem
   REG±OFF:LEN`; rhost.py `SAVE_EPOCH` (bump when an rhost change alters pure replays: chain saves re-derive).
-- Next: verify (shadow) over the four new scenarios has not run yet (hours; `--split 8`).
+- Next: verify (shadow) over the four new scenarios — RUNNING since 2026-10-31 ~15:10 (Windows, `--split 8`;
+  log: the session scratchpad; results land in /mnt/ephemeral/opensummoners/rhost-runs/<batch>-verify).
 
 ## Before — 2026-10-24: the standalone runs on the USER's real Windows 11 (`docs/standalone.md` "The real platform")
 

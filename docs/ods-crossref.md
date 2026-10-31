@@ -13,12 +13,8 @@ records where our RE and the ods intersect, so the relationship is explicit and 
 contributions back to the community are tracked.
 
 ## Auditing the intersection
-`tools/ods_audit.py` opens the ods read-only and cross-tabs its Addresses/Structs/Enums
-against `docs/decompiled/functions.csv` + the port ledger:
-```
-nix develop --command python3 tools/ods_audit.py            # default sibling path
-nix develop --command python3 tools/ods_audit.py "/path/to/SotES Data Formats & Values.ods"
-```
+The auditor (`tools/ods_audit.py`, over the Ghidra export) was removed with the pre-rhost tooling
+(2026-10-31; git history has it).  Its last result:
 Latest run (2026-06-05): **177** of the ods's 222 documented `.text` function entries
 match our decompile's function entries (CONFIRM); 45 are ods-only (mostly tiny leaves our
 decompile labels/merges differently); 1591 functions we have that the ods's address map

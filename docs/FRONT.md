@@ -9,8 +9,9 @@
 <!-- FRONT:BEGIN -->
 - **2026-10-14 — rhost is THE porting loop; the MOVEMENT stack is ported and verified inside retail.**
   USER decisions (audit §7): deterministic cadence = rhost 1 update/flip; EN-old first (SE = a later
-  delta layer); Frida retail drive RETIRED (legacy, don't extend). Port boot "Now Loading" frames now
-  DEFAULT (`--no-boot-loading` = legacy axis; old port-timed traces keep working).
+  delta layer); Frida retail drive RETIRED.  **2026-10-31 (USER): the whole pre-rhost loop REMOVED** — the
+  from-scratch front end `opensummoners.exe` (src/main.c + 61 drive modules + their host tests), Frida, Ghidra,
+  the diff lenses, Trace Studio v1/v2, the launcher (CLAUDE.md "Removed"; last commit with them `57b8ccb`).
   Corpus: 15 scenarios (2026-10-30: + the USER's save chain `rh-early-game` → `-2` (197.6k flips) → `-3` (72.5k) →
   `rh-after-prologue` (242.6k) → `rh-water-shrine` (146.8k); hybrid PASS on all but rh-after-prologue from f102660 =
   parity-ledger R9, quirk #182: retail's skill AI reads a stack leftover; USER 2026-10-31: KEPT as a known gap — `rhost.py
@@ -153,8 +154,8 @@
   fullscreen boot to the title on the USER's box.  The exit routine `wm_5b10d0` read a global's address for its value
   (decomp2c rule, fixed at the source); new scenario `rh-title-exit` covers the game exit.
   **Releases (2026-10-31):** CI builds it (`tools/rhost/build.sh` in `.#ci`, asset-gated); nightly + `v*` releases ship
-  `opensummoners-standalone.exe` in place of the legacy `opensummoners.exe` (src/Makefile: still built locally by
-  build_all.sh, no longer shipped).  `nightly.yml` = MANUAL trigger only (no cron; notes = commits since the last one).
+  `opensummoners-standalone.exe` in place of the removed `opensummoners.exe`.  `nightly.yml` = MANUAL trigger only (no
+  cron; notes = commits since the last one).  First manual nightly: `57b8ccb` (all 4 assets, links checked).
 - **Next (port side):**
   0000000000. The USER plays the standalone: any INT3 stop names a retail VA the play reached with no port (log +
   message box) → port it, add its row.  Then: PORT-DEBT(crt-heap) (MSVC6's SBH from the decompile → standalone state

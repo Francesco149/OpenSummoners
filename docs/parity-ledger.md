@@ -1,38 +1,16 @@
-# Parity ledger — frames/scenes confirmed pixel-1:1 vs retail
+# Parity ledger — what's confirmed vs retail, and the open residuals
 
-A running list of port renders that have been **visually diffed against the
-retail golden and confirmed identical** (bit-identical, or identical modulo a
-named, understood delta). This is a **regression guard**: once something is on
-this list, later work must not silently break it. Re-verify entries with
-`--capture-frames` + `tools/push_comparison.py` (port|retail amplified diff)
-after changes that touch the relevant render path.
+**Since the rhost reset (2026-10-14) confirmation = the rhost gates:** `corpus --check` (pure / `--hybrid` /
+`--standalone`: frame, tick, RNG, state, every presented frame's pixels) + `verify` (shadow, 0 divergences).
+The corpus (`tests/scenarios/rh-*`) IS the regression guard. Open residuals = the R-items below (newest
+first); USER-accepted ones are mirrored in `rhost.py KNOWN_GAPS`.
 
-> How an entry earns its place: capture the port frame (`--capture-frames`),
-> diff against the retail golden in `runs/<scenario>/frames/` via
-> `tools/push_comparison.py --port … --retail …`, eyeball the amplified diff,
-> and record the `differ_px` / `mean|abs|` numbers + any understood residual
-> delta. "1:1" means the diff is empty OR fully explained by a listed,
-> intended-to-be-fixed gap.
+**Historical — the removed front end** (`opensummoners.exe` vs Frida-captured goldens, ckpt ≤ 2026-10-13):
+"Confirmed bit-exact" and R3–R8.  Their tools (`--capture-frames`, `push_comparison.py`, the Frida harness)
+were removed 2026-10-31 (last commit with them `57b8ccb`); the retail facts they established live in
+`docs/findings/`.
 
-## Method / reference
-
-- Port capture: `opensummoners(-debug).exe --capture-frames "N,…"` →
-  `<gamedir>/port_frame_NNNNN.bmp` (Flip-indexed). Convert BMP→PNG (PIL).
-- Retail goldens: `runs/title-idle/frames/frame_*.png` etc. (also Flip-indexed,
-  captured by the Frida harness — see `docs/parity-harness.md`).
-- Diff: `tools/push_comparison.py --port P.png --retail R.png --out A.png`.
-- NB the port and retail **Flip indices differ by a constant render-rate
-  factor** (~2.2×), NOT a timeline rush — see R3 below (ckpt 29): the port's
-  *wall-clock* pacing matches retail (~9.2 s to the menu), but retail renders
-  ~127 flips/s (each scene state duplicated ~2.2×) while the port renders one
-  flip per scene state. So compare a port Flip against the retail Flip showing
-  the *same scene state* (phase/fade/menu_fade), not the same index. Record both.
-
-> **The bar is `differ_px == 0`.** A frame is only "confirmed 1:1" when the
-> amplified diff is empty. Any residual — however small — is an OPEN item below
-> with concrete hypotheses, never hand-waved as "close enough" ([[feedback_bit_exact]]).
-
-## Confirmed bit-exact (differ_px == 0)
+## Confirmed bit-exact (differ_px == 0) — historical (the removed front end)
 
 | # | scene / frame | port cap | retail golden | verified |
 |---|---------------|----------|---------------|----------|

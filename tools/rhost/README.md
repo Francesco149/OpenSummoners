@@ -198,6 +198,4 @@ for wide parallel sweeps.
 
 ## Not yet
 
-port-side DIK input path + determinism knobs (port↔retail by frame number), the in-game cadence
-check (port pins 33 ms/sim tick, rhost runs 16 ms/flip), JP-SE profile, D3D-free `.osr` capture
-from rhost (load `capture_proxy` in-process), joystick recording, EN-old game data on maximus for wine.
+JP-SE profile, joystick recording, EN-old game data on maximus for wine.
