@@ -214,6 +214,11 @@ void rh_shadow_abort(const char *what) { if (!g_abort_what) g_abort_what = what;
 int rh_shadow_ex(const char *name, void (*retail)(void *), void (*port)(void *), void *ctx, char *why, size_t whyn)
 {
     static uint32_t r[MAXR][2], r2[MAXR][2];
+    if (g_frame < O.shadow_from) {      /* --shadow-from: retail alone, not compared (and not counted skipped) */
+        retail(ctx);
+        snprintf(why, whyn, "%s: before --shadow-from", name);
+        return -2;
+    }
     int n = state_ranges(r);
     size_t tot = 0;
     for (int i = 0; i < n; i++) tot += r[i][1] - r[i][0];

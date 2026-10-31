@@ -15,6 +15,8 @@ python3 tools/rhost/rhost.py run rh-intro-errands --shot-every 150      # replay
 python3 tools/rhost/rhost.py det rh-intro-errands -n 3                  # determinism gate
 python3 tools/rhost/rhost.py corpus                                     # every rh-* scenario
 python3 tools/rhost/rhost.py verify                                     # every scenario × every shadow hook
+python3 tools/rhost/rhost.py verify --only X --frames 102665 --shadow-from 102600 --split 8 --hooks A@1,B@1,...
+#   shadows compare only from that flip on (retail alone before, ~full speed): a late divergence in a long trace
 python3 tools/rhost/rhost.py coverage                                   # first-hit coverage of all IDA functions
 python3 tools/rhost/rhost.py coverage --hybrid                          # ... with every port REPLACING retail: the retail
 #   code that still runs (retail_still_run.tsv: unreplaced / replaced-but-reached-indirectly) = the drop-in's gap

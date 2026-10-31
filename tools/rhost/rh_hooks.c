@@ -602,6 +602,7 @@ static int sample(hook_t *h)
 {
     h->calls++;
     if (rh_in_shadow()) return 0;      /* reached from inside a full-state shadow: pass through */
+    if (g_frame < O.shadow_from) return 0;
     return h->every <= 1 || h->calls % h->every == 0;
 }
 
@@ -911,7 +912,7 @@ static int __attribute__((thiscall)) w_char_ai(void *self, int32_t a2, int32_t a
             if (m->ring[i]->id) pn += snprintf(pre + pn, sizeof pre - pn, " [%d]%d@%u/%d", i, m->ring[i]->id, m->ring[i]->ts, m->ring[i]->flag);
     }
     int d = rh_shadow_ex("char_ai", ai_retail, ai_port, &x, why, sizeof why);
-    if (d < 0) { h->skipped++; return x.r_ret; }
+    if (d < 0) { h->skipped += d == -1; return x.r_ret; }
     h->compared++;
     if (d || x.r_ret != x.r_port) {
         diverged(h, "f%u ret %d/%d %s", g_frame, x.r_ret, x.r_port, d ? why : "");
@@ -971,7 +972,7 @@ static int __attribute__((thiscall)) w_char_anim(wl_char *self, wl_body *b, int3
     uint16_t st = b->state, sub = b->sub;
     char why[512];
     int d = rh_shadow_ex("char_anim", anim_retail, anim_port, &x, why, sizeof why);
-    if (d < 0) { h->skipped++; return x.r; }
+    if (d < 0) { h->skipped += d == -1; return x.r; }
     h->compared++;
     if (d) diverged(h, "f%u char %p code %x state %u/%u probe %d gr %d: %s", g_frame, (void *)self, self->base.code, st, sub, probe, gr, why);
     return x.r;
@@ -994,7 +995,7 @@ static int __attribute__((thiscall)) w_char_int(wl_char *self, wl_cmd *cmd, wl_b
     uint16_t pose = in->pose, st = in->state; uint32_t code = (uint32_t)self->base.code;
     char why[512];
     int d = rh_shadow_ex("char_integrate", int_retail, int_port, &x, why, sizeof why);
-    if (d < 0) { h->skipped++; return x.r_ret; }
+    if (d < 0) { h->skipped += d == -1; return x.r_ret; }
     h->compared++;
     if (d || x.r_ret != x.r_port)
         diverged(h, "f%u char %p code %x pose %x state %u probe %d part %d ret %d/%d %s", g_frame, (void *)self, code,
@@ -1035,7 +1036,7 @@ static int __attribute__((thiscall)) w_npc_ai(wl_char *self, int32_t a2, int32_t
     npc_ctx x = { self, a2, a3, b, a5, a6, a7, a8, a9, a10, 0, 0 };
     char why[512];
     int d = rh_shadow_ex("npc_ai", npc_retail, npc_port, &x, why, sizeof why);
-    if (d < 0) { h->skipped++; return x.r_ret; }
+    if (d < 0) { h->skipped += d == -1; return x.r_ret; }
     h->compared++;
     if (d || x.r_ret != x.r_port)
         diverged(h, "f%u char %p code %x tx %d arrive %d gr %d calm %d mode %d ty %d norun %d jump %d state %u ret %d/%d %s", g_frame, (void *)self,
@@ -1055,7 +1056,7 @@ static void __attribute__((thiscall)) w_char_apply(wl_char *self)
     uint32_t code = (uint32_t)self->base.code; uint16_t pose = self->base.body->pose, st = self->base.body->state;
     char why[512];
     int d = rh_shadow_ex("char_apply", apply_retail, apply_port, self, why, sizeof why);
-    if (d < 0) { h->skipped++; return; }
+    if (d < 0) { h->skipped += d == -1; return; }
     h->compared++;
     if (d) diverged(h, "f%u char %p code %x pose %x state %u %s", g_frame, (void *)self, code, pose, st, why);
 }
@@ -1073,7 +1074,7 @@ static int __attribute__((thiscall)) w_world_tick(void *ctl, int32_t cut)
     tick_ctx x = { ctl, cut, 0 };
     char why[512];
     int d = rh_shadow_ex("world_tick", tick_retail, tick_port, &x, why, sizeof why);
-    if (d < 0) { h->skipped++; return x.r; }
+    if (d < 0) { h->skipped += d == -1; return x.r; }
     h->compared++;
     if (d) diverged(h, "f%u cut %d %s", g_frame, cut, why);
     return x.r;
@@ -1085,7 +1086,7 @@ static int full_shadow(hook_t *h, const char *name, void (*r)(void *), void (*p)
 {
     char why[512];
     int d = rh_shadow_ex(name, r, p, ctx, why, sizeof why);
-    if (d < 0) { h->skipped++; return -1; }   /* not compared: the caller must not compare returns */
+    if (d < 0) { h->skipped += d == -1; return -1; }   /* not compared: the caller must not compare returns */
     h->compared++;
     if (d) diverged(h, "f%u %s %s", g_frame, what, why);
     return d;
@@ -1097,7 +1098,7 @@ static int sample_rare(hook_t *h, int rare)
 {
     if (!rare) return sample(h);
     h->calls++;
-    return !rh_in_shadow();
+    return !rh_in_shadow() && g_frame >= O.shadow_from;
 }
 static int fx_busy(const wl_entity *e)
 {
@@ -4042,7 +4043,7 @@ static void sx_tail(hook_t *h, sx_ctx *x, void (*r)(void *), void (*p)(void *), 
     int bad = x->m != NULL && memcmp(x->ret, x->m, sizeof x->ret) != 0;
     for (int i = 0; i < nout; i++) if (x->out_r[i] != x->out_p[i]) bad = 1;
     if (d < 0) {   /* not compared (retail's result kept): M back to retail's */
-        h->skipped++;
+        h->skipped += d == -1;
         if (x->m != NULL && x->ported) memcpy(x->m, x->ret, sizeof x->ret);
         return;
     }

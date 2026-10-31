@@ -1257,7 +1257,7 @@ static void usage(void)
 {
     fprintf(stderr, "usage: rhost --exe RETAIL --game DIR --run DIR [--standalone] [--live] [--frames N] [--seed S|--no-seed] [--trace F]\n"
                     "  [--record F] [--realtime] [--dump-at F[,F|end]] [--shot-at F[,F|end]] [--shot-every N]\n"
-                    "  [--hash-every N] [--log-every N] [--hook SPEC] [--coverage F] [--stall-ms N] [--tail N]\n"
+                    "  [--hash-every N] [--log-every N] [--hook SPEC] [--shadow-from F] [--coverage F] [--stall-ms N] [--tail N]\n"
                     "  [--watch VA,..] [--step-ms N] [--creep-after N] [--audible] [--show] [--no-arena] [--no-overlay]\n"
                     "  [--log-files] [--log-heap] [--log-ext] [--log-media] [--log-input]\n");
     ExitProcess(2);
@@ -1306,6 +1306,7 @@ static void parse(int argc, char **argv)
         else if (!strcmp(a, "--hook")) O.hooks = ARG();   /* "@path": the spec from a file (read in rh_hooks_install) */
         else if (!strcmp(a, "--coverage")) O.coverage = ARG();
         else if (!strcmp(a, "--stall-ms")) O.stall_ms = strtoul(ARG(), 0, 0);
+        else if (!strcmp(a, "--shadow-from")) O.shadow_from = strtoul(ARG(), 0, 0);
         else if (!strcmp(a, "--step-ms")) O.step_ms = strtoul(ARG(), 0, 0);
         else if (!strcmp(a, "--creep-after")) O.creep_after = strtoul(ARG(), 0, 0);
         else if (!strcmp(a, "--stall-wall")) O.stall_wall_ms = strtoul(ARG(), 0, 0);

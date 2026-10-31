@@ -246,7 +246,7 @@ def rhost_args(a, run_win, trace_win, edition):
         args += ["--trace", trace_win]
     for k, flag in (("frames", "--frames"), ("seed", "--seed"), ("hook", "--hook"), ("dump_at", "--dump-at"),
                     ("hash_every", "--hash-every"), ("vmmap_at", "--vmmap-at"), ("shot_at", "--shot-at"), ("shot_every", "--shot-every"),
-                    ("log_every", "--log-every"), ("stall_ms", "--stall-ms")):
+                    ("log_every", "--log-every"), ("stall_ms", "--stall-ms"), ("shadow_from", "--shadow-from")):
         v = getattr(a, k, None)
         if v is not None and v != "":
             args += [flag, str(v)]
@@ -1094,6 +1094,7 @@ def main():
         p.add_argument("--hash-every", type=int)
         p.add_argument("--log-every", type=int)
         p.add_argument("--stall-ms", type=int)
+        p.add_argument("--shadow-from", type=int, help="shadow hooks compare only from this flip on (retail elsewhere)")
         p.add_argument("--fb-hash", action="store_true", help="chain a hash of every Flip's back buffer (RESULT fb=; the render gate)")
         p.add_argument("--standalone", action="store_true",
                        help="NO retail code: data sections only, every port + the port CRT (the built-in hook set)")

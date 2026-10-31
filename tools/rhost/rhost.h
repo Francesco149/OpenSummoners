@@ -68,6 +68,7 @@ typedef struct {
     const char *coverage;
     uint32_t stall_ms;
     const char *hooks;          /* hook spec, see rh_hooks.c */
+    uint32_t shadow_from;       /* --shadow-from F: shadows compare only from flip F on (a late window of a long trace) */
     uint32_t watch[16]; int n_watch;   /* dwords appended to each status line */
     uint32_t step_ms;           /* virtual ms per flip (16 = the engines' 0x10 update slice) */
     uint32_t creep_after;       /* GetTickCount calls without a flip before the clock creeps */
