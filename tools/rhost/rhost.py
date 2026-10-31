@@ -189,13 +189,16 @@ def save_slots(udir):
 
 def final_save(scen, target):
     """the user\\ dir a PURE replay of SCEN leaves behind (its saves + config.dat) → (dir, digest).
-    Deterministic: a function of (trace, start save, edition, target); retail writes the saves itself, so no save
-    file is ever committed — a chain is re-derivable from the corpus alone.  Cached in tests/scenarios/SCEN/_saves/
-    (gitignored), keyed on those inputs; `rhost.py final-save SCEN --refresh` re-derives."""
+    Deterministic: a function of (trace, start save, edition, target) and of what rhost makes retail do (SAVE_EPOCH);
+    retail writes the saves itself, so no save file is ever committed — a chain is re-derivable from the corpus alone.
+    Cached in tests/scenarios/SCEN/_saves/ (gitignored), keyed on those inputs; `rhost.py final-save SCEN --refresh`
+    re-derives."""
     import hashlib
     tr, save, ed = scenario_inputs(scen, argparse.Namespace(target=target))
     k = hashlib.sha256(open(tr, "rb").read())
     k.update(f"|{ed or 'enold'}|{target}|".encode())
+    if SAVE_EPOCH > 1:
+        k.update(f"e{SAVE_EPOCH}|".encode())
     if save:
         k.update((save_digest(save) if os.path.isdir(save) else hashlib.sha256(open(save, "rb").read()).hexdigest()).encode())
     cache = os.path.join(SCEN, scen, "_saves", f"final-{target}-{k.hexdigest()[:12]}")
@@ -226,6 +229,9 @@ def final_save(scen, target):
 
 
 FINAL_SAVE_REFRESH = False
+# bump when an rhost change alters what a PURE replay does (an uninit-fix site, the clock / input stand-ins): every
+# chain's cached final save re-derives.
+SAVE_EPOCH = 1
 
 
 def stage_save(save, rdir):
