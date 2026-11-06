@@ -229,3 +229,12 @@ runs the port with NO retail code (data sections only); `rhost.exe --standalone`
 - **Orchestration / when to spawn subagents:** `docs/AGENT-WORKFLOW.md`.
 - **External RE cross-reference + community proofs:** `docs/ods-crossref.md`,
   `docs/proofs/`. **Strategic frame:** `docs/PLAN.md`.
+
+## Storage on maximus (2026-11-06)
+
+- **On cold, not local:** `/mnt/ephemeral/opensummoners/rhost-runs/` and `wine/root/runs/` (~140 GB of run
+  output: verify / corpus / portshots batches). The rest of `/mnt/ephemeral/opensummoners/` (game, editions,
+  decompiled-ida, wine prefixes, `wine/root/{bin,sa-live}`) stays local. The August scratch tree
+  `/mnt/ephemeral/OpenSummoners/` (capital O/S: staged ports, traces, montages) is parked whole.
+- **Park run output aggressively:** once a batch is no longer needed day to day (the work it was evidence for is committed), `offload park --fast <batch dirs>` — the copy in and out of cold is cheap (~100–250 MB/s), local disk is not.
+- Before recreating any of it (re-running a batch, re-extracting, re-exporting, re-downloading), check cold: the stub `OFFLOADED.md` at the old path, `offload where <path>`, `offload list`; `offload fetch <path>` brings back the whole thing or any sub-path (the cold copy stays, so re-parking is cheap). `/mnt/ephemeral` is now a symlink to `~/data` on maximus rootfs (the btrfs array is retired); cold mirrors it 1:1 at `cold:/gigavault/staging/maximus-ephemeral/<same path>`. Policy: maximus `/opt/src/maximus/AGENTS.md` "Disk space".
