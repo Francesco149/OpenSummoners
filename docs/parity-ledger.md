@@ -58,6 +58,24 @@ were removed 2026-10-31 (last commit with them `57b8ccb`); the retail facts they
 
 _(R1 moved to Confirmed bit-exact above.)_
 
+### R10 — rh-se-newgame wine `sem@f600` ≠ expected.wine.json (OPEN, found 2026-11-13)
+- `corpus --check --target wine` (pure): `sem@f600 c785f51baaaa4e89→9ff53ead48b409a2` (5/6 sampled frames), end
+  state_sem equal; reproduces run to run.  SE edition ⇒ `volatile.ense-en.txt` (untouched by the 2026-11-13
+  calibration) — pre-existing, cause not yet named.  Next: `--dump-at 600` vs a fresh bless-era run → `rhost.py diff`.
+
+### title-options-bonus hybrid FAIL state_sem — RESOLVED: uncalibrated retail nondeterminism, not a port divergence (2026-11-13)
+- Symptom: `--check --hybrid` FAIL state_sem only (frame / tick / RNG / fb equal).  Pillar 5-adjacent (system data, not logic):
+  pure retail alone, `det title-options-bonus -n 3`: 3 distinct state_sem, 0 non-pointer dwords, 43 `ext-ptr(both)`
+  slots = the same 43 as the pure-vs-hybrid end diff.  `--watch-write`: final writers = ddraw.dll (EIP 0x6d65…/0x6d67…)
+  via retail's surface Lock wrapper 0x5b9490 (`Lock(NULL, &[this+0x30], 1, 0)`, vtable +0x64): the fields are
+  retail surface wrappers' `+0x2c` (IDirectDrawSurface7*) / `+0x54` (DDSURFACEDESC2.lpSurface) — stride 0xe0.
+- Fix: `det --calibrate` (36,338 → 36,381 addresses) + re-bless (state_sem only; frame / tick / RNG / fb unchanged
+  on every scenario), as ee1393a.
+- **Follow-up (not done):** mask the surface-wrapper fields `+0x2c` / `+0x54` BY FIELD in `rh_state.c`
+  (`stackref_slots`-style: live wrappers only, while the value is an external pointer) — shrinks `volatile.enold.txt`
+  (an address mask also hides any other object landing there) and is the likely path to headless state_sem ≡ real
+  (`docs/findings/headless-devices.md` "Open").
+
 ### R9 — rh-after-prologue hybrid ≠ pure from f102660: retail's skill AI reads stack leftovers (KNOWN GAP, USER 2026-10-31)
 - Pillar: logic/data, but the data is undefined — `0x481ac0`'s dry-run body keeps a leftover stack byte as f68
   (quirk #182); the port zeroes its frame.  Retail: probe hit at dry-run tick 30 → `act` 15, state 0; port: stage 2,
