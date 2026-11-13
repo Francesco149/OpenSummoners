@@ -32,6 +32,12 @@ understates how much actual instruction volume is ported.
 
 ## Current front
 
+- **2026-11-13 — ★ agent-driven play (`rd`): the campaign front.** Headless devices + flip coroutine + savestates +
+  command server + `rd` landed (`tools/drive/README.md`; evidence `docs/findings/headless-devices.md`). Drivers (subagents /
+  `agent.sh`) author verified traces; `rd accept` files each and gates retail-bless → hybrid → standalone. Campaign:
+  continue the story past the owner's last save (`tasks/story-after-water-shrine.md`), every title / option / bonus screen
+  (`tasks/title-options-bonus.md`), then `docs/game/exercise-checklist.md` + `rhost.py coverage` gaps. Open: headless
+  `state_sem` ≠ real (device pointers; frame / RNG / pixels equal), bunker host, session speed.
 - **2026-10-14 — rhost is THE porting loop; the MOVEMENT stack is ported and verified inside retail.**
   USER decisions (audit §7): deterministic cadence = rhost 1 update/flip; EN-old first (SE = a later
   delta layer); Frida retail drive RETIRED.  **2026-10-31 (USER): the whole pre-rhost loop REMOVED** — the

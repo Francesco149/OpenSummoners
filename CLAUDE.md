@@ -54,6 +54,12 @@ runs the port with NO retail code (data sections only); `rhost.exe --standalone`
   2026-10-16): before, ~19.7k lines showed callers of now-thiscall methods WITHOUT their `this`, and decomp2c's
   "caller's this" guess was wrong in places (e.g. `beh_47adb0(c, …)` vs retail's `ecx = v43`). Re-export with
   `ida.py export --kb --fresh` after touching the exporter.
+- **Agent-driven play (`rd`, 2026-11-13 — openrecet's method; `tools/drive/README.md`, card `DRIVER.md`):** rhost
+  `--headless` (fake DirectDraw / DirectShow: no display, real pixels), the flip coroutine, in-process savestates,
+  `--serve` command server; `./rd new R --from fresh|SCEN@F|end:SCEN|save:DIGEST [--standalone]` → play / tap / search
+  (savestate exploration) / look (PNG from memory) / verify / accept (file → bless → hybrid → standalone). Drivers: Claude
+  Code subagents on the session model, or `tools/drive/agent.sh` when `agent.sh check` says there is API credit. Game
+  knowledge for drivers: `docs/game/`. Evidence: `docs/findings/headless-devices.md`.
 - **Probes:** `--watch-write VA@FRAME` (who writes an address), `--trap VA` (registers; `--trap-mem
   REG±OFF:LEN` dumps memory at each hit), `--shadow-from F` (shadows only from flip F), `coverage` (first-hit
   over all IDA functions; `--hybrid`: what retail code still runs), `--dump-at` + `rhs.py` (state diffs),

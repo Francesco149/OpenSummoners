@@ -6,6 +6,16 @@ specific commits where relevant.
 
 ---
 
+## 2026-11-13 — agent-driven play: headless devices, savestates, `rd` (openrecet's method on SotES)
+
+- `rhost --dev-census` measured the device surface on the real device: DirectDraw = sysmem 565 blitter (Blt WAIT/KEYSRC,
+  Lock, GetDC default-state DCs, SetClipList), DirectShow BGM, GDI present + TextOutA. `rh_dev.c` fakes exactly that
+  (`--headless`): Windows corpus frame / tick / RNG / every frame's pixels equal to the real device 13/15 (2 fixed after:
+  heap-DC cache, SE 24-bpp); wine with no X 530–610 fps.
+- Flip coroutine (host off the game stack; real-device corpus PASS 15/15), `rh_snap.c` savestates (snap-test PASS),
+  `rh_serve.c` command server, `tools/drive` (`rd`, card, agent harness + credit check), `docs/game/` (route + mechanics
+  from guides). Sessions on wine and natively on Windows; standalone runs drivable too. `docs/findings/headless-devices.md`.
+
 ## 2026-10-31 (night) — the CRT heap ported: MSVC 6's small-block heap over retail's globals
 
 - `src/msvc_crt.c`: `_heap_init` 0x5c6394, `__sbh_heap_init` / find / free / alloc / new_region / new_group /
