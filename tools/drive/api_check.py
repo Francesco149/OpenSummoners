@@ -5,6 +5,9 @@
 
     tools/drive/agent.sh check [--max-age 900] [--json]
 
+The API key is shared with other projects, so no local ledger can know the balance: the probe decides, and a driver
+that drains the credit mid-run exits 4 at once (agent.py) — the orchestrator then hands its task to a subagent.
+
 Exit 0 = credit available, 4 = no credit (billing 400 "credit balance is too low"), 5 = no key, 3 = other error.
 The verdict is cached in /mnt/ephemeral/opensummoners/drive/api_status.json for --max-age seconds (default 15 min):
 asking costs ~$0.00001 a time, but campaigns ask often."""
