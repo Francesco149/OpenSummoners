@@ -501,8 +501,8 @@ class Movie:
     """every key level since boot: ops (frame, "m", mask) = from frame on, exactly mask's keys are held; + the start save
     (a user\\ dir: the game's statue saves + config.dat), + the edition"""
 
-    def __init__(self, save=None, ops=None, frame=0, edition="enold"):
-        self.save, self.ops, self.frame, self.edition = save, ops or [], frame, edition
+    def __init__(self, save=None, ops=None, frame=0, edition="enold", standalone=False):
+        self.save, self.ops, self.frame, self.edition, self.standalone = save, ops or [], frame, edition, standalone
 
     @staticmethod
     def from_server(text, save, edition="enold"):
@@ -511,7 +511,7 @@ class Movie:
         for o in filter(None, kv.get("ops", "").split(",")):
             f, v = o[1:].split(":")
             ops.append((int(f), "m", int(v, 16)))
-        return Movie(save, ops, int(kv["frame"]), edition)
+        return Movie(save, ops, int(kv["frame"]), edition)   # (the caller restores .standalone)
 
     @staticmethod
     def load(path):
@@ -526,6 +526,7 @@ class Movie:
                 mv.save = None if d["savefile"] == "@fresh" else os.path.normpath(os.path.join(os.path.dirname(path), d["savefile"]))
             elif "meta" in d:
                 mv.edition = d["meta"].get("edition", mv.edition)
+                mv.standalone = bool(d["meta"].get("standalone", False))
             elif "frame" in d and "keys" in d:
                 m = keys_mask(d["keys"])
                 if not mv.ops or mv.ops[-1][2] != m:
@@ -540,7 +541,7 @@ class Movie:
         """an rhost trace: replays to exactly self.frame (`--frames`); {"end": F} marks the movie's length"""
         with open(path + ".tmp", "w") as f:
             f.write(f"# rhost trace (rd movie{': ' + comment if comment else ''}): DIK levels per flip-frame, from boot\n")
-            f.write(json.dumps({"meta": {"edition": self.edition, "rd": True}}) + "\n")
+            f.write(json.dumps({"meta": dict({"edition": self.edition, "rd": True}, **({"standalone": True} if self.standalone else {}))}) + "\n")
             if self.save:
                 f.write(json.dumps({"savefile": os.path.relpath(self.save, rel_to or os.path.dirname(path))}) + "\n")
             for fr, k, v in self.ops:
@@ -552,7 +553,7 @@ class Movie:
         os.replace(path + ".tmp", path)
 
     def truncated(self, frame):
-        return Movie(self.save, [o for o in self.ops if o[0] <= frame], min(frame, self.frame), self.edition)
+        return Movie(self.save, [o for o in self.ops if o[0] <= frame], min(frame, self.frame), self.edition, self.standalone)
 
     def mask_at(self, frame):
         m = 0
@@ -855,6 +856,7 @@ def spawn_live(tag, movie, upto=None, idle=1800, wait=300, host=None, src_trace=
                 wait = max(0, wait - ADMIT_WAIT[h])
         host = "wine"
     host = host or pick_host()
+    standalone = standalone or getattr(movie, "standalone", False)
     name = f"{tag}-{os.getpid()}-{int(time.time() * 1000) % 10 ** 9}"
     if host in ("win", "bunker"):
         ld = os.path.join(RUNS, ".winstage", name)
@@ -1066,7 +1068,9 @@ class Run:
     def sync_movie(self):
         """the server's movie is the truth after any step / restore"""
         r = self.live.cmd("movie")
-        self.movie = Movie.from_server(r, self.movie.save)
+        sa, ed = self.movie.standalone, self.movie.edition
+        self.movie = Movie.from_server(r, self.movie.save, ed)
+        self.movie.standalone = sa
         self.movie.write(self.movie_p, comment=self.name, rel_to=self.dir)
         if "poked=1" in r:
             self.meta["poked"] = True
@@ -1432,13 +1436,16 @@ def cmd_new(a):
         r = Run(a.run); r.stop(); r.close()
         shutil.rmtree(rd)
     mv, trace, limit = resolve_start(a.src)
+    mv.standalone = bool(getattr(a, "standalone", False))
+    if mv.standalone:
+        print("[standalone: the port alone, no retail code — every session of this run]")
     r = Run(a.run, create=True)
     r.meta.update(created=time.strftime("%Y-%m-%d %H:%M:%S"), start=a.src)
     r.movie = mv
     if trace:
         # an existing scenario (any trace dialect): replay it in a live session; its resolved inputs become our movie
         t0 = time.time()
-        h = spawn_live(a.run + "-new", mv, src_trace=trace, limit=limit)
+        h = spawn_live(a.run + "-new", mv, src_trace=trace, limit=limit, standalone=mv.standalone)
         try:
             r.live = Live(h["port"])
             k = Live.kv(r.live.cmd("ping"))
@@ -2087,7 +2094,7 @@ def cmd_verify(a):
     # a session at frame F has completed F flips; `--frames N` stops at flip #N (N + 1 flips): N = F - 1
     stop = max(0, r.movie.frame - 1)
     b = RH.replay_args(frames=stop, target="wine" if host == "wine" else "win", headless=True, fb_hash=True,
-                       edition=r.movie.edition)
+                       edition=r.movie.edition, standalone=r.movie.standalone)
     if host == "bunker":
         b.target = "bunker"
     _, bd, res, out = RH.run_batch(b, [("verify", tr, r.movie.save, r.movie.edition)], "rd-verify")
@@ -2312,7 +2319,7 @@ def cmd_ls(a):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sp = ap.add_subparsers(dest="cmd", required=True)
-    p = sp.add_parser("new"); p.add_argument("run"); p.add_argument("--from", dest="src", required=True); p.add_argument("--force", action="store_true"); p.set_defaults(fn=cmd_new)
+    p = sp.add_parser("new"); p.add_argument("run"); p.add_argument("--from", dest="src", required=True); p.add_argument("--force", action="store_true"); p.add_argument("--standalone", action="store_true", help="the port alone (no retail code) in every session of this run"); p.set_defaults(fn=cmd_new)
     p = sp.add_parser("play"); p.add_argument("run"); p.add_argument("spec"); p.add_argument("--until"); p.add_argument("--avoid")
     p.add_argument("--watch", help="EXPR,EXPR..: print these per sampled tick"); p.add_argument("--every", type=int, default=0)
     p.add_argument("--rows", type=int, default=40, help="watch rows shown (the last N)"); p.set_defaults(fn=cmd_play)
