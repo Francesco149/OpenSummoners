@@ -2534,6 +2534,13 @@ def gates(name, verbose=True):
     code) against it → [(gate, ok, line)]"""
     py = [sys.executable, os.path.join(RH.HERE, "rhost.py")]
     out = []
+    # first the scenario's retail nondeterminism (DirectDraw / system pointers in retail memory): `det --calibrate`
+    # learns its volatile slots (title-options-bonus 2026-11-13 was blessed without this: pure runs differed)
+    p = subprocess.run(py + ["det", name, "-n", "3", "--calibrate"], capture_output=True, text=True)
+    tail = [l for l in (p.stdout + p.stderr).splitlines() if l.strip()][-3:]
+    out.append(("calibrate", p.returncode == 0, " | ".join(tail)))
+    if verbose:
+        print(f"calibrate: {'ok' if p.returncode == 0 else 'FAIL'}  {tail[-1] if tail else ''}")
     for gate, extra in (("bless", ["--bless"]), ("hybrid", ["--check", "--hybrid"]), ("standalone", ["--check", "--standalone"])):
         p = subprocess.run(py + ["corpus", "--only", f"^{re.escape(name)}$"] + extra, capture_output=True, text=True)
         tail = [l for l in (p.stdout + p.stderr).splitlines() if l.strip()][-4:]
