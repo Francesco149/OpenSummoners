@@ -91,3 +91,7 @@ const char *rh_trace_status(void)
     else snprintf(b, sizeof b, "trace_entries=%d complete=%d", g_n, g_n ? (g_frame >= rh_trace_last_frame()) : 1);
     return b;
 }
+
+/* savestates: the replay cursor moves forward only — a restore must put it back */
+void rh_trace_snapreg(void) { rh_snap_register("trace_cur", &g_cur, sizeof g_cur); }
+int rh_trace_done(uint32_t frame) { return !g_n || frame >= g_e[g_n - 1].frame; }

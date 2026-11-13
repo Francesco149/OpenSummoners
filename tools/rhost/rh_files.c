@@ -17,6 +17,7 @@ static size_t GL;
 static char g_white[64][96]; static int g_nwhite;         /* exact game-relative paths deleted */
 static const char *g_white_prefix[] = { "user\\", "temp\\", "user", "temp" };
 static long g_nopen;
+static uint32_t g_fgen;                                  /* bumped by every write into the run dir (savestates) */
 
 static int prefix_white(const char *rel)
 {
@@ -84,6 +85,7 @@ static HANDLE WINAPI my_CreateFileA(LPCSTR p, DWORD acc, DWORD share, LPSECURITY
     const char *q = resolve(p, w, keep, buf, sizeof buf);
     HANDLE h = CreateFileA(q, acc, share, sa, disp, fl, tmpl);
     g_nopen++;
+    if (w) g_fgen++;
     if (O.log_files) rh_log("file %s %s -> %s = %s (f%u)\n", w ? "W" : "R", p, q, h == INVALID_HANDLE_VALUE ? "FAIL" : "ok", g_frame);
     return h;
 }
@@ -94,6 +96,7 @@ static BOOL WINAPI my_DeleteFileA(LPCSTR p)
     char rp[MAX_PATH]; snprintf(rp, sizeof rp, "%s\\%s", R, rel);
     BOOL had = exists(rp);
     DeleteFileA(rp);
+    g_fgen++;
     if (g_nwhite < 64 && !is_white(rel)) snprintf(g_white[g_nwhite++], 96, "%s", rel);
     if (O.log_files) rh_log("delete %s (f%u)\n", p, g_frame);
     (void)had;
@@ -104,6 +107,7 @@ static BOOL WINAPI my_CopyFileA(LPCSTR src, LPCSTR dst, BOOL fail_if)
     char b1[MAX_PATH], b2[MAX_PATH];
     const char *s = resolve(src, 0, 0, b1, sizeof b1), *d = resolve(dst, 1, 0, b2, sizeof b2);
     BOOL r = CopyFileA(s, d, fail_if);
+    g_fgen++;
     if (O.log_files) rh_log("copy %s -> %s = %d (f%u)\n", src, dst, r, g_frame);
     return r;
 }
@@ -167,4 +171,72 @@ void rh_files_install(void)
     char up[MAX_PATH]; snprintf(up, sizeof up, "%s\\user", R);
     DWORD a = GetFileAttributesA(up);
     rh_log("overlay: game=%s run=%s user=%s\n", G, R, a != INVALID_FILE_ATTRIBUTES ? "run-dir" : "none (whited-out: fresh install)");
+}
+
+/* savestates: the run dir's user\ files (the saves / config retail writes) by content, captured once per write
+ * generation; the whiteouts and the temp-name sequence as host blocks */
+typedef struct fblob { uint32_t gen, ref, n, bytes; char (*name)[64]; uint32_t *len; uint8_t *data; } fblob_t;
+static fblob_t *g_fcur;
+static fblob_t *blob_capture(void)
+{
+    fblob_t *b = calloc(1, sizeof *b);
+    b->gen = g_fgen;
+    char pat[MAX_PATH]; snprintf(pat, sizeof pat, "%s\\user\\*", R);
+    WIN32_FIND_DATAA fd; HANDLE fh = FindFirstFileA(pat, &fd);
+    if (fh == INVALID_HANDLE_VALUE) return b;
+    uint32_t cap = 0;
+    do {
+        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
+        char p[MAX_PATH]; snprintf(p, sizeof p, "%s\\user\\%s", R, fd.cFileName);
+        HANDLE h = CreateFileA(p, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+        if (h == INVALID_HANDLE_VALUE) continue;
+        DWORD sz = GetFileSize(h, NULL), got = 0;
+        if (b->n % 16 == 0) { b->name = realloc(b->name, (b->n + 16) * sizeof *b->name); b->len = realloc(b->len, (b->n + 16) * 4); }
+        if (b->bytes + sz > cap) { cap = (b->bytes + sz) * 2 + 4096; b->data = realloc(b->data, cap); }
+        ReadFile(h, b->data + b->bytes, sz, &got, NULL); CloseHandle(h);
+        snprintf(b->name[b->n], 64, "%s", fd.cFileName); b->len[b->n] = got; b->bytes += got; b->n++;
+    } while (FindNextFileA(fh, &fd));
+    FindClose(fh);
+    return b;
+}
+static void blob_unref(fblob_t *b) { if (b && --b->ref == 0) { free(b->name); free(b->len); free(b->data); free(b); } }
+static void *fs_save(void)
+{
+    if (!g_fcur || g_fcur->gen != g_fgen) { blob_unref(g_fcur); g_fcur = blob_capture(); g_fcur->ref = 1; }
+    g_fcur->ref++;
+    return g_fcur;
+}
+static void fs_restore(const void *p)
+{
+    fblob_t *b = (fblob_t *)p;
+    if (g_fcur == b && b->gen == g_fgen) return;
+    char pat[MAX_PATH]; snprintf(pat, sizeof pat, "%s\\user\\*", R);
+    WIN32_FIND_DATAA fd; HANDLE fh = FindFirstFileA(pat, &fd);
+    if (fh != INVALID_HANDLE_VALUE) {
+        do {
+            if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
+            char p2[MAX_PATH]; snprintf(p2, sizeof p2, "%s\\user\\%s", R, fd.cFileName);
+            DeleteFileA(p2);
+        } while (FindNextFileA(fh, &fd));
+        FindClose(fh);
+    }
+    uint32_t o = 0;
+    for (uint32_t i = 0; i < b->n; o += b->len[i], i++) {
+        char p2[MAX_PATH]; snprintf(p2, sizeof p2, "%s\\user\\%s", R, b->name[i]);
+        mkparents(p2);
+        HANDLE h = CreateFileA(p2, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+        DWORD put = 0;
+        if (h == INVALID_HANDLE_VALUE || !WriteFile(h, b->data + o, b->len[i], &put, NULL) || put != b->len[i])
+            rh_log("rh_files: could not put %s back for a savestate (err %lu)\n", b->name[i], GetLastError());
+        if (h != INVALID_HANDLE_VALUE) CloseHandle(h);
+    }
+    blob_unref(g_fcur); g_fcur = b; b->ref++;
+    b->gen = ++g_fgen;              /* the files ARE b now; g_fgen stays monotonic across branches */
+}
+static void fs_free(void *p) { blob_unref(p); }
+void rh_files_snapreg(void)
+{
+    rh_snap_module("files", fs_save, fs_restore, fs_free);
+    rh_snap_register("white", g_white, sizeof g_white); rh_snap_register("nwhite", &g_nwhite, sizeof g_nwhite);
+    rh_snap_register("tmpseq", &g_tmpseq, sizeof g_tmpseq); rh_snap_register("nopen", &g_nopen, sizeof g_nopen);
 }

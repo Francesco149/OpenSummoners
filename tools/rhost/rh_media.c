@@ -48,6 +48,7 @@ static void *pool_alloc(uint32_t n)
         if (g_pool_top + (1u << c) > POOL_LO + POOL_SZ) rh_fatal("rh_media: sound pool exhausted");
         p = g_pool_top; g_pool_top += 1u << c;
         if (!VirtualAlloc((void *)(uintptr_t)p, 1u << c, MEM_COMMIT, PAGE_READWRITE)) rh_fatal("rh_media: commit failed");
+        rh_snap_committed(p, p + (1u << c));
     }
     *(uint32_t *)(uintptr_t)p = (uint32_t)c;
     memset((void *)(uintptr_t)(p + 16), 0, n);
@@ -313,7 +314,12 @@ static HRESULT WINAPI p_RenderFile(void *gb, LPCWSTR file, LPCWSTR list)
         if (ms) { r_GetDuration(ms, &d); (*(rel_t *)((*(void ***)ms) + 2))(ms); }
         rh_log("bgm #%d %s = %08lx duration %lld\n", nrender, q, (unsigned long)r, (long long)d);
     }
-    if (O.log_media) rh_log("bgm %p RenderFile %s -> %s = %08lx (f%u)\n", v->id, a, q, (unsigned long)r, g_frame);
+    if (O.log_media || O.dev_census) {
+        void *ms = NULL; LONGLONG d = -1;
+        (*(qi_t *)(*(void ***)gb))(gb, &kIID_IMediaSeeking, &ms);
+        if (ms) { r_GetDuration(ms, &d); (*(rel_t *)((*(void ***)ms) + 2))(ms); }
+        rh_log("bgm %p RenderFile %s -> %s = %08lx duration %lld (f%u)\n", v->id, a, q, (unsigned long)r, (long long)d, g_frame);
+    }
     return r;
 }
 
@@ -381,4 +387,13 @@ void rh_media_report(void)
     rh_dinput_report();
     rh_log("media: ds_buffers=%ld ds_plays=%ld bgm_runs=%ld bgm_seeks=%ld bgm_pos_reads=%ld pool=+%uK\n",
            g_ds_buffers, g_ds_plays, g_bgm_runs, g_bgm_seeks, g_bgm_reads, g_pool_top ? (g_pool_top - POOL_LO) >> 10 : 0);
+}
+
+/* savestates: the pool's committed span is tracked memory; its allocator + the fake's counters are host blocks */
+int rh_media_range(uint32_t *lo, uint32_t *hi) { if (!g_pool_top || g_pool_top == POOL_LO) return 0; *lo = POOL_LO; *hi = (g_pool_top + 0xfffu) & ~0xfffu; return 1; }
+void rh_media_snapreg(void)
+{
+    rh_snap_register("pool_top", &g_pool_top, sizeof g_pool_top); rh_snap_register("pool_free", g_pool_free, sizeof g_pool_free);
+    rh_snap_register("ds_buffers", &g_ds_buffers, sizeof g_ds_buffers); rh_snap_register("ds_plays", &g_ds_plays, sizeof g_ds_plays);
+    rh_snap_register("bgm_counts", &g_bgm_runs, sizeof g_bgm_runs);
 }

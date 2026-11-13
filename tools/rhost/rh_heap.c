@@ -84,6 +84,7 @@ static void commit_to(region_t *r, uint32_t top)
     if (want > r->hi) want = r->hi;
     if (!VirtualAlloc((void *)(uintptr_t)r->committed, want - r->committed, MEM_COMMIT, PAGE_READWRITE))
         rh_fatal("rh_heap: commit %08x..%08x failed (err %lu)", r->committed, want, GetLastError());
+    rh_snap_committed(r->committed, want);
     r->committed = want;
 }
 
@@ -268,12 +269,13 @@ static LPVOID WINAPI my_VirtualAlloc(LPVOID a, SIZE_T n, DWORD type, DWORD prot)
         if (!p) return NULL;
         if (type & MEM_COMMIT) {
             if (!VirtualAlloc((void *)(uintptr_t)p, n, MEM_COMMIT, prot)) return NULL;
+            rh_snap_committed(p, p + (uint32_t)n);
             memset((void *)(uintptr_t)p, 0, n);   /* recommitted pages may hold old data on some hosts */
         }
         return (void *)(uintptr_t)p;
     }
     if (in_region(&R_VREG, addr)) {
-        if (type & MEM_COMMIT) return VirtualAlloc(a, n, MEM_COMMIT, prot);
+        if (type & MEM_COMMIT) { LPVOID r = VirtualAlloc(a, n, MEM_COMMIT, prot); if (r) rh_snap_committed(addr, addr + (uint32_t)n); return r; }
         return a;
     }
     return VirtualAlloc(a, n, type, prot);
@@ -288,6 +290,7 @@ static BOOL WINAPI my_VirtualFree(LPVOID a, SIZE_T n, DWORD type)
         BOOL ok = FALSE;
         if (s) {
             VirtualFree(a, s->sz, MEM_DECOMMIT);
+            rh_snap_decommitted(s->lo, s->lo + s->sz);
             span_free(&R_VREG, s->lo, s->sz);
             *s = g_vlive[--g_nvlive];
             ok = TRUE;
@@ -295,7 +298,9 @@ static BOOL WINAPI my_VirtualFree(LPVOID a, SIZE_T n, DWORD type)
         unlock();
         return ok;
     }
-    return VirtualFree(a, n, MEM_DECOMMIT);
+    BOOL r = VirtualFree(a, n, MEM_DECOMMIT);
+    rh_snap_decommitted(addr, addr + (uint32_t)n);
+    return r;
 }
 
 static int reserve(region_t *r)

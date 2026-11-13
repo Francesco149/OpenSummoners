@@ -67,6 +67,12 @@ typedef struct {
     int silent;                 /* force audible off (also in --record) */
     int no_arena, no_overlay, no_uninit_fix, perturb_dlls;
     int log_files, log_heap, log_ext, log_media, log_input;
+    int headless;               /* --headless: fake DirectDraw / DirectShow (rh_dev.c), message-only window, pinned window metrics */
+    const char *snap_test;      /* --snap-test A:B[:K]: savestate self-test (rh_snap.c) */
+    int serve_idle;             /* --serve-idle S: a session nobody talks to for S seconds ends (default 1800) */
+    uint32_t serve_until;       /* --serve-until F: replay the trace to frame F only, then serve */
+    int serve, serve_port;      /* --serve PORT: the command server (rh_serve.c; implies --headless; 0 = any free port → <run>\\serve.port) */
+    int dev_census;             /* --dev-census: count every external call (IAT import / COM slot), logged at exit */
     int log_ddraw;              /* --log-ddraw (live): surfaces created / restored, failing surface calls + callers */
     const char *coverage;
     uint32_t stall_ms;
@@ -175,7 +181,10 @@ const char *rh_trace_status(void);
 
 /* rh_dinput.c — fake DirectInput7 (keyboard fed by rh_trace; no joysticks) */
 void rh_dinput_install(void);
-void rh_dinput_frame(uint32_t frame);   /* called at each flip: latch the next frame's keys */
+void rh_dinput_frame(uint32_t frame);
+void rh_dinput_set(uint32_t frame, const uint8_t next[256]);   /* latch a level directly (the serve loop) */
+int rh_serve_owns_input(void);         /* the serve loop latches input itself (after its replay) */
+int rh_trace_done(uint32_t frame);     /* the trace has no entry after frame */   /* called at each flip: latch the next frame's keys */
 
 /* rh_media.c — DirectShow BGM on a virtual clock + fake/real DirectSound */
 void rh_media_install(void);
@@ -187,6 +196,13 @@ void rh_scrub_iat(void);
 long rh_scrub_thunks(void);
 void rh_scrub_wrap_vtbl(void *obj, int nslots, const char *what);   /* COM: every slot via a scrub thunk */
 void rh_scrub_here(void);           /* zero the dead stack below the caller */
+void rh_scrub_below(uint32_t gesp); /* zero the dead retail stack below gesp (the flip coroutine's boundary) */
+int rh_scrub_depth(void);           /* external calls in progress (0 at a clean frame boundary) */
+/* the flip coroutine (rhost.c): retail runs on the game stack; at every Flip it switches to the host stack, which runs
+ * the boundary work (and, with --serve, the command loop); rh_step() runs retail to its next Flip */
+void rh_step(void);
+void rh_game_stack(uint32_t *lo, uint32_t *n);
+extern uint32_t g_gesp;
 uint64_t rh_scrub_pages(void);
 
 /* rh_shot.c */
@@ -200,3 +216,44 @@ void rh_hooks_report(void);
 typedef struct { uint32_t va; void *target; const char *name; } rh_thunk_t;
 int  rh_hooks_thunks(const rh_thunk_t **out);
 extern const char g_sa_spec[];   /* the standalone's hook set (build.sh: rhost.py's hybrid set + the CRT) */
+
+/* rh_dev.c — --headless devices.  DEV region (fake device objects + small surfaces, deterministic allocator) and the
+ * section slots (large surfaces GDI draws into: a page-file section per slot at a fixed address) */
+#define RH_DEV_LO 0xE8000000u   /* free on Windows x64 and wine wow64 (which holds 0xb0000000..0xe8000000) */
+#define RH_DEV_HI 0xF4000000u
+#define RH_DIB_LO 0xF4000000u
+#define RH_DIB_SLOT 0xA0000u
+#define RH_REF_DESK_W 1920          /* the reference machine's desktop / the quiet game window's client (Windows, census 2026-11-13) */
+#define RH_REF_DESK_H 1080
+#define RH_REF_CLIENT_W 634
+#define RH_REF_CLIENT_H 451
+void rh_dev_install(void);
+void rh_dev_report(void);
+void rh_dev_scrub(void);
+int rh_dev_range(uint32_t *lo, uint32_t *hi);
+void rh_dev_committed_hook(uint32_t lo, uint32_t hi);   /* pages that became part of the device's memory (savestates) */
+void rh_dev_gdi_wrote(uint32_t lo, uint32_t hi);        /* GDI wrote these pages behind write tracking's back */
+HWND rh_game_hwnd(void);
+void rh_scrub_wrap_vtbl(void *obj, int nslots, const char *what);
+
+/* rh_snap.c — in-process savestates (headless) */
+void rh_snap_register(const char *name, void *p, size_t n);
+void rh_snap_module(const char *name, void *(*save)(void), void (*restore)(const void *), void (*release)(void *));
+void rh_snap_touch(const void *p, size_t n);
+void rh_snap_committed(uint32_t lo, uint32_t hi);
+void rh_snap_decommitted(uint32_t lo, uint32_t hi);
+int rh_snap_anchor(void);
+int rh_snap_take(void);
+int rh_snap_restore(int id);
+void rh_snap_free(int id);
+int rh_snap_frame(int id);
+int rh_snap_anchored(void);
+uint32_t rh_snap_dirty(void);
+long rh_snap_diff(int id, uint32_t lo, uint32_t hi, void (*cb)(uint32_t va, uint32_t was, uint32_t now, void *u), void *u);
+void rh_snap_stats(char *b, size_t n);
+void rh_snap_selftest(void);
+const char *rh_snap_test_status(void);
+void rh_snap_install(void);
+uint64_t rh_state_dev_hash(void);
+uint64_t rh_fb_chain(void);
+void rh_serve_text(HDC dc, int x, int y, const char *s, int n);   /* rh_gdi.c's TextOutA: the screen text the frame drew */

@@ -57,15 +57,23 @@ static uint8_t chan(uint32_t px, DWORD mask)
     uint32_t v = (px & mask) >> sh;
     return (uint8_t)(bits >= 8 ? v >> (bits - 8) : (v << (8 - bits)) | (v >> (2 * bits - 8 > 0 ? 2 * bits - 8 : 0)));
 }
+int rh_shot_to(const char *path);
 void rh_shot(const char *tag)
+{
+    char path[MAX_PATH]; snprintf(path, sizeof path, "%s\\shot_%s.png", O.rundir, tag);
+    if (rh_shot_to(path)) rh_log("shot %s: no back buffer yet (frame %u)\n", tag, g_frame);
+    else rh_log("shot %s -> %s\n", tag, path);
+}
+/* the composition surface (zdd +0x16c → surface +0x2c) as a PNG at path: 0 = written */
+int rh_shot_to(const char *path)
 {
     uint32_t zdd = G32(g_ed->zdd);
     uint32_t bb = zdd ? G32(zdd + 0x16c) : 0;
     IDirectDrawSurface7 *s = bb ? (IDirectDrawSurface7 *)(uintptr_t)G32(bb + 0x2c) : NULL;
-    if (!s) { rh_log("shot %s: no back buffer yet (frame %u)\n", tag, g_frame); return; }
+    if (!s) return -1;
     DDSURFACEDESC2 d; memset(&d, 0, sizeof d); d.dwSize = sizeof d;
     HRESULT hr = IDirectDrawSurface7_Lock(s, NULL, &d, DDLOCK_WAIT | DDLOCK_READONLY, NULL);
-    if (hr != DD_OK) { rh_log("shot %s: Lock failed %08lx\n", tag, (unsigned long)hr); return; }
+    if (hr != DD_OK) return -1;
     int w = (int)d.dwWidth, h = (int)d.dwHeight, bpp = (int)d.ddpfPixelFormat.dwRGBBitCount;
     uint8_t *rgb = malloc((size_t)w * h * 3);
     for (int y = 0; y < h; y++) {
@@ -78,10 +86,9 @@ void rh_shot(const char *tag)
         }
     }
     IDirectDrawSurface7_Unlock(s, NULL);
-    char path[MAX_PATH]; snprintf(path, sizeof path, "%s\\shot_%s.png", O.rundir, tag);
-    write_png(path, rgb, w, h);
+    int r = write_png(path, rgb, w, h);
     free(rgb);
-    rh_log("shot %s %dx%d %dbpp -> %s\n", tag, w, h, bpp, path);
+    return r ? -1 : 0;
 }
 
 /* --fb-hash: the composed back buffer at Flip entry, hashed (pixels only: rows of the visible width, the pitch

@@ -91,8 +91,10 @@ static HFONT WINAPI g_CreateFontIndirectA(const LOGFONTA *lf) { return gfk(Creat
 static HBITMAP WINAPI g_CreateDIBitmap(HDC dc, const BITMAPINFOHEADER *h, DWORD i, const void *b, const BITMAPINFO *bi, UINT u)
 { return gfk(CreateDIBitmap(R(dc), h, i, b, bi, u), GK_DIB); }
 static HDC WINAPI g_CreateCompatibleDC(HDC dc) { return gfk(CreateCompatibleDC(R(dc)), GK_CDC); }
-static BOOL WINAPI g_DeleteDC(HDC dc) { BOOL r = DeleteDC(R(dc)); gforget(dc); return r; }
-static BOOL WINAPI g_DeleteObject(HGDIOBJ o) { BOOL r = DeleteObject(R(o)); gforget(o); return r; }
+/* --headless: a deleted object stays alive behind its freed fake (a savestate from before the delete may hand the fake
+ * back to retail; the real object must still be there).  Bounded: ~100 fonts / pens a long recording. */
+static BOOL WINAPI g_DeleteDC(HDC dc) { BOOL r = O.headless ? TRUE : DeleteDC(R(dc)); gforget(dc); return r; }
+static BOOL WINAPI g_DeleteObject(HGDIOBJ o) { BOOL r = O.headless ? TRUE : DeleteObject(R(o)); gforget(o); return r; }
 static HGDIOBJ WINAPI g_SelectObject(HDC dc, HGDIOBJ o) { return gback(SelectObject(R(dc), R(o))); }
 static UINT WINAPI g_GetSystemPaletteEntries(HDC dc, UINT s, UINT n, LPPALETTEENTRY p) { return GetSystemPaletteEntries(R(dc), s, n, p); }
 static int WINAPI g_StretchDIBits(HDC dc, int x, int y, int w, int h, int sx, int sy, int sw, int sh, const void *b, const BITMAPINFO *bi, UINT u, DWORD rop)
@@ -104,9 +106,23 @@ static int WINAPI g_GetDIBits(HDC dc, HBITMAP bm, UINT s, UINT n, LPVOID b, LPBI
 static BOOL WINAPI g_Arc(HDC dc, int a, int b, int c, int d, int e, int f, int g, int h) { return Arc(R(dc), a, b, c, d, e, f, g, h); }
 static int WINAPI g_SetBkMode(HDC dc, int m) { return SetBkMode(R(dc), m); }
 static COLORREF WINAPI g_SetTextColor(HDC dc, COLORREF c) { return SetTextColor(R(dc), c); }
-static BOOL WINAPI g_TextOutA(HDC dc, int x, int y, LPCSTR s, int n) { return TextOutA(R(dc), x, y, s, n); }
-static HDC WINAPI g_GetDC(HWND w) { return gfk(GetDC(w), GK_GETDC); }
-static int WINAPI g_ReleaseDC(HWND w, HDC dc) { int r = ReleaseDC(w, R(dc)); gforget(dc); return r; }
+static BOOL WINAPI g_TextOutA(HDC dc, int x, int y, LPCSTR s, int n) { if (O.serve) rh_serve_text(R(dc), x, y, s, n); return TextOutA(R(dc), x, y, s, n); }
+/* --headless: the game window's DC (the per-frame GDI present: BitBlt of the composition surface) is a 1x1 memory DC
+ * — the present has no screen to go to; the frame itself is read from the back buffer (rh_shot) */
+static HDC g_sink;
+static HDC WINAPI g_GetDC(HWND w)
+{
+    if (O.headless && w && w == rh_game_hwnd()) {
+        if (!g_sink) { g_sink = CreateCompatibleDC(NULL); SelectObject(g_sink, CreateCompatibleBitmap(g_sink, 1, 1)); }
+        return gfk(g_sink, GK_GETDC);
+    }
+    return gfk(GetDC(w), GK_GETDC);
+}
+static int WINAPI g_ReleaseDC(HWND w, HDC dc)
+{
+    int r = R(dc) == g_sink && g_sink ? 1 : ReleaseDC(w, R(dc));
+    gforget(dc); return r;
+}
 
 void rh_gdi_install(void)
 {
@@ -138,3 +154,24 @@ void rh_gdi_stats(char *b, int n)
              g_made[GK_BRUSH], g_made[GK_PEN], g_made[GK_FONT], g_made[GK_DIB], g_made[GK_CDC], g_made[GK_GETDC]);
 }
 void *rh_gdi_real(void *h) { return gr((HANDLE)h); }
+
+/* savestates: the numbering (slots, generations, free list) */
+typedef struct { uint32_t nslot, nfree, issued; long live; uint32_t made[GK_N]; HANDLE *real; uint8_t *gen; uint16_t *fr; } gsnap_t;
+static void *gs_save(void)
+{
+    gsnap_t *s = malloc(sizeof *s);
+    s->nslot = g_nslot; s->nfree = g_nfree; s->issued = g_issued; s->live = g_live; memcpy(s->made, g_made, sizeof g_made);
+    s->real = malloc((g_nslot ? g_nslot : 1) * sizeof *s->real); memcpy(s->real, g_real, g_nslot * sizeof *s->real);
+    s->gen = malloc(g_nslot ? g_nslot : 1); memcpy(s->gen, g_gen, g_nslot);
+    s->fr = malloc((g_nfree ? g_nfree : 1) * sizeof *s->fr); memcpy(s->fr, g_free, g_nfree * sizeof *s->fr);
+    return s;
+}
+static void gs_restore(const void *p)
+{
+    const gsnap_t *s = p;
+    for (uint32_t i = s->nslot; i < g_nslot; i++) { g_real[i] = NULL; g_gen[i] = 0; }
+    memcpy(g_real, s->real, s->nslot * sizeof *s->real); memcpy(g_gen, s->gen, s->nslot); memcpy(g_free, s->fr, s->nfree * sizeof *s->fr);
+    g_nslot = s->nslot; g_nfree = s->nfree; g_issued = s->issued; g_live = s->live; memcpy(g_made, s->made, sizeof g_made);
+}
+static void gs_free(void *p) { gsnap_t *s = p; free(s->real); free(s->gen); free(s->fr); free(s); }
+void rh_gdi_snapreg(void) { rh_snap_module("gdi", gs_save, gs_restore, gs_free); }

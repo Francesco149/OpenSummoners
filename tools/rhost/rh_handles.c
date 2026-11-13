@@ -103,3 +103,30 @@ void rh_handles_install(void)
 
 long rh_handles_live(void) { return g_live; }
 uint32_t rh_handles_issued(void) { return g_next; }
+
+/* savestates: the fake numbering + which real handle each live fake names (handles opened after the savestate are
+ * closed on restore; one closed since cannot come back: dropped, logged once) */
+typedef struct { uint32_t next; long live; uint32_t n; struct { uint32_t k; HANDLE h; } e[]; } hsnap_t;
+static void *hs_save(void)
+{
+    uint32_t n = 0;
+    for (uint32_t k = 0; k < g_next; k++) if (g_real[k]) n++;
+    hsnap_t *s = malloc(sizeof *s + n * sizeof s->e[0]);
+    s->next = g_next; s->live = g_live; s->n = 0;
+    for (uint32_t k = 0; k < g_next; k++) if (g_real[k]) { s->e[s->n].k = k; s->e[s->n].h = g_real[k]; s->n++; }
+    return s;
+}
+static void hs_restore(const void *p)
+{
+    const hsnap_t *s = p;
+    uint32_t i = 0; static int warned;
+    uint32_t top = g_next > s->next ? g_next : s->next;
+    for (uint32_t k = 0; k < top; k++) {
+        HANDLE want = (i < s->n && s->e[i].k == k) ? s->e[i++].h : NULL;
+        if (g_real[k] && g_real[k] != want) CloseHandle(g_real[k]);
+        if (want && g_real[k] != want && !warned++) rh_log("rh_handles: a handle open in the savestate was closed since (#%u) — dropped\n", k);
+        g_real[k] = (g_real[k] == want) ? want : NULL;
+    }
+    g_next = s->next; g_live = s->live;
+}
+void rh_handles_snapreg(void) { rh_snap_module("handles", hs_save, hs_restore, free); }

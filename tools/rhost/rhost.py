@@ -74,6 +74,88 @@ def scp(src, dst, recursive=False, check=True):
     return r.returncode == 0
 
 
+SSH_TRANSIENT = re.compile(r"Connection (reset|closed|refused|timed out)|kex_exchange|Broken pipe|No route to host|banner exchange", re.I)
+VOLATILE = volatile_file("enold")
+
+
+def file_sha12(*paths):
+    """content hash of the files (missing ones skipped), 12 hex"""
+    import hashlib
+    h = hashlib.sha256()
+    for p in paths:
+        if os.path.exists(p):
+            h.update(open(p, "rb").read())
+    return h.hexdigest()[:12]
+
+
+def scen_dir(name):
+    return os.path.join(SCEN, name)
+
+
+def replay_args(**kw):
+    """a Namespace run_batch accepts, every option at its default (kw overrides)"""
+    d = dict(frames=None, seed=None, hook=None, dump_at=None, vmmap_at=None, shot_at=None, shot_every=None, hash_every=None,
+             log_every=None, stall_ms=None, shadow_from=None, fb_hash=False, standalone=False, edition=None, show=False, jobs=1,
+             extra=None, target=os.environ.get("RHOST_TARGET", "win"), wine_timeout=7200, headless=False, coverage_file=None)
+    d.update(kw)
+    return argparse.Namespace(**d)
+
+
+# ---- local admission: every local rhost process (a wine batch run, an rd session) starts through admit_local, so N agents
+# with search workers cannot run maximus out of memory (openrecet 2026-11-11: the kernel killed desktop apps)
+RHOST_MAX_PROCS = int(os.environ.get("RHOST_MAX_PROCS", "10"))
+RHOST_MEM_FLOOR_GB = float(os.environ.get("RHOST_MEM_FLOOR_GB", "8"))
+
+
+def local_rhost_procs():
+    """local rhost processes of this project: wine loaders / rhost.exe whose argv names a C:\\oss-rhost path"""
+    n = 0
+    for pid in filter(str.isdigit, os.listdir("/proc")):
+        try:
+            cl = open(f"/proc/{pid}/cmdline", "rb").read().split(b"\0")
+        except OSError:
+            continue
+        if any(x.lower().endswith(b"rhost.exe") for x in cl[:2]) and any(b"oss-rhost" in x for x in cl):
+            n += 1
+    return n
+
+
+def mem_available_gb():
+    for l in open("/proc/meminfo"):
+        if l.startswith("MemAvailable:"):
+            return int(l.split()[1]) / 1048576
+    return 0.0
+
+
+class admit_local:
+    """with admit_local(wait=S, what=..): a slot for one more local rhost process (≤ RHOST_MAX_PROCS, ≥ RHOST_MEM_FLOOR_GB
+    available), under a lock so concurrent admissions count each other; SystemExit after WAIT seconds"""
+    def __init__(self, wait=300, what="rhost"):
+        self.wait, self.what = wait, what
+
+    def __enter__(self):
+        import fcntl
+        os.makedirs(LOCAL_RUNS, exist_ok=True)
+        self.lk = open(os.path.join(LOCAL_RUNS, ".admit.lock"), "w")
+        t0 = time.time()
+        while True:
+            fcntl.flock(self.lk, fcntl.LOCK_EX)
+            n, mem = local_rhost_procs(), mem_available_gb()
+            if n < RHOST_MAX_PROCS and mem >= RHOST_MEM_FLOOR_GB:
+                return self
+            fcntl.flock(self.lk, fcntl.LOCK_UN)
+            if time.time() - t0 > self.wait:
+                raise SystemExit(f"{self.what}: not admitted here ({n} rhost processes, cap {RHOST_MAX_PROCS}; {mem:.1f} GB available, "
+                                 f"floor {RHOST_MEM_FLOOR_GB}) — `./rd ls` / `./rd stop R`, or wait")
+            time.sleep(1)
+
+    def __exit__(self, *e):
+        time.sleep(0.5)                 # the process has started (counted) before the next admission looks
+        import fcntl
+        fcntl.flock(self.lk, fcntl.LOCK_UN)
+        self.lk.close()
+
+
 def win_job(job_id, ps_path_win, timeout=14400):
     """run C:\\...\\x.ps1 in the INTERACTIVE session through the oss-rhost queue runner"""
     q = WROOT + "\\queue"
@@ -258,6 +340,8 @@ def rhost_args(a, run_win, trace_win, edition):
             args += [flag, str(v)]
     if getattr(a, "fb_hash", False):
         args += ["--fb-hash"]
+    if getattr(a, "headless", False) and "--headless" not in args:
+        args += ["--headless"]
     if getattr(a, "standalone", False):
         args += ["--standalone"]
     if getattr(a, "coverage_file", None):
@@ -330,6 +414,44 @@ def make_batch(a, runs, tag):
 # speed are Windows truth (wined3d/llvmpipe).
 WINE_ROOT = os.environ.get("RHOST_WINE_ROOT", "/mnt/ephemeral/opensummoners/wine/root")
 WINE_PREFIX = os.environ.get("RHOST_WINEPREFIX", "/mnt/ephemeral/opensummoners/wine/prefix")
+# --headless runs (fake devices: no X at all) use their own prefix: its wineserver is never killed by an Xvfb batch's
+# `wineserver -k`, so rd live sessions and headless batches run side by side
+WINE_PREFIX_HL = os.environ.get("RHOST_WINEPREFIX_HL", "/mnt/ephemeral/opensummoners/wine/prefix-nox")
+
+
+def wine_prefix(headless):
+    """the prefix for a run (headless: no DISPLAY), created + linked to WINE_ROOT on first use"""
+    pfx = WINE_PREFIX_HL if headless else WINE_PREFIX
+    env = dict(os.environ, WINEPREFIX=pfx, WINEDEBUG="-all")
+    if headless:
+        env = {k: v for k, v in env.items() if k not in ("DISPLAY", "WAYLAND_DISPLAY")}
+    if not os.path.isdir(os.path.join(pfx, "drive_c")):
+        subprocess.run(["wineboot", "-i"], env=env, capture_output=True)
+    link = os.path.join(pfx, "drive_c", "oss-rhost")
+    if not os.path.islink(link):
+        os.symlink(WINE_ROOT, link)
+    return pfx
+
+
+def wine_env(headless):
+    env = dict(os.environ, WINEPREFIX=wine_prefix(headless), WINEDEBUG="-all")
+    return {k: v for k, v in env.items() if not (headless and k in ("DISPLAY", "WAYLAND_DISPLAY"))}
+
+
+def bin_dir_local():
+    """build if stale; stage rhost.exe content-addressed under WINE_ROOT/bin/<sha12>/ (a running process keeps its image)
+    → its Windows path dir"""
+    if rhost_stale():
+        cmd_build()
+    sha = file_sha12(os.path.join(BUILD, "rhost.exe"))
+    d = os.path.join(WINE_ROOT, "bin", sha)
+    if not os.path.exists(os.path.join(d, "rhost.exe")):
+        os.makedirs(d, exist_ok=True)
+        tmp = os.path.join(d, f"rhost.exe.{os.getpid()}")
+        shutil.copy2(os.path.join(BUILD, "rhost.exe"), tmp)
+        os.replace(tmp, os.path.join(d, "rhost.exe"))
+    wine_stage()
+    return f"{WROOT}\\bin\\{sha}"
 WINE_GAMES = {"enold": os.environ.get("RHOST_WINE_GAME_ENOLD", "/mnt/ephemeral/opensummoners/game/enold"),
               "ense": os.environ.get("RHOST_WINE_GAME_ENSE", "/mnt/ephemeral/opensummoners/game/ense")}
 
@@ -355,6 +477,10 @@ def wine_stage():
         os.symlink(WINE_ROOT, link)
 
 
+def headless_requested(a):
+    return bool(getattr(a, "headless", False)) or "--headless" in shlex.split(getattr(a, "extra", None) or "")
+
+
 def run_batch_wine(a, runs, tag, fetch):
     import concurrent.futures
     if rhost_stale():
@@ -366,19 +492,26 @@ def run_batch_wine(a, runs, tag, fetch):
         batch, bdir = make_batch(a, runs, tag)
     finally:
         LOCAL_RUNS = saved
+    hl = headless_requested(a)
+    xvfb = None
+    if hl:                          # the fake devices need no display: no Xvfb, the headless prefix, no wineserver -k
+        env = wine_env(True)
+    else:
+        env = None
     # ONE Xvfb per batch shared by every worker: the runs share the prefix (one wineserver), and
     # wine processes of one wineserver on different X displays die with BadWindow
     disp = 400 + os.getpid() % 500
     while os.path.exists(f"/tmp/.X{disp}-lock") or os.path.exists(f"/tmp/.X11-unix/X{disp}"):
         disp += 1   # another batch's Xvfb: two wineservers on one display die with BadWindow
-    xvfb = subprocess.Popen(["Xvfb", f":{disp}", "-screen", "0", "1280x1024x16", "-nolisten", "tcp"],
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    time.sleep(1.0)
-    env = dict(os.environ, WINEPREFIX=WINE_PREFIX, WINEDEBUG="-all", DISPLAY=f":{disp}")
-    # a wineserver still up from an earlier batch keeps its desktop on THAT batch's (gone) display: new
-    # processes on this display die with BadWindow — one batch per prefix, so it is shut down first
-    subprocess.run(["wineserver", "-k"], env=env, capture_output=True)
-    subprocess.run(["wineserver", "-w"], env=env, capture_output=True, timeout=60)
+    if not hl:
+        xvfb = subprocess.Popen(["Xvfb", f":{disp}", "-screen", "0", "1280x1024x16", "-nolisten", "tcp"],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        time.sleep(1.0)
+        env = dict(os.environ, WINEPREFIX=WINE_PREFIX, WINEDEBUG="-all", DISPLAY=f":{disp}")
+        # a wineserver still up from an earlier batch keeps its desktop on THAT batch's (gone) display: new
+        # processes on this display die with BadWindow — one batch per prefix, so it is shut down first
+        subprocess.run(["wineserver", "-k"], env=env, capture_output=True)
+        subprocess.run(["wineserver", "-w"], env=env, capture_output=True, timeout=60)
 
     def kill_run(run_path):
         # the run's own rhost.exe only: its --run dir (batch-stamped) is unique to it
@@ -401,8 +534,12 @@ def run_batch_wine(a, runs, tag, fetch):
         run_path = argv[argv.index("--run") + 1]
         note = ""
         with open(os.path.join(bdir, name, "wine.out"), "w") as wo:
-            p = subprocess.Popen(["wine", f"{WROOT}\\bin\\rhost.exe"] + argv, stdout=wo, stderr=subprocess.STDOUT,
-                                 env=env)
+            if hl:
+                with admit_local(wait=3600, what=f"wine run {name}"):
+                    p = subprocess.Popen(["wine", f"{WROOT}\\bin\\rhost.exe"] + argv, stdout=wo, stderr=subprocess.STDOUT, env=env)
+            else:
+                p = subprocess.Popen(["wine", f"{WROOT}\\bin\\rhost.exe"] + argv, stdout=wo, stderr=subprocess.STDOUT,
+                                     env=env)
             # wine sometimes hangs in the process exit after the RESULT line (2026-10-30: 61 threads parked,
             # the main thread in a wait): the run is over, so its process is killed a minute later
             t0, seen = time.time(), None
@@ -436,7 +573,8 @@ def run_batch_wine(a, runs, tag, fetch):
                 elif re.search(r"FATAL|DIVERGE|hook-result|MessageBox", line):
                     results.setdefault(name + "#notes", []).append(line.strip())
             out_lines.append(log)
-    xvfb.terminate()
+    if xvfb:
+        xvfb.terminate()
     print(f"[wine batch {batch}: {len(runs)} run(s) in {time.time() - t0:.1f}s (-j{a.jobs}) → {bdir}]")
     return batch, bdir, results, "\n".join(out_lines)
 
@@ -1050,6 +1188,7 @@ def main():
         p.add_argument("--stall-ms", type=int)
         p.add_argument("--shadow-from", type=int, help="shadow hooks compare only from this flip on (retail elsewhere)")
         p.add_argument("--fb-hash", action="store_true", help="chain a hash of every Flip's back buffer (RESULT fb=; the render gate)")
+        p.add_argument("--headless", action="store_true", help="fake DirectDraw / DirectShow (rh_dev.c): no display; wine runs need no Xvfb")
         p.add_argument("--standalone", action="store_true",
                        help="NO retail code: data sections only, every port + the port CRT (the built-in hook set)")
         p.add_argument("--edition", choices=sorted(EXES))

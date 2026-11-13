@@ -212,9 +212,12 @@ void *rh_fixed_alloc(size_t n)
     }
     uint8_t *p = g_fixed_top;
     g_fixed_top += (n + 15) & ~(size_t)15;
+    rh_snap_touch(p, n);
     if (g_fixed_top > (uint8_t *)(uintptr_t)(FIXED_LO + FIXED_SZ)) rh_fatal("fixed object page exhausted");
     return memset(p, 0, n);
 }
+
+int rh_fixed_range(uint32_t *lo, uint32_t *hi) { if (!g_fixed_top) return 0; *lo = FIXED_LO; *hi = FIXED_LO + FIXED_SZ; return 1; }
 
 /* ---- fixed-address main stack ----
  * Retail stores stack addresses in globals (CRT), and the OS places the main stack
@@ -692,15 +695,36 @@ static ATOM WINAPI my_RegisterClassExA(const WNDCLASSEXA *wc)
     g_atom[g_nclass++] = a;
     return a;
 }
+static HWND g_game_hwnd;
+HWND rh_game_hwnd(void) { return g_game_hwnd; }
+static int is_game_window(HWND hw)
+{
+    WNDPROC orig = (WNDPROC)(uintptr_t)GetClassLongPtrA(hw, GCLP_WNDPROC);
+    for (int i = 0; i < g_nclass; i++) if (orig == g_filt[i]) orig = g_wndproc_orig[i];
+    return orig && orig == g_game_proc;
+}
+/* --headless: a message-only window — no desktop, no display driver needed (wine's null driver, Windows session 0) */
 static HWND WINAPI my_CreateWindowExA(DWORD ex, LPCSTR cls, LPCSTR name, DWORD st, int x, int y, int w, int h, HWND p, HMENU m, HINSTANCE i, LPVOID lp)
 {
     if (O.quiet) { ex |= WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW; x = -8000; y = -8000; }
-    return CreateWindowExA(ex, cls, name, st, x, y, w, h, p, m, i, lp);
+    if (O.headless && !p) p = HWND_MESSAGE;
+    HWND hw = CreateWindowExA(ex, cls, name, st, x, y, w, h, p, m, i, lp);
+    if (hw && !g_game_hwnd && is_game_window(hw)) g_game_hwnd = hw;
+    return hw;
+}
+/* --headless: the window metrics retail reads are the reference machine's (Windows, quiet window): the desktop and
+ * the game window's client rect — environment values that would otherwise differ per host */
+static BOOL WINAPI hl_GetClientRect(HWND hw, RECT *r)
+{
+    if (hw && hw == GetDesktopWindow()) { SetRect(r, 0, 0, RH_REF_DESK_W, RH_REF_DESK_H); return TRUE; }
+    if (hw && (hw == g_game_hwnd || is_game_window(hw))) { SetRect(r, 0, 0, RH_REF_CLIENT_W, RH_REF_CLIENT_H); return TRUE; }
+    return GetClientRect(hw, r);
 }
 /* retail shows the game window with SetWindowPos(..., SWP_SHOWWINDOW) (0x5a4770 window-mode
  * switch, windowed = mode 2) or ShowWindow; that is where it gets WM_ACTIVATEAPP(1) */
 static void maybe_activate(HWND hw)
 {
+    if (!g_game_hwnd && is_game_window(hw)) g_game_hwnd = hw;
     WNDPROC orig = (WNDPROC)(uintptr_t)GetClassLongPtrA(hw, GCLP_WNDPROC);
     for (int i = 0; i < g_nclass; i++) if (orig == g_filt[i]) orig = g_wndproc_orig[i];
     if (orig && orig == g_game_proc && !g_activated) {
@@ -722,6 +746,12 @@ static BOOL WINAPI my_ShowWindow(HWND hw, int cmd)
     BOOL r = ShowWindow(hw, O.quiet && cmd != SW_HIDE ? SW_SHOWNOACTIVATE : cmd);
     if (cmd != SW_HIDE) maybe_activate(hw);
     return r;
+}
+static BOOL WINAPI cen_GetClientRect(HWND hw, RECT *r)
+{
+    BOOL ok = GetClientRect(hw, r);
+    static int n; if (n++ < 20) rh_log("census GetClientRect = %d (%ld,%ld,%ld,%ld) frame %u\n", ok, r->left, r->top, r->right, r->bottom, g_frame);
+    return ok;
 }
 static BOOL WINAPI my_SetForegroundWindow(HWND hw) { return O.quiet ? TRUE : SetForegroundWindow(hw); }
 static UINT_PTR WINAPI my_SetTimer(HWND hw, UINT_PTR id, UINT ms, TIMERPROC fn) { (void)hw; (void)ms; (void)fn; return id ? id : 1; }
@@ -1063,6 +1093,7 @@ static void watch_str(char *wb, size_t n)
     for (int i = 0; i < O.n_watch; i++) wo += snprintf(wb + wo, n - wo, " %x=%d", O.watch[i], (int)G32(O.watch[i]));
 }
 static uint64_t g_fb_chain = 0xcbf29ce484222325ull; static uint32_t g_fb_n;   /* --fb-hash */
+uint64_t rh_fb_chain(void) { return g_fb_chain; }
 /* every access violation: where, the registers, the ebp chain (first 8; the run's own handling continues) */
 static LONG CALLBACK crash_veh(EXCEPTION_POINTERS *e)
 {
@@ -1081,7 +1112,7 @@ static LONG CALLBACK crash_veh(EXCEPTION_POINTERS *e)
 }
 
 /* runs at the ENTRY of every Flip (the frame's back buffer is complete): frame g_frame ends */
-static void __cdecl pre_flip(void)
+static void __cdecl boundary(void)
 {
     if (g_finished) return;
     if (g_nw) watch_arm_due();
@@ -1108,16 +1139,83 @@ static void __cdecl pre_flip(void)
         rh_log("hash f%u full=%016llx sem=%016llx masked=%u semv=%016llx%s\n", g_frame, (unsigned long long)h.full,
                (unsigned long long)h.semantic, h.masked, (unsigned long long)h.semv, fb);
     }
+    rh_snap_selftest();
     if (g_frame >= O.frames) finish("frames");
     g_frame++;
     g_vclock += O.step_ms; g_calls_since_flip = 0; g_waits_since_flip = 0;
-    if (!O.live) rh_dinput_frame(g_frame);
+    if (!O.live && !rh_serve_owns_input()) rh_dinput_frame(g_frame);
     if (O.realtime) {
         LARGE_INTEGER q; QueryPerformanceCounter(&q);
         double due = g_frame * (1000.0 / 60.0), now = (q.QuadPart - g_t0.QuadPart) * 1000.0 / g_qf.QuadPart;
         if (due > now + 1) Sleep((DWORD)(due - now));
     }
-    if (!O.live) rh_scrub_here();
+    if (!O.live) rh_scrub_below(g_gesp);
+}
+
+/* ---- the flip coroutine ----
+ * Retail reaches the Flip (zdd present, 50 call sites) once per frame through g_rh_flip_stub = pushad; pushfd;
+ * call flip_swap; popfd; popad; jmp flip.  flip_swap leaves retail's whole context on the game stack (the pushad
+ * frame + its callee-saved pushes; esp → g_gesp) and switches to the host stack; the host does the boundary work
+ * (dumps, shots, hashes, the next frame's input, finish) and, with --serve, serves commands; rh_step() switches back
+ * (rh_resume: the stub pops everything and jumps to the real flip) and returns at the NEXT flip.  So:
+ *   - host code never runs on the game stack (no host frames for retail's uninitialized reads to see);
+ *   - a savestate = tracked memory + the game stack [g_gesp, top) + the host blocks; a restore from any of the 50 sites
+ *     resumes where that savestate's stack says (the continuation is on the stack). */
+#define HOST_STACK_SZ 0x200000u
+uint32_t g_gesp, g_hesp;
+static uint32_t g_hstack_lo, g_hstack_hi, g_hseh = 0xffffffffu, g_gseh, g_gtib_lo, g_gtib_hi;
+void rh_game_stack(uint32_t *lo, uint32_t *n) { *lo = g_gesp; *n = MAIN_STACK_HI - g_gesp; }
+static void tib_host(void)
+{
+    NT_TIB *t = (NT_TIB *)NtCurrentTeb();
+    g_gtib_lo = (uint32_t)(uintptr_t)t->StackLimit; g_gtib_hi = (uint32_t)(uintptr_t)t->StackBase; g_gseh = (uint32_t)(uintptr_t)t->ExceptionList;
+    t->StackBase = (void *)(uintptr_t)g_hstack_hi; t->StackLimit = (void *)(uintptr_t)g_hstack_lo; t->ExceptionList = (void *)(uintptr_t)g_hseh;
+}
+static void tib_game(void)
+{
+    NT_TIB *t = (NT_TIB *)NtCurrentTeb();
+    g_hseh = (uint32_t)(uintptr_t)t->ExceptionList;
+    t->StackBase = (void *)(uintptr_t)g_gtib_hi; t->StackLimit = (void *)(uintptr_t)g_gtib_lo; t->ExceptionList = (void *)(uintptr_t)g_gseh;
+}
+__attribute__((naked)) static void flip_swap(void)    /* retail (inside the flip stub) → host */
+{
+    __asm__("pushl %ebx\n\t pushl %esi\n\t pushl %edi\n\t pushl %ebp\n\t"
+            "movl %esp, _g_gesp\n\t"
+            "movl _g_hesp, %esp\n\t"
+            "popl %ebp\n\t popl %edi\n\t popl %esi\n\t popl %ebx\n\t"
+            "ret");                                    /* into host_main (first flip) / out of rh_resume */
+}
+__attribute__((naked)) static void rh_resume(void)     /* host → retail: back into the stub, on to the real flip */
+{
+    __asm__("pushl %ebx\n\t pushl %esi\n\t pushl %edi\n\t pushl %ebp\n\t"
+            "movl %esp, _g_hesp\n\t"
+            "movl _g_gesp, %esp\n\t"
+            "popl %ebp\n\t popl %edi\n\t popl %esi\n\t popl %ebx\n\t"
+            "ret");
+}
+void rh_step(void)
+{
+    tib_game(); rh_resume(); tib_host();
+    boundary();
+}
+void rh_serve_main(void);
+static void host_main(void)
+{
+    tib_host();
+    boundary();
+    if (O.serve) rh_serve_main();   /* the command loop: calls rh_step() itself; never returns */
+    for (;;) rh_step();
+}
+static void host_stack_init(void)
+{
+    uint8_t *st = VirtualAlloc(NULL, HOST_STACK_SZ, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    if (!st) rh_fatal("cannot allocate the host stack");
+    g_hstack_lo = (uint32_t)(uintptr_t)st; g_hstack_hi = g_hstack_lo + HOST_STACK_SZ;
+    uint32_t *sp = (uint32_t *)(uintptr_t)(g_hstack_hi - 64);
+    *--sp = 0;                                        /* host_main's (never used) return address */
+    *--sp = (uint32_t)(uintptr_t)host_main;           /* flip_swap's first `ret` */
+    sp -= 4;                                          /* ebp edi esi ebx */
+    g_hesp = (uint32_t)(uintptr_t)sp;
 }
 
 static void finish(const char *why)
@@ -1130,6 +1228,8 @@ static void finish(const char *why)
     for (int i = 0; i < g_ntrap; i++) rh_log("trap-count %08x hits=%ld\n", g_tva[i], g_thits[i]);
     census_report();
     rh_media_report();
+    rh_dev_report();
+    { void rh_scrub_census_report(void); rh_scrub_census_report(); }
     rh_log("scrub: %ld thunks, %llu dirty pages zeroed\n", rh_scrub_thunks(), (unsigned long long)rh_scrub_pages());
     if (is_dump_frame(0xffffffffu)) dump_now("end");
     for (int i = 0; i < O.n_shot; i++) if (O.shot_at[i] == 0xffffffffu) rh_shot("end");
@@ -1141,9 +1241,12 @@ static void finish(const char *why)
     double ms = (q.QuadPart - g_t0.QuadPart) * 1000.0 / g_qf.QuadPart;
     char fb[64] = "";
     if (O.fb_hash) snprintf(fb, sizeof fb, " fb=%016llx fb_frames=%u", (unsigned long long)g_fb_chain, g_fb_n);
-    rh_log("RESULT status=%s reason=%s frame=%u tick=%u rng=%08x state_full=%016llx state_sem=%016llx state_semv=%016llx masked=%u state_bytes=%u wall_ms=%.0f fps=%.0f creep=%u %s%s\n",
+    if (rh_snap_anchored()) { char ss[320]; rh_snap_stats(ss, sizeof ss); rh_log("%s\n", ss); }
+    char devs[64] = "";
+    if (O.headless) snprintf(devs, sizeof devs, " state_dev=%016llx", (unsigned long long)rh_state_dev_hash());
+    rh_log("RESULT status=%s reason=%s frame=%u tick=%u rng=%08x state_full=%016llx state_sem=%016llx state_semv=%016llx masked=%u state_bytes=%u wall_ms=%.0f fps=%.0f creep=%u %s%s%s%s\n",
            !strcmp(why, "fatal") ? "fatal" : !strcmp(why, "game-exit") ? "exit" : "ok", why, g_frame, g_ticks, G32(g_ed->rng_seed), (unsigned long long)h.full,
-           (unsigned long long)h.semantic, (unsigned long long)h.semv, h.masked, h.bytes, ms, ms > 0 ? g_frame * 1000.0 / ms : 0.0, g_creep_total, rh_trace_status(), fb);
+           (unsigned long long)h.semantic, (unsigned long long)h.semv, h.masked, h.bytes, ms, ms > 0 ? g_frame * 1000.0 / ms : 0.0, g_creep_total, rh_trace_status(), fb, devs, rh_snap_test_status());
     if (O.stall_ms) Sleep(O.stall_ms);
     if (g_logf) fclose(g_logf);
     ExitProcess(0);
@@ -1336,6 +1439,12 @@ static void parse(int argc, char **argv)
         else if (!strcmp(a, "--log-media")) O.log_media = 1;
         else if (!strcmp(a, "--log-input")) O.log_input = 1;
         else if (!strcmp(a, "--log-ddraw")) O.log_ddraw = 1;
+        else if (!strcmp(a, "--dev-census")) O.dev_census = 1;
+        else if (!strcmp(a, "--headless")) { O.headless = 1; O.quiet = 1; }
+        else if (!strcmp(a, "--snap-test")) { O.snap_test = ARG(); O.headless = 1; O.quiet = 1; }
+        else if (!strcmp(a, "--serve-idle")) O.serve_idle = (int)strtoul(ARG(), 0, 0);
+        else if (!strcmp(a, "--serve-until")) O.serve_until = strtoul(ARG(), 0, 0);
+        else if (!strcmp(a, "--serve")) { O.serve = 1; O.serve_port = (int)strtoul(ARG(), 0, 0); O.headless = 1; O.quiet = 1; }
         else if (!strcmp(a, "--watch-write")) {
             char b[256]; snprintf(b, sizeof b, "%s", ARG());
             for (char *t = strtok(b, ","); t && g_nw < 4; t = strtok(NULL, ",")) {
@@ -1576,6 +1685,8 @@ int main(int argc, char **argv)
     iat_override("SetTimer", my_SetTimer);
     iat_override("KillTimer", my_KillTimer);
     iat_override("WaitMessage", my_WaitMessage);
+    if (O.dev_census) iat_override("GetClientRect", cen_GetClientRect);
+    if (O.headless) iat_override("GetClientRect", hl_GetClientRect);
     if (O.log_ddraw) {   /* deterministic: the logging only (the pin is live-only); rh_scrub wraps this in turn */
         dl_ddce = (ddce_t)iat_lookup("DirectDrawCreateEx"); iat_override("DirectDrawCreateEx", dl_DirectDrawCreateEx);
     }
@@ -1585,8 +1696,10 @@ int main(int argc, char **argv)
     rh_gdi_install();
     rh_dinput_install();
     rh_media_install();
+    if (O.headless) rh_dev_install();                /* after media: replaces its CoCreateInstance (the BGM graph) */
 platform_done:
-    g_rh_flip_stub = make_stub(NULL, pre_flip, g_ed->flip);
+    host_stack_init();
+    g_rh_flip_stub = make_stub(NULL, flip_swap, g_ed->flip);
     g_rh_easer_stub = make_stub(&g_ticks, NULL, g_ed->easer);
     if (!O.standalone) {   /* (standalone: no call sites — the port reaches these through its slots / rh_retail) */
         int nf = redirect_calls(g_ed->flip, g_rh_flip_stub);
@@ -1607,12 +1720,28 @@ platform_done:
         for (int i = 0; i < g_ntrap; i++) { g_torig[i] = G8(g_tva[i]); G8(g_tva[i]) = 0xCC; }
     }
     if (O.standalone) AddVectoredExceptionHandler(1, sa_veh);
+    if (O.headless) {
+        rh_snap_install();                           /* last of the IAT layers under scrub: touch-before-kernel-write */
+        rh_snap_register("frame", (void *)&g_frame, sizeof g_frame); rh_snap_register("ticks", (void *)&g_ticks, sizeof g_ticks);
+        rh_snap_register("vclock", &g_vclock, sizeof g_vclock); rh_snap_register("calls_since_flip", &g_calls_since_flip, sizeof g_calls_since_flip);
+        rh_snap_register("creep", &g_creep_total, sizeof g_creep_total); rh_snap_register("waits", &g_waits_since_flip, sizeof g_waits_since_flip);
+        rh_snap_register("fb_chain", &g_fb_chain, sizeof g_fb_chain); rh_snap_register("fb_n", &g_fb_n, sizeof g_fb_n);
+        rh_snap_register("gesp", &g_gesp, sizeof g_gesp); rh_snap_register("gseh", &g_gseh, sizeof g_gseh);
+        rh_snap_register("gtib_lo", &g_gtib_lo, sizeof g_gtib_lo); rh_snap_register("gtib_hi", &g_gtib_hi, sizeof g_gtib_hi);
+        rh_snap_register("activated", &g_activated, sizeof g_activated);
+        void rh_media_snapreg(void), rh_dinput_snapreg(void), rh_handles_snapreg(void), rh_gdi_snapreg(void), rh_files_snapreg(void), rh_trace_snapreg(void);
+        void *rh_heap_meta_save(void); void rh_heap_meta_restore(void *); void rh_heap_meta_free(void *);
+        rh_media_snapreg(); rh_dinput_snapreg(); rh_handles_snapreg(); rh_gdi_snapreg(); rh_trace_snapreg();
+        if (!O.no_overlay) rh_files_snapreg();
+        if (!O.no_arena) rh_snap_module("heap", rh_heap_meta_save, (void (*)(const void *))rh_heap_meta_restore, rh_heap_meta_free);
+    }
     if (!O.live) {
         rh_scrub_install();
         rh_scrub_iat();                              /* last: wraps every IAT slot incl. our overrides */
     }
     if (O.standalone) sa_seal(exe_abs, &img);
     if (O.trace && !O.frames) O.frames = rh_trace_last_frame() + O.tail;
+    if (O.serve) O.frames = 0xffffffffu;             /* a session ends by quit / idle, never by a frame count */
     rh_log("rhost: seed=%s%08x frames<=%u step=%ums creep_after=%u realtime=%d quiet=%d audible=%d arena=%d overlay=%d standalone=%d live=%d\n",
            O.has_seed ? "" : "none/", O.seed, O.frames, O.step_ms, O.creep_after, O.realtime, O.quiet, O.audible,
            !O.live && !O.no_arena, !O.live && !O.no_overlay, O.standalone, O.live);

@@ -22,6 +22,7 @@
  *   post:   ecx = esp - esp_at_call (4 + callee pops); esp = retail_esp + ecx; jmp saved ret */
 #include "rhost.h"
 #include <ddraw.h>
+#include <stdarg.h>
 
 static volatile uint32_t g_jmp, g_main_tid;
 static uint8_t *g_code, *g_post;
@@ -84,6 +85,18 @@ static void build_post(void)
     g_code = (uint8_t *)(((uintptr_t)p + 15) & ~(uintptr_t)15);
 }
 
+/* --dev-census: one counter per thunk (an IAT import or a COM vtable slot), reported at exit */
+#define CENSUS_MAX 2048
+static uint32_t g_cen_n[CENSUS_MAX]; static const char *g_cen_what[CENSUS_MAX]; static int g_cen_slot[CENSUS_MAX], g_ncen;
+static const char *g_cur_what; static int g_cur_slot;
+static uint8_t *census_emit(uint8_t *p)
+{
+    if (!O.dev_census || g_ncen >= CENSUS_MAX) return p;
+    g_cen_what[g_ncen] = g_cur_what; g_cen_slot[g_ncen] = g_cur_slot;
+    *p++ = 0xFF; *p++ = 0x05; p = emit32(p, (uint32_t)(uintptr_t)&g_cen_n[g_ncen]);   /* inc dword [counter] */
+    g_ncen++;
+    return p;
+}
 static void *thunk(uint32_t target)
 {
     if (!g_code) {
@@ -92,7 +105,7 @@ static void *thunk(uint32_t target)
         build_post();
     }
     if (g_code + 96 > (uint8_t *)(uintptr_t)(CODE_LO + 0x40000)) rh_fatal("rh_scrub: thunk space exhausted");
-    uint8_t *s = g_code, *p = s;
+    uint8_t *s = g_code, *p = census_emit(s);
     /* push eax; mov eax, fs:[0x24]; cmp eax, main; jne direct_pop */
     *p++ = 0x50;
     *p++ = 0x64; *p++ = 0xA1; p = emit32(p, 0x24);
@@ -154,6 +167,14 @@ void rh_scrub_iat(void)
             int skip = 0;
             for (int i = 0; rh_scrub_skip[i]; i++) if (rh_scrub_skip[i] == f) skip = 1;
             if (skip || is_thunk(f)) continue;
+            static char names[512][40]; static int nn;
+            {
+                IMAGE_THUNK_DATA32 *oft = d->OriginalFirstThunk ? (void *)(0x400000 + d->OriginalFirstThunk + ((uint8_t *)iat - (uint8_t *)(0x400000 + d->FirstThunk))) : NULL;
+                if (!oft) snprintf(names[nn % 512], 40, "%s:?", (char *)(0x400000 + d->Name));
+                else if (oft->u1.Ordinal & 0x80000000u) snprintf(names[nn % 512], 40, "%s#%u", (char *)(0x400000 + d->Name), (unsigned)(oft->u1.Ordinal & 0xffff));
+                else snprintf(names[nn % 512], 40, "%s", (char *)(0x400000 + oft->u1.AddressOfData + 2));
+            }
+            g_cur_what = names[nn++ % 512]; g_cur_slot = -1;
             iat->u1.Function = (uint32_t)(uintptr_t)thunk((uint32_t)(uintptr_t)f);
             n++;
         }
@@ -171,7 +192,7 @@ void rh_scrub_wrap_vtbl(void *obj, int nslots, const char *what)
     if (is_thunk(vt[3])) return;                       /* already wrapped (shared vtable) */
     DWORD old;
     VirtualProtect(vt, nslots * sizeof(void *), PAGE_READWRITE, &old);
-    for (int i = 0; i < nslots; i++) if (!is_thunk(vt[i])) vt[i] = thunk((uint32_t)(uintptr_t)vt[i]);
+    for (int i = 0; i < nslots; i++) if (!is_thunk(vt[i])) { g_cur_what = what; g_cur_slot = i; vt[i] = thunk((uint32_t)(uintptr_t)vt[i]); }
     VirtualProtect(vt, nslots * sizeof(void *), old, &old);
     rh_log("scrub: %s vtable %p wrapped (%d slots)\n", what, (void *)vt, nslots);
 }
@@ -213,10 +234,83 @@ static void patch_slot(void **vt, int i, void *fn, void **orig)
     *orig = vt[i]; vt[i] = fn;
     VirtualProtect(&vt[i], 4, old, &old);
 }
+/* --dev-census detail: Blt / Lock / SetColorKey / GetDC argument shapes (what a fake device must reproduce) */
+typedef HRESULT (WINAPI *blt_t)(void *, RECT *, void *, RECT *, DWORD, DDBLTFX *);
+typedef HRESULT (WINAPI *lk_t)(void *, RECT *, DDSURFACEDESC2 *, DWORD, HANDLE);
+typedef HRESULT (WINAPI *ck_t)(void *, DWORD, DDCOLORKEY *);
+static blt_t r_Blt; static lk_t r_Lock; static ck_t r_SetColorKey;
+#define SHAPES 256
+static struct { char k[96]; uint32_t n; } g_shape[SHAPES]; static int g_nshape;
+static void shape(const char *fmt, ...)
+{
+    char k[96]; va_list ap; va_start(ap, fmt); vsnprintf(k, sizeof k, fmt, ap); va_end(ap);
+    for (int i = 0; i < g_nshape; i++) if (!strcmp(g_shape[i].k, k)) { g_shape[i].n++; return; }
+    if (g_nshape < SHAPES) { strcpy(g_shape[g_nshape].k, k); g_shape[g_nshape++].n = 1; }
+}
+typedef HRESULT (WINAPI *gdc_t)(void *, HDC *);
+static gdc_t r_GetDC;
+static HRESULT WINAPI c_GetDC(void *s, HDC *dc)
+{
+    typedef HRESULT (WINAPI *gsd_t)(void *, DDSURFACEDESC2 *);
+    DDSURFACEDESC2 a = { .dwSize = sizeof a }; ((gsd_t)(*(void ***)s)[22])(s, &a);
+    HRESULT r = r_GetDC(s, dc);
+    shape("GetDC %lux%lu r=%lx", a.dwWidth, a.dwHeight, (unsigned long)r);
+    if (r == 0) {
+        static HDC last; static void *lasts;
+        HGDIOBJ f = GetCurrentObject(*dc, OBJ_FONT), stockf = GetStockObject(SYSTEM_FONT);
+        shape("GetDCstate same_dc=%d bk=%d tc=%06lx bkc=%06lx font_is_stock=%d pen_is_stock=%d align=%x", *dc == last && s == lasts,
+              GetBkMode(*dc), (unsigned long)GetTextColor(*dc), (unsigned long)GetBkColor(*dc), f == stockf,
+              GetCurrentObject(*dc, OBJ_PEN) == GetStockObject(BLACK_PEN), GetTextAlign(*dc));
+        last = *dc; lasts = s;
+    }
+    return r;
+}
+static HRESULT WINAPI c_Blt(void *d, RECT *dr, void *src, RECT *sr, DWORD f, DDBLTFX *fx)
+{
+    int dw = dr ? dr->right - dr->left : -1, dh = dr ? dr->bottom - dr->top : -1, sw = sr ? sr->right - sr->left : -1, sh = sr ? sr->bottom - sr->top : -1;
+    HRESULT r = r_Blt(d, dr, src, sr, f, fx);
+    typedef HRESULT (WINAPI *gsd_t)(void *, DDSURFACEDESC2 *);
+    typedef HRESULT (WINAPI *gcl_t)(void *, void **);
+    {
+        DDSURFACEDESC2 a = { .dwSize = sizeof a }, b = { .dwSize = sizeof b };
+        ((gsd_t)(*(void ***)d)[22])(d, &a); ((gsd_t)(*(void ***)src)[22])(src, &b);
+        void *cl = NULL; ((gcl_t)(*(void ***)d)[15])(d, &cl);
+        if (cl) { typedef ULONG (WINAPI *rel_t)(void *); ((rel_t)(*(void ***)cl)[2])(cl); }
+        int dout = dr->left < 0 || dr->top < 0 || dr->right > (LONG)a.dwWidth || dr->bottom > (LONG)a.dwHeight || dw <= 0 || dh <= 0;
+        int sout = sr->left < 0 || sr->top < 0 || sr->right > (LONG)b.dwWidth || sr->bottom > (LONG)b.dwHeight || sw <= 0 || sh <= 0;
+        shape("BltRect r=%lx clip=%d dout=%d sout=%d dsz=%lux%lu", (unsigned long)r, cl != NULL, dout, sout, a.dwWidth, a.dwHeight);
+        if (r && g_nshape < 200) shape("BltBad d=%lux%lu dr=%ld,%ld,%ld,%ld s=%lux%lu sr=%ld,%ld,%ld,%ld", a.dwWidth, a.dwHeight, dr->left, dr->top, dr->right, dr->bottom,
+                                   b.dwWidth, b.dwHeight, sr->left, sr->top, sr->right, sr->bottom);
+    }
+    shape("Blt f=%lx dr=%d sr=%d src=%d self=%d stretch=%d fxfill=%lx r=%lx", f, dr != NULL, sr != NULL, src != NULL, src == d,
+          (dr && sr) ? (dw != sw || dh != sh) : -1, (f & DDBLT_COLORFILL) && fx ? fx->dwFillColor : 0, (unsigned long)r);
+    return r;
+}
+static HRESULT WINAPI c_Lock(void *s, RECT *rc, DDSURFACEDESC2 *d, DWORD f, HANDLE e)
+{
+    HRESULT r = r_Lock(s, rc, d, f, e);
+    shape("Lock f=%lx rc=%d r=%lx w=%lu h=%lu pitch=%ld bpp=%lu masks=%lx/%lx/%lx flags=%lx caps=%lx", f, rc != NULL, (unsigned long)r,
+          d->dwWidth, d->dwHeight, d->lPitch, d->ddpfPixelFormat.dwRGBBitCount, d->ddpfPixelFormat.dwRBitMask, d->ddpfPixelFormat.dwGBitMask,
+          d->ddpfPixelFormat.dwBBitMask, d->dwFlags, d->ddsCaps.dwCaps);
+    return r;
+}
+static HRESULT WINAPI c_SetColorKey(void *s, DWORD f, DDCOLORKEY *k)
+{
+    HRESULT r = r_SetColorKey(s, f, k);
+    shape("SetColorKey f=%lx key=%lx..%lx r=%lx", f, k ? k->dwColorSpaceLowValue : 0, k ? k->dwColorSpaceHighValue : 0, (unsigned long)r);
+    return r;
+}
+void rh_scrub_shape_report(void) { for (int i = 0; i < g_nshape; i++) rh_log("shape %u %s\n", g_shape[i].n, g_shape[i].k); }
 static void surf_seen(IDirectDrawSurface7 *s)
 {
     void **vt = *(void ***)s;
     if (is_thunk(vt[3])) return;
+    if (O.dev_census) {
+        patch_slot(vt, 5, (void *)c_Blt, (void **)&r_Blt);
+        patch_slot(vt, 25, (void *)c_Lock, (void **)&r_Lock);
+        patch_slot(vt, 29, (void *)c_SetColorKey, (void **)&r_SetColorKey);
+        patch_slot(vt, 17, (void *)c_GetDC, (void **)&r_GetDC);
+    }
     patch_slot(vt, 12, (void *)w_GetAttachedSurface, (void **)&r_GetAttachedSurface);   /* GetAttachedSurface */
     wrap_vtbl(s, 49, "IDirectDrawSurface7");
 }
@@ -235,6 +329,7 @@ static HRESULT WINAPI my_DirectDrawCreateEx(GUID *g, void **out, REFIID iid, IUn
 void rh_scrub_install(void)
 {
     if (!O.scrub_kb) return;
+    if (O.headless) { rh_dev_scrub(); return; }
     r_DirectDrawCreateEx = (ddce_t)iat_lookup("DirectDrawCreateEx");
     iat_override("DirectDrawCreateEx", my_DirectDrawCreateEx);
 }
@@ -248,3 +343,19 @@ void __attribute__((noinline)) rh_scrub_here(void)
     scrub_pages(sp - 512, 0x58800000u);   /* below this frame and scrub_pages' own, retail stack only */
 }
 uint64_t rh_scrub_pages(void) { return g_scrubbed_pages; }
+/* the flip coroutine (rhost.c): host code no longer runs on the game stack; the dead stack below retail's frame at
+ * the flip (esp = gesp) is zeroed the same way (retail stack only) */
+void rh_scrub_below(uint32_t gesp)
+{
+    if (!O.scrub_kb) return;
+    scrub_pages(gesp, 0x58800000u);
+}
+int rh_scrub_depth(void) { return (int)g_depth; }
+
+void rh_scrub_census_report(void)
+{
+    if (!O.dev_census) return;
+    rh_scrub_shape_report();
+    for (int i = 0; i < g_ncen; i++)
+        if (g_cen_n[i]) rh_log("census %s %d %u\n", g_cen_what[i] ? g_cen_what[i] : "?", g_cen_slot[i], g_cen_n[i]);
+}

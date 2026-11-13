@@ -52,11 +52,9 @@ static void record_sample(uint8_t out[256])
         if (g_vk_of[sc] && (GetAsyncKeyState(g_vk_of[sc]) & 0x8000)) out[sc] = 0x80;
 }
 
-void rh_dinput_frame(uint32_t frame)
+/* latch the held level for frame `frame` (edges become GetDeviceData events) */
+void rh_dinput_set(uint32_t frame, const uint8_t next[256])
 {
-    uint8_t next[256];
-    if (O.record) { record_sample(next); rh_trace_record(frame, next); }
-    else memcpy(next, rh_trace_keys(frame), 256);
     if (!g_kbd_created) { memcpy(g_level, next, 256); return; }
     for (int sc = 0; sc < 256; sc++)
         if ((next[sc] ^ g_level[sc]) & 0x80) {
@@ -64,6 +62,13 @@ void rh_dinput_frame(uint32_t frame)
             if (O.log_input) rh_log("input f%u DIK %02x %s\n", frame, sc, next[sc] ? "down" : "up");
         }
     memcpy(g_level, next, 256);
+}
+void rh_dinput_frame(uint32_t frame)
+{
+    uint8_t next[256];
+    if (O.record) { record_sample(next); rh_trace_record(frame, next); }
+    else memcpy(next, rh_trace_keys(frame), 256);
+    rh_dinput_set(frame, next);
 }
 
 /* ---- IUnknown ---- */
@@ -186,4 +191,12 @@ void rh_dinput_install(void)
 void rh_dinput_report(void)
 {
     rh_log("dinput: GetDeviceState=%ld GetDeviceData=%ld events=%ld\n", g_gds_calls, g_gdd_calls, g_events);
+}
+
+void rh_dinput_snapreg(void)
+{
+    rh_snap_register("di_level", g_level, sizeof g_level); rh_snap_register("di_q", g_q, sizeof g_q);
+    rh_snap_register("di_qh", &g_qh, sizeof g_qh); rh_snap_register("di_qn", &g_qn, sizeof g_qn); rh_snap_register("di_seq", &g_seq, sizeof g_seq);
+    rh_snap_register("di_counts", &g_gds_calls, sizeof g_gds_calls); rh_snap_register("di_counts2", &g_gdd_calls, sizeof g_gdd_calls);
+    rh_snap_register("di_events", &g_events, sizeof g_events);
 }
