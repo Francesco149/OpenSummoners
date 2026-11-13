@@ -501,8 +501,9 @@ class Movie:
     """every key level since boot: ops (frame, "m", mask) = from frame on, exactly mask's keys are held; + the start save
     (a user\\ dir: the game's statue saves + config.dat), + the edition"""
 
-    def __init__(self, save=None, ops=None, frame=0, edition="enold", standalone=False):
+    def __init__(self, save=None, ops=None, frame=0, edition="enold", standalone=False, chain=None):
         self.save, self.ops, self.frame, self.edition, self.standalone = save, ops or [], frame, edition, standalone
+        self.chain = chain              # start = the save scenario CHAIN ends with: filed as {"from": CHAIN} (re-derived)
 
     @staticmethod
     def from_server(text, save, edition="enold"):
@@ -527,6 +528,7 @@ class Movie:
             elif "meta" in d:
                 mv.edition = d["meta"].get("edition", mv.edition)
                 mv.standalone = bool(d["meta"].get("standalone", False))
+                mv.chain = d["meta"].get("from") or mv.chain
             elif "frame" in d and "keys" in d:
                 m = keys_mask(d["keys"])
                 if not mv.ops or mv.ops[-1][2] != m:
@@ -537,12 +539,15 @@ class Movie:
             mv.frame = max(o[0] for o in mv.ops)
         return mv
 
-    def write(self, path, comment="", rel_to=None):
+    def write(self, path, comment="", rel_to=None, corpus=False):
         """an rhost trace: replays to exactly self.frame (`--frames`); {"end": F} marks the movie's length"""
         with open(path + ".tmp", "w") as f:
             f.write(f"# rhost trace (rd movie{': ' + comment if comment else ''}): DIK levels per flip-frame, from boot\n")
-            f.write(json.dumps({"meta": dict({"edition": self.edition, "rd": True}, **({"standalone": True} if self.standalone else {}))}) + "\n")
-            if self.save:
+            meta = dict({"edition": self.edition, "rd": True}, **({"standalone": True} if self.standalone else {}))
+            if self.chain:              # rhost.py re-derives the start save from CHAIN's trace (final_save): nothing committed
+                meta.update({"from": self.chain, "from_save": RH.save_digest(self.save) if self.save and os.path.isdir(self.save) else None})
+            f.write(json.dumps({"meta": meta}) + "\n")
+            if self.save and not (corpus and self.chain):     # the corpus copy of a chain re-derives its save
                 f.write(json.dumps({"savefile": os.path.relpath(self.save, rel_to or os.path.dirname(path))}) + "\n")
             for fr, k, v in self.ops:
                 if fr > self.frame:
@@ -553,7 +558,7 @@ class Movie:
         os.replace(path + ".tmp", path)
 
     def truncated(self, frame):
-        return Movie(self.save, [o for o in self.ops if o[0] <= frame], min(frame, self.frame), self.edition, self.standalone)
+        return Movie(self.save, [o for o in self.ops if o[0] <= frame], min(frame, self.frame), self.edition, self.standalone, self.chain)
 
     def mask_at(self, frame):
         m = 0
@@ -1064,9 +1069,9 @@ class Run:
     def sync_movie(self):
         """the server's movie is the truth after any step / restore"""
         r = self.live.cmd("movie")
-        sa, ed = self.movie.standalone, self.movie.edition
+        sa, ed, ch = self.movie.standalone, self.movie.edition, self.movie.chain
         self.movie = Movie.from_server(r, self.movie.save, ed)
-        self.movie.standalone = sa
+        self.movie.standalone, self.movie.chain = sa, ch
         self.movie.write(self.movie_p, comment=self.name, rel_to=self.dir)
         if "poked=1" in r:
             self.meta["poked"] = True
@@ -1402,7 +1407,7 @@ def resolve_start(src):
     if src == "fresh":
         return Movie(None, [], 1), None, None
     if src.startswith("end:"):
-        return Movie(scenario_end_save(src[4:]), [], 1), None, None
+        return Movie(scenario_end_save(src[4:]), [], 1, chain=src[4:]), None, None
     if src.startswith("save:"):
         return Movie(save_path(src[5:]), [], 1), None, None
     m = re.fullmatch(r"([^:@]+)(?::([^@]+))?(?:@(\d+))?", src)
@@ -2281,10 +2286,16 @@ def cmd_lint(a):
 
 # ------------------------------------------------------------------ filing + the port
 def file_scenario(r, name, note=""):
+    st = r.meta.get("start", "")
+    if not r.movie.chain and st.startswith("end:"):           # runs started before movies carried the chain
+        r.movie.chain = st[4:]
+    if r.movie.save and not r.movie.chain:
+        print(f"[note: {name} starts from a save that no scenario re-derives ({r.movie.save}); file the run that made it first "
+              f"and start from end:<it> to keep the corpus reproducible from traces alone]")
     d = os.path.join(RH.SCEN, name)
     os.makedirs(d, exist_ok=True)
     p = os.path.join(d, "trace.jsonl")
-    r.movie.write(p, comment=f"{name}: rd run {r.name}{' — ' + note if note else ''}", rel_to=d)
+    r.movie.write(p, comment=f"{name}: rd run {r.name}{' — ' + note if note else ''}", rel_to=d, corpus=True)
     return p
 
 
