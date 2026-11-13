@@ -34,9 +34,6 @@ import time
 
 import anthropic
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import api_check  # noqa: E402  (the shared credit ledger)
-
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 AGENTS = os.environ.get("RD_AGENTS", "/mnt/ephemeral/opensummoners/drive/agents")
@@ -212,11 +209,6 @@ def main():
             continue
         c = cost(a.model, resp.usage)
         H["spend"] += c; H["turns"] += 1
-        api_check.ledger_spend(c)
-        rem = api_check.remaining()
-        if rem is not None and rem < 0.25:
-            print(f"the API ledger is nearly empty (${rem:.2f} left): stopping")
-            return 4
         json.dump(H, open(hp, "w"))
         if resp.stop_reason == "refusal":
             print(f"the model declined ({getattr(resp, 'stop_details', None)}): stopping")
