@@ -33,7 +33,9 @@ Message-only game window; GetClientRect pinned to the reference values; the wind
 
 **Evidence** (Windows, `corpus --check --extra=--headless` vs real-device expected.json, 2026-11-13): frame, tick, RNG
 and **fb (every presented frame's pixels) equal on 13/15**; state_sem differs on all 15 (fake device pointers stored in
-retail memory — not yet named), fb differs on rh-after-prologue and rh-se-newgame (SE edition) — OPEN, below.
+retail memory — not yet named), fb differs on rh-after-prologue and rh-se-newgame (SE edition). Causes (the fakes' own
+UNSUPPORTED log): the heap-surface DC cache never freed (first divergence f62834 = first exhaustion), SE's 24-bpp
+surfaces. Fixed (4724cb2): **re-gate 2026-11-13: frame / tick / RNG / fb equal on 15/15**; only state_sem differs.
 Wine without X: boot f1200 rng 404a0a8f = Xvfb run; 529–611 fps vs 280 (Xvfb), no exit hang.
 
 ## 3. Flip coroutine (rhost.c)
@@ -68,7 +70,5 @@ search incl. score / hold). Input = 32-bit mask over the game's keys (KEYMAP = d
 
 - headless state_sem ≠ real on all scenarios: name the words (`--dump-at` both, `rhost.py diff`); expected class = fake
   object pointers / HDCs in retail memory → volatile list or deterministic equivalents.
-- headless fb ≠ real on rh-after-prologue, rh-se-newgame: first differing frame via `--hash-every` fb series
-  (runs 20261113-201623 real / 20261113-202313 headless).
 - session speed ~370 frames/s under wine with tracking vs ~600 plain: profile; render-skip candidates gated by skip-check.
 - bunker host for SotES (tools/bunker port), Windows-native sessions measured.
