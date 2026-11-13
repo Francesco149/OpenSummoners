@@ -69,7 +69,9 @@ an Xvfb batch, so sessions and headless batches run side by side.
    reaches), port frontier / PORT-DEBT rows marked unverified. One behaviour per task.
 2. **Write the task** (`tasks/NAME.md`): `start:` the latest save that makes it reachable, ordered `steps:` as predicates
    over named state, `forbid:` lines, prose pointing at `docs/game/` sections and findings. Lint it (`rd lint`).
-3. **Pick the driver kind automatically:** `tools/drive/agent.sh check` → exit 0 (API credit) =
+3. **Pick the driver kind automatically:** `tools/drive/agent.sh check [--need USD]` → exit 0 (API credit: the probe
+   succeeds AND the ledger's remainder covers --need, default $2 — the API cannot report the balance, so record it
+   with `agent.sh check --set-balance USD` whenever credit is added; agent.py subtracts each turn's cost) =
    `tools/drive/agent.sh tasks/NAME.md --run NAME --budget N` (any number side by side; exit 4 = credit ran out
    mid-run → hand the task to a subagent); otherwise a Claude Code subagent on the session's own model (owner rule:
    no model override) with the brief "read tools/drive/DRIVER.md and tools/drive/tasks/NAME.md; your run is NAME;
