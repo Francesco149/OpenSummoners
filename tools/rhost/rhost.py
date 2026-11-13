@@ -1218,7 +1218,7 @@ def main():
         p.add_argument("--target", choices=("win", "wine", "bunker"), default=os.environ.get("RHOST_TARGET", "win"),
                        help="win = the Windows box (pixel + speed truth); wine = local headless (logic oracle); "
                             "bunker = wine on the NixOS box, --headless only (tools/bunker)")
-        p.add_argument("--wine-timeout", type=int, default=1800)
+        p.add_argument("--wine-timeout", type=int, default=7200)   # a loaded maximus replays the 240k-frame chains slowly
     sub.add_parser("build").set_defaults(fn=cmd_build)
     sub.add_parser("standalone-spec", help="the standalone's hook spec (build.sh embeds it)").set_defaults(fn=cmd_standalone_spec)
     sub.add_parser("stage").set_defaults(fn=cmd_stage)

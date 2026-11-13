@@ -72,6 +72,13 @@ static void build_ext_map(void)
      * byte tuple like 0x0b0a0908 fell inside one run's map only.  Masked in every run, it hashes alike. */
     for (uint32_t pg = 0x05c00; pg < 0x20000; pg++)
         if (!rh_is_det_addr(pg << 12)) g_ext[pg >> 3] |= (uint8_t)(1u << (pg & 7));
+    /* ... and the low zone below rhost's image (0x10000..0x200000): the system's early allocations (process
+     * parameters, environment, wine / Windows loader blocks) sit there in a per-process pattern, so a plain integer
+     * like 0x1f4777 fell inside one process's envelope only — two clean Windows headless sessions of one movie hashed
+     * apart on that single word (rd verify MISMATCH on probes main-menu-pages / gameover-choices, 2026-11-13).
+     * Retail keeps no pointers there.  Masked in every run, it hashes alike. */
+    for (uint32_t pg = 0x10; pg < 0x200; pg++)
+        if (!rh_is_det_addr(pg << 12)) g_ext[pg >> 3] |= (uint8_t)(1u << (pg & 7));
 }
 /* --log-ext: where do masked values point? (largest external committed regions) */
 void rh_state_ext_report(void)
