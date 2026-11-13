@@ -84,7 +84,11 @@ holds, then spends `--refine` seconds shortening the path.
   arrival, 210120 house front, 210140 house interior, 210141 bedroom), `lx ly` (leader position ×100; +240/frame walking),
   `script` (1 = a script owns the game), `dlg` (an open dialogue box), `control` (free roam, no box). Name more as you find
   them (`rd ram R define`), report the useful ones.
-- Title: Start / Continue / Bonus Menu / Options / Exit, cursor on Start; `ent` picks. New game: a config box (`Game
+- Title: Start / Continue / Bonus Menu / Options / Exit, cursor on Start (`tcur`, `tcount == 5` = the title menu is up;
+  later visits remember the last pick; the studio intro replays on every return). `ent` picks.
+- **Menus drop input pressed within ~15 frames of opening**: wait ~30 frames after anything opens, ~12 between presses.
+  On option pages `C` saves and exits WITHOUT a prompt (Graphics has no Save row). The title cursor glow pulses: a
+  picture may show no highlight — read `tcur`. New game: a config box (`Game
   Difficulty`, `Auto-guard`, `Start Game`): `D D ent`. `ent` advances dialogue (a press during typing completes the line).
 - In the first house (210140): X talks (Enter does not), C jumps, ↑ enters doors; the front door refuses until the errands.
 - The game saves at goddess statues (slot saves `user\savedataNN.sdt`). `rd endsave R` files the run's saves:

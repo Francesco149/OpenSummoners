@@ -1518,9 +1518,16 @@ def screen_text(lv):
     for item in filter(None, rows.split(";")):
         x, y, col, hx = item.split(":", 3)
         glyphs.append((int(y), int(x), bytes.fromhex(hx).decode("cp932", errors="replace"), col))
+    # outlined / shadowed text draws each glyph several times, ±1..2 px apart in other colours: keep the LAST draw
+    # (the face drawn over its outline) of each glyph at (about) one place
+    kept = []
+    for g in reversed(glyphs):
+        if not any(k[2] == g[2] and abs(k[0] - g[0]) <= 2 and abs(k[1] - g[1]) <= 2 for k in kept[-24:]):
+            kept.append(g)
+    glyphs = kept[::-1]
     lines = []
     for y, x, t, col in sorted(glyphs, key=lambda g: (g[0], g[1])):
-        if lines and lines[-1][0] == y and lines[-1][3] == col and 0 <= x - lines[-1][4] <= 16:
+        if lines and lines[-1][0] == y and -2 <= x - lines[-1][4] <= 16:
             ly, lx, lt, lc, _ = lines[-1]
             gap = " " if x - lines[-1][4] > 9 else ""
             lines[-1] = (ly, lx, lt + gap + t, lc, x + 7 * len(t))

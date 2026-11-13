@@ -140,5 +140,22 @@ Tags: see `README.md`. EN labels in `quotes` are verbatim [EXE] strings.
 - Shop UI: Buy / Sell / (Dad only) `Help Out` [DK][EXE].
 - In-world: inn rest prompt `Inn - %s to stay` / `Don't Rest`; healer `Get Healed` / `No Thanks` [EXE].
 
+- **[RD] verified in rhost (probe `title-options-bonus`, 2026-11-13) — supersedes the guide lines above where they differ:**
+  - Title: **Start / Continue / Bonus Menu / Options / Exit** (not New Game / Load). Continue is enabled with no save:
+    load screen "Please choose a save-game to load.", 3 pages × 8 slots, all "N : NO DATA".
+  - Options list: Game & Control Setup, Graphics Settings, Sound Settings, Keyboard Setup, Gamepad Setup, Analog Gamepad
+    Setup (both greyed without a pad), Back. Page buttons: **Default Settings / Cancel Changes / Save and Exit**.
+  - Game & Control: Game Difficulty (1 Easy .. 4 Expert on a fresh install — no Nightmare), Auto-guard, Magic Quick
+    Select (Magic Book Select Mode / Direct Magic Select Mode / Don't Use), Dash Input Sensitivity (1 Short .. 5 Long,
+    default 4).
+  - Graphics ("Options: Screen Settings"): Graphics Quality (High/Normal/Low), Contrast + Brightness (0..10, def 7),
+    **Message Speed** (1..5, def 3), **Display Combo Meter** (Yes), **Magic Circle Display** (No), Display FPS (No); no
+    Save row — `C` saves and exits without a prompt (so does C on Sound).
+  - Sound: Music / Sound / Voice / Message volume (def 3 / 5 / 3 / 3; Voice + Message have Off).
+  - Keyboard: 3 pages (Left/Right); pressing a row's own key unbinds it ("----").
+  - Bonus Menu opens on a fresh install with **Versus Mode, Auto-Play Mode, Back** only (no Labyrinth, no Arena in this
+    edition); both modes: "You cannot access this menu yet."
+  - Saving options draws the RNG (0x8a4f94).
+
 ## 12. Environment / puzzle vocabulary [DK]
 Push blocks/crates/gargoyle statues/gravestones onto **blue floor buttons**; **red buttons** drain water / hold doors (need a body: park a member); levers marked with symbols (sun, moon, heart, diamond, clover, scales, crescent, star) open walls with the same symbol; weights need party members as counterweight; falling platforms; spike traps (some ride up as lifts); **trap chests** (poison gas, spike, teleport) — walkthrough flags each; steam vents (Korat) burn; hot water burns; moving stone blocks; boats (Sana fetches, Arche pushes). Leave + re-enter a room resets most puzzles; breaking a block resets the Archmage pot puzzle.

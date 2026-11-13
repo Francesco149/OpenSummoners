@@ -1,12 +1,56 @@
 {
  "_doc": "named SotES (EN-old) state for rd. Pointer chains from src/world_layout.h; validated on runs (see each note). Add only validated names; a run's own names live in <run>/vars.json.",
- "world": {"expr": "s32(0x8a9b50)", "note": "the world singleton (0 until the first room exists: title / new-game / prologue)"},
- "room": {"expr": "s32(s32(world + 0x1038)) if world else 0", "status": true, "note": "packed room id (210110 town arrival, 210120 house front, 210140 house interior, 210141 bedroom — kirby transfer NOTES)"},
- "lslot": {"expr": "s32(s32(world + 0x2784) + 0x200c) if world else 0", "note": "the leader's party slot (room +0x200c)"},
- "lchar": {"expr": "s32(s32(lslot + 0x9f4) + 0x40) if lslot else 0", "note": "the leader character's body (slot +0x9f4 → +0x40)"},
- "lx": {"expr": "s32(lchar + 4) if lchar else 0", "status": true, "note": "leader x, px*100 (+240/frame walking; left wall 6400 in 210140)"},
- "ly": {"expr": "s32(lchar + 8) if lchar else 0", "status": true, "note": "leader y, px*100 (floors in 210140: 52000 / 36000 stairs top / 32800 / 16800)"},
- "script": {"expr": "s32(world + 0x2760) if world else 1", "status": true, "note": "1 = a script owns the game (cutscene / conversation), 0 = free roam (>60 dumps, 4 rooms)"},
- "dlg": {"expr": "s32(s32(world + 0x1044) + 0x54) if world else 0", "note": "the open dialogue box object, 0 = none"},
- "control": {"expr": "world != 0 and script == 0 and dlg == 0", "note": "the player has control (free roam, no box)"}
+ "world": {
+  "expr": "s32(0x8a9b50)",
+  "note": "the world singleton (0 until the first room exists: title / new-game / prologue)"
+ },
+ "room": {
+  "expr": "s32(s32(world + 0x1038)) if world else 0",
+  "status": true,
+  "note": "packed room id (210110 town arrival, 210120 house front, 210140 house interior, 210141 bedroom \u2014 kirby transfer NOTES)"
+ },
+ "lslot": {
+  "expr": "s32(s32(world + 0x2784) + 0x200c) if world else 0",
+  "note": "the leader's party slot (room +0x200c)"
+ },
+ "lchar": {
+  "expr": "s32(s32(lslot + 0x9f4) + 0x40) if lslot else 0",
+  "note": "the leader character's body (slot +0x9f4 \u2192 +0x40)"
+ },
+ "lx": {
+  "expr": "s32(lchar + 4) if lchar else 0",
+  "status": true,
+  "note": "leader x, px*100 (+240/frame walking; left wall 6400 in 210140)"
+ },
+ "ly": {
+  "expr": "s32(lchar + 8) if lchar else 0",
+  "status": true,
+  "note": "leader y, px*100 (floors in 210140: 52000 / 36000 stairs top / 32800 / 16800)"
+ },
+ "script": {
+  "expr": "s32(world + 0x2760) if world else 1",
+  "status": true,
+  "note": "1 = a script owns the game (cutscene / conversation), 0 = free roam (>60 dumps, 4 rooms)"
+ },
+ "dlg": {
+  "expr": "s32(s32(world + 0x1044) + 0x54) if world else 0",
+  "note": "the open dialogue box object, 0 = none"
+ },
+ "control": {
+  "expr": "world != 0 and script == 0 and dlg == 0",
+  "note": "the player has control (free roam, no box)"
+ },
+ "tctrl": {
+  "expr": "u32(u32(u32(u32(u32(0x58fffcf8))) + 0x48)) if world == 0 else 0",
+  "note": "the title menu controller: the title scene's this (on the caller's stack at 0x58fffcf8) \u2192 pool \u2192 node array [0] \u2192 +0x48 child array [0]. Validated on two title visits (probe title-options-bonus, 2026-11-13)"
+ },
+ "tcur": {
+  "expr": "s32(u32(tctrl + 0x174) + 0x14) if tctrl else -1",
+  "status": true,
+  "note": "title cursor: 0 Start, 1 Continue, 2 Bonus Menu, 3 Options, 4 Exit; -1 while a sub-screen owns the menu (follows a press 1 frame later)"
+ },
+ "tcount": {
+  "expr": "s32(u32(tctrl + 0x174) + 0x10) if tctrl else 0",
+  "note": "title menu rows: 5 while the title menu is live (the 'title is up' test)"
+ }
 }

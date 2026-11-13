@@ -3,7 +3,7 @@ name: title-options-bonus
 start: fresh
 steps:
   - the title menu is up: frame > 600
-  - back on the title at the end: world == 0 and frame > 3000
+  - back on the title at the end: world == 0 and tcount == 5 and frame > 3000
 forbid:
   - a game started: world != 0
 ---
