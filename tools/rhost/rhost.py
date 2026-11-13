@@ -182,6 +182,22 @@ def cmd_stage(a=None):
     print("staged", BUILD, "->", WROOT)
 
 
+def cmd_restart_runner(a):
+    """restart the Windows queue runner (scheduled task oss-rhost-runner) so a staged runner.ps1 takes effect; refuses
+    while jobs run (their waiting ssh sides would get a 'job lost'). --slots N: parallel jobs (queue\\slots.txt)"""
+    live = ssh_win(f"@(Get-ChildItem {WROOT}\\queue -Filter '*.running.ps1' -ErrorAction SilentlyContinue).Count").strip()
+    live = "".join(ch for ch in live if ch.isdigit()) or "0"
+    if live != "0" and not a.force:
+        print(f"restart-runner: {live} job(s) running — wait, or --force"); return 1
+    cmd_stage()
+    if a.slots:
+        ssh_win(f"Set-Content {WROOT}\\queue\\slots.txt {a.slots}; exit 0")
+    print(ssh_win("Stop-ScheduledTask -TaskName oss-rhost-runner; Start-Sleep 1; Start-ScheduledTask -TaskName oss-rhost-runner; "
+                  f"Start-Sleep 2; Get-Content {WROOT}\\queue\\runner.pid; "
+                  f"if (Test-Path {WROOT}\\queue\\slots.txt) {{ 'slots ' + (Get-Content {WROOT}\\queue\\slots.txt) }}").strip())
+    return 0
+
+
 def cmd_setup(a):
     cmd_build()
     cmd_stage()
@@ -1207,6 +1223,9 @@ def main():
     sub.add_parser("standalone-spec", help="the standalone's hook spec (build.sh embeds it)").set_defaults(fn=cmd_standalone_spec)
     sub.add_parser("stage").set_defaults(fn=cmd_stage)
     sub.add_parser("setup").set_defaults(fn=cmd_setup)
+    p = sub.add_parser("restart-runner", help="restart the Windows queue runner (a staged runner.ps1 takes effect)")
+    p.add_argument("--slots", type=int, help="also write queue\\slots.txt (parallel jobs)"); p.add_argument("--force", action="store_true")
+    p.set_defaults(fn=cmd_restart_runner)
     p = sub.add_parser("run"); p.add_argument("scenarios", nargs="+"); p.add_argument("--hybrid", action="store_true", help="every ported function REPLACES retail (as corpus --hybrid)"); common(p); p.set_defaults(fn=cmd_run)
     p = sub.add_parser("boot"); common(p); p.set_defaults(fn=cmd_boot)
     p = sub.add_parser("det"); p.add_argument("scenario"); p.add_argument("-n", type=int, default=3)
