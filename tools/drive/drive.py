@@ -1012,11 +1012,7 @@ def sess_alive(s):
 def sess_file(s, f, dst):
     """copy file (or dir, e.g. user) F of the session's run dir to DST → True when it exists"""
     if s.get("host") == "bunker":
-        data = BK.session_file(s.get("name", ""), f)
-        if data is None:
-            return False
-        open(dst, "wb").write(data)
-        return True
+        return BK.session_get(s.get("name", ""), f, dst)      # file or dir (user)
     if s.get("host", "wine") == "win":
         return subprocess.run(["scp", "-q", "-r", f"{s.get('ssh', RH.WIN)}:{s['rundir'].replace(chr(92), '/')}/{f}", dst],
                               capture_output=True).returncode == 0 and os.path.exists(dst)
@@ -2104,8 +2100,36 @@ def cmd_verify(a):
     print(f"live session:     frame {live['frame']} rng {live['rng']} semv {live['semv']}  [{host}]")
     print(f"headless replay:  frame {got['frame']} rng {got['rng']} semv {got['semv']}  fb {v.get('fb')}  [{host}]")
     if not same and got["frame"] == live["frame"] and got["rng"] == live["rng"]:
-        print("(game state differs, frame + RNG equal: write-tracking residue in the session, or a host-volatile word — "
-              "the verdict is the replay's: rd check judges the movie, not the session)")
+        # the session's state is off while the movie replays the same frame + RNG: keep the evidence (both dumps, the
+        # differing words), then rebuild the session by a clean replay and compare again — the movie is what is filed
+        print("(game state differs, frame + RNG equal: the SESSION drifted — savestate restores across branches, or a "
+              "host word a restore misses. Evidence:)")
+        try:
+            ev = os.path.join(r.dir, f"verify-drift-f{r.movie.frame}")
+            os.makedirs(ev, exist_ok=True)
+            name = os.path.basename(r.sess["rundir"]) if host == "wine" else None
+            remote = (f"{RH.WROOT}\\runs\\drive\\{name}" if host == "wine" else r.sess["rundir"]) + "\\live.rhs"
+            lv.cmd(f"dump {remote}")
+            sess_file(r.sess, "live.rhs", os.path.join(ev, "live.rhs"))
+            b2 = RH.replay_args(frames=stop, target=b.target, headless=True, edition=r.movie.edition,
+                                standalone=r.movie.standalone, dump_at=str(stop))
+            _, bd2, _, _ = RH.run_batch(b2, [("verify", tr, r.movie.save, r.movie.edition)], "rd-verify-dump", fetch=("rhost.log", "state_*.rhs"))
+            rep = glob.glob(os.path.join(bd2, "verify", "state_*.rhs"))
+            if rep and os.path.exists(os.path.join(ev, "live.rhs")):
+                shutil.copy(rep[0], os.path.join(ev, "replay.rhs"))
+                d = subprocess.run([sys.executable, os.path.join(RH.HERE, "rhost.py"), "diff", os.path.join(ev, "replay.rhs"),
+                                    os.path.join(ev, "live.rhs"), "--show", "40"], capture_output=True, text=True).stdout
+                open(os.path.join(ev, "diff.txt"), "w").write(d)
+                print("\n".join("  " + l for l in d.splitlines()[-44:]))
+                print(f"  (kept in {ev}: report it — it names what a restore missed)")
+        except (SystemExit, Exception) as e:   # noqa: BLE001 — evidence is best-effort
+            print(f"  (could not collect the evidence: {e})")
+        r.stop()
+        r.live = None
+        lv = r.attach()
+        k = Live.kv(lv.cmd("hash"))
+        same = k["semv"] == got["semv"] and k["frame"] == got["frame"] and k["rng"] == got["rng"]
+        print(f"rebuilt session:  frame {k['frame']} rng {k['rng']} semv {k['semv']}  (a clean replay, no savestates)")
     print("MATCH" if same else "MISMATCH")
     if a.real:
         if not win_up():

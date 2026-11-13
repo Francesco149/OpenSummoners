@@ -289,7 +289,7 @@ def final_save(scen, target):
         return cache, open(ok).read().split()[0]
     print(f"[final save of {scen} ({target}): replaying it, pure retail]")
     # a clean run: no hooks / probes / seed override (the chain's save is canonical retail output)
-    ra = argparse.Namespace(target=target, jobs=1, edition=None, wine_timeout=7200)
+    ra = argparse.Namespace(target=target, jobs=1, edition=None, wine_timeout=7200, headless=target == "bunker")
     batch, bdir, res, out = run_batch(ra, [(scen, tr, save, ed)], "final-save-" + scen)
     r = res.get(scen, {})
     if r.get("status") != "ok" or r.get("complete") != "1":
@@ -582,6 +582,10 @@ def run_batch_wine(a, runs, tag, fetch):
 def run_batch(a, runs, tag, fetch=("rhost.log",)):
     if getattr(a, "target", "win") == "wine":
         return run_batch_wine(a, runs, tag, fetch)
+    if getattr(a, "target", "win") == "bunker":     # headless under wine on the NixOS box, one bounded pool (tools/bunker)
+        sys.path.insert(0, os.path.join(ROOT, "tools", "bunker"))
+        import bunker
+        return bunker.run_batch(a, runs, tag, fetch)
     ensure_staged()
     batch, bdir = make_batch(a, runs, tag)
     scp(bdir, f"{WIN}:C:/oss-rhost/runs/", recursive=True)
@@ -1195,8 +1199,9 @@ def main():
         p.add_argument("--show", action="store_true")
         p.add_argument("-j", "--jobs", type=int, default=8)
         p.add_argument("--extra")
-        p.add_argument("--target", choices=("win", "wine"), default=os.environ.get("RHOST_TARGET", "win"),
-                       help="win = the Windows box (pixel + speed truth); wine = local headless (logic oracle)")
+        p.add_argument("--target", choices=("win", "wine", "bunker"), default=os.environ.get("RHOST_TARGET", "win"),
+                       help="win = the Windows box (pixel + speed truth); wine = local headless (logic oracle); "
+                            "bunker = wine on the NixOS box, --headless only (tools/bunker)")
         p.add_argument("--wine-timeout", type=int, default=1800)
     sub.add_parser("build").set_defaults(fn=cmd_build)
     sub.add_parser("standalone-spec", help="the standalone's hook spec (build.sh embeds it)").set_defaults(fn=cmd_standalone_spec)
