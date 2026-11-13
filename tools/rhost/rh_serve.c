@@ -356,7 +356,8 @@ static void do_explore(int goal, int avoid, const int *cp, int nc, seg_t **acts,
             for (int s = 0; s < alen[a] && !stop; s++)
                 for (uint32_t i = 0; i < acts[a][s].n && !stop; i++) {
                     tick_seg(&acts[a][s]); f++; ticks++;
-                    if (vm_eval(&g_prog[goal]) != 0) {
+                    if (avoid >= 0 && vm_eval(&g_prog[avoid]) != 0) { pruned++; stop = 1; }   /* avoid wins on the goal's frame */
+                    else if (vm_eval(&g_prog[goal]) != 0) {
                         stop = 1;
                         if (best && f >= best) break;
                         int tail = -1;

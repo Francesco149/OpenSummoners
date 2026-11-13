@@ -1492,7 +1492,7 @@ def cmd_tap(a):
 
     def show():
         nonlocal held
-        rows = [(x, y, t if bud < 0 else t[:bud]) for x, y, col, bud, t in screen_text(lv) if t.strip()]
+        rows = [(x, y, t) for y, x, t, col in screen_text(lv) if t.strip()]
         flush(rows)
         new = [w for w in rows if w not in seen]
         if new:
@@ -1684,6 +1684,18 @@ def cmd_ram(a):
                 d[f] = True
         if a.note:
             d["note"] = a.note
+        old = r.vars.defs.get(a.args[0])
+        r.vars.defs[a.args[0]] = d                     # compile it BEFORE it is written: a rejected name never lands in vars.json
+        try:
+            r.vars.compile_parts(a.args[0])
+            if d.get("status") or d.get("event"):
+                r.vars.program(a.args[0], f"{a.args[0]} (a --status / --event name is one program)")
+        except SystemExit:
+            if old is None:
+                r.vars.defs.pop(a.args[0], None)
+            else:
+                r.vars.defs[a.args[0]] = old
+            raise
         r.vars.define(a.args[0], d, shared=a.shared)
         v = r.ev(a.args[0])[0]
         print(f"{a.args[0]} = {fmt(v)}  ({'tools/drive/vars.json' if a.shared else 'this run'})")

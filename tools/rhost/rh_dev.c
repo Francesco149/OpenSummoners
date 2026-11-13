@@ -116,7 +116,10 @@ static void dev_free(void *ptr)
 int rh_dev_range(uint32_t *lo, uint32_t *hi)
 {
     if (!O.headless || !g_dev_committed) return 0;
-    *lo = RH_DEV_LO; *hi = (DH->top + 0xfffu) & ~0xfffu;
+    /* the whole COMMITTED span, not just up to the allocator's top: the commit is 1 MB-granular, and an object
+     * bumped into [top, committed) after the anchor was neither tracked nor restored (rd search crashes in the surface
+     * Lock wrapper 0x5b9490 after door crossings, probe story-after-water-shrine 2026-11-13) */
+    *lo = RH_DEV_LO; *hi = g_dev_committed;
     return 1;
 }
 
