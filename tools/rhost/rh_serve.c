@@ -469,11 +469,17 @@ static void serve_install(void)
     rh_log("serve: on 127.0.0.1:%d\n", O.serve_port);
 }
 /* a session nobody talks to for --serve-idle seconds (default 1800) ends itself: its whole state can be rebuilt */
+/* while it waits for a command the session flips nothing: rhost's wall watchdog (no Flip for 60 s → stalled) reads
+ * this and holds off — it killed every session idle for a minute (rd verify lost its session during the replay batch) */
+volatile long rh_serve_waiting;
 static int wait_readable(SOCKET s)
 {
     fd_set f; FD_ZERO(&f); FD_SET(s, &f);
     struct timeval tv = { (long)(O.serve_idle ? O.serve_idle : 1800), 0 };
-    return select(0, &f, NULL, NULL, &tv) > 0;
+    rh_serve_waiting = 1;
+    int r = select(0, &f, NULL, NULL, &tv) > 0;
+    rh_serve_waiting = 0;
+    return r;
 }
 static int read_line(char *out, int cap)
 {

@@ -1542,6 +1542,7 @@ static void layout_from_pe(void)
                         nt->OptionalHeader.SizeOfImage, 0x400000u + nt->OptionalHeader.AddressOfEntryPoint);
 }
 
+extern volatile long rh_serve_waiting;   /* rh_serve.c: a session waiting for a command is not stalled */
 /* wall-clock watchdog (host thread; reads g_frame only): no Flip for --stall-wall ms → stalled */
 static DWORD WINAPI watchdog(LPVOID p)
 {
@@ -1550,7 +1551,7 @@ static DWORD WINAPI watchdog(LPVOID p)
     for (;;) {
         Sleep(500);
         if (g_finished) return 0;
-        if (g_frame != last) { last = g_frame; since = GetTickCount(); continue; }
+        if (g_frame != last || rh_serve_waiting) { last = g_frame; since = GetTickCount(); continue; }
         if (GetTickCount() - since > O.stall_wall_ms) {
             rh_log("STALL: no Flip for %u ms wall at frame %u (tick %u)\nRESULT status=stalled reason=wall frame=%u tick=%u rng=%08x\n",
                    O.stall_wall_ms, g_frame, g_ticks, g_frame, g_ticks, G32(g_ed->rng_seed));
