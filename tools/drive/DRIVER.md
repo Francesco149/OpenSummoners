@@ -101,6 +101,11 @@ holds, then spends `--refine` seconds shortening the path.
   point at off-screen enemies, not doors. Doors of a room: zone actors `a = s32(world+0x11e0+4k)` with `a+0x274` ≠ 0.
 - Push blocks / crates only with the sword SHEATHED (Z); pushing = `lpose` 114, 100 lx/frame.
 - Game over: "Return To Safety" → the `retry` room, HP full, money −10 % (truncated).
+- Saving [RD save-load]: the inn menu (Rest / Don't Rest / **Save**: free, no rest needed) and goddess statues → "Please
+  choose a slot to save in." (24 slots, 3 pages, ←/→ page, cursor on the last-used slot); empty slot saves at once,
+  occupied → "Overwrite this save?" (default **Yes**) → "Game saved." (waits for a key). Load screen: "Please choose a
+  save-game to load.", cursor on the newest; an empty slot ignores `ent`. F1 → System → Return to Title: prompt default
+  **No**; Yes → studio intro → title ~510–530 frames. Slot saves are `user\savedataNN.sdt`.
 - The game saves at goddess statues (slot saves `user\savedataNN.sdt`). `rd endsave R` files the run's saves:
   `rd new NEXT --from save:DIGEST` continues from them (Continue on the title). Chain by saves: replays start at boot.
 - `--from fresh` = a new install (no saves, default config).
