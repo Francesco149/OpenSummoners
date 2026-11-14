@@ -34,15 +34,14 @@ understates how much actual instruction volume is ported.
 
 - **2026-11-14 — ★ agent-driven play (`rd`): the campaign front.** Drivers (API `agent.sh` while credit lasts, else
   session-model subagents) author verified scenarios; `rd accept` → `det --calibrate` → one re-bless → hybrid / standalone
-  (several runs: `tools/drive/accept-batch.sh LIST`). Corpus **35** scenarios (20 driven): the
-  story past the owner's saves to the **Barness Hills Dungeon 290150** (`story-barness-dungeon2`, weight freed), every menu
-  / option / save-load screen, combat, movement, items, NPCs, early enemies, new-game config, the Bonus Menu (Versus /
-  Auto-Play). **Standalone 34/34 PASS; hybrid 34/35** — R9 (accepted gap) + **R11 bonus-menu** (parity-ledger: WinMain's
-  caller-stack ref in a STALE world escapes the stackref mask; not logic). **First job next session: the R11 fix
-  (`stackref_slots` remembers the last world) + full Windows + wine re-bless + hybrid.** Next story leg ready:
+  (several runs: `tools/drive/accept-batch.sh LIST`). Corpus **35** scenarios (20 driven): the story past the owner's saves
+  to the **Barness Hills Dungeon 290150** (`story-barness-dungeon2`, weight freed), every menu / option / save-load screen,
+  combat, movement, items, NPCs, early enemies, new-game config, the Bonus Menu (Versus / Auto-Play). **Hybrid 35/35 +
+  standalone 34/34** (Windows + wine; R9 = the accepted gap; R11 fixed). **Wine gate = headless on the bunker** (USER
+  2026-11-14: `--target wine` → bunker if up, else maximus; a full pass ~8 min). Next story leg ready:
   `tools/drive/tasks/story-barness-dungeon3.md`. Then `docs/game/exercise-checklist.md` + `rhost.py coverage` gaps.
-  Open: headless `state_sem` ≠ real (device pointers); the recurring "one volatile dword" `rd verify` drift was semv zone
-  classification (fixed 803fe74 — confirm on the next drives); session speed.
+  Open: headless `state_sem` ≠ real on Windows (device pointers); confirm the semv zone fix (803fe74) on the next drives;
+  session speed.
 - **2026-10-14 — rhost is THE porting loop; the MOVEMENT stack is ported and verified inside retail.**
   USER decisions (audit §7): deterministic cadence = rhost 1 update/flip; EN-old first (SE = a later
   delta layer); Frida retail drive RETIRED.  **2026-10-31 (USER): the whole pre-rhost loop REMOVED** — the

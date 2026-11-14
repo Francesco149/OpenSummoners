@@ -273,6 +273,24 @@ static void WINAPI my_GetSystemTime(SYSTEMTIME *t) { my_GetLocalTime(t); }
 static DWORD WINAPI my_GetTimeZoneInformation(TIME_ZONE_INFORMATION *z) { memset(z, 0, sizeof *z); return TIME_ZONE_ID_UNKNOWN; }
 static void WINAPI my_Sleep(DWORD ms) { if (O.record && ms) Sleep(ms > 20 ? 20 : ms); }
 
+/* ---- system-DLL version blocks (wine only) ----
+ * _WinMain's DirectX check (0x5b0450 on %SYSTEM%\\ddraw.dll) copies the WHOLE version block into a heap buffer, reads only
+ * the root VS_FIXEDFILEINFO ("\\": 5.3.1.904 on every wine), and frees it — the stale block keeps the string tables, whose
+ * ProductName is the host's wine version ("Wine 11.19" bunker vs "Wine 11.20" maximus: one heap dword, state_sem apart;
+ * the copyright year moves too).  Under wine the block past the root's fixed info is zeroed: what retail reads is
+ * unchanged, the leftover is the same on every wine host.  Windows: untouched (one box; expected.json unchanged). */
+static BOOL (WINAPI *p_GetFileVersionInfoA)(LPCSTR, DWORD, DWORD, LPVOID);
+static BOOL WINAPI my_GetFileVersionInfoA(LPCSTR f, DWORD h, DWORD n, LPVOID d)
+{
+    BOOL ok = p_GetFileVersionInfoA(f, h, n, d);
+    const uint8_t *b = d;
+    if (ok && n >= 6 + 32 && !memcmp(b + 6, L"VS_VERSION_INFO", 32)) {     /* 32-bit (W) block: wLength wValueLength wType szKey */
+        DWORD keep = 40u + *(const WORD *)(b + 2);                          /* header + key (38) aligned to 4 + the fixed info */
+        if (keep < n) memset((uint8_t *)d + keep, 0, n - keep);
+    }
+    return ok;
+}
+
 /* ---- process identity the CRT copies into retail memory at startup ---- */
 static char *g_cmdline, *g_envA;
 static WCHAR *g_envW;
@@ -1674,6 +1692,10 @@ int main(int argc, char **argv)
     iat_override("GetStartupInfoA", my_GetStartupInfoA);
     iat_override("GetStdHandle", my_GetStdHandle);
     iat_override("GetTickCount", my_GetTickCount);
+    if (GetProcAddress(GetModuleHandleA("ntdll.dll"), "wine_get_version")) {   /* wine: hermetic system-DLL version blocks */
+        p_GetFileVersionInfoA = iat_lookup("GetFileVersionInfoA");
+        iat_override("GetFileVersionInfoA", my_GetFileVersionInfoA);
+    }
     iat_override("GetLocalTime", my_GetLocalTime);
     iat_override("GetSystemTime", my_GetSystemTime);
     iat_override("GetTimeZoneInformation", my_GetTimeZoneInformation);

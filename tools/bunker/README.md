@@ -11,7 +11,7 @@ Used by:
   `rd endsave` fetches `user\`).
 - **`rhost.py … --target bunker --headless`** (`rhost.run_batch` → `bunker.run_batch`): `run`, `rd verify` of a bunker
   session, `final-save` chains (`"from"` traces: predecessor replayed on bunker, cached as `final-bunker-*`). Headless
-  only (no X / GPU); no `--show`. Not the port gates (corpus / expected.json stay win + wine).
+  only (no X / GPU); no `--show`. **Also every `--target wine` batch when bunker answers** (USER 2026-11-14: the wine gate = headless; `corpus --bless/--check --target wine` → `expected.wine.json`, maximus wine headless when bunker is down; `RHOST_WINE_HOST=local|bunker` forces).
 - CLI:
 
 ```sh

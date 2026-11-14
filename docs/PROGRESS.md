@@ -6,6 +6,20 @@ specific commits where relevant.
 
 ---
 
+## 2026-11-14 (night) — R11 fixed; the wine gate is headless on the bunker (8 min a pass, was 1–4 h)
+
+- R11: the stack-ref mask now covers every world block of the run (`rh_state_note_world`, every flip, savestate-carried),
+  not just the current one. Pure `state_sem` changed on bonus-menu only; re-blessed. Windows hybrid 35/35 (R9 before its
+  gap), wine hybrid + standalone PASS.
+- Wine gate (USER): every `--target wine` batch runs `--headless` (frame / tick / RNG / fb ≡ real devices), on the bunker
+  when it answers (`wine_host()`), else maximus. A loaded maximus (load ~45, other projects' wine jobs) ran the Xvfb corpus
+  at 30–40 fps and timed out the 240k-frame chains at 2 h; the bunker runs a full corpus pass -j 8 in ~8 min (500–2000 fps).
+  `RHOST_WINE_HOST=local|bunker` forces; `RHOST_WINE_REAL=1` = the old Xvfb path. `expected.wine.json` re-blessed headless.
+- Bunker ≠ maximus headless `state_sem` was ONE heap dword: `_WinMain`'s DirectX check (0x5b0450) reads ddraw.dll's
+  whole version block and frees it; the stale string table holds "Wine 11.19" vs "Wine 11.20". Under wine rhost zeroes the
+  block past the root VS_FIXEDFILEINFO (the only part retail reads); both hosts now hash alike (rh-boot-title,
+  rh-intro-errands).
+
 ## 2026-11-14 (evening) — campaign round 2: corpus 35, standalone 34/34, hybrid 34/35 (R11)
 
 - 6 more driven scenarios: story-barness-dungeon / -dungeon2 (the 280150 block puzzle → Barness Hills Dungeon → the 290152

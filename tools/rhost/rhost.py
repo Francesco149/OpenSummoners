@@ -616,8 +616,34 @@ def run_batch_wine(a, runs, tag, fetch):
     return batch, bdir, results, "\n".join(out_lines)
 
 
+def wine_host():
+    """where a --target wine batch runs: "bunker" when it answers, else "local" (maximus wine).  RHOST_WINE_HOST=local|bunker
+    forces one (bunker: fail if down)."""
+    want = os.environ.get("RHOST_WINE_HOST", "auto")
+    if want == "local":
+        return "local"
+    sys.path.insert(0, os.path.join(ROOT, "tools", "bunker"))
+    import bunker
+    if bunker.up():
+        return "bunker"
+    if want == "bunker":
+        raise SystemExit("RHOST_WINE_HOST=bunker: bunker unreachable")
+    print("[wine: bunker unreachable → maximus wine]")
+    return "local"
+
+
 def run_batch(a, runs, tag, fetch=("rhost.log",)):
     if getattr(a, "target", "win") == "wine":
+        # USER 2026-11-14: the wine target (the logic oracle, expected.wine.json) runs HEADLESS — frame / tick / RNG / fb
+        # equal to real devices (docs/findings/headless-devices.md), 5-20x faster than Xvfb + wined3d — on the bunker when
+        # it answers, else on maximus.  Real-device truth stays on Windows.  RHOST_WINE_REAL=1: the old Xvfb path (local).
+        if os.environ.get("RHOST_WINE_REAL") == "1":
+            return run_batch_wine(a, runs, tag, fetch)
+        a.headless = True
+        if wine_host() == "bunker":
+            import bunker
+            ab = argparse.Namespace(**vars(a)); ab.target = "bunker"
+            return bunker.run_batch(ab, runs, tag, fetch)
         return run_batch_wine(a, runs, tag, fetch)
     if getattr(a, "target", "win") == "bunker":     # headless under wine on the NixOS box, one bounded pool (tools/bunker)
         sys.path.insert(0, os.path.join(ROOT, "tools", "bunker"))

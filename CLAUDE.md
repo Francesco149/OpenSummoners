@@ -66,8 +66,8 @@ runs the port with NO retail code (data sections only); `rhost.exe --standalone`
   `--shot-at` / `--shot-every` (frames as images).
 - **Windows:** `ssh win` + task `oss-rhost-runner` + `C:\oss-rhost\` — separate from openrecet's
   `orc-rhost-runner`/`C:\orc-rhost\` (verified running simultaneously); the binary is `oss-rhost.exe` there
-  (openrecet kills `rhost.exe` by name — never kill anything by exe NAME on that box). Wine (`--target wine`,
-  local headless) = the logic oracle. IDA 9.4 headless: `python3 tools/ida/ida.py export [--kb] [--fresh]`
+  (openrecet kills `rhost.exe` by name — never kill anything by exe NAME on that box). Wine (`--target wine`: always
+  `--headless`, on the bunker when it answers else maximus — USER 2026-11-14) = the logic oracle. IDA 9.4 headless: `python3 tools/ida/ida.py export [--kb] [--fresh]`
   (`C:\oss-ida\`).
 - **Removed (USER, 2026-10-31):** the pre-rhost loop — the from-scratch front end `opensummoners.exe`
   (`src/main.c` + its title / newgame / prologue / town drive modules + their host tests), the Frida retail

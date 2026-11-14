@@ -182,9 +182,15 @@ from `tools/ida/crosswalk.py`. Game data: `C:\oss-rhost\game\{enold,ense}\` (pri
   windows; each rhost process is hermetic (unnamed mutex, off-screen non-activating window).
 - `C:\oss-rhost\{bin,game,runs,queue}`.
 
-## Wine target (maximus, headless) — `--target wine` (or `RHOST_TARGET=wine`)
+## Wine target (headless: bunker, else maximus) — `--target wine` (or `RHOST_TARGET=wine`)
 
-Same batches, run locally in parallel under `xvfb-run` (16-bit screen) + wine 11: a prefix whose
+**USER 2026-11-14: every `--target wine` batch runs `--headless`** (fake devices: frame / tick / RNG / fb equal to real
+devices, `docs/findings/headless-devices.md`; ~500–2000 fps vs 30–150 under Xvfb on a loaded maximus) **on the bunker when
+it answers, else on maximus** (`rhost.run_batch` → `wine_host()`). `RHOST_WINE_HOST=local|bunker` forces one;
+`RHOST_WINE_REAL=1` = the old Xvfb real-device path below (local only). `expected.wine.json` = the headless runs
+(re-blessed 2026-11-14; full corpus on bunker -j 8 ≈ 7 min). Real-device truth = Windows.
+
+The old real-device path (`RHOST_WINE_REAL=1`): same batches, run locally in parallel under `xvfb-run` (16-bit screen) + wine 11: a prefix whose
 `drive_c/oss-rhost` → `/mnt/ephemeral/opensummoners/wine/root` (bin/, runs/, game/<ed> → local game
 data: `game/ense` = links into the Linux-Steam SE install + the unpacked exes; `game/enold` needs a
 copy of `C:\oss-rhost\game\enold`). **A valid LOGIC oracle:** frame/tick/RNG identical to Windows
