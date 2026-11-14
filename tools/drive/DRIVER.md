@@ -101,7 +101,11 @@ holds, then spends `--refine` seconds shortening the path.
   hostile within 56000 × 20000 of the leader (`zrest` counts down 30 → 0; HUD "ESCAPE" icon = a held zone). Kind 1 fires on
   walking in, kinds 2–3 on ↑ while standing idle on the ground. Kill or outrun nearby enemies first; red screen-edge markers
   point at off-screen enemies, not doors. Doors of a room: zone actors `a = s32(world+0x11e0+4k)` with `a+0x274` ≠ 0.
-- Push blocks / crates only with the sword SHEATHED (Z); pushing = `lpose` 114, 100 lx/frame.
+- Push blocks / crates only with the sword SHEATHED (Z); pushing = `lpose` 114, 100 lx/frame. Two blocks in contact do
+  not move; leaving and re-entering a room RESETS its blocks. Deep water is a pit (−8 HP, back to the ledge; Arche
+  cannot swim). Long gaps: chain air Jumpkicks (`R U X`) during a long jump (found by search).
+- Story state: no day counter — story flag 100100101 (`story`) is the progress value; chests / levers / doors set object
+  flags in the same store (`flags`).
 - Game over: "Return To Safety" → the `retry` room, HP full, money −10 % (truncated).
 - Saving [RD save-load]: the inn menu (Rest / Don't Rest / **Save**: free, no rest needed) and goddess statues → "Please
   choose a slot to save in." (24 slots, 3 pages, ←/→ page, cursor on the last-used slot); empty slot saves at once,

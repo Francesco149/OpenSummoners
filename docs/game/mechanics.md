@@ -149,6 +149,8 @@ Tags: see `README.md`. EN labels in `quotes` are verbatim [EXE] strings.
 
 ## 11. Menus (F1 Main Menu) [EXE]
 `Main Menu` → `Status` (per char: stats, `Equipment`, `Abilities`), items (use/`Discard`/`Remove`), `Special Items`, `Abilities` (spellbook assignment, AI toggles), `Party Commands`, `Messages` (dated hint letters per Day — "what to do next"), `System` (`Give Up`, `Return to Title`, `Money Display`, quick-heal config, `Options`). Exact top-level order UNVERIFIED — probe in rhost.
+- [RD newgame-config] New Game picker: 1:Easy 2:Normal 3:Hard 4:Expert only (5:Nightmare not listed until unlocked);
+  `bk` closes a picker unchanged; difficulty changes in game "take effect once you change areas".
 - Options (title + in-game): `Keyboard Setup`, `Gamepad Setup`, `Analog Gamepad Setup`, `Sound Settings` (music/sound/voice/message volume), `Graphics Settings` (`Graphics Quality`, `Brightness`, `Contrast`, `Display FPS`), `Game & Control Setup` (`Game Difficulty`, `Auto-guard`, `Dash Input Sensitivity`, `Message Speed`, `Magic Quick Select`, `Display Combo Meter`, `Magic Circle Display`); buttons `Save Changes & Exit` / `Reset to Defaults` / `Exit Without Saving` [EXE].
 - Title: New Game / Load / Options / Bonus Menu / Exit (order per `docs/findings/engine-quirks.md` #27) [REPO]. New Game → config box `Game Difficulty` / `Auto-guard` / `Start Game` [REPO new-game-flow.md].
 - Shop UI: Buy / Sell / (Dad only) `Help Out` [DK][EXE].

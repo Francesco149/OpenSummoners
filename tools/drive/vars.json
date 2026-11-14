@@ -118,7 +118,7 @@
  },
  "diff": {
   "expr": "s32(world + 0x2780) if world else 0",
-  "note": "difficulty (10 = Easy on the Day 6 save; story-barness-caves)"
+  "note": "difficulty in the world (10 Easy \u2026 40 Expert; = cdiff after an area change) (story-barness-caves, newgame-config)"
  },
  "defeats": {
   "expr": "s32(s32(world + 0x2784) + 0x40b0) if world else 0",
@@ -147,5 +147,26 @@
  "clevel": {
   "expr": "s32(lslot + 0xad8) if lslot else 0",
   "note": "combat level (max at +0xadc); adventurer level +0xae0, EXP +0xae8, to next +0xaec (items-use, Status page)"
+ },
+ "cfg": {
+  "expr": "u32(u32(0x8a6e80))",
+  "note": "the config object; settings record for row id at cfg + 0xc + id*0x1c; dash window cfg+0xf8 = 800; Nightmare unlock cfg+0xaa4 (0 fresh) (newgame-config)"
+ },
+ "cdiff": {
+  "expr": "s32(cfg + 0x60) if cfg else 0",
+  "status": true,
+  "note": "configured difficulty: 10 Easy, 20 Normal, 30 Hard, 40 Expert (newgame-config: Hard \u2192 30, matched Options page)"
+ },
+ "cguard": {
+  "expr": "s32(cfg + 0x7c) if cfg else 0",
+  "note": "Auto-guard: 1 On, 0 Off (newgame-config)"
+ },
+ "flags": {
+  "expr": "s32(s32(world + 0x2784) + 0x40ac) if world else 0",
+  "note": "flag store: story records {id, value, 0} from flags+0 (count flags+0x1800), object records (chests / levers / doors) from flags+0x1804 (count flags+0x7804) (story-barness-dungeon; script_flag in src/script_engine.c reads the story table)"
+ },
+ "story": {
+  "expr": "(s32(flags + 0x4c) if s32(flags + 0x48) == 100100101 else -1) if flags else -1",
+  "note": "story progress flag 100100101 (1110 on Day 6; the 280170 altar script checks it) \u2014 there is NO separate day counter (story-barness-dungeon). Reads -1 if the record is not at that slot."
  }
 }

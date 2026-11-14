@@ -93,6 +93,12 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      280125 (unvisited). 280130 → 280140 (outdoors): ↑ x 185600 → 280145 (herb cave: chests bottom-left, Herb + Strongirl
      Juice — one Herb, not ×3) / ↑ x 374400 → 280150 ("end cave": crest blocks, push with the sword SHEATHED; exits x 176000 →
      280115, x 16000 → 280155 on a ledge). Two blocks in contact do not move.
+   - [RD story-barness-dungeon] 280150 puzzle: kill the Killer Bat holding the entry zone; re-enter to reset; push the 4
+     blocks rightmost-first (jump over the others) — each drops into a 2×2 notch at the right pool's left edge → a slab;
+     cross the far pool with air Jumpkicks; the heart lever (x 289600) opens the 280115 gate ("sound of machinery").
+     280115 → 280160 (tunnel) → 280170: altar at x ~55600 (V) → Arche places her stone → secret door → **290110** Barness
+     Hills Dungeon (diamond switch x 12800 opens the 280115 shortcut). 290120 blocks: floor block right to x 108800, push
+     the ledge block onto it, push the stack to the right wall, jump up → 290130 (→ 290150 stairs on the bottom floor).
    - [RD items-use] Barness general store = room 270190, ↑ at lx ≈ 260000 at the right end of the inn street 270120 (not in
      the inn): Herb 10, Better Herb 18, Venom-Away 7, Wig 150, Iron Sword 780, Shortsword 2800, Iron Dagger 450, Leather
      Armor 560.
