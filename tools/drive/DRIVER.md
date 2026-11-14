@@ -104,6 +104,9 @@ holds, then spends `--refine` seconds shortening the path.
 - Push blocks / crates only with the sword SHEATHED (Z); pushing = `lpose` 114, 100 lx/frame. Two blocks in contact do
   not move; leaving and re-entering a room RESETS its blocks. Deep water is a pit (−8 HP, back to the ledge; Arche
   cannot swim). Long gaps: chain air Jumpkicks (`R U X`) during a long jump (found by search).
+- Characters: 32 slots `c = s32(world+0x1160+4i)` (enemies first, then the party): in use when `u8(s32(c+0x40))` ≠ 0,
+  targetable when `c+0x1d0` ≠ 0, code `c+0x1d4`, faction `c+0x1dc` (2 enemy), HP / max `s32(s32(c+0x750)+0x54 / +0x58)`.
+  Leaving a room respawns its enemies at full HP. [RD fields-enemies]
 - Story state: no day counter — story flag 100100101 (`story`) is the progress value; chests / levers / doors set object
   flags in the same store (`flags`).
 - Game over: "Return To Safety" → the `retry` room, HP full, money −10 % (truncated).

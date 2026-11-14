@@ -168,5 +168,9 @@
  "story": {
   "expr": "(s32(flags + 0x4c) if s32(flags + 0x48) == 100100101 else -1) if flags else -1",
   "note": "story progress flag 100100101 (1110 on Day 6; the 280170 altar script checks it) \u2014 there is NO separate day counter (story-barness-dungeon). Reads -1 if the record is not at that slot."
+ },
+ "tod": {
+  "expr": "s32(0x8a6b60 + 0x289c)",
+  "note": "time of day; char_init gates some spawns on it (Huge Bat 51022 only when tod 2\u20135 or a grid / world flag; crates 58010 only when tod not 1\u20134) (fields-enemies; src/char_init.c gated())"
  }
 }
