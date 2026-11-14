@@ -1,0 +1,204 @@
+# rhost trace (rd movie: combat-moves: rd run combat-moves — combat-moves.md): DIK levels per flip-frame, from boot
+{"meta": {"edition": "enold", "rd": true, "from": "story-day6-barness", "from_save": "a4963b1f36aa"}}
+{"frame": 1, "keys": []}
+{"frame": 401, "keys": [28]}
+{"frame": 402, "keys": []}
+{"frame": 442, "keys": [200]}
+{"frame": 443, "keys": []}
+{"frame": 463, "keys": [28]}
+{"frame": 464, "keys": []}
+{"frame": 544, "keys": [28]}
+{"frame": 545, "keys": []}
+{"frame": 604, "keys": [203]}
+{"frame": 605, "keys": []}
+{"frame": 606, "keys": [203]}
+{"frame": 1006, "keys": [205]}
+{"frame": 1071, "keys": []}
+{"frame": 1073, "keys": [203]}
+{"frame": 1086, "keys": [200]}
+{"frame": 1087, "keys": []}
+{"frame": 1153, "keys": [203]}
+{"frame": 1154, "keys": []}
+{"frame": 1155, "keys": [203]}
+{"frame": 2355, "keys": [205]}
+{"frame": 2415, "keys": [200]}
+{"frame": 2416, "keys": []}
+{"frame": 2481, "keys": [200]}
+{"frame": 2482, "keys": []}
+{"frame": 2538, "keys": [205]}
+{"frame": 2539, "keys": []}
+{"frame": 2540, "keys": [205]}
+{"frame": 3773, "keys": []}
+{"frame": 3812, "keys": [205]}
+{"frame": 3813, "keys": []}
+{"frame": 3814, "keys": [205]}
+{"frame": 5314, "keys": [200]}
+{"frame": 5315, "keys": []}
+{"frame": 5379, "keys": [205]}
+{"frame": 5380, "keys": []}
+{"frame": 5381, "keys": [205]}
+{"frame": 5516, "keys": [45]}
+{"frame": 5517, "keys": []}
+{"frame": 5542, "keys": [203]}
+{"frame": 5545, "keys": [45]}
+{"frame": 5546, "keys": []}
+{"frame": 5571, "keys": [44]}
+{"frame": 5572, "keys": []}
+{"frame": 5592, "keys": [203]}
+{"frame": 5612, "keys": [45]}
+{"frame": 5613, "keys": []}
+{"frame": 5633, "keys": [203]}
+{"frame": 5637, "keys": [45, 200]}
+{"frame": 5638, "keys": []}
+{"frame": 5668, "keys": [203]}
+{"frame": 5680, "keys": [45, 200]}
+{"frame": 5681, "keys": []}
+{"frame": 5705, "keys": [203]}
+{"frame": 5709, "keys": [45, 200]}
+{"frame": 5710, "keys": []}
+{"frame": 5734, "keys": [45, 200]}
+{"frame": 5735, "keys": []}
+{"frame": 5757, "keys": [45, 200]}
+{"frame": 5758, "keys": []}
+{"frame": 5780, "keys": [45, 200]}
+{"frame": 5781, "keys": []}
+{"frame": 5803, "keys": [45]}
+{"frame": 5804, "keys": []}
+{"frame": 5810, "keys": [45, 200]}
+{"frame": 5811, "keys": []}
+{"frame": 5835, "keys": [46, 205]}
+{"frame": 5843, "keys": [45]}
+{"frame": 5844, "keys": []}
+{"frame": 5884, "keys": [46]}
+{"frame": 5894, "keys": []}
+{"frame": 5924, "keys": [46]}
+{"frame": 5939, "keys": []}
+{"frame": 5949, "keys": [205]}
+{"frame": 5959, "keys": []}
+{"frame": 5964, "keys": [46, 205]}
+{"frame": 5974, "keys": []}
+{"frame": 5994, "keys": [205]}
+{"frame": 6006, "keys": [45]}
+{"frame": 6007, "keys": []}
+{"frame": 6015, "keys": [45, 200]}
+{"frame": 6016, "keys": []}
+{"frame": 6046, "keys": [203]}
+{"frame": 6050, "keys": [46, 203]}
+{"frame": 6055, "keys": [45]}
+{"frame": 6056, "keys": []}
+{"frame": 6081, "keys": [203]}
+{"frame": 6265, "keys": [45]}
+{"frame": 6266, "keys": []}
+{"frame": 6276, "keys": [45, 200]}
+{"frame": 6277, "keys": []}
+{"frame": 6307, "keys": [205]}
+{"frame": 6707, "keys": [46, 205]}
+{"frame": 6747, "keys": [208]}
+{"frame": 6749, "keys": [205]}
+{"frame": 7058, "keys": []}
+{"frame": 7067, "keys": [205]}
+{"frame": 7073, "keys": [45, 205]}
+{"frame": 7074, "keys": []}
+{"frame": 7104, "keys": [205]}
+{"frame": 7106, "keys": []}
+{"frame": 7107, "keys": [208]}
+{"frame": 7109, "keys": [45, 208]}
+{"frame": 7110, "keys": [208]}
+{"frame": 7112, "keys": []}
+{"frame": 7136, "keys": [205]}
+{"frame": 7138, "keys": []}
+{"frame": 7139, "keys": [200]}
+{"frame": 7140, "keys": [45, 200]}
+{"frame": 7141, "keys": [200]}
+{"frame": 7142, "keys": []}
+{"frame": 7166, "keys": [205]}
+{"frame": 7168, "keys": []}
+{"frame": 7169, "keys": [45]}
+{"frame": 7170, "keys": []}
+{"frame": 7178, "keys": [45, 200]}
+{"frame": 7179, "keys": []}
+{"frame": 7211, "keys": [205]}
+{"frame": 7213, "keys": []}
+{"frame": 7214, "keys": [45]}
+{"frame": 7215, "keys": []}
+{"frame": 7223, "keys": [45, 200]}
+{"frame": 7224, "keys": []}
+{"frame": 7254, "keys": [205]}
+{"frame": 7295, "keys": [200]}
+{"frame": 7297, "keys": [45]}
+{"frame": 7298, "keys": []}
+{"frame": 7332, "keys": [33]}
+{"frame": 7333, "keys": []}
+{"frame": 7373, "keys": [60]}
+{"frame": 7374, "keys": []}
+{"frame": 7494, "keys": [60]}
+{"frame": 7502, "keys": []}
+{"frame": 7582, "keys": [59]}
+{"frame": 7583, "keys": []}
+{"frame": 7623, "keys": [28]}
+{"frame": 7624, "keys": []}
+{"frame": 7659, "keys": [205]}
+{"frame": 7660, "keys": []}
+{"frame": 7690, "keys": [1]}
+{"frame": 7692, "keys": []}
+{"frame": 7707, "keys": [1]}
+{"frame": 7708, "keys": []}
+{"frame": 7738, "keys": [205]}
+{"frame": 7775, "keys": [46, 205]}
+{"frame": 7787, "keys": []}
+{"frame": 7799, "keys": [205]}
+{"frame": 7800, "keys": [45]}
+{"frame": 7801, "keys": []}
+{"frame": 7826, "keys": [209]}
+{"frame": 7856, "keys": [205]}
+{"frame": 7872, "keys": [46, 205]}
+{"frame": 7904, "keys": [200]}
+{"frame": 7905, "keys": []}
+{"frame": 7912, "keys": [200]}
+{"frame": 7913, "keys": []}
+{"frame": 7920, "keys": [46, 205]}
+{"frame": 7928, "keys": [205]}
+{"frame": 7944, "keys": [46, 205]}
+{"frame": 7982, "keys": [205]}
+{"frame": 8011, "keys": []}
+{"frame": 8061, "keys": [45]}
+{"frame": 8062, "keys": []}
+{"frame": 8092, "keys": [203]}
+{"frame": 8155, "keys": [45]}
+{"frame": 8156, "keys": []}
+{"frame": 8186, "keys": [46]}
+{"frame": 8196, "keys": []}
+{"frame": 8204, "keys": [45, 208]}
+{"frame": 8205, "keys": []}
+{"frame": 8245, "keys": [208]}
+{"frame": 8247, "keys": [205]}
+{"frame": 8249, "keys": []}
+{"frame": 8279, "keys": [208]}
+{"frame": 8281, "keys": [203]}
+{"frame": 8283, "keys": []}
+{"frame": 8313, "keys": [200]}
+{"frame": 8343, "keys": []}
+{"frame": 8349, "keys": [46]}
+{"frame": 8359, "keys": []}
+{"frame": 8365, "keys": [45, 208]}
+{"frame": 8366, "keys": []}
+{"frame": 8406, "keys": [208]}
+{"frame": 8407, "keys": []}
+{"frame": 8408, "keys": [205]}
+{"frame": 8409, "keys": []}
+{"frame": 8439, "keys": [208]}
+{"frame": 8440, "keys": []}
+{"frame": 8441, "keys": [203]}
+{"frame": 8442, "keys": []}
+{"frame": 8472, "keys": [46]}
+{"frame": 8482, "keys": []}
+{"frame": 8498, "keys": [208]}
+{"frame": 8499, "keys": [45, 208]}
+{"frame": 8500, "keys": [208]}
+{"frame": 8514, "keys": []}
+{"frame": 8534, "keys": [208]}
+{"frame": 8537, "keys": [205, 208]}
+{"frame": 8543, "keys": [205]}
+{"frame": 8547, "keys": []}
+{"frame": 8577, "keys": []}
+{"end": 8577}
