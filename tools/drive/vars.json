@@ -52,5 +52,37 @@
  "tcount": {
   "expr": "s32(u32(tctrl + 0x174) + 0x10) if tctrl else 0",
   "note": "title menu rows: 5 while the title menu is live (the 'title is up' test)"
+ },
+ "gold": {
+  "expr": "s32(s32(world + 0x2784) + 0x4014) if world else 0",
+  "status": true,
+  "note": "money in CP (room +0x4014): = the F1 panel (893), inn fee 893\u2192887, game-over loss 887\u2192799 (rd probe story-barness-hills)"
+ },
+ "hp": {
+  "expr": "s32(lslot + 0xa64) if lslot else 0",
+  "status": true,
+  "note": "leader HP (slot +0xa64): = F1 panel 172/172, drops with damage, inn refill (story-barness-hills); +0xa68 = base max HP (shown max adds equipment)"
+ },
+ "mp": {
+  "expr": "s32(lslot + 0xa6c) if lslot else 0",
+  "note": "leader MP (slot +0xa6c): = F1 panel 27/27 (story-barness-hills)"
+ },
+ "party": {
+  "expr": "((s32(s32(s32(world + 0x2784) + 0x4030) + 0x9c4) == 1) + 2 * (s32(s32(s32(world + 0x2784) + 0x4034) + 0x9c4) == 1) + 4 * (s32(s32(s32(world + 0x2784) + 0x4038) + 0x9c4) == 1) + 8 * (s32(s32(s32(world + 0x2784) + 0x403c) + 0x9c4) == 1)) if world else 0",
+  "status": true,
+  "note": "bit i = party slot i active (slot +0x9c4 == 1; room +0x4030 + 4i). Day 6 Barness: 1 (Arche alone); Sana's slot reads 2 there (away/sick?) (story-barness-hills)"
+ },
+ "lpose": {
+  "expr": "u16(lchar + 0x48) if lchar else 0",
+  "status": true,
+  "note": "leader's current move id: Slash 10101, Thrust 10102, Downstab 10103, Roll 10108, Wide Slash 10109, Arcing Slash 10110 (rd probe combat-moves, each with a picture); Arche's move table at char +0x754 (0x300 per record, id +0)"
+ },
+ "foe": {
+  "expr": "s32(world + 0x2774) if world else 0",
+  "note": "1 while an enemy is near (turned 1 with the off-screen enemy marker; combat-moves)"
+ },
+ "lface": {
+  "expr": "s32(lchar + 0x2c) if lchar else 0",
+  "note": "leader facing: 1 right, 3 left (combat-moves)"
  }
 }
