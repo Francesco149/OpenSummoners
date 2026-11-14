@@ -75,7 +75,7 @@
  "lpose": {
   "expr": "u16(lchar + 0x48) if lchar else 0",
   "status": true,
-  "note": "leader's current move id: Slash 10101, Thrust 10102, Downstab 10103, Roll 10108, Wide Slash 10109, Arcing Slash 10110 (rd probe combat-moves, each with a picture); Arche's move table at char +0x754 (0x300 per record, id +0)"
+  "note": "leader's current move id (rd probes combat-moves + combat-party, pictures): Slash 10101 (also in the air), Thrust 10102, Downstab 10103, Arcing Slash 10104 (\u2191+X), Snap Thrust 10105, Roll/Cartwheel 10108, Wide Slash 10109, Jumpkick 10110 (\u2192 \u2191 X), Combo Slash 10111; Diamond Dust 20101, Heal Water 20102; 117 asleep / guarding, 98 / 99 hit. Move table at char +0x754 (0x300 per record)"
  },
  "foe": {
   "expr": "s32(world + 0x2774) if world else 0",
@@ -84,5 +84,23 @@
  "lface": {
   "expr": "s32(lchar + 0x2c) if lchar else 0",
   "note": "leader facing: 1 right, 3 left (combat-moves)"
+ },
+ "combo": {
+  "expr": "s32(s32(world + 0x2784) + 0x40e0) if world else 0",
+  "status": true,
+  "note": "combo hit counter (room +0x40e0): = HUD \"8 Hit\" (combat-party)"
+ },
+ "lid": {
+  "expr": "s32(lslot + 4) if lslot else 0",
+  "status": true,
+  "note": "leader character id: 50010 Arche, 50011 Sana (Enter switches; combat-party)"
+ },
+ "lstate": {
+  "expr": "u16(lchar + 0x38) if lchar else 0",
+  "note": "leader body state: 0 stand / attack, 1 walk, 2 crouch, 3 jump start, 4 airborne, 5 guard / look up (combat-party)"
+ },
+ "stance": {
+  "expr": "s32(s32(lslot + 0x9f4) + 0x14860) if lslot else 0",
+  "note": "11 guard, 10 crouch (combat-party)"
  }
 }

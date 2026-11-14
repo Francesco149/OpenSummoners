@@ -64,15 +64,18 @@ Tags: see `README.md`. EN labels in `quotes` are verbatim [EXE] strings.
 | story | Unison (10 MP) | spell; after seal broken (Day 11) | **triple jump** (wind boost jump; "boost TWICE in the air") — needed for many late chests |
 | story | Wind Thrust | during Unison | ranged sword blades |
 - Learned automatically on level-up (`New Abilities` in Level-up Info) [EXE]. Books (NG+) can grant early (side-content.md).
-- [RD combat-moves, EN-old, Arche Lv5] confirmed on enemies with pictures, `lpose` id: Slash 10101 (X), Wide Slash 10109 (→+X),
-  Arcing Slash 10110 (↑+X); Downstab 10103 (↓+X falling), Thrust 10102 (↓+X standing), Roll 10108 (`D*3 DR*6` worked;
-  `D*2 R*2` / `D . R` did not). Slash → ↑+X gave 10111 or 10104 (Combo Slash = one of them, unresolved). Cartwheel,
-  Jumpkick, Wheel Slash attempts produced Slash or nothing. An attack key pressed during recovery is dropped; jump needs a
-  fresh press; a hit stuns input ~30 frames. Arche's move ids: 10101–10118, 10120, 10122.
+- [RD combat-moves + combat-party, EN-old] `lpose` ids, each on an enemy with a picture: Slash 10101 (X; also the jump attack:
+  X in the air), Thrust 10102 (↓+X), Downstab 10103 (↓+X falling), Arcing Slash 10104 (↑+X), Snap Thrust 10105 (←+X), Wide
+  Slash 10109 (→+X), **Jumpkick 10110** (`R U X`, fresh 1-frame presses; also unarmed), Combo Slash 10111 (`X .*10 UX`),
+  Roll / Cartwheel 10108 (`D*3 DR*6`, ↓ then toward / away). In-game command strings: Cartwheel "↓ ▶ ←", Jumpkick "→ ▶ ↑ ▶ X".
+  Wheel Slash needs Combat Level 5 (Day 5 save: 3/5). An attack key pressed during recovery is dropped; jump needs a fresh
+  press; a hit stuns input ~30 frames. Arche's move ids: 10101–10118, 10120, 10122. Sana: Diamond Dust 20101 (`n1`, hold X
+  ~130 frames, release), Heal Water 20102 (`n2`).
 
 ## 3. Combat rules
 - Don't mash: slow recovery; enemies dodge/guard/counter. Guard then punish [DK][ZO][EXE].
 - **Auto-guard** (new-game option + Options) blocks automatically when idle; never while attacking/jumping [EXE]. Recommended ON [DK]; [ZO] calls it unreliable.
+- [RD combat-party] Mothbee Sleep passes ↑ guard; lasts ~280 frames unless a hit wakes ("Arche has fallen asleep." / "Arche woke up."); both members can sleep at once. F2 in combat = "Quick-heal" bar then the herb bar (~250 frames, not cancelled by a hit); F / F2 do nothing without a healing item.
 - Guard can't stop: magic, huge-weapon hits, big-monster body hits, jump attacks (unblockable → bigger damage numbers) [EXE][MA]. Shield-bearing enemies guard anything frontal [EXE].
 - Taking too many hits (blocked or not) in a short time → **disarmed + knocked down** [MA]; Jumpkick still works unarmed.
 - Interrupt casters by hitting them while the magic circle forms (applies to all enemy mages) [EG][ZO].
