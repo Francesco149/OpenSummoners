@@ -97,10 +97,15 @@
  },
  "lstate": {
   "expr": "u16(lchar + 0x38) if lchar else 0",
-  "note": "leader body state: 0 stand / attack, 1 walk, 2 crouch, 3 jump start, 4 airborne, 5 guard / look up (combat-party)"
+  "note": "leader body state: 0 stand / attack, 1 walk / dash, 2 crouch / slide, 3 rising (incl. ~4 take-off frames), 4 falling, 5 guard / look up (combat-party, field-movement)"
  },
  "stance": {
   "expr": "s32(s32(lslot + 0x9f4) + 0x14860) if lslot else 0",
   "note": "11 guard, 10 crouch (combat-party)"
+ },
+ "cam": {
+  "expr": "s32(s32(world + 0x2784) + 0x4058) if world else 0",
+  "status": true,
+  "note": "camera mode (room +0x4058): F6 cycles 0 plain \u2192 1 LOCK \u2192 2 LONG (HUD icon; field-movement)"
  }
 }

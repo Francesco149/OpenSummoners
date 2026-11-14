@@ -79,7 +79,7 @@ Tags: see `README.md`. EN labels in `quotes` are verbatim [EXE] strings.
 - Guard can't stop: magic, huge-weapon hits, big-monster body hits, jump attacks (unblockable → bigger damage numbers) [EXE][MA]. Shield-bearing enemies guard anything frontal [EXE].
 - Taking too many hits (blocked or not) in a short time → **disarmed + knocked down** [MA]; Jumpkick still works unarmed.
 - Interrupt casters by hitting them while the magic circle forms (applies to all enemy mages) [EG][ZO].
-- Pits in fields: fall = −5 HP and respawn [DK]. [RD combat-moves: −8 HP at Barness road 260170 (Lv5, Day 6), back at the last ledge.]
+- Pits in fields: fall = −5 HP and respawn [DK] [RD field-movement: 225110 −5 HP, back at the ledge you fell from]. [RD combat-moves: −8 HP at Barness road 260170 (Lv5, Day 6), back at the last ledge.]
 - Harpies grab + drop you to earlier screens (Weathervane Tower) [EG][DK].
 
 ## 4. Magic
