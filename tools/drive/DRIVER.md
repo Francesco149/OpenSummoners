@@ -95,6 +95,12 @@ holds, then spends `--refine` seconds shortening the path.
   while dashing; short jump `C*2` ≈ 4800 up, long `C*12` ≈ 8400. Field exits are ↑ markers at the room edge (not
   walk-offs) and refuse while an enemy is attacking; town → field: ↑ at the tower right of the boutique (210110 → 225110).
   X examines unless the sword is drawn (then it slashes); V always examines. In a shop menu `ent` BUYS — mind `gold`.
+- **Room exits are event zones** [RD story-barness-caves; `zone_pass` 0x59a1f0]: a zone fires only after 30 ticks with no
+  hostile within 56000 × 20000 of the leader (`zrest` counts down 30 → 0; HUD "ESCAPE" icon = a held zone). Kind 1 fires on
+  walking in, kinds 2–3 on ↑ while standing idle on the ground. Kill or outrun nearby enemies first; red screen-edge markers
+  point at off-screen enemies, not doors. Doors of a room: zone actors `a = s32(world+0x11e0+4k)` with `a+0x274` ≠ 0.
+- Push blocks / crates only with the sword SHEATHED (Z); pushing = `lpose` 114, 100 lx/frame.
+- Game over: "Return To Safety" → the `retry` room, HP full, money −10 % (truncated).
 - The game saves at goddess statues (slot saves `user\savedataNN.sdt`). `rd endsave R` files the run's saves:
   `rd new NEXT --from save:DIGEST` continues from them (Continue on the title). Chain by saves: replays start at boot.
 - `--from fresh` = a new install (no saves, default config).

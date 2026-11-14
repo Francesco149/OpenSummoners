@@ -88,6 +88,11 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
 5. 🔑 Barness: talk to **man in far-left windmill**, then **Mayor** (no key; caves may hold a crest).
 6. 🔑 Street w/ guard → left (Cocorat, Mothbee, Yellow Slime, Killer Bat). 💎 2nd cave end: [Walnut Chocolate]×?, 200 CP; 1st cave: [Better Herb]×3, exit bottom; right over water platforms → cave: [Herb]×3, [Stronggirl Juice].
    - [RD story-barness-hills, EN-old] Not "left": the guard stands at a vine archway in the inn street (room 270120, lx ≈ 95000); ↑ under the arch → Barness Hills field 280110 (arrive lx 268800; scene: Chiffon "This pwace seems awfully... familiar"). Cave arches in 280110 did not open to ↑ with Mothbees / Cocorats engaged (HUD ESCAPE icon crossed out) — clear the enemies first (unconfirmed). Solo Lv5 Arche without herbs dies to Mothbee sleep on the Barness road (260160); game over "Return To Safety" → 270110 east gate, money −~10%.
+   - [RD story-barness-caves] 280110's only onward exit = a walk-in zone at its WEST edge (x 0–3200) → 280120 (lift hub),
+     once the nearby enemies are dead. 280120: ↑ x 147200 → 280130 ("1st cave", exit at the bottom x 105600) / ↑ x 19200 →
+     280125 (unvisited). 280130 → 280140 (outdoors): ↑ x 185600 → 280145 (herb cave: chests bottom-left, Herb + Strongirl
+     Juice — one Herb, not ×3) / ↑ x 374400 → 280150 ("end cave": crest blocks, push with the sword SHEATHED; exits x 176000 →
+     280115, x 16000 → 280155 on a ledge). Two blocks in contact do not move.
 7. 🔑 End cave: 4 stone blocks → push each right into right-hand water → 2×2 stepping stones → pull **heart lever** (left water: not enough blocks, ignore). Tunnel right (heart wall open); ⚠ chest to right = poison; take tunnel before it → left, jump pits → pedestal → examine → door appears → **Barness Hills Dungeon**.
 8. Barness Hills Dungeon (Arche SOLO — Sana is sick today):
    1. 🔑 Left: flip **diamond switch** (opens shortcut used later). Stairs down; right blocked.

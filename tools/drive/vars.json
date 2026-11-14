@@ -107,5 +107,25 @@
   "expr": "s32(s32(world + 0x2784) + 0x4058) if world else 0",
   "status": true,
   "note": "camera mode (room +0x4058): F6 cycles 0 plain \u2192 1 LOCK \u2192 2 LONG (HUD icon; field-movement)"
+ },
+ "zunder": {
+  "expr": "s32(s32(s32(world + 0x1044) + 0xf8) + 0x274) if world else 0",
+  "note": "event zone id under the leader, 0 = none (story-barness-caves; matched the zone-actor scan)"
+ },
+ "zrest": {
+  "expr": "s32(s32(world + 0x1044) + 0x104) if world else 0",
+  "note": "zone hold timer: reset to 30 while a hostile is near, the zone can fire at 0 (story-barness-caves; zone_pass 0x59a1f0)"
+ },
+ "diff": {
+  "expr": "s32(world + 0x2780) if world else 0",
+  "note": "difficulty (10 = Easy on the Day 6 save; story-barness-caves)"
+ },
+ "defeats": {
+  "expr": "s32(s32(world + 0x2784) + 0x40b0) if world else 0",
+  "note": "party defeats / game overs (7 on the Day 6 run; story-barness-caves)"
+ },
+ "retry": {
+  "expr": "s32(s32(world + 0x2784) + 0x40d0) if world else 0",
+  "note": "game over 'Return To Safety' room (270120 on Day 6; story-barness-caves)"
  }
 }

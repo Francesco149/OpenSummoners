@@ -32,6 +32,12 @@ Tags: see `README.md`. EN labels in `quotes` are verbatim [EXE] strings.
   ([REPO] input.md: RETURN fixed → confirm), the rebindable slots for those actions default empty. Both
   sets work. [DK]'s table = what a default install responds to.
 - Options → Keyboard Setup: `Jump, Attack, and Magic Select are not bound.` = error if those cleared [EXE].
+  [RD options-deep, EN-old] binding a key already in use SWAPS the two bindings ("This button is already bound." never
+  shown); Default Settings → "Resetting to defaults. Are you sure?"; Cancel Changes → "Exiting without saving. Are you
+  sure?"; 3 pages (←/→). Graphics values are picked from a pop-up (Enter; ←/→ do nothing); Brightness 0 darkens the field
+  (HUD / menus unaffected), Contrast 0 washes it out, Display FPS shows "FPS 30" bottom right. Message Speed 5 completes a
+  short line ~+130 frames vs speed 1 ~+170. Dash Input Sensitivity 1 (Short) rejects a 14-frame gap double-tap, accepts 8.
+  Gamepad pages are greyed without a pad. Saving options draws the RNG.
 - [REPO] verified (rhost, EN-old): X talks/confirms; C jumps + cancels dialogue; ↑ enters doors; Enter
   confirms + advances dialogue but does NOT talk; Z does nothing near an NPC.
 
