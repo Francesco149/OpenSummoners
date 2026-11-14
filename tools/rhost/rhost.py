@@ -163,7 +163,28 @@ def win_job(job_id, ps_path_win, timeout=14400):
           f"Copy-Item '{ps_path_win}' '{q}\\{job_id}.tmp'; Move-Item '{q}\\{job_id}.tmp' '{q}\\{job_id}.job.ps1'; "
           f"while (!(Test-Path '{q}\\{job_id}.done')) {{ Start-Sleep -Milliseconds 200 }}; "
           f"Get-Content '{q}\\{job_id}.out'; Remove-Item '{q}\\{job_id}.*'")
-    return ssh_win(ps, timeout=timeout)
+    try:
+        return ssh_win(ps, timeout=timeout)
+    except (KeyboardInterrupt, SystemExit, subprocess.TimeoutExpired):
+        win_cancel(job_id)
+        raise
+
+
+def win_cancel(job_id):
+    """end a queued / running Windows job of OURS: its processes by PID (command lines naming the job's run dir), then its
+    queue files.  Stopping the local rhost.py alone left the job running there, holding runner slots (2026-11-14: two
+    orphaned blesses kept 2 of 3 slots for an hour)."""
+    q = WROOT + "\\queue"
+    half = len(job_id) // 2   # the pattern is assembled in PowerShell: this command's own line must not match it
+    ps = (f"$j = '{job_id[:half]}' + '{job_id[half:]}'; "
+          f"Get-CimInstance Win32_Process | Where-Object {{ $_.ProcessId -ne $PID -and $_.CommandLine -and "
+          f"$_.CommandLine.Contains($j) }} | ForEach-Object {{ Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }}; "
+          f"Start-Sleep 2; Remove-Item \"{q}\\$j.*\" -ErrorAction SilentlyContinue; exit 0")
+    try:
+        ssh_win(ps, timeout=60)
+        print(f"[cancelled Windows job {job_id}]", file=sys.stderr)
+    except BaseException as e:   # noqa: BLE001 — best effort while exiting
+        print(f"[could not cancel Windows job {job_id}: {e!r}]", file=sys.stderr)
 
 
 # ---------------------------------------------------------------- build/stage
@@ -1254,6 +1275,10 @@ def main():
     a = ap.parse_args()
     if not hasattr(a, "jobs"):
         a.jobs = 1
+    import signal
+    def _term(*_):   # a SIGTERM (TaskStop, kill) unwinds like ^C: in-flight Windows jobs are cancelled (win_cancel)
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, _term)
     r = a.fn(a)
     sys.exit(r or 0)
 
