@@ -79,3 +79,13 @@ EN-old exe contains strings for `Bonus Menu`: `Arche's Wondrous Labyrinth` ("Exp
 
 ## 10. Gags / flavour (exercise dialogue, not required) [DK]
 Underwear in drawers across towns; dog follows; Mr. Harnel stops you if you run around him; break a certain school pot → Sam threatens to tell; Chartreux messy room "naughty book" under bed; Kanon/Kate random-phrase lines.
+
+## [RD bonus-menu] Bonus Menu (EN-old; unlocked once a save holds "Prologue Clear Data")
+- Bonus Menu: Versus Mode / Auto-Play Mode / Back (fresh install: "You cannot access this menu yet.").
+- **Vs. Mode Settings:** per team Character 1 / Character 2 / AI Strength (1: Punchin' Bag … 5: Takin' Names) / Damage
+  Handicap (100 %…10 %); Stage (only "Behind School" early), Mode (Player vs. AI / AI vs. AI), Start. Characters unlock with
+  story progress (Arche Lv3 / Sana Lv4, the rest "????"). The match runs in room 200210 with a TIME counter; it ends when a
+  side falls ("Sana has fallen...") → straight back to the settings (no results screen); no key quits a match early.
+- **Auto-play Settings:** Arche's / Sana's / Stella's Level (No Participant, Level 1–4), Default Settings, Start →
+  "Fortune Summoners Autoplay Mode … Please Hit Any Key"; the computer plays rooms 200110 → 200120 → 200150; any key
+  ends it. Leaving the Bonus Menu draws the RNG.

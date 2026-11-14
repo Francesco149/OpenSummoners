@@ -99,6 +99,12 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      280115 → 280160 (tunnel) → 280170: altar at x ~55600 (V) → Arche places her stone → secret door → **290110** Barness
      Hills Dungeon (diamond switch x 12800 opens the 280115 shortcut). 290120 blocks: floor block right to x 108800, push
      the ledge block onto it, push the stack to the right wall, jump up → 290130 (→ 290150 stairs on the bottom floor).
+   - [RD story-barness-dungeon2] 8.5 corrections: the moving-block room **290152** is 290150's TOP-LEFT door (x 16000,
+     y 22400, ↑), not top right. 290152: break the 3 crates, push the stone block (x 227200) LEFT up the stairs and off
+     the landing (x ≈ 157000) when the moving block (x 114000 ↔ 153400, 200/frame, ~20-frame pause) is at its right end;
+     ride the pair left, long-jump to the upper-left ledge; chest 290152601 = Better Herb; lever 290152501 (x 12800)
+     clears object flag 290150511 → the 290150 weight moves. Then: ride the weight up → zone 2 of 290150 (walk-in x 252800,
+     y 44800–60800) → 290155 ("fancy doors"?) → gargoyle question (12) → Stella. Blocks in 290120 reset on re-entry.
    - [RD items-use] Barness general store = room 270190, ↑ at lx ≈ 260000 at the right end of the inn street 270120 (not in
      the inn): Herb 10, Better Herb 18, Venom-Away 7, Wig 150, Iron Sword 780, Shortsword 2800, Iron Dagger 450, Leather
      Armor 560.

@@ -109,7 +109,9 @@ holds, then spends `--refine` seconds shortening the path.
   Leaving a room respawns its enemies at full HP. [RD fields-enemies]
 - Story state: no day counter — story flag 100100101 (`story`) is the progress value; chests / levers / doors set object
   flags in the same store (`flags`).
-- Game over: "Return To Safety" → the `retry` room, HP full, money −10 % (truncated).
+- Game over: "Return To Safety" → the `retry` room, HP full, money −10 % (truncated). "Try Again" → back at the last
+  room's entry door with the HP you entered it with (no heal). FIGHT WITH THE SWORD DRAWN (`sword` == 1): sheathed, X only
+  examines.
 - Saving [RD save-load]: the inn menu (Rest / Don't Rest / **Save**: free, no rest needed) and goddess statues → "Please
   choose a slot to save in." (24 slots, 3 pages, ←/→ page, cursor on the last-used slot); empty slot saves at once,
   occupied → "Overwrite this save?" (default **Yes**) → "Game saved." (waits for a key). Load screen: "Please choose a

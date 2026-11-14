@@ -172,5 +172,10 @@
  "tod": {
   "expr": "s32(0x8a6b60 + 0x289c)",
   "note": "time of day; char_init gates some spawns on it (Huge Bat 51022 only when tod 2\u20135 or a grid / world flag; crates 58010 only when tod not 1\u20134) (fields-enemies; src/char_init.c gated())"
+ },
+ "sword": {
+  "expr": "s32(s32(s32(lslot + 0x9f4) + 0x750) + 0xd4) if lslot else 0",
+  "status": true,
+  "note": "1 = sword drawn (Z toggles; lpose 3 draw / 4 sheathe; a hit cancels; with the sword sheathed X examines and deals no damage) (story-barness-dungeon2; scene_cmd.c)"
  }
 }
