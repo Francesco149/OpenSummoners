@@ -1134,6 +1134,7 @@ static void __cdecl boundary(void)
         uint64_t fh;
         if (rh_fb_hash(&fh)) { g_fb_chain = (g_fb_chain ^ fh) * 0x100000001b3ull; g_fb_n++; }
     }
+    rh_state_note_world();
     if (O.hash_every && g_frame % O.hash_every == 0) {
         rh_hash_t h; rh_state_hash(&h);
         char fb[48] = "";
@@ -1732,9 +1733,9 @@ platform_done:
         rh_snap_register("gesp", &g_gesp, sizeof g_gesp); rh_snap_register("gseh", &g_gseh, sizeof g_gseh);
         rh_snap_register("gtib_lo", &g_gtib_lo, sizeof g_gtib_lo); rh_snap_register("gtib_hi", &g_gtib_hi, sizeof g_gtib_hi);
         rh_snap_register("activated", &g_activated, sizeof g_activated);
-        void rh_media_snapreg(void), rh_dinput_snapreg(void), rh_handles_snapreg(void), rh_gdi_snapreg(void), rh_files_snapreg(void), rh_trace_snapreg(void);
+        void rh_media_snapreg(void), rh_dinput_snapreg(void), rh_handles_snapreg(void), rh_gdi_snapreg(void), rh_files_snapreg(void), rh_trace_snapreg(void), rh_state_snapreg(void);
         void *rh_heap_meta_save(void); void rh_heap_meta_restore(void *); void rh_heap_meta_free(void *);
-        rh_media_snapreg(); rh_dinput_snapreg(); rh_handles_snapreg(); rh_gdi_snapreg(); rh_trace_snapreg();
+        rh_media_snapreg(); rh_dinput_snapreg(); rh_handles_snapreg(); rh_gdi_snapreg(); rh_trace_snapreg(); rh_state_snapreg();
         if (!O.no_overlay) rh_files_snapreg();
         if (!O.no_arena) rh_snap_module("heap", rh_heap_meta_save, (void (*)(const void *))rh_heap_meta_restore, rh_heap_meta_free);
     }

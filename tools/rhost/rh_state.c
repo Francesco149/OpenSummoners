@@ -133,19 +133,41 @@ static int is_ext(uint32_t v) { return v >= 0x10000u && (g_ext[v >> 15] >> ((v >
  * is allocated wherever a scenario's heap leaves room).  Dumps list it as volatile. */
 #define RETAIL_STACK_LO 0x58800000u   /* retail's stack [RETAIL_LO, MAIN_STACK_HI) (rh_scrub.c / rhost.c) */
 #define RETAIL_STACK_HI 0x59000000u
-static int stackref_slots(uint32_t out[2])
+/* Every world block the run has had, not just the current one (R11): a scenario that ends on the title (world
+ * pointer 0) still holds a freed / stale world in the heap whose +0x27ac / +0x27b0 kept the caller-stack ref
+ * (bonus-menu: the Versus / Auto-Play world).  rh_state_note_world() samples the world pointer every flip; the set
+ * is deterministic per trace (same heap layout pure ≡ hybrid).  A slot is still masked only while its value is a
+ * retail-stack address, so a reused block's plain data hashes raw. */
+#define MAXWORLDS 64
+static uint32_t g_worlds[MAXWORLDS]; static int g_nworlds;
+void rh_state_note_world(void)
+{
+    if (!g_ed || !g_ed->world_ptr) return;
+    uint32_t w = *(const uint32_t *)(uintptr_t)g_ed->world_ptr;
+    if (!w || !rh_is_det_addr(w)) return;
+    for (int i = 0; i < g_nworlds; i++) if (g_worlds[i] == w) return;
+    if (g_nworlds < MAXWORLDS) g_worlds[g_nworlds++] = w;
+}
+void rh_state_snapreg(void)   /* savestates carry the set: a restored session hashes like the straight replay */
+{
+    rh_snap_register("worlds", g_worlds, sizeof g_worlds); rh_snap_register("nworlds", &g_nworlds, sizeof g_nworlds);
+}
+#define MAXSR (2 * MAXWORLDS)
+static int stackref_slots(uint32_t out[MAXSR])
 {
     int n = 0;
-    out[0] = out[1] = 0;
-    if (!g_ed || !g_ed->world_ptr) return 0;
-    uint32_t w = *(const uint32_t *)(uintptr_t)g_ed->world_ptr;
-    if (!w || !rh_is_det_addr(w)) return 0;
-    for (int k = 0; k < 2; k++) {
-        uint32_t a = w + g_ed->world_stackref[k], v = *(const uint32_t *)(uintptr_t)a;
-        if (v >= RETAIL_STACK_LO && v < RETAIL_STACK_HI) out[n++] = a;
-    }
+    rh_state_note_world();
+    for (int i = 0; i < g_nworlds; i++)
+        for (int k = 0; k < 2; k++) {
+            uint32_t a = g_worlds[i] + g_ed->world_stackref[k];
+            MEMORY_BASIC_INFORMATION mi;   /* a stale block's arena page may be decommitted */
+            if (!rh_is_det_addr(a) || !VirtualQuery((void *)(uintptr_t)a, &mi, sizeof mi) || mi.State != MEM_COMMIT) continue;
+            uint32_t v = *(const uint32_t *)(uintptr_t)a;
+            if (v >= RETAIL_STACK_LO && v < RETAIL_STACK_HI) out[n++] = a;
+        }
     return n;
 }
+static int is_sr(uint32_t pa, const uint32_t *sr, int n) { for (int i = 0; i < n; i++) if (sr[i] == pa) return 1; return 0; }
 
 static int state_ranges(uint32_t (*r)[2])
 {
@@ -158,15 +180,15 @@ void rh_state_hash(rh_hash_t *h)
     static uint32_t r[MAXR][2];
     int n = state_ranges(r);
     build_ext_map();
-    uint32_t sr[2];
-    stackref_slots(sr);
+    uint32_t sr[MAXSR];
+    int nsr = stackref_slots(sr);
     uint64_t f = 1469598103934665603ull, s = f, sv = f;
     uint32_t masked = 0, bytes = 0;
     for (int i = 0; i < n; i++) {
         for (const uint32_t *p = (const uint32_t *)(uintptr_t)r[i][0]; p < (const uint32_t *)(uintptr_t)r[i][1]; p++) {
             uint32_t v = *p, pa = (uint32_t)(uintptr_t)p;
             f ^= v; f *= 1099511628211ull;
-            if ((g_nvol && is_vol(pa)) || pa == sr[0] || pa == sr[1]) { v = 0x9e3779b9u; masked++; }
+            if ((g_nvol && is_vol(pa)) || (nsr && is_sr(pa, sr, nsr))) { v = 0x9e3779b9u; masked++; }
             s ^= v; s *= 1099511628211ull;
             if (is_ext(v)) v = 0x7f4a7c15u;
             sv ^= v; sv *= 1099511628211ull;
@@ -189,7 +211,7 @@ int rh_state_dump(const char *path)
     fwrite(r, 8, n, f);
     for (int i = 0; i < n; i++) fwrite((void *)(uintptr_t)r[i][0], 1, r[i][1] - r[i][0], f);
     fwrite(g_ext, 1, sizeof g_ext, f);
-    uint32_t sr[2]; int nsr = stackref_slots(sr);
+    uint32_t sr[MAXSR]; int nsr = stackref_slots(sr);
     uint32_t nv = (uint32_t)(g_nvol + nsr); fwrite(&nv, 4, 1, f); fwrite(g_vol, 4, g_nvol, f); fwrite(sr, 4, nsr, f);
     fclose(f);
     rh_log("dump frame=%u ranges=%d -> %s\n", g_frame, n, path);

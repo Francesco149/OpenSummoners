@@ -152,6 +152,7 @@ void rh_state_hash(rh_hash_t *h);
 int  rh_state_dump(const char *path);
 void rh_state_volatile_add(uint32_t va);
 void rh_state_ext_report(void);
+void rh_state_note_world(void);   /* every flip: remember world blocks (stackref mask, R11) */
 int  rh_shadow(uint32_t va, const char *name, void (*port)(void), char *why, size_t whyn);
 /* closure form: retail(ctx), then port(ctx) on the identical pre-state (retail .data + heap arena +
  * allocator metadata + virtual clock + the dead stack below SP); every state dword compared, retail's
