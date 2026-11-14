@@ -2147,7 +2147,9 @@ def cmd_verify(a):
                 print("\n".join("  " + l for l in d.splitlines()[-44:]))
                 print(f"  (kept in {ev}: report it — it names what a restore missed)")
         except (SystemExit, Exception) as e:   # noqa: BLE001 — evidence is best-effort
-            print(f"  (could not collect the evidence: {e})")
+            import traceback
+            print(f"  (could not collect the evidence: {e!r})")
+            traceback.print_exc()
         r.stop()
         r.live = None
         lv = r.attach()

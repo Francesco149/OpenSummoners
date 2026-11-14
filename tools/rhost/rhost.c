@@ -1074,8 +1074,10 @@ static void vmmap_log(void)
                 if (m2.State == MEM_COMMIT) com += (uint32_t)m2.RegionSize;
                 end += (uint32_t)m2.RegionSize;
             }
-            rh_log("  vm %08x..%08x %-7s %6uK committed\n", ab, end,
-                   mi.Type == MEM_IMAGE ? "image" : mi.Type == MEM_MAPPED ? "mapped" : "private", com >> 10);
+            char nm[MAX_PATH] = "";
+            if (mi.Type == MEM_IMAGE && !GetModuleFileNameA((HMODULE)(uintptr_t)ab, nm, sizeof nm)) nm[0] = 0;
+            rh_log("  vm %08x..%08x %-7s %6uK committed %s\n", ab, end,
+                   mi.Type == MEM_IMAGE ? "image" : mi.Type == MEM_MAPPED ? "mapped" : "private", com >> 10, nm);
             a = end;
         } else a = lo + sz;
         if (a <= lo) break;

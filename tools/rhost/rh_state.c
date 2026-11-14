@@ -79,6 +79,12 @@ static void build_ext_map(void)
      * Retail keeps no pointers there.  Masked in every run, it hashes alike. */
     for (uint32_t pg = 0x10; pg < 0x200; pg++)
         if (!rh_is_det_addr(pg << 12)) g_ext[pg >> 3] |= (uint8_t)(1u << (pg & 7));
+    /* ... and the system-DLL zone above rhost's stack (0x59000000..0x80000000): which module (or nothing) sits at a
+     * given address there varies per process (an input / text service, a codec), so plain game data whose high half
+     * was 0x7288 (rd probe town-services: 33 heap words 0x7288xxxx) fell inside one process's map only — Windows
+     * headless batches of one movie hashed apart.  Masked in every run, it hashes alike. */
+    for (uint32_t pg = 0x59000; pg < 0x80000; pg++)
+        if (!rh_is_det_addr(pg << 12)) g_ext[pg >> 3] |= (uint8_t)(1u << (pg & 7));
 }
 /* --log-ext: where do masked values point? (largest external committed regions) */
 void rh_state_ext_report(void)
