@@ -6,6 +6,22 @@ specific commits where relevant.
 
 ---
 
+## 2026-11-14 — the first driver campaign: 16 agent-driven scenarios, hybrid 29/29, standalone 28/28
+
+- API drivers (Messages API, $2–8 each, ~$75 total) authored 16 verified scenarios overnight: the story past the owner's
+  recordings (Day 6 Barness → Barness Hills → the end-cave puzzle → Barness Hills Dungeon 290130), every F1 menu page,
+  game over, party / magic controls, town services, combat moves (both party set-ups), movement, options (every page +
+  effects), save / load, item use, town NPCs, new-game config. Each: `rd check` PASS, `verify` MATCH, `verify --real`
+  MATCH (frame / RNG / every frame's pixels vs real DirectDraw), `det -n 3` PASS. Corpus 29 scenarios; hybrid 29/29 PASS,
+  standalone 28/28 PASS (rh-after-prologue: the accepted R9 gap) after one port fix: decomp2c renamed `this` inside a
+  string literal ("place c spell", mm_596b50 → 0x5956c0; a0197ec).
+- Host fixes found by the campaign: semv external zones below rhost's image and above its stack (plain integers fell in
+  one process's module map: 1c40762, fcb0d43); the wall watchdog killed idle `--serve` sessions (ac96e2f); stopped batches
+  left jobs on the Windows box (a9d5499); verify evidence dumped a frame early (e25f094).
+- Game knowledge kept: `tools/drive/vars.json` (gold / hp / mp / party, stats, combo, move ids, exit zones, flags / story —
+  there is no day counter: story flag 100100101), DRIVER.md facts, docs/game corrections tagged [RD], probe reports in
+  `docs/findings/probes/`.
+
 ## 2026-11-13 — agent-driven play: headless devices, savestates, `rd` (openrecet's method on SotES)
 
 - `rhost --dev-census` measured the device surface on the real device: DirectDraw = sysmem 565 blitter (Blt WAIT/KEYSRC,
