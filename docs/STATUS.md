@@ -32,14 +32,14 @@ understates how much actual instruction volume is ported.
 
 ## Current front
 
-- **2026-11-13 — ★ agent-driven play (`rd`): the campaign front.** Headless devices + flip coroutine + savestates +
-  command server + `rd` landed (`tools/drive/README.md`; evidence `docs/findings/headless-devices.md`). Drivers (subagents /
-  `agent.sh`) author verified traces; `rd accept` files each and gates retail-bless → hybrid → standalone. Campaign:
-  continue the story past the owner's last save (`tasks/story-after-water-shrine.md`), every title / option / bonus screen
-  (`tasks/title-options-bonus.md`), then `docs/game/exercise-checklist.md` + `rhost.py coverage` gaps. First probe accepted: `title-options-bonus` (retail
-  blessed, standalone + hybrid PASS; its hybrid FAIL was uncalibrated retail nondeterminism — DirectDraw surface pointers,
-  pure ≠ pure — not a port divergence: `volatile.enold.txt` calibrated, corpus re-blessed; parity-ledger). Open: headless
-  `state_sem` ≠ real (device pointers; frame / RNG / pixels equal), bunker host, session speed.
+- **2026-11-14 — ★ agent-driven play (`rd`): the campaign front.** Drivers (API `agent.sh` while credit lasts, else
+  session-model subagents) author verified scenarios; `rd accept` → `det --calibrate` → one re-bless → hybrid / standalone.
+  Corpus **29+** scenarios (16 driven, PROGRESS 2026-11-14): story past the owner's saves to the **Barness Hills Dungeon
+  290130** (`story-barness-dungeon`; next leg `tasks/story-barness-dungeon2.md`), every menu / option / save-load screen,
+  combat, movement, items, NPCs. **Hybrid 29/29, standalone 28/28 PASS** (R9 gap kept). Next: keep the story chain going,
+  `docs/game/exercise-checklist.md` + `rhost.py coverage` gaps; a hybrid / standalone FAIL = port that code. Open: headless
+  `state_sem` ≠ real (device pointers), occasional one-word session drift after restores (evidence now at the right frame),
+  session speed.
 - **2026-10-14 — rhost is THE porting loop; the MOVEMENT stack is ported and verified inside retail.**
   USER decisions (audit §7): deterministic cadence = rhost 1 update/flip; EN-old first (SE = a later
   delta layer); Frida retail drive RETIRED.  **2026-10-31 (USER): the whole pre-rhost loop REMOVED** — the
