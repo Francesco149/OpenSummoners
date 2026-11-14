@@ -2136,7 +2136,7 @@ def cmd_verify(a):
             lv.cmd(f"dump {remote}")
             sess_file(r.sess, "live.rhs", os.path.join(ev, "live.rhs"))
             b2 = RH.replay_args(frames=stop, target=b.target, headless=True, edition=r.movie.edition,
-                                standalone=r.movie.standalone, dump_at=str(stop))
+                                standalone=r.movie.standalone, dump_at="end")   # the state the hash compares (str(stop) dumped one frame early)
             _, bd2, _, _ = RH.run_batch(b2, [("verify", tr, r.movie.save, r.movie.edition)], "rd-verify-dump", fetch=("rhost.log", "state_*.rhs"))
             rep = glob.glob(os.path.join(bd2, "verify", "state_*.rhs"))
             if rep and os.path.exists(os.path.join(ev, "live.rhs")):
