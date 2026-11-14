@@ -74,7 +74,8 @@ an Xvfb batch, so sessions and headless batches run side by side.
    mid-run → hand the task to a subagent); otherwise a Claude Code subagent on the session's own model (owner rule:
    no model override) with the brief "read tools/drive/DRIVER.md and tools/drive/tasks/NAME.md; your run is NAME;
    report per the card".
-4. **Accept:** `rd accept R NAME --task T`. A hybrid / standalone FAIL is the payoff: port that code by the porting loop
+4. **Accept:** `rd accept R NAME --task T`; several finished runs at once: `tools/drive/accept-batch.sh LIST` ("RUN NAME
+   TASK" lines → accept + calibrate each, ONE re-bless), then `corpus --check --hybrid` / `--standalone`. A hybrid / standalone FAIL is the payoff: port that code by the porting loop
    (CLAUDE.md), re-gate.
 5. **Keep what was learned:** names → `vars.json`, game facts → `docs/game/` (corrections tagged [RD]) and DRIVER.md,
    tool gaps → fix the tool. **Chain by saves**: `rd endsave R` → `--from save:DIGEST`.

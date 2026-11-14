@@ -6,6 +6,20 @@ specific commits where relevant.
 
 ---
 
+## 2026-11-14 (evening) — campaign round 2: corpus 35, standalone 34/34, hybrid 34/35 (R11)
+
+- 6 more driven scenarios: story-barness-dungeon / -dungeon2 (the 280150 block puzzle → Barness Hills Dungeon → the 290152
+  moving-block room, weight freed), town-npcs, newgame-config, fields-enemies, bonus-menu (Versus / Auto-Play). Each check
+  PASS, verify MATCH, verify --real MATCH, det PASS. Standalone 34/34 PASS; hybrid 34/35: bonus-menu = parity-ledger R11
+  (hookbisect → `_WinMain` 0x562210; the 2-word end diff is load_room's caller-stack ref in a stale world after returning
+  to the title — the stackref mask only looks at the current world; fix + re-bless next session).
+- `rd verify`'s recurring "one volatile dword" session drift explained: semv classification, not savestates — the live
+  session maps more DIB slots + top-down system memory than a batch, so pixel-like heap words fell inside its map only
+  (803fe74: the device region never external, above it always). Evidence dump now at the compared frame (e25f094).
+- Process: stopped batches cancel their Windows jobs (a9d5499); the watchdog no longer kills idle sessions (ac96e2f).
+  Pipeline lesson: zsh does not word-split `$var`, and a `while read` loop's body must not read stdin — the batch helper is
+  bash with the list on fd 3.
+
 ## 2026-11-14 — the first driver campaign: 16 agent-driven scenarios, hybrid 29/29, standalone 28/28
 
 - API drivers (Messages API, $2–8 each, ~$75 total) authored 16 verified scenarios overnight: the story past the owner's
