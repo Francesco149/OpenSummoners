@@ -58,6 +58,18 @@ were removed 2026-10-31 (last commit with them `57b8ccb`); the retail facts they
 
 _(R1 moved to Confirmed bit-exact above.)_
 
+### R11 — bonus-menu hybrid `state_sem` ≠ expected: the WinMain stack-ref mask misses a stale world (OPEN, 2026-11-14)
+- `corpus --check --hybrid`: bonus-menu `state_sem 87ad1f7c5b9c32aa → f8b1d3713e4ea702`; frame / tick / RNG / fb equal;
+  pure retail deterministic (`det -n 3`: 1 distinct sem = expected). `hookbisect` → **wn_562210** (`_WinMain` 0x562210).
+- End-state diff, pure vs `--hook replace:wn_562210`: exactly 2 non-volatile words, `0x20099aac` / `0x20099ab0` = world
+  `+0x27ac` / `+0x27b0` (load_room's caller-stack ref; retail `0x58fff9f8`, port `0x58fff814` — WinMain's frame depth).
+  `rh_state.c stackref_slots` already masks these while they hold a retail-stack address, but only via the CURRENT world
+  pointer (`*g_ed->world_ptr`); the scenario ends on the title (world pointer 0) with the Versus / Auto-Play world block
+  still in the heap, so the slots are hashed raw. Not a logic divergence.
+- Fix (next session): keep the last non-null world address in `stackref_slots` (or scan the freed world's slots) and
+  mask them the same way; it changes pure `state_sem` / `semv` of every scenario that ends with a stale world holding a
+  retail-stack ref → full Windows + wine re-bless, then `--check --hybrid` (expect 35/35 minus R9).
+
 ### R10 — rh-se-newgame wine `sem@f600` ≠ expected.wine.json (OPEN, found 2026-11-13)
 - `corpus --check --target wine` (pure): `sem@f600 c785f51baaaa4e89→9ff53ead48b409a2` (5/6 sampled frames), end
   state_sem equal; reproduces run to run.  SE edition ⇒ `volatile.ense-en.txt` (untouched by the 2026-11-13
