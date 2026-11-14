@@ -127,5 +127,25 @@
  "retry": {
   "expr": "s32(s32(world + 0x2784) + 0x40d0) if world else 0",
   "note": "game over 'Return To Safety' room (270120 on Day 6; story-barness-caves)"
+ },
+ "atk": {
+  "expr": "(s32(lslot + 0xa74) + s32(lslot + 0xa9c)) if lslot else 0",
+  "note": "leader attack shown = base slot+0xa74 + bonus +0xa9c (Power Drop +2 \u2192 only +0xa9c changed; Status page matched; items-use)"
+ },
+ "spirit": {
+  "expr": "(s32(lslot + 0xa7c) + s32(lslot + 0xaa4)) if lslot else 0",
+  "note": "base +0xa7c + bonus +0xaa4 (Good Child Drop +2 \u00d72; items-use)"
+ },
+ "resist": {
+  "expr": "(s32(lslot + 0xa80) + s32(lslot + 0xaa8)) if lslot else 0",
+  "note": "base +0xa80 + bonus +0xaa8 (Guardian Drop +1; items-use)"
+ },
+ "mpmax": {
+  "expr": "(s32(lslot + 0xa70) + s32(lslot + 0xab0)) if lslot else 0",
+  "note": "base max MP +0xa70 + bonus +0xab0 (Mystery Juice +4; items-use). HP: base max +0xa68, bonus +0xaac"
+ },
+ "clevel": {
+  "expr": "s32(lslot + 0xad8) if lslot else 0",
+  "note": "combat level (max at +0xadc); adventurer level +0xae0, EXP +0xae8, to next +0xaec (items-use, Status page)"
  }
 }

@@ -94,7 +94,9 @@ holds, then spends `--refine` seconds shortening the path.
 - Movement [RD field-movement]: walk 240 lx/frame after ~10 frames; dash (`R . R*20`, short first press) 480; slide = ↓
   while dashing; short jump `C*2` ≈ 4800 up, long `C*12` ≈ 8400. Field exits are ↑ markers at the room edge (not
   walk-offs) and refuse while an enemy is attacking; town → field: ↑ at the tower right of the boutique (210110 → 225110).
-  X examines unless the sword is drawn (then it slashes); V always examines. In a shop menu `ent` BUYS — mind `gold`.
+  X examines unless the sword is drawn (then it slashes); V always examines. In a shop's Buy list `ent` BUYS AT ONCE (no
+  quantity / confirm) — never mash `ent` in a shop, mind `gold`. A heal item used from F1 → Items in the field becomes a
+  timed cast bar ("Herb - Arche", F2 cancels; ~200 frames, hits do not stop it); at full HP nothing is consumed.
 - **Room exits are event zones** [RD story-barness-caves; `zone_pass` 0x59a1f0]: a zone fires only after 30 ticks with no
   hostile within 56000 × 20000 of the leader (`zrest` counts down 30 → 0; HUD "ESCAPE" icon = a held zone). Kind 1 fires on
   walking in, kinds 2–3 on ↑ while standing idle on the ground. Kill or outrun nearby enemies first; red screen-edge markers
