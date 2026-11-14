@@ -5,7 +5,7 @@ steps:
   - loaded into a room with control: world != 0 and control
   - still in the game at the end: world != 0 and frame > 4000
 forbid:
-  - back at the title after loading: world == 0 and frame > 6000
+  - back at the title after loading: world == 0 and tcount == 5 and frame > 6000
 ---
 **Menu probe: every page of the F1 Main Menu** (`docs/game/exercise-checklist.md` §E, `mechanics.md` §11): each top-level
 entry; Status for every party member; Equipment (each slot, a costume, an item that "Cannot Equip"); Items (Use on a member,

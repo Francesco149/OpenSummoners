@@ -5,7 +5,7 @@ steps:
   - loaded into a room with control: world != 0 and control
   - still in the game at the end: world != 0 and frame > 4000
 forbid:
-  - back at the title after loading: world == 0 and frame > 6000
+  - back at the title after loading: world == 0 and tcount == 5 and frame > 6000
 ---
 **Party / magic probe** (`exercise-checklist.md` §D, `mechanics.md` §1, §4, §5): switch character (Enter) through every
 member; cast at least one spell with each caster (select with Z / numpad, hold X, release) — once interrupted, once

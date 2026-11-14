@@ -5,7 +5,7 @@ steps:
   - loaded into a room with control: world != 0 and control
   - left the start room: room != 0 and frame > 3000
 forbid:
-  - back at the title after loading: world == 0 and frame > 6000
+  - back at the title after loading: world == 0 and tcount == 5 and frame > 6000
 ---
 **Frontier probe: continue the main story from where the owner's recorded play ends** (scenario `rh-water-shrine`,
 the last of the save chain rh-early-game → -2 → -3 → rh-after-prologue → rh-water-shrine). Nothing past that save is

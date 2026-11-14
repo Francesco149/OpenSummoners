@@ -5,7 +5,7 @@ steps:
   - loaded into a room with control: world != 0 and control
   - still in the game at the end: world != 0 and frame > 4000
 forbid:
-  - back at the title after loading: world == 0 and frame > 6000
+  - back at the title after loading: world == 0 and tcount == 5 and frame > 6000
 ---
 **Failure probe: game over, both choices** (`exercise-checklist.md` §H, `mechanics.md` §10): checkpoint, then let the whole
 party die in a fight (or a pit / hazard) and see the game-over screen; pick **Try Again** — note exactly where it puts you

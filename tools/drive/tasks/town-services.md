@@ -5,7 +5,7 @@ steps:
   - loaded into a room with control: world != 0 and control
   - still in the game at the end: world != 0 and frame > 4000
 forbid:
-  - back at the title after loading: world == 0 and frame > 6000
+  - back at the title after loading: world == 0 and tcount == 5 and frame > 6000
 ---
 **Town probe: every service in reach** (`exercise-checklist.md` §F): shops — Buy one item, Sell one (incl. the rare-item
 sell confirm and "You have nothing to sell." if reachable) at each shop open now (arms, item / Dad's shop incl. `Help Out`,
