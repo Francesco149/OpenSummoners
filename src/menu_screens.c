@@ -3331,7 +3331,7 @@ int32_t mm_5963a0(wl_char *self, int32_t a2, int32_t a3, int32_t a4, int32_t a5)
     W_grid_cell_text((intptr_t)(v12), (intptr_t)(v13), (intptr_t)(0), (intptr_t)(((char *)D(0x8a3220))));
     g_eng.h5bf3ee(
       Buffer,
-      "Select a book in which to place c spell. No book may have more than %d spells. Pressing @@F5 will change the ac"
+      "Select a book in which to place this spell. No book may have more than %d spells. Pressing @@F5 will change the ac"
       "tive spellbook. AI characters will not use spells in book C.",
       10);
     v14 = F32(c, 0x24);

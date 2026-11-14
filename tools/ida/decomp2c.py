@@ -31,6 +31,21 @@ NOBIND = {0x5b8fc0, 0x43d1d0}   # the Flip and the camera easer: always through 
                                 # virtual clock there; a direct call to the ported Flip ran a loading loop off the clock)
 
 
+
+_STR_LIT = re.compile(r'"(?:[^"\\\n]|\\.)*"|\'(?:[^\'\\\n]|\\.)*\'')
+
+
+def sub_code(pat, repl, s):
+    """re.sub over the code only: string / char literals pass through unchanged"""
+    out, k = [], 0
+    for m in _STR_LIT.finditer(s):
+        out.append(re.sub(pat, repl, s[k:m.start()]))
+        out.append(m.group(0))
+        k = m.end()
+    out.append(re.sub(pat, repl, s[k:]))
+    return "".join(out)
+
+
 def rhost_modules():
     """the src/ modules rhost links (tools/rhost/build.sh's list): the retail-layout port.  A port function outside
     them (the older port-side renderer / zdd / bitmap code) is not callable from retail-layout code"""
@@ -1037,7 +1052,7 @@ def convert(text, names, widths, this):
         esz = {"uint8_t": 1, "char": 1, "int8_t": 1, "uint16_t": 2, "int16_t": 2}.get(this_expr[2:].split(" *")[0], 4)
         if esz > 1 and not (tp and tp.group(1) in SHELL_SIZE and len(tp.group(2)) == 1):   # ... and `this + n` as a value (`v4 = this + 2604` = +10416 bytes for a _DWORD *this)
             s = scale_this_sum(s, r"(?<![\w)*])\bthis \+ ", esz)
-    s = re.sub(r"\bthis\b", this, s)
+    s = sub_code(r"\bthis\b", this, s)   # never inside a string literal (0x5956c0: "place this spell" became "place c spell")
     s = s.replace("nullptr", "0")
     s = re.sub(r"\*\*\(\((?:_DWORD|int|cls_\w+) \*\*\)(\w+) \+ (\d+)\)", r"F32(F32(\1, 4 * \2), 0)", s)   # `**((_DWORD **)v + n)`
     s = re.sub(r"\*\(\(_DWORD \*\)(\w+) \+ (\d+)\)", r"F32(\1, 4 * \2)", s)
