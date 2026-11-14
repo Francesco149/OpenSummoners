@@ -85,6 +85,16 @@ static void build_ext_map(void)
      * headless batches of one movie hashed apart.  Masked in every run, it hashes alike. */
     for (uint32_t pg = 0x59000; pg < 0x80000; pg++)
         if (!rh_is_det_addr(pg << 12)) g_ext[pg >> 3] |= (uint8_t)(1u << (pg & 7));
+    /* ... and the headless device region (DEV 0xE8000000.. + the DIB slots to 0xF7C00000) is NEVER external: rhost lays it
+     * out itself (headless) or leaves it unmapped (real device).  A live rd session maps more DIB slots than a batch replay
+     * (pictures), so plain pixel-like values (0xf81ff81f, 0xf4eef4ee: ~1.6M words) fell inside the session's map only —
+     * rd verify drift on story-barness-dungeon2 f65958 (memory equal but one volatile word, semv apart). */
+    for (uint32_t pg = RH_DEV_LO >> 12; pg < 0xF7C00u; pg++) g_ext[pg >> 3] &= (uint8_t)~(1u << (pg & 7));
+    /* ... and everything above it (0xF7C00000..) is external in every run: the system's top-down allocations of a
+     * large-address-aware process land there per process (a live session's winsock / PNG work), and the same pixel-like
+     * values fell inside the session's map only (same drift; offline: semv of both dumps equal with these two rules) */
+    for (uint32_t pg = 0xF7C00u; pg < 0x100000u; pg++)
+        if (!rh_is_det_addr(pg << 12)) g_ext[pg >> 3] |= (uint8_t)(1u << (pg & 7));
 }
 /* --log-ext: where do masked values point? (largest external committed regions) */
 void rh_state_ext_report(void)
