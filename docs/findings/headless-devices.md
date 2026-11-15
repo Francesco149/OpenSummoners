@@ -36,6 +36,12 @@ and **fb (every presented frame's pixels) equal on 13/15**; state_sem differs on
 retail memory — not yet named), fb differs on rh-after-prologue and rh-se-newgame (SE edition). Causes (the fakes' own
 UNSUPPORTED log): the heap-surface DC cache never freed (first divergence f62834 = first exhaustion), SE's 24-bpp
 surfaces. Fixed (4724cb2): **re-gate 2026-11-13: frame / tick / RNG / fb equal on 15/15**; only state_sem differs.
+**state_sem resolved 2026-11-15:** the one word was `0x8a9dac` — the CRT's cached `GetLocaleInfoA` (`___get_qualified_locale`
+0x5c453a copies the IAT value), i.e. an rh_scrub IAT thunk VA. Headless wrapped its fake DDraw / DShow vtables (153 slots)
+before `rh_scrub_iat`, real devices after → every IAT thunk 0x4c80 later. Fix: IAT thunks from 0x5f010000, vtable thunks
+from 0x5f030000 (rh_scrub.c). **Windows `corpus --check --headless` vs real expected.json: 35/35 PASS incl. state_sem**;
+real devices unchanged (35/35 PASS); wine (headless) expectations re-blessed (state_sem only). `rd verify --real` now
+compares state_sem too.
 Wine without X: boot f1200 rng 404a0a8f = Xvfb run; 529–611 fps vs 280 (Xvfb), no exit hang.
 
 ## 3. Flip coroutine (rhost.c)
@@ -68,7 +74,5 @@ search incl. score / hold). Input = 32-bit mask over the game's keys (KEYMAP = d
 
 ## Open
 
-- headless state_sem ≠ real on all scenarios: name the words (`--dump-at` both, `rhost.py diff`); expected class = fake
-  object pointers / HDCs in retail memory → volatile list or deterministic equivalents.
 - session speed ~370 frames/s under wine with tracking vs ~600 plain: profile; render-skip candidates gated by skip-check.
 - bunker host for SotES (tools/bunker port), Windows-native sessions measured.

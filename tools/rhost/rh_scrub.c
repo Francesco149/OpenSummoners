@@ -26,6 +26,12 @@
 
 static volatile uint32_t g_jmp, g_main_tid;
 static uint8_t *g_code, *g_post;
+/* two thunk regions: IAT thunks from CODE_LO (post code first), COM-vtable thunks from VT_LO. Retail copies IAT values into
+ * its own memory (the CRT caches GetLocaleInfoA at 0x8a9dac), so an IAT thunk's VA must not depend on how many vtable
+ * slots were wrapped before rh_scrub_iat: headless wraps its fake DDraw / DShow vtables first, real devices after
+ * (one shared cursor = headless state_sem != real, docs/findings/headless-devices.md). */
+static uint8_t *g_vt_code;
+#define VT_LO (CODE_LO + 0x20000u)
 static long g_nthunks;
 #define CODE_LO 0x5f010000u
 
@@ -97,15 +103,25 @@ static uint8_t *census_emit(uint8_t *p)
     g_ncen++;
     return p;
 }
-static void *thunk(uint32_t target)
+static void *thunk_at(uint8_t **cur, uint32_t target);
+static void *thunk(uint32_t target) { return thunk_at(&g_code, target); }        /* IAT */
+static void *thunk_vt(uint32_t target)                                            /* COM vtables */
+{
+    if (!g_code) thunk_at(&g_code, 0);                /* maps the space + post code; never reached (no slot points at it) */
+    if (!g_vt_code) g_vt_code = (uint8_t *)(uintptr_t)VT_LO;
+    return thunk_at(&g_vt_code, target);
+}
+static void *thunk_at(uint8_t **cur, uint32_t target)
 {
     if (!g_code) {
         g_code = VirtualAlloc((void *)(uintptr_t)CODE_LO, 0x40000, MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE);
         if (g_code != (uint8_t *)(uintptr_t)CODE_LO) rh_fatal("rh_scrub: cannot map thunks at %08x", CODE_LO);
         build_post();
+        if (!target) return NULL;
     }
-    if (g_code + 96 > (uint8_t *)(uintptr_t)(CODE_LO + 0x40000)) rh_fatal("rh_scrub: thunk space exhausted");
-    uint8_t *s = g_code, *p = census_emit(s);
+    uint8_t *lim = (uint8_t *)(uintptr_t)(cur == &g_code ? VT_LO : CODE_LO + 0x40000);
+    if (*cur + 96 > lim) rh_fatal("rh_scrub: thunk space exhausted (%s)", cur == &g_code ? "IAT" : "vtables");
+    uint8_t *s = *cur, *p = census_emit(s);
     /* push eax; mov eax, fs:[0x24]; cmp eax, main; jne direct_pop */
     *p++ = 0x50;
     *p++ = 0x64; *p++ = 0xA1; p = emit32(p, 0x24);
@@ -144,7 +160,7 @@ static void *thunk(uint32_t target)
     *j1 = (uint8_t)(dp - (j1 + 1)); *j2 = (uint8_t)(dp - (j2 + 1));
     *p++ = 0x58;
     *p++ = 0xE9; p = emit32(p, target - ((uint32_t)(uintptr_t)p + 4));
-    g_code = (uint8_t *)(((uintptr_t)p + 15) & ~(uintptr_t)15);
+    *cur = (uint8_t *)(((uintptr_t)p + 15) & ~(uintptr_t)15);
     g_nthunks++;
     return s;
 }
@@ -192,7 +208,7 @@ void rh_scrub_wrap_vtbl(void *obj, int nslots, const char *what)
     if (is_thunk(vt[3])) return;                       /* already wrapped (shared vtable) */
     DWORD old;
     VirtualProtect(vt, nslots * sizeof(void *), PAGE_READWRITE, &old);
-    for (int i = 0; i < nslots; i++) if (!is_thunk(vt[i])) { g_cur_what = what; g_cur_slot = i; vt[i] = thunk((uint32_t)(uintptr_t)vt[i]); }
+    for (int i = 0; i < nslots; i++) if (!is_thunk(vt[i])) { g_cur_what = what; g_cur_slot = i; vt[i] = thunk_vt((uint32_t)(uintptr_t)vt[i]); }
     VirtualProtect(vt, nslots * sizeof(void *), old, &old);
     rh_log("scrub: %s vtable %p wrapped (%d slots)\n", what, (void *)vt, nslots);
 }

@@ -40,7 +40,7 @@ understates how much actual instruction volume is ported.
   standalone 34/34** (Windows + wine; R9 = the accepted gap; R11 fixed). **Wine gate = headless on the bunker** (USER
   2026-11-14: `--target wine` → bunker if up, else maximus; a full pass ~8 min). Next story leg ready:
   `tools/drive/tasks/story-barness-dungeon3.md`. Then `docs/game/exercise-checklist.md` + `rhost.py coverage` gaps.
-  Open: headless `state_sem` ≠ real on Windows (device pointers); confirm the semv zone fix (803fe74) on the next drives;
+  Headless ≡ real on Windows incl. `state_sem` (2026-11-15, rh_scrub thunk regions). Open: confirm the semv zone fix (803fe74) on the next drives;
   session speed.
 - **2026-10-14 — rhost is THE porting loop; the MOVEMENT stack is ported and verified inside retail.**
   USER decisions (audit §7): deterministic cadence = rhost 1 update/flip; EN-old first (SE = a later

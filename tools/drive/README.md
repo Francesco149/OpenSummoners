@@ -82,4 +82,4 @@ an Xvfb batch, so sessions and headless batches run side by side.
 
 ## Open
 
-See `docs/findings/headless-devices.md` "Open" (headless state_sem words, SE 24-bpp surfaces, session speed, bunker).
+See `docs/findings/headless-devices.md` "Open" (SE 24-bpp surfaces, session speed, bunker).

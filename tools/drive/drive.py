@@ -2167,9 +2167,11 @@ def cmd_verify(a):
             h2 = RH.replay_args(frames=stop, target="win", headless=True, fb_hash=True, edition=r.movie.edition)
             _, _, res3, _ = RH.run_batch(h2, [("verify", tr, r.movie.save, r.movie.edition)], "rd-verify-hlwin")
             v = res3.get("verify") or {}
-        real = str(int(w.get("frame", -2)) + 1) == live["frame"] and w.get("rng") == live["rng"] and w.get("fb") == v.get("fb")
-        print(f"real-device replay: frame {w.get('frame')} rng {w.get('rng')} fb {w.get('fb')}  (Windows, DirectDraw)  "
-              f"vs headless (Windows) fb {v.get('fb')}")
+        # headless ≡ real on Windows down to state_sem since the split thunk regions (rh_scrub.c, 2026-11-15)
+        real = (str(int(w.get("frame", -2)) + 1) == live["frame"] and w.get("rng") == live["rng"] and w.get("fb") == v.get("fb")
+                and w.get("state_sem") == v.get("state_sem"))
+        print(f"real-device replay: frame {w.get('frame')} rng {w.get('rng')} fb {w.get('fb')} sem {w.get('state_sem')}  (Windows, "
+              f"DirectDraw)  vs headless (Windows) fb {v.get('fb')} sem {v.get('state_sem')}")
         print("REAL MATCH" if real else "REAL MISMATCH")
         same = same and real
     r.close()
