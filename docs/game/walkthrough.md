@@ -133,6 +133,12 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      300300 house; **↑ at x ≈ 147000 the guarded stone gate → Mayberk Manor 310110** (garden) → 310120 (interior; Rowen +
      Mary scene: the crest is in the Wind Hill caves) → 310140 Stella's room (walk right x ≈ 73800 → portrait scene) →
      310130 hall. `story` stays 1120 through the interlude.
+   - [RD story-stella-interlude] The manor STAIRS are in the hall **310130**: upper floor → far-LEFT stairs → middle
+     floor (ly 45600) → far-RIGHT stairs → ground floor (ly 71200); ground-floor door (x 67200) → 310120 ground floor →
+     door x 25600 (↑) → garden 310110 → x ≈ 118400 ↑ → 300130. Leaving the manor: Stella line + a **combat tutorial**
+     (Yes/No; at the end "go over it one more time?" — pick No after the menu settles, else it loops). 300110 bridge girl
+     (x ≈ 257000) blocks: run-jump. 300120 city gate (x ≈ 281700, ↑) opens after Rowen → road **265110** (Blue Slimes
+     hold the exit) → **265120**. Stella's Fire Wall: hold X ~95 frames, release (`lpose` 20112, MP 3); tap X = dagger.
 10. 🔑 Control returns to Arche → enter doors → **BOSS: Stella** → [Wind Crest 2]. 💎 Crest room chest [Better Herb]×3. Stella accompanies out (her route = shortcut). Wind blows again but windmills still idle (need tower crest).
 11. 🔑 Heading home: boys, then the **doctor** → need medicine for Sana → **Barness herbalist** (first house) → back door → **Herb Farm Cave** (Arche + Stella):
     1. 🔑 Left: 3 crates beside movable platform — do NOT break first. Stella climbs crates onto platform (Stay There!) → Arche breaks crates, pushes platform right → Stella crosses (Stella can't push).
