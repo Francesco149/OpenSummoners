@@ -121,6 +121,19 @@ holds, then spends `--refine` seconds shortening the path.
   `rd new NEXT --from save:DIGEST` continues from them (Continue on the title). Chain by saves: replays start at boot.
 - `--from fresh` = a new install (no saves, default config).
 
+## Story runs: keep the party strong enough for later (USER 2026-11-15)
+
+Every story leg is the start of the next one, so leave the party fit for later chapters, as the walkthrough suggests:
+- **Gear:** buy / equip the upgrades the walkthrough points to (💎 / shop stock notes in `docs/game/walkthrough.md`,
+  `mechanics.md` §8) when you pass a shop with the money for them; equip found weapons / armour / accessories that beat
+  the current ones (F1 → Equipment, per character; Stella = daggers, Sana = staves).
+- **Characters:** use permanent stat items as the guide says (Power Drop → Arche, Good Child Drop → Sana / Stella, the
+  Tough / Guardian / Stronggirl / Mystery items on whoever the guide names); pick up the Marks of Heroism (MoH, the level
+  cap) the route passes; assign newly learned abilities / spells (Abilities menu) the way the guide recommends.
+- **Chests / loot on the route** (the 🔑 path and cheap 💎 detours) are worth the frames; long optional detours are not.
+- "Do not grind" still holds: no farming fights for EXP or money. Reasonable = what a player following the guide does.
+Report the party's gear / level / notable items at the end, and what upgrade you skipped and why.
+
 ## What not to do
 
 - Do not read other runs' movies or `tests/scenarios/*/trace.jsonl` for the inputs of your task: the trace must be your

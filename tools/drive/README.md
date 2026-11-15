@@ -68,7 +68,8 @@ an Xvfb batch, so sessions and headless batches run side by side.
 1. **Pick targets from the gaps**: `docs/game/exercise-checklist.md`, `rhost.py coverage` (retail functions no scenario
    reaches), port frontier / PORT-DEBT rows marked unverified. One behaviour per task.
 2. **Write the task** (`tasks/NAME.md`): `start:` the latest save that makes it reachable, ordered `steps:` as predicates
-   over named state, `forbid:` lines, prose pointing at `docs/game/` sections and findings. Lint it (`rd lint`).
+   over named state, `forbid:` lines, prose pointing at `docs/game/` sections and findings. Story legs: name the gear / stat-item /
+   MoH upgrades the walkthrough suggests on that stretch (DRIVER.md "keep the party strong", USER 2026-11-15). Lint it (`rd lint`).
 3. **Pick the driver kind automatically:** `tools/drive/agent.sh check` → exit 0 (API credit) =
    `tools/drive/agent.sh tasks/NAME.md --run NAME --budget N` (any number side by side; exit 4 = credit ran out
    mid-run → hand the task to a subagent); otherwise a Claude Code subagent on the session's own model (owner rule:

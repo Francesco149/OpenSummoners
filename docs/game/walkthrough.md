@@ -148,6 +148,18 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      53000 ↑) → **260160** (top-left exit x 0 y 12800 = toward Barness, a wall too tall for Stella's jump; bottom cave x
      86400 → 260164 → door x 131200 → **260165** = the optional weight cave, needs 3 members). Fire Wall hits ~±17000 lx on
      both sides of Stella, not her own spot.
+   - [RD story-stella-barness] **Stella's two attack modes, toggled with Z**: dagger (X stab, dir+X dash) / fire (→+X long
+     low flame, ↓+X short flame in front, ↑+X diagonal upward shot); hold X ~95 frames = Fire Wall in either mode. **Dead
+     vines burn only from ↑+X** (their upper part; the low flame passes under, Fire Wall does nothing) — likely why the
+     265160 vines "didn't burn". Braziers light from ↓+X / →+X (fire mode). 260160's top-left exit is NOT blocked: from the
+     room's right side (lx ≈ 113000) run-jump onto the grass ledge, climb to the top platform, run-jump left onto the wall
+     top → **260170** → **270110** (Barness east gate; scene) → ↑ x 134400 → 270120 inn street → door lx ≈ 216000 →
+     **270200 Weathervane Inn** (6 CP rest, then a save offer). The Old Man by the cave (lx ≈ 28000) = flavour only; cave
+     lx ≈ 16000 ↑ → 280115 → door x 124800 → 280160 → 280170 → ↑ lx ≈ 56800 at the altar → **290110** (Stella: "A
+     man-made dungeon…") → right end lx 202800 ↑ → **290200** (dead vines lx ≈ 31000–40000; spike pits −5) → **290205**
+     (4 braziers lx ≈ 63000 / 74300 lit / 85500 / 97600) → **290210** (wooden door lx ≈ 178000, floor ly 71200) →
+     **290230** (2 chests lx ≈ 175000–180000). Mothbee sleep (lpose 117): keys do not wake her, a hit does. Better Herb
+     from F1 → Items = a cast bar with enemies near, instant otherwise; the `F` key did nothing.
 10. 🔑 Control returns to Arche → enter doors → **BOSS: Stella** → [Wind Crest 2]. 💎 Crest room chest [Better Herb]×3. Stella accompanies out (her route = shortcut). Wind blows again but windmills still idle (need tower crest).
 11. 🔑 Heading home: boys, then the **doctor** → need medicine for Sana → **Barness herbalist** (first house) → back door → **Herb Farm Cave** (Arche + Stella):
     1. 🔑 Left: 3 crates beside movable platform — do NOT break first. Stella climbs crates onto platform (Stay There!) → Arche breaks crates, pushes platform right → Stella crosses (Stella can't push).
