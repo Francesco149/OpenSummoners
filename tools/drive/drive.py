@@ -722,6 +722,9 @@ HOSTS = ("win", "bunker", "wine")                      # the auto order
 WIN_MAX_SESSIONS = int(os.environ.get("RD_WIN_MAX_SESSIONS", "8"))
 BUNKER_MAX_SESSIONS = int(os.environ.get("RD_BUNKER_MAX_SESSIONS", "6"))
 BUNKER_FLOOR_MB = int(os.environ.get("RD_BUNKER_MEM_FLOOR_MB", "1024"))
+# savestate slab cap per bunker session: the pool is ONE 5 GB cgroup for every session (a -j 4 search = 4 + main); rhost's
+# default 960 MB each got the cgroup OOM-killed mid-search (story-sr: "slab pool exhausted (204767)", then the session died)
+BUNKER_SNAP_MB = int(os.environ.get("RD_BUNKER_SNAP_MB", "384"))
 ADMIT_WAIT = {"win": float(os.environ.get("RD_WIN_ADMIT_WAIT", "60")), "bunker": float(os.environ.get("RD_BUNKER_ADMIT_WAIT", "30"))}
 WIN_SESS = "C:\\oss-rhost\\runs\\drive"
 _up, _up_lock = {"wine": True}, threading.Lock()
@@ -909,7 +912,7 @@ def spawn_live(tag, movie, upto=None, idle=1800, wait=300, host=None, src_trace=
         finally:
             shutil.rmtree(ld, ignore_errors=True)
         exe = staged_exe("bunker")
-        r = BK.spawn_session(name, files, exe, args, wait, BUNKER_MAX_SESSIONS, BUNKER_FLOOR_MB)
+        r = BK.spawn_session(name, files, exe, args + ["--snap-mb", str(BUNKER_SNAP_MB)], wait, BUNKER_MAX_SESSIONS, BUNKER_FLOOR_MB)
         if r[0] == "NOADMIT":
             raise NotAdmitted(f"live session {tag} on bunker: not admitted — {r[1]}. Stop idle sessions (`./rd ls`, `./rd stop R`) or wait.")
         if r[0] != "LIVE":

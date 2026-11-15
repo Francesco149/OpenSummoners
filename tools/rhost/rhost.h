@@ -69,6 +69,7 @@ typedef struct {
     int log_files, log_heap, log_ext, log_media, log_input;
     int headless;               /* --headless: fake DirectDraw / DirectShow (rh_dev.c), message-only window, pinned window metrics */
     const char *snap_test;      /* --snap-test A:B[:K]: savestate self-test (rh_snap.c) */
+    int snap_mb;                /* --snap-mb N: savestate slab pool cap (default 960; bunker sessions share a 5 GB cgroup) */
     int serve_idle;             /* --serve-idle S: a session nobody talks to for S seconds ends (default 1800) */
     uint32_t serve_until;       /* --serve-until F: replay the trace to frame F only, then serve */
     int serve, serve_port;      /* --serve PORT: the command server (rh_serve.c; implies --headless; 0 = any free port → <run>\\serve.port) */

@@ -45,6 +45,7 @@ static uint8_t *slab_ptr(uint32_t i) { return g_chunk[i / CHUNK_SLABS] + (size_t
 static uint32_t slab_new(void)
 {
     if (!g_nfree) {
+        if (O.snap_mb > 0) g_slab_cap = (uint32_t)O.snap_mb * (1048576u / PGSZ);      /* --snap-mb */
         if (g_nchunk >= MAX_CHUNKS || g_nchunk * CHUNK_SLABS >= g_slab_cap) return 0;
         uint8_t *c = VirtualAlloc(NULL, CHUNK_SLABS * PGSZ, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
         if (!c) return 0;

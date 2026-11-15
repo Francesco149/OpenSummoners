@@ -1462,6 +1462,7 @@ static void parse(int argc, char **argv)
         else if (!strcmp(a, "--log-ddraw")) O.log_ddraw = 1;
         else if (!strcmp(a, "--dev-census")) O.dev_census = 1;
         else if (!strcmp(a, "--headless")) { O.headless = 1; O.quiet = 1; }
+        else if (!strcmp(a, "--snap-mb")) O.snap_mb = atoi(ARG());
         else if (!strcmp(a, "--snap-test")) { O.snap_test = ARG(); O.headless = 1; O.quiet = 1; }
         else if (!strcmp(a, "--serve-idle")) O.serve_idle = (int)strtoul(ARG(), 0, 0);
         else if (!strcmp(a, "--serve-until")) O.serve_until = strtoul(ARG(), 0, 0);
