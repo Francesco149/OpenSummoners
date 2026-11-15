@@ -122,6 +122,17 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
    - 🔑 Walk RIGHT (east) toward Barness: chest under ledge [Good Child Drop]; lake street ledges 300 CP; 💎 optional cave w/ Lead Merkid → [Iron Dagger], [Magic Ring]. **White Rose Inn** (rest/save/shop; 1F 'Merrin 8/12', [Mystery Juice]; 2F [Better Herb]). Right: Stella burns vines (chest 300 CP if Arche didn't take it). → Barness → man by cave left of Inn → **Barness Hills Dungeon (Stella route)**:
      - Diamond-lever shortcut open; ⚠ chest = poison. Double doors by pedestal → go RIGHT (not stairs): burn dead vines; **light 3 unlit torches** (1 lit) → path opens. Moving blocks; ⚠ chest = poison. Wooden door; spike trap; burn vines in an order that lets you climb (re-enter resets) → 💎 3 chests [Defense Ring], 450 CP, [Better Herb].
      - Back, drop 1st pit, wooden door → right: [Better Herb]×3, [Magic Candy]; stairs down; right: [Moldy Bread]; left: **clover lever**; top-left → talking doors → Stella gets the Wind Crest.
+   - [RD story-barness-dungeon3] 8.5–9 EN-old rooms: 290150 weight = actor `world+0x1250` (y moves 100/frame, bottom
+     ≈ 80000) → zone 2 → **290155** (2 Kobolds + 2 Yellow Slimes) → zone 2 top right (x 201600, y 12800) → **290160**
+     (the fancy doors + 2 gargoyles; ↑ at the doors). Question = Yes/No, then "how many in total?" 8/10/12/14 → **12**
+     (`D D`); a wrong answer → "INCORRECT! TO THE ENTRANCE WITH THEE!" → 290110, HP kept. → **290170** Stella → save
+     prompt. Interlude: Stella solo (`party` = 4, slot 2) arrives in **300120** (east district: x 0 stairs → 300110; doors
+     x 48000 Inn, 102400 item store 300250, 134400 clothes 300260, 220800 foods; zone 6 x 281600 city gate refuses: "I
+     should hurry back to the mansion and ask Rowen"). **300110** (west): x 35200 gate (refuses), 80000 candy store, ↑ x
+     126400 stone archway → **300130**, 163200 → 300230, 220800 ARMS, 380800 → 300120. **300130** (north): x 9000 →
+     300300 house; **↑ at x ≈ 147000 the guarded stone gate → Mayberk Manor 310110** (garden) → 310120 (interior; Rowen +
+     Mary scene: the crest is in the Wind Hill caves) → 310140 Stella's room (walk right x ≈ 73800 → portrait scene) →
+     310130 hall. `story` stays 1120 through the interlude.
 10. 🔑 Control returns to Arche → enter doors → **BOSS: Stella** → [Wind Crest 2]. 💎 Crest room chest [Better Herb]×3. Stella accompanies out (her route = shortcut). Wind blows again but windmills still idle (need tower crest).
 11. 🔑 Heading home: boys, then the **doctor** → need medicine for Sana → **Barness herbalist** (first house) → back door → **Herb Farm Cave** (Arche + Stella):
     1. 🔑 Left: 3 crates beside movable platform — do NOT break first. Stella climbs crates onto platform (Stay There!) → Arche breaks crates, pushes platform right → Stella crosses (Stella can't push).

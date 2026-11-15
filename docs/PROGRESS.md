@@ -6,6 +6,20 @@ specific commits where relevant.
 
 ---
 
+## 2026-11-15 — corpus 36 (Stella interlude); headless ≡ real state_sem; savestates restore the commit map
+
+- `story-barness-dungeon3` (API driver, $5.78, 89312 frames): 290150 weight → 290155 → 290160 gargoyle doors (wrong
+  answer arm + 12) → 290170 Stella → interlude: Chartreux 300110/300120/300130 → Mayberk Manor 310110–310140 (Rowen,
+  portrait). Accepted; volatile 44,724 → 44,954; hybrid + standalone 36/36 Windows + wine.
+- rhost (0200cd7): IAT vs COM-vtable thunks in separate regions — the one headless≠real word was the CRT's cached
+  GetLocaleInfoA (0x8a9dac) = an IAT thunk VA shifted by headless's earlier vtable wraps. Windows corpus headless vs real
+  expected 35/35 PASS incl. state_sem.
+- rh_snap (9862328): a restore re-committed pages committed after the savestate (zeros) → rd verify semv drift with 0
+  differing dwords. The commit map is savestate now (rh_heap / rh_dev watermarks roll back); `--snap-test` checks the
+  restored state itself (old code FAILS it, passed the old check).
+- rd: a dead session's rhost.log kept (`ended-*.log`); `verify --real` state_sem = a note (new content needs calibration).
+- Next: `tools/drive/tasks/story-stella-interlude.md`.
+
 ## 2026-11-14 (night) — R11 fixed; the wine gate is headless on the bunker (8 min a pass, was 1–4 h)
 
 - R11: the stack-ref mask now covers every world block of the run (`rh_state_note_world`, every flip, savestate-carried),

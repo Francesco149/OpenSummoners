@@ -2167,11 +2167,13 @@ def cmd_verify(a):
             h2 = RH.replay_args(frames=stop, target="win", headless=True, fb_hash=True, edition=r.movie.edition)
             _, _, res3, _ = RH.run_batch(h2, [("verify", tr, r.movie.save, r.movie.edition)], "rd-verify-hlwin")
             v = res3.get("verify") or {}
-        # headless ≡ real on Windows down to state_sem since the split thunk regions (rh_scrub.c, 2026-11-15)
-        real = (str(int(w.get("frame", -2)) + 1) == live["frame"] and w.get("rng") == live["rng"] and w.get("fb") == v.get("fb")
-                and w.get("state_sem") == v.get("state_sem"))
-        print(f"real-device replay: frame {w.get('frame')} rng {w.get('rng')} fb {w.get('fb')} sem {w.get('state_sem')}  (Windows, "
-              f"DirectDraw)  vs headless (Windows) fb {v.get('fb')} sem {v.get('state_sem')}")
+        real = str(int(w.get("frame", -2)) + 1) == live["frame"] and w.get("rng") == live["rng"] and w.get("fb") == v.get("fb")
+        print(f"real-device replay: frame {w.get('frame')} rng {w.get('rng')} fb {w.get('fb')}  (Windows, DirectDraw)  "
+              f"vs headless (Windows) fb {v.get('fb')}")
+        # headless ≡ real in state_sem too (rh_scrub thunk regions, 2026-11-15) — but only once volatile.<ed>.txt covers
+        # the device-pointer slots this movie's content fills (det --calibrate, which runs AFTER this in accept): a note
+        print(f"  state_sem real {w.get('state_sem')} vs headless {v.get('state_sem')}: " +
+              ("equal" if w.get("state_sem") == v.get("state_sem") else "differ (new device-pointer slots before det --calibrate?)"))
         print("REAL MATCH" if real else "REAL MISMATCH")
         same = same and real
     r.close()
@@ -2456,12 +2458,14 @@ def main():
         log, why = "", ""
         if os.path.exists(rd):
             s = json.load(open(rd))
-            log = os.path.join(os.path.dirname(rd), ".ended.log")
+            # keep the dead session's log in the run dir: the bunker / Windows run dirs do not outlive the session
+            log = os.path.join(os.path.dirname(rd), f"ended-{time.strftime('%Y%m%d-%H%M%S')}.log")
             if sess_file(s, "rhost.log", log):
                 tail = open(log, errors="replace").read()[-1500:]
-                os.remove(log)
-                why = " | ".join(l[:160] for l in tail.splitlines() if l.startswith(("game:", "exception", "FATAL", "RESULT")))
-            log = f"{s.get('rundir')}\\rhost.log ({s.get('host', 'wine')})" if s.get("host") in ("win", "bunker") else os.path.join(s.get("rundir", ""), "rhost.log")
+                why = " | ".join(l[:160] for l in tail.splitlines() if l.startswith(("game:", "exception", "FATAL", "RESULT", "AV ")))
+                why = (why + " | " if why else "") + f"log kept: {log}"
+            else:
+                log = f"(the session's rhost.log is gone with its run dir: {s.get('rundir')} on {s.get('host', 'wine')})"
         print(f"the live session ended during this command: the game exited (EXIT on the title, a quit) or crashed.\n  {why or log}\n"
               "  The run is unchanged (its movie ends before this command); the next rd command replays it.", file=sys.stderr)
         sys.exit(3)

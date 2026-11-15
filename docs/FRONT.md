@@ -7,16 +7,17 @@
   Rolling per-checkpoint narrative → PROGRESS.md; deep RE → findings/.  Keep this SHORT.
 -->
 <!-- FRONT:BEGIN -->
-- **2026-11-14 — ★ agent-driven play (`rd`): the campaign front.** Drivers (API `agent.sh` while credit lasts, else
+- **2026-11-15 — ★ agent-driven play (`rd`): the campaign front.** Drivers (API `agent.sh` while credit lasts, else
   session-model subagents) author verified scenarios; `rd accept` → `det --calibrate` → one re-bless → hybrid / standalone
-  (several runs: `tools/drive/accept-batch.sh LIST`). Corpus **35** scenarios (20 driven): the story past the owner's saves
-  to the **Barness Hills Dungeon 290150** (`story-barness-dungeon2`, weight freed), every menu / option / save-load screen,
-  combat, movement, items, NPCs, early enemies, new-game config, the Bonus Menu (Versus / Auto-Play). **Hybrid 35/35 +
-  standalone 34/34** (Windows + wine; R9 = the accepted gap; R11 fixed). **Wine gate = headless on the bunker** (USER
-  2026-11-14: `--target wine` → bunker if up, else maximus; a full pass ~8 min). Next story leg ready:
-  `tools/drive/tasks/story-barness-dungeon3.md`. Then `docs/game/exercise-checklist.md` + `rhost.py coverage` gaps.
-  Headless ≡ real on Windows incl. `state_sem` (2026-11-15, rh_scrub thunk regions). Open: confirm the semv zone fix (803fe74) on the next drives;
-  session speed.
+  (several runs: `tools/drive/accept-batch.sh LIST`). Corpus **36** scenarios (21 driven): the story past the owner's saves
+  through the Barness Hills Dungeon (gargoyle question) into the **Stella interlude** — Chartreux + Mayberk Manor
+  (`story-barness-dungeon3`), every menu / option / save-load screen, combat, movement, items, NPCs, early enemies, new-game
+  config, the Bonus Menu. **Hybrid 36/36 + standalone 36/36** (Windows + wine; R9 = the accepted gap). **Wine gate =
+  headless on the bunker** (USER 2026-11-14; hybrid at `-j 4`: at `-j 8` the 5 GB pool OOM-kills the longest runs).
+  **Headless ≡ real on Windows incl. `state_sem`** (rh_scrub thunk regions); **savestates restore the commit map** (rd
+  verify drift fixed). Next story leg ready: `tools/drive/tasks/story-stella-interlude.md` (manor → White Rose Inn →
+  Stella's dungeon route → BOSS Stella). Then `docs/game/exercise-checklist.md` + `rhost.py coverage` gaps.
+  Open: the `-j 4` search session crash (story-bd3; log lost — `rd` keeps `ended-*.log` now); session speed.
 - **2026-10-14 — rhost is THE porting loop; the MOVEMENT stack is ported and verified inside retail.**
   USER decisions (audit §7): deterministic cadence = rhost 1 update/flip; EN-old first (SE = a later
   delta layer); Frida retail drive RETIRED.  **2026-10-31 (USER): the whole pre-rhost loop REMOVED** — the

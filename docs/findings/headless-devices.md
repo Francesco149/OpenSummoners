@@ -40,8 +40,9 @@ surfaces. Fixed (4724cb2): **re-gate 2026-11-13: frame / tick / RNG / fb equal o
 0x5c453a copies the IAT value), i.e. an rh_scrub IAT thunk VA. Headless wrapped its fake DDraw / DShow vtables (153 slots)
 before `rh_scrub_iat`, real devices after → every IAT thunk 0x4c80 later. Fix: IAT thunks from 0x5f010000, vtable thunks
 from 0x5f030000 (rh_scrub.c). **Windows `corpus --check --headless` vs real expected.json: 35/35 PASS incl. state_sem**;
-real devices unchanged (35/35 PASS); wine (headless) expectations re-blessed (state_sem only). `rd verify --real` now
-compares state_sem too.
+real devices unchanged (35/35 PASS); wine (headless) expectations re-blessed (state_sem only). `rd verify --real` reports
+real vs headless state_sem as a note only: a movie into new content fills device-pointer slots (retail heap words holding
+DDraw surface pointers: real system-heap VAs, run-to-run) that `volatile.<ed>.txt` covers only after `det --calibrate`.
 Wine without X: boot f1200 rng 404a0a8f = Xvfb run; 529–611 fps vs 280 (Xvfb), no exit hang.
 
 ## 3. Flip coroutine (rhost.c)
