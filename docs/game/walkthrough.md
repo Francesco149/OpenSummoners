@@ -139,6 +139,15 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      (Yes/No; at the end "go over it one more time?" — pick No after the menu settles, else it loops). 300110 bridge girl
      (x ≈ 257000) blocks: run-jump. 300120 city gate (x ≈ 281700, ↑) opens after Rowen → road **265110** (Blue Slimes
      hold the exit) → **265120**. Stella's Fire Wall: hold X ~95 frames, release (`lpose` 20112, MP 3); tap X = dagger.
+   - [RD story-stella-road] The road east: 265120 (deep water = pit for Stella too: −4 HP, back on the ledge; exit top
+     right zone 2 x 201600 y 12800 via the chest ledge) → **265130** (signed wooden gate x 44800 = the Loch Carudale side
+     265180 → 265190 → 265200 → door x 64000 → cave **330140**, ~7 Lead Merkids 111–126 HP = the optional Lead Merkid cave;
+     the road = zone 3 x 92800) → 265140 → 265150 → **265160** (White Rose Inn door x 99200 → 265165: rest 7 CP, `ent` =
+     Rest, then a save offer; flowered vines x ≈ 205000 did NOT burn with 2 Fire Walls; exit zone 2 x 252800) → 265170 →
+     **260190** (sign: ↑ Weathervane / Loch Carudale, → Barness / Tonkiness, ← Chartreux) → 260180 → **260150** (gate x ≈
+     53000 ↑) → **260160** (top-left exit x 0 y 12800 = toward Barness, a wall too tall for Stella's jump; bottom cave x
+     86400 → 260164 → door x 131200 → **260165** = the optional weight cave, needs 3 members). Fire Wall hits ~±17000 lx on
+     both sides of Stella, not her own spot.
 10. 🔑 Control returns to Arche → enter doors → **BOSS: Stella** → [Wind Crest 2]. 💎 Crest room chest [Better Herb]×3. Stella accompanies out (her route = shortcut). Wind blows again but windmills still idle (need tower crest).
 11. 🔑 Heading home: boys, then the **doctor** → need medicine for Sana → **Barness herbalist** (first house) → back door → **Herb Farm Cave** (Arche + Stella):
     1. 🔑 Left: 3 crates beside movable platform — do NOT break first. Stella climbs crates onto platform (Stay There!) → Arche breaks crates, pushes platform right → Stella crosses (Stella can't push).

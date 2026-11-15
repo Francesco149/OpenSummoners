@@ -2,17 +2,17 @@
  "frame": "4320",
  "tick": "3054",
  "rng": "8cfb941b",
- "state_sem": "6674a3ebcde5fd84",
+ "state_sem": "737eb89274706d2f",
  "fb": "1eaa1d4dba2e365c",
  "sem_series": {
   "0": "91f123ce0c50156f",
   "600": "af15d393e2c5dc59",
   "1200": "ffa3d68a0b8d9cc1",
-  "1800": "abeab092b420efeb",
-  "2400": "d6c047ea8b696240",
-  "3000": "974dd7d5c17e7d14",
-  "3600": "7908686303edac1f",
-  "4200": "47f328ce9cc6787e"
+  "1800": "7e86b41eeca0be70",
+  "2400": "c2c4150b74119fe4",
+  "3000": "e99d14d5718a2d3c",
+  "3600": "5b2acda3ef778a4f",
+  "4200": "bb7662bf14f01e23"
  },
  "fb_series": {
   "0": "0a11a2ce8b590113",
