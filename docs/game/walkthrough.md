@@ -161,6 +161,14 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      **290230** (2 chests lx ≈ 175000–180000). Mothbee sleep (lpose 117): keys do not wake her, a hit does. Better Herb
      from F1 → Items = a cast bar with enemies near, instant otherwise; the `F` key did nothing.
 10. 🔑 Control returns to Arche → enter doors → **BOSS: Stella** → [Wind Crest 2]. 💎 Crest room chest [Better Herb]×3. Stella accompanies out (her route = shortcut). Wind blows again but windmills still idle (need tower crest).
+   - [RD story-stella-crest] EN-old: 290230 chests = Magic Candy (right), **1** Better Herb (left; not ×3); stairs at lx ≈
+     94600 (↑) → **290240**: Kobold by the **clover lever** (code 70216, lx ≈ 17600 ly 42400) — **V (examine), not ↑** —
+     raises gate 70810; chest 70220 at (139200, 89600) = Moldy Bread (skipped); top-left exit (x 0, y 3200–19200, walk in)
+     → **290160** talking doors (zones: 1 left x 0 → 290155; 2 doors x 51200 ↑; 3 right x 112000 → 290240). Stella answers
+     the riddle herself. Doors → 290170 (Kobold) → **290180** pedestal (event zone 101; only exit = left) → Wind Crest →
+     Arche at the 290160 doors; ↑ → boss scene in 290170. **BOSS Stella = 334 max HP** (code 59993, Easy) + a Kobold.
+     Crest-room chest (290180 lx ≈ 75000) = **1** Better Herb. Out: 290160 zone 3 → 290240 (enemies respawned) → 290230.
+     `story` 1130 → 1140 after the boss.
 11. 🔑 Heading home: boys, then the **doctor** → need medicine for Sana → **Barness herbalist** (first house) → back door → **Herb Farm Cave** (Arche + Stella):
     1. 🔑 Left: 3 crates beside movable platform — do NOT break first. Stella climbs crates onto platform (Stay There!) → Arche breaks crates, pushes platform right → Stella crosses (Stella can't push).
     2. 💎 Pass 1st tunnel, right: [Better Herb]. Tunnel: ⚠ right chest = poison. Left → next area: Stella on platform burns vines → [Memory Photo 4].

@@ -6,6 +6,15 @@ specific commits where relevant.
 
 ---
 
+## 2026-11-15 (night) — corpus 40: `story-stella-crest` (Wind Crest, BOSS Stella, Wind Crest 2)
+
+- `story-stella-crest` (API driver, $8.70, 183 turns, 154k → 174304): 290230 chests → 290240 clover lever (V, not ↑) →
+  290160 talking doors → 290180 Wind Crest → Arche → BOSS Stella (334 HP on EN-old Easy, not 256) → Wind Crest 2 →
+  back to 290230. Budget ran out before check / verify → orchestrator ran both (PASS / MATCH). Accepted; volatile
+  45,617 → 45,858; hybrid 40/40 + standalone 39/39 Windows + wine.
+- Party audit (USER upgrade rule): Arche Lv5 cap 7, Iron Sword + Leather Armor, Armor #2 + Accessory empty, MoH 5
+  skipped; 1131 CP. Next task `story-herb-farm` opens with the equip audit + names MoH 6 / stat items / store herbs.
+
 ## 2026-11-15 — corpus 36 (Stella interlude); headless ≡ real state_sem; savestates restore the commit map
 
 - `story-barness-dungeon3` (API driver, $5.78, 89312 frames): 290150 weight → 290155 → 290160 gargoyle doors (wrong
