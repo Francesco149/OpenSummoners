@@ -416,6 +416,15 @@ void rh_heap_meta_restore(void *p)
     g_nalloc = m->na; g_nfree = m->nf; g_inuse = m->iu; g_inuse_max = m->ium;
     unlock();
 }
+/* the savestate restore (rh_snap): also the commit watermarks — rh_snap re-commits / decommits the pages to the
+ * savestate's commit map, so a page committed after it is decommitted again and commit_to must commit it anew (the
+ * shadow rollback above keeps r->committed: its pages stay committed) */
+void rh_heap_snap_restore(const void *p)
+{
+    const heap_meta_t *m = p;
+    rh_heap_meta_restore((void *)p);
+    lock(); R_SMALL.committed = m->s.committed; R_LARGE.committed = m->l.committed; R_VREG.committed = m->v.committed; unlock();
+}
 void rh_heap_meta_free(void *p)
 {
     heap_meta_t *m = p; if (!m) return;

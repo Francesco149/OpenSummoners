@@ -1756,10 +1756,11 @@ platform_done:
         rh_snap_register("gtib_lo", &g_gtib_lo, sizeof g_gtib_lo); rh_snap_register("gtib_hi", &g_gtib_hi, sizeof g_gtib_hi);
         rh_snap_register("activated", &g_activated, sizeof g_activated);
         void rh_media_snapreg(void), rh_dinput_snapreg(void), rh_handles_snapreg(void), rh_gdi_snapreg(void), rh_files_snapreg(void), rh_trace_snapreg(void), rh_state_snapreg(void);
-        void *rh_heap_meta_save(void); void rh_heap_meta_restore(void *); void rh_heap_meta_free(void *);
+        void *rh_heap_meta_save(void); void rh_heap_snap_restore(const void *); void rh_heap_meta_free(void *); void rh_dev_snapreg(void);
+        rh_dev_snapreg();
         rh_media_snapreg(); rh_dinput_snapreg(); rh_handles_snapreg(); rh_gdi_snapreg(); rh_trace_snapreg(); rh_state_snapreg();
         if (!O.no_overlay) rh_files_snapreg();
-        if (!O.no_arena) rh_snap_module("heap", rh_heap_meta_save, (void (*)(const void *))rh_heap_meta_restore, rh_heap_meta_free);
+        if (!O.no_arena) rh_snap_module("heap", rh_heap_meta_save, rh_heap_snap_restore, rh_heap_meta_free);
     }
     if (!O.live) {
         rh_scrub_install();

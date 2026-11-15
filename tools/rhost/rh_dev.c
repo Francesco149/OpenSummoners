@@ -621,6 +621,8 @@ void rh_dev_scrub(void)
 /* savestates: the DEV region + every mapped section slot are tracked memory; GDI's writes into a slot go through
  * GDI's own view of the section (no write fault), so a slot is touched (dirty + writable) before its DC is handed out */
 void rh_dev_committed_hook(uint32_t lo, uint32_t hi) { rh_snap_committed(lo, hi); }
+/* the commit watermark is savestate: rh_snap decommits DEV pages committed after a savestate when restoring it */
+void rh_dev_snapreg(void) { rh_snap_register("dev_committed", &g_dev_committed, sizeof g_dev_committed); }
 void rh_dev_gdi_wrote(uint32_t lo, uint32_t hi) { rh_snap_touch((void *)(uintptr_t)lo, hi - lo); }
 int rh_dev_slot_ranges(uint32_t (*out)[2], int max)
 {

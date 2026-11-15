@@ -264,7 +264,10 @@ int rh_snap_restore(int id)
     if (!g_anchored || id <= 0 || id >= MAX_SNAP || !g_snap[id]) return -1;
     snap_t *s = g_snap[id];
     for (uint32_t i = 0; i < g_nD; i++) {
-        uint32_t pg = g_D[i], h = i < s->count ? s->pp[i] : 0;
+        /* a page that entered D after this savestate holds its anchor state there: the base, or — committed after the
+         * anchor (no base) — not committed at all (else a restore to before a commit leaves zero pages committed that a
+         * replay never commits: semv drift with 0 differing dwords, story-bd3 verify f89312) */
+        uint32_t pg = g_D[i], h = i < s->count ? s->pp[i] : g_base[pg] ? 0 : H_GONE;
         if (h == H_GONE || g_gone[pg]) { if (g_gone[pg] && h != H_GONE) g_recommits++; page_commit_state(pg, h == H_GONE); }
         if (h == H_GONE) continue;
         memcpy((void *)(uintptr_t)(pg << 12), h ? slab_ptr(h - 1) : g_base[pg] ? g_base[pg] : g_zero, PGSZ);
@@ -287,7 +290,7 @@ long rh_snap_diff(int id, uint32_t lo, uint32_t hi, void (*cb)(uint32_t va, uint
     const snap_t *s = g_snap[id];
     long n = 0;
     for (uint32_t i = 0; i < g_nD; i++) {
-        uint32_t pg = g_D[i], base = pg << 12, h = i < s->count ? s->pp[i] : 0;
+        uint32_t pg = g_D[i], base = pg << 12, h = i < s->count ? s->pp[i] : g_base[pg] ? 0 : H_GONE;
         if (base + PGSZ <= lo || base >= hi) continue;
         if (h == H_GONE || g_gone[pg]) {
             if ((h == H_GONE) != g_gone[pg]) { n++; if (cb) cb(base, h == H_GONE ? 0xdeadc0deu : 0, g_gone[pg] ? 0xdeadc0deu : 0, u); }
@@ -311,8 +314,8 @@ void rh_snap_stats(char *b, size_t n)
              (unsigned long long)g_decommits, (unsigned long long)g_recommits, (unsigned)(g_basesz >> 20));
 }
 
-/* ---- --snap-test A:B[:K]: savestate at A; at B hash, restore to A, replay to B; K passes must hash alike ---- */
-static int g_st_on, g_st_id, g_st_pass, g_st_k, g_st_fail, g_st_res; static uint32_t g_st_a, g_st_b, g_st_rng; static uint64_t g_st_sem, g_st_rsem, g_st_dev, g_st_fb;
+/* ---- --snap-test A:B[:K]: savestate at A; at B hash, restore to A (must hash as at A), replay to B; K passes must hash alike ---- */
+static int g_st_on, g_st_id, g_st_pass, g_st_k, g_st_fail, g_st_res; static uint32_t g_st_a, g_st_b, g_st_rng; static uint64_t g_st_sem, g_st_rsem, g_st_dev, g_st_fb, g_st_asem;
 static char g_st_status[160];
 uint64_t rh_state_dev_hash(void);
 uint64_t rh_fb_chain(void);
@@ -326,6 +329,7 @@ void rh_snap_selftest(void)
     }
     if (g_frame == g_st_a && !g_st_id) {
         if (rh_snap_anchor() || !(g_st_id = rh_snap_take())) rh_fatal("snap-test: no savestate at f%u", g_frame);
+        rh_hash_t ha; rh_state_hash(&ha); g_st_asem = ha.semantic;
         rh_log("snap-test: savestate %d at f%u\n", g_st_id, g_frame);
     } else if (g_frame == g_st_b && g_st_id && g_st_pass <= g_st_k) {
         rh_hash_t h; rh_state_hash(&h);
@@ -344,6 +348,13 @@ void rh_snap_selftest(void)
             g_st_pass++;
             rh_snap_take();
             if (rh_snap_restore(g_st_id)) rh_fatal("snap-test: restore failed");
+            /* the restored state itself = the state at A (incl. the commit map: pages committed between A and B) */
+            rh_hash_t hr; rh_state_hash(&hr);
+            if (hr.semantic != g_st_asem) {
+                g_st_fail++;
+                rh_log("snap-test: pass %d: restored state differs from f%u: sem %016llx/%016llx\n", g_st_pass, g_st_a,
+                       (unsigned long long)hr.semantic, (unsigned long long)g_st_asem);
+            }
         } else g_st_pass++;
     }
 }
