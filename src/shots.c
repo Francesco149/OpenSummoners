@@ -6924,8 +6924,8 @@ LABEL_9:
       *(double *)v31 = v20 * (*(const double *)D(0x8a9a38)) * 0.001;
       a2 = v12 / 100;
       (*v30__f) = (double)(v12 / 100);
-      v23 = ftol_round_(sin(*(long double *)v31) * (*v30__f));
-      v24 = cos(*(long double *)v31);
+      v23 = ftol_round_(sin(*(double *)v31) * (*v30__f));
+      v24 = cos(*(double *)v31);
       F32(v3, 4) = v22 + v23;
       v25 = ftol_round_(v24 * (*v30__f));
       (*v28__f) = a3;
@@ -7186,8 +7186,8 @@ LABEL_29:
     *(double *)v29 = (double)F32(v3, 52) * (*(const double *)D(0x8a9a38)) * 0.001;
     a2 = v21;
     (*v28__f) = (double)v21;
-    v23 = ftol_round_(sin(*(long double *)v29) * (*v28__f));
-    v24 = cos(*(long double *)v29);
+    v23 = ftol_round_(sin(*(double *)v29) * (*v28__f));
+    v24 = cos(*(double *)v29);
     F32(v3, 4) = v22 + v23;
     F32(v3, 8) = v20 - ftol_round_(v24 * (*v28__f));
     v25 = 2000 - 4000 * rnd() / 0x8000;

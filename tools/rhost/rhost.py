@@ -1145,7 +1145,10 @@ def cmd_hookbisect(a):
     """which REPLACE hook makes SCEN diverge from pure retail by --frames?  One batch per round: a pure
     reference + N groups of the candidates (each group replaced alone); the diverging groups split again
     until single hooks remain.  Compares frame / tick / rng (+ state_sem on the Windows target)."""
-    cand = a.hooks.split(",") if a.hooks else hybrid_hooks()
+    # WinMain (wn_562210) is excluded by default: replacing it runs the port's whole call tree, so it "diverges" whenever
+    # anything does and the bisection ends on it (story-herb-boss, 2026-11-16). For a new scenario prefer
+    # coverage → newhooks → verify --hooks (names the function + first frame in one shadow pass).
+    cand = a.hooks.split(",") if a.hooks else [h for h in hybrid_hooks() if h != "wn_562210"]
     tr, save, ed = scenario_inputs(a.scenario, a)
     # wine: semv (blind to system-heap values); Windows: state_sem only at a scenario's end (mid-run it is not
     # stable there: system pointers the end-state calibration never saw)

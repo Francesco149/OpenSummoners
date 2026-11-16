@@ -1279,6 +1279,9 @@ def convert(text, names, widths, this):
                              ("BYTE2", ("F8", 2)), ("HIBYTE", ("F8", 3))):   # a part of a word global: the narrower store
         s = re.sub(r"\b%s\(\(\*\((?:intptr_t|int32_t|uint32_t|int) \*\)D\((0x[0-9a-f]+)\)\)\)" % part,
                    lambda m, acc=acc, add=add: f"{acc}(D({m.group(1)}), {add})", s)
+    # IDA's `*(long double *)p` over a slot that holds a DOUBLE (retail: fld qword): mingw i686's long double is the
+    # 12-byte x87 type, so the deref would reinterpret the bytes (story-herb-boss, shot_477b70's angle)
+    s = re.sub(r"\(long double \*\)", "(double *)", s)
     SETS = {"LOWORD": "SETLO", "HIWORD": "SETHI", "LOBYTE": "SETLB", "BYTE1": "SETB1", "LODWORD": "SETLODW", "HIDWORD": "SETHIDW"}
     out, pos = [], 0
     for m in re.finditer(r"\b(LOWORD|HIWORD|LOBYTE|BYTE1|LODWORD|HIDWORD)\((\w+|\w+\[[^\[\]]+\])\) = ", s):
