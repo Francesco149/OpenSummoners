@@ -176,6 +176,17 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
     4. 🔑 Big area: light 3 **scales-symbol torches** (top right; via pushed block right of lower tunnel; bottom after burning vines) → scales wall (left, below entrance) opens; crates [Good Child Drop]; tunnel → right: [Revival Drink], 300 CP.
     5. 💎 Ledge → tunnel → right: right end **MoH 6** (cap 9, 12,000), left end **fountain** (heal/save).
     6. 🔑 Down left → **BOSS: Baby Mage** (+2 Kobolds).
+    - [RD story-herb-farm] EN-old: out after the Stella boss = 290230 zone 1 (x 19200 ↑) → 290210 (left, x 0 y 38400) →
+      290205 → 290200 (top-left) → 290110 → 280170 → 280160 → 280115 zone 3 (x 224000) → Barness 270120: wind scene →
+      auto to the Mayor (270170, "the crest is yours") → 270110 → walk home: **260150** = the boys + doctor scene (~1800
+      frames) → letter No.12 "The Medicine's Missing?!" → **go back to Barness, NOT Tonkiness** (Tonkiness inn 210150:
+      3 CP, save). Herbalist = 270110 zone 2 (x 313600 ↑) → 270130 → back door 270135 → ↑ at lx ≈ 89500 → **320105**. Step
+      1: control Stella, jump crates → scaffold top; F1 → Party Commands → Follow Mode → All Members **Stay There!**; Arche
+      breaks crates, pushes scaffold right (sword sheathed, 100 lx/frame) to x 83200; Stella run-jumps right → 320110
+      (whole party moves). 320115 side room chest = **1** Better Herb. 320110 zone 3 (x 144000, y 115200) → **320120**
+      (`rd zones`: 1 ↑ (22400, 25600) → 320110; 2 ↑ (28800, 121600) → 320130; 3 walk-in (0, 96000) → 320125; chest
+      70220 at (177600, 60800); 7 × code 70371; many slimes). `ent` in free roam swaps the
+      leader; `C` advances field dialogue.
     7. 🔑 Next area chest [Topah Herb] → leave → Sana's house cutscene → save.
 
 ### Day 7 — field-trip prep: Sweet Sticks from Chartreux

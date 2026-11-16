@@ -6,6 +6,19 @@ specific commits where relevant.
 
 ---
 
+## 2026-11-16 — corpus 41: `story-herb-farm`; `rd zones`
+
+- `story-herb-farm` (API driver, $9.54, 292 turns, 174304 → 219262): out of Stella's dungeon (290230 → … → 280115 →
+  Barness), the Mayor's crest scene, the 260150 boys + doctor scene, a detour to Tonkiness (inn save slot 10, digest
+  `9ebc4f357286`), the herbalist (270110 zone 2) → Herb Farm Cave 320105 (crates + scaffold + Stay There!) → 320110 →
+  320115 → 320120. Driver verified at f218554; orchestrator re-verified the 708-frame tail. Accepted; volatile 45,858 →
+  46,210; hybrid 41/41 + standalone 40/40 Windows + wine.
+- Party audit done by the driver: Power Drop → Arche; Good Child Drop + Stronggirl Juice + Cloth Armor → Stella. Arche
+  Lv6 at cap 7 (no fitting Armor #2 / Accessory; MoH 5 skipped).
+- `rd zones R [--all]`: the room's event-zone actors (world+0x11e0, +0x274 / +0x278, body x y) joined with the room
+  record's zone table (roominfo +0x1c: id → destination room, entry); `--all` adds live objects (code, handle, state).
+  Three driver reports in a row asked for it; it caught a misread zone x (288000 vs 28800).
+
 ## 2026-11-15 (night) — corpus 40: `story-stella-crest` (Wind Crest, BOSS Stella, Wind Crest 2)
 
 - `story-stella-crest` (API driver, $8.70, 183 turns, 154k → 174304): 290230 chests → 290240 clover lever (V, not ↑) →

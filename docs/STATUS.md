@@ -34,16 +34,17 @@ understates how much actual instruction volume is ported.
 
 - **2026-11-15 — ★ agent-driven play (`rd`): the campaign front.** Drivers (API `agent.sh` while credit lasts, else
   session-model subagents) author verified scenarios; `rd accept` → `det --calibrate` → one re-bless → hybrid / standalone
-  (several runs: `tools/drive/accept-batch.sh LIST`). Corpus **40** scenarios (25 driven): the story past the owner's saves
+  (several runs: `tools/drive/accept-batch.sh LIST`). Corpus **41** scenarios (26 driven): the story past the owner's saves
   through the Barness Hills Dungeon (gargoyle question) into the **Stella interlude** — Chartreux, Mayberk Manor, the east road, the White Rose Inn
-  (save), Barness, Stella's dungeon route, the Wind Crest, BOSS Stella → Wind Crest 2 (`story-barness-dungeon3`, `story-stella-interlude`, `story-stella-road`,
-  `story-stella-barness`, `story-stella-crest`), every menu / option / save-load screen, combat, movement, items, NPCs, early enemies, new-game
-  config, the Bonus Menu. **Hybrid 40/40 + standalone 39/39 (EN-old only)** (Windows + wine; R9 = the accepted gap). **Wine gate =
+  (save), Barness, Stella's dungeon route, the Wind Crest, BOSS Stella → Wind Crest 2, home via Barness (doctor, herbalist) into the Herb Farm Cave (`story-barness-dungeon3`, `story-stella-interlude`, `story-stella-road`,
+  `story-stella-barness`, `story-stella-crest`, `story-herb-farm`), every menu / option / save-load screen, combat, movement, items, NPCs, early enemies, new-game
+  config, the Bonus Menu. **Hybrid 41/41 + standalone 40/40 (EN-old only)** (Windows + wine; R9 = the accepted gap). **Wine gate =
   headless on the bunker** (USER 2026-11-14; hybrid at `-j 4`: at `-j 8` the 5 GB pool OOM-kills the longest runs).
   **Headless ≡ real on Windows incl. `state_sem`** (rh_scrub thunk regions); **savestates restore the commit map** (rd
-  verify drift fixed). Next story leg ready: `tools/drive/tasks/story-herb-farm.md` (out of the dungeon → doctor → herbalist → Herb Farm
-  Cave → MoH 6 → BOSS Baby Mage → Sana's house). **Story drivers keep the party strong** (gear / stat items / MoH per the
-  walkthrough; DRIVER.md, USER 2026-11-15) — still none bought / equipped anything: Arche Lv5 (cap 7), Iron Sword + Leather Armor, Armor #2 + Accessory EMPTY, MoH 5 skipped; story-herb-farm's task opens with the equip audit. Then `docs/game/exercise-checklist.md` + `rhost.py coverage` gaps.
+  verify drift fixed). Next story leg ready: `tools/drive/tasks/story-herb-cave.md` (Herb Farm Cave 320120 → torches → MoH 6 → fountain →
+  BOSS Baby Mage → Sana's house). `rd zones R [--all]` lists a room's exits → destination rooms (+ objects). **Story drivers keep the party strong** (gear / stat items / MoH per the
+  walkthrough; DRIVER.md, USER 2026-11-15) — story-hf did the audit: Power Drop → Arche, Good Child + Stronggirl Juice + Cloth Armor → Stella; Arche Lv6 at cap 7
+  (Armor #2 / Accessory empty: nothing fits yet; MoH 5 skipped) ⇒ MoH 6 matters next. Then `docs/game/exercise-checklist.md` + `rhost.py coverage` gaps.
   The `-j 4` search crash = bunker cgroup OOM (slab pools): bunker sessions run `--snap-mb 384`. Open: session speed
   (fight searches 150–300 ticks/s); "found" search paths that did not replay alike (story-sr report).
 - **2026-10-14 — rhost is THE porting loop; the MOVEMENT stack is ported and verified inside retail.**

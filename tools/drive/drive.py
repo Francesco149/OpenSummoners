@@ -1582,6 +1582,37 @@ def cmd_eval(a):
     r.close()
 
 
+ZONE_KIND = {1: "walk in", 2: "press up", 3: "press up"}
+
+
+def cmd_zones(a):
+    """the room's event zones (world+0x11e0 actors with +0x274 != 0; src/world_layout.h wl_actor) with the room record's
+    zone table (roominfo +0x1c, 20 x 12 B: id, destination room, entry; src/room_load.h); --all adds every live actor"""
+    r = Run(a.run)
+    room, = r.ev("room")
+    ptrs = r.ev(*[f"s32(world + 0x11e0 + {4 * k})" for k in range(128)])
+    live = [(k, p) for k, p in enumerate(ptrs) if p]
+    F = lambda p: [f"s32({p} + 0x274)", f"s32({p} + 0x278)", f"s32(s32({p} + 0x40) + 4)", f"s32(s32({p} + 0x40) + 8)",
+                   f"s32({p} + 0x1d4)", f"s32({p} + 0x1d8)", f"s32({p} + 0xc)", f"u8(s32({p} + 0x40))"]
+    vals = r.ev(*[e for _, p in live for e in F(p)]) if live else []  # 8 per slot; the last = body in use
+    tab = r.ev(*[f"s32(s32(world + 0x1038) + 0x1c + {12 * i} + {o})" for i in range(20) for o in (0, 4, 8)])
+    dest = {}
+    for i in range(20):
+        zid, to, entry = tab[3 * i] & 0xffff, tab[3 * i + 1], tab[3 * i + 2]
+        if zid:
+            dest.setdefault(zid, (to, entry))
+    print(f"room {room}: zones (x, y = px*100 of the actor's body; compare lx / ly)")
+    rows = [(k, *vals[8 * i:8 * i + 7]) for i, (k, _) in enumerate(live) if vals[8 * i + 7]]
+    for k, zone, kind, x, y, code, handle, st in sorted(rows, key=lambda t: (t[1] == 0, t[1])):
+        if not zone and not a.all:
+            continue
+        to = dest.get(zone)
+        where = (f"→ {to[0]} (entry {to[1]})" if to else "(event, no table row)") if zone else ""
+        print(f"  slot {k:3d}  " + (f"zone {zone:3d} {ZONE_KIND.get(kind, f'kind {kind}'):9s} " if zone else " " * 24)
+              + f"x {x:7d} y {y:7d}  code {code:6d} handle {handle:10d} state {st}  {where}")
+    r.close()
+
+
 def scan_filter(rows, lo, nw, every=0, changes=False, where=False):
     """rows [(f, [watch values.., where value])] → the rows to print: every N-th tick from LO, only those whose watched
     values differ from the previous printed row (--changes), only where the last column holds (--where)"""
@@ -2392,6 +2423,8 @@ def main():
     p.set_defaults(fn=cmd_tap)
     p = sp.add_parser("status"); p.add_argument("run"); p.set_defaults(fn=cmd_status)
     p = sp.add_parser("text"); p.add_argument("run"); p.set_defaults(fn=cmd_text)
+    p = sp.add_parser("zones", help="the room's event zones (doors / exits): position, kind, destination room; --all: every live actor (code, handle, state)")
+    p.add_argument("run"); p.add_argument("--all", action="store_true"); p.set_defaults(fn=cmd_zones)
     p = sp.add_parser("endsave"); p.add_argument("run"); p.set_defaults(fn=cmd_endsave)
     p = sp.add_parser("eval"); p.add_argument("run"); p.add_argument("exprs", nargs="+")
     p.add_argument("--at", help="evaluate at this checkpoint's state; the run does not move (no savestate: by replay)")
