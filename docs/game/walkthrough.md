@@ -199,11 +199,28 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
       from the y ≈ 120000 corridor to y ≈ 155000–176000, then right) — not from the bottom basin (wall at x 231600) nor
       the torch-1 shelf. Zone 2 (35200, 134400) → 320150 lies behind the scales wall. Myconid spores + Kobolds drop
       Stella fast; an F1 item with an enemy near = a timed cast.
+    - [RD story-herb-boss] EN-old: torch-2 cave via the central shaft (confirmed); push block 70210 to its stop x 374400;
+      Arche climbs block → shelf with an air ↑+X (rising slash, ~16800 height); Stella lights torch 2. Torch 3 (bottom
+      basin) → "machinery activating" → scales wall 70230 opens. The basin's exit shaft (x ≈ 200–230k) needs air ↑+X
+      steps. Crate 70303 (x 6400) = Good Child Drop. 320140 zone 2 (35200, 134400) → **320150** (zones: 2 ↑ (259200,
+      70400) → 320155: Revival Drink, 300 CP; 3 ↑ (41600, 44800) → 320158 tunnel: walk-in x 0 → 320165 BOSS; 3 ↑ (297600,
+      44800) → **320160**: goddess statue 70410 (x 30400, V = heal + save) + **MoH 6** 70100 (235200, floating — jump into
+      it)). **Baby Mage** = code 100170, **297 HP** (Easy), + 2 Kobolds 51030. 320165 zone 2 ↑ (22400, 38400) → 320170.
     7. 🔑 Next area chest [Topah Herb] → leave → Sana's house cutscene → save.
+    - [RD story-d7] EN-old: post-boss cutscene f271359–272021; 320170 chest (44800, 32000) = Topah Herb. Walking out
+      of 320170 only returns to 320165 (no event; respawns in 320158). Fast exit: **F1 → System → Give Up → Return To
+      Safety** (−10 % CP) → 270135 (herbalist's back yard, full HP); its zone 1 ↑ (12800) → Sana's-house cutscene (`story`
+      1140 → 1150, 210190). Day ends at the **back door** (zone 1, x 12800); the front door is locked → save prompt.
 
 ### Day 7 — field-trip prep: Sweet Sticks from Chartreux
 1. 🔑 School: trip to **Korat Village** tomorrow; talk to **Colm** (fancy snacks → Chartreux **sweet sticks**). Talk to class prez for Chiffon gag.
 2. 🔑 Tonkiness: Mom → 30 CP; Sana's mom → 30 CP. Leave town LEFT (vine route closed: vines respawned, no Stella).
+   - [RD story-d7] EN-old: Colm stands far right of 230140 (lx ≈ 81000). Sana rejoins **unequipped**. Sana's mom (210190)
+     + Arche's mom (210140 upstairs, right) each +30 CP. Shops: Arche's dad (210140 ground floor): Mentama Drop 5, Herb 10,
+     Venom-Away 7, Pot 60, Taiyaki 6, Slime Bean 12 — **no Better Herbs in Tonkiness**. Weapon shop 210160: Bronze Sword
+     380, Mattress Beater 155, Iron Dagger 450, Cloth Armor 280, Iron Sword 780, Iron Staff 350, Leather Armor 560 (sell
+     = half). Inn 210150: rest 3 CP. Route out: 210110 zone 1 → 260110 → 260120 (Mothbees: sleep, `lpose` 117 >300 f)
+     → 260130 → 260140 → 260150 → 260180 → zone 2 (walk-in x 0) → 260190 (sign: Weathervane / Loch Carudale).
 3. 🔑 Lake street → crate → past Weathervane Tower → next area: couple attacked → **BOSS: Lead Kobold** (+ Snivelly Kobold; kill Snivelly first). Couple: tunnels under the lake.
 4. 🔑 Loch Carudale: **Sana** dives; 💎 left chest [Mermaid Scale]; talk to **old man by boat** → boat usable. Enter cave → **Carudale Tunnels** (Lead Merkid, Merkid Mage, Yellow Slime):
    1. Jump water pits, drop into shallows, tunnel: ⚠ left chest = poison; right → **MoH 7** (cap 10, 15,000) + pull lever.

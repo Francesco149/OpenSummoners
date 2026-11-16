@@ -34,18 +34,19 @@ understates how much actual instruction volume is ported.
 
 - **2026-11-15 — ★ agent-driven play (`rd`): the campaign front.** Drivers (API `agent.sh` while credit lasts, else
   session-model subagents) author verified scenarios; `rd accept` → `det --calibrate` → one re-bless → hybrid / standalone
-  (several runs: `tools/drive/accept-batch.sh LIST`). Corpus **42** scenarios (27 driven): the story past the owner's saves
+  (several runs: `tools/drive/accept-batch.sh LIST`). Corpus **43** scenarios (28 driven): the story past the owner's saves
   through the Barness Hills Dungeon (gargoyle question) into the **Stella interlude** — Chartreux, Mayberk Manor, the east road, the White Rose Inn
-  (save), Barness, Stella's dungeon route, the Wind Crest, BOSS Stella → Wind Crest 2, home via Barness (doctor, herbalist) into the Herb Farm Cave to its torch room (`story-barness-dungeon3`, `story-stella-interlude`, `story-stella-road`,
+  (save), Barness, Stella's dungeon route, the Wind Crest, BOSS Stella → Wind Crest 2, home via Barness (doctor, herbalist) into the Herb Farm Cave (torches, scales wall, MoH 6, goddess-statue save) → BOSS Baby Mage (297 HP) (`story-herb-boss`, `story-barness-dungeon3`, `story-stella-interlude`, `story-stella-road`,
   `story-stella-barness`, `story-stella-crest`, `story-herb-farm`, `story-herb-cave`), every menu / option / save-load screen, combat, movement, items, NPCs, early enemies, new-game
-  config, the Bonus Menu. **Hybrid 42/42 + standalone 41/41 (EN-old only)** (Windows + wine; R9 = the accepted gap). **Wine gate =
+  config, the Bonus Menu. **Hybrid 43/43 + standalone 42/42 (story-herb-boss's Baby Mage shot bug fixed: decomp2c `*(long double *)`) (EN-old only)** (Windows + wine; R9 = the accepted gap). **Wine gate =
   headless on the bunker** (USER 2026-11-14; hybrid at `-j 4`: at `-j 8` the 5 GB pool OOM-kills the longest runs).
   **Headless ≡ real on Windows incl. `state_sem`** (rh_scrub thunk regions); **savestates restore the commit map** (rd
-  verify drift fixed). Next story leg ready: `tools/drive/tasks/story-herb-cave2.md` (320140 torches 2 + 3 → MoH 6 → fountain → BOSS Baby
-  Mage → Sana's house). Driver tools: `rd zones R [--all]` (exits → rooms, objects), `rd map R` (collision-grid PNG +
+  verify drift fixed). Next story leg ready: `tools/drive/tasks/story-day7.md` (Topah Herb → Sana's house save → Day 7: Colm, Tonkiness restock,
+  BOSS Lead Kobold, Loch Carudale, Carudale Tunnels MoH 7 → Chartreux weapons store). Driver tools: `rd zones R [--all]` (exits → rooms, objects), `rd map R [--crop X0,Y0,X1,Y1]` (collision-grid PNG +
   zones / objects / party / hostiles — story-hc lost ~1500 s of searches to walls it could not see). **Story drivers keep the party strong** (gear / stat items / MoH per the
-  walkthrough; DRIVER.md, USER 2026-11-15) — story-hf did the audit: Power Drop → Arche, Good Child + Stronggirl Juice + Cloth Armor → Stella; Arche Lv6 at cap 7
-  (Armor #2 / Accessory empty: nothing fits yet; MoH 5 skipped) ⇒ MoH 6 matters next. Then `docs/game/exercise-checklist.md` + `rhost.py coverage` gaps.
+  walkthrough; DRIVER.md, USER 2026-11-15) — story-hc2: MoH 6 taken (Arche Lv6 cap 9), Good Child Drop kept for Sana; party has NO healing left (2141 CP) ⇒
+  day7 task restocks Better Herbs before the Lead Kobold, equips Sana, MoH 7, Chartreux store. `rd ck R drop NAME` frees
+  a savestate (story-hc2 exhausted the pool). Then `docs/game/exercise-checklist.md` + `rhost.py coverage` gaps.
   The `-j 4` search crash = bunker cgroup OOM (slab pools): bunker sessions run `--snap-mb 384`. Open: a one-off wine standalone FATAL in bonus-menu (`WaitMessage while inactive`, frame 47, -j 3; reran 2/2 PASS —
   watch for a repeat: WM_ACTIVATEAPP under headless wine load); session speed
   (fight searches 150–300 ticks/s); "found" search paths that did not replay alike (story-sr report).

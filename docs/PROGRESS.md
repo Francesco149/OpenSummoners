@@ -6,6 +6,26 @@ specific commits where relevant.
 
 ---
 
+## 2026-11-16 (evening) — corpus 43: `story-herb-boss`; `rd ck drop`, `rd map --crop`
+
+- `story-herb-boss` (API driver story-hc2, $9.13, 244 turns, 234130 → 271179): 320140 torch 2 (block 70210 pushed to
+  x 374400, air U X climb, Stella lights it) + torch 3 (basin) → scales wall 70230 open → crate Good Child Drop →
+  320150 → 320155 (Revival Drink, 300 CP) → 320158 → 320160 goddess statue save (slot 11, `3b7de61d6d91`) + MoH 6 →
+  320165 BOSS Baby Mage (code 100170, **297 HP** EN-old Easy, not 400) + 2 Kobolds, killed f271059. Driver verified to
+  f264855; orchestrator re-verified the full movie (MATCH f271179). Accepted; volatile 46,383 → 46,797; pure bless 43/43.
+  **Hybrid / standalone FAIL on story-herb-boss** (Windows + wine alike: rng fac38173→27482bdb; wine sem/fb samples
+  first differ at f270000, the Baby Mage fight) — a port bug on a new path; hookbisect follows.
+- **Fixed:** `shot_477b70` (the Baby Mage projectile step) — decomp2c kept IDA's `sin(*(long double *)v31)` over a slot
+  holding a DOUBLE (retail `fld qword`); mingw i686 long double = 12-byte x87 ⇒ garbage angle (shadow: 1910/1989 calls
+  diverge, first f269486) → 0/1989. Same pattern in `shot_4781f0` (no scenario reaches it yet); decomp2c now rewrites
+  `(long double *)` → `(double *)`. Gates on story-herb-boss: hybrid + standalone PASS Windows + wine.
+- Method: hookbisect ended on WinMain `wn_562210` (replacing it runs the whole port; now excluded by default). What
+  worked: `coverage` (wine, 1497/1824 functions) → `newhooks story-herb-boss` (2 hooks) → `verify --hooks` (one pass,
+  names the function + first frame). A full-hook shadow from f268500 timed out at 2 h.
+- `rd ck R drop NAME` frees a checkpoint's savestate; `Run.snap` names the fix on "pool exhausted" (the driver had to
+  `rd stop` + replay 328 s). `rd map --crop X0,Y0,X1,Y1` (world units) for ledge-width reads.
+- Party: Arche Lv6 cap 9 (Iron Sword, Leather Armor), Stella Lv5; 2141 CP, no healing. Next: `story-day7.md`.
+
 ## 2026-11-16 (later) — corpus 42: `story-herb-cave`; `rd map`
 
 - `story-herb-cave` (API driver, $9.19, 226 turns, 219262 → 234130): 320120 → 320125 (Memory Photo 4 side room,

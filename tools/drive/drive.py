@@ -1139,7 +1139,13 @@ class Run:
             self.sess.update(epoch=int(e), snaps={}, mark=None)    # undo entries name their (pid, epoch): stale ones replay
 
     def snap(self):
-        r = self.live.cmd("snap")
+        r = self.live.cmd("snap", check=False)
+        if "pool exhausted" in r:
+            cks = (self.sess or {}).get("snaps", {})
+            raise SystemExit("savestate pool exhausted: free some with `rd ck " + self.name + " drop NAME` (live: "
+                             + (", ".join(cks) or "none") + "), or `rd stop` + a replay")
+        if not r.startswith("ok"):
+            raise SystemExit(f"live: {r}  (command: snap)")
         self.epoch_check(r)
         return int(Live.kv(r)["id"])
 
@@ -1688,6 +1694,10 @@ def cmd_map(a):
     d.ellipse([lx0 - 6, ly0 - 6, lx0 + 6, ly0 + 6], outline=(255, 255, 255), width=2)
     out = os.path.join(r.dir, "view", f"map_{room}_f{r.movie.frame}.png")
     os.makedirs(os.path.dirname(out), exist_ok=True)
+    if a.crop:                                      # X0,Y0,X1,Y1 in world units (lx / ly units)
+        x0, y0, x1, y1 = (int(float(v)) for v in a.crop.split(","))
+        img = img.crop((*P(x0, y0), *P(x1, y1)))
+        out = out[:-4] + f"_crop{x0}_{y0}.png"
     img.save(out)
     print(out)
     print(f"room {room}: {cols} x {rows} cells of {MAP_CELL} units ({MAP_CELL // 100} px), {s} px each; x = col*{MAP_CELL}, "
@@ -1878,6 +1888,15 @@ def cmd_ck(a):
         r.sess["snaps"][a.name] = [sid, r.movie.frame]
         r.save_meta(); r.save_sess()
         print(f"checkpoint {a.name} at frame {r.movie.frame}")
+    elif a.op == "drop":                           # free the checkpoint's savestate (the pool is finite); the name goes
+        if a.name not in cks:                      # too — a later `ck load` would have to replay from boot anyway
+            raise SystemExit(f"no checkpoint {a.name!r} ({', '.join(cks) or 'none'})")
+        sid = ((r.sess or {}).get("snaps", {}).pop(a.name, None) or [None])[0]
+        if sid is not None and r.attach(cached_only=True):
+            r.live.cmd(f"free {sid}", check=False)
+        del cks[a.name]
+        r.save_meta(); r.save_sess()
+        print(f"dropped checkpoint {a.name}" + (f" (savestate {sid} freed)" if sid is not None else " (it had no live savestate)"))
     elif a.op == "load":
         if a.name not in cks:
             raise SystemExit(f"no checkpoint {a.name!r} ({', '.join(cks) or 'none'})")
@@ -2509,7 +2528,8 @@ def main():
     p = sp.add_parser("status"); p.add_argument("run"); p.set_defaults(fn=cmd_status)
     p = sp.add_parser("text"); p.add_argument("run"); p.set_defaults(fn=cmd_text)
     p = sp.add_parser("map", help="the room's collision grid as a PNG (walls, slopes, pits) + zones, objects, party, hostiles")
-    p.add_argument("run"); p.add_argument("--scale", type=int, default=8, help="pixels per 32-px cell (default 8)"); p.set_defaults(fn=cmd_map)
+    p.add_argument("run"); p.add_argument("--scale", type=int, default=8, help="pixels per 32-px cell (default 8)")
+    p.add_argument("--crop", help="X0,Y0,X1,Y1 in world units (lx / ly): only that window — zoom with a bigger --scale"); p.set_defaults(fn=cmd_map)
     p = sp.add_parser("zones", help="the room's event zones (doors / exits): position, kind, destination room; --all: every live actor (code, handle, state)")
     p.add_argument("run"); p.add_argument("--all", action="store_true"); p.set_defaults(fn=cmd_zones)
     p = sp.add_parser("endsave"); p.add_argument("run"); p.set_defaults(fn=cmd_endsave)
@@ -2534,7 +2554,7 @@ def main():
     p.add_argument("--max", type=int, default=4000); p.add_argument("--show", type=int, default=60); p.add_argument("--lo"); p.add_argument("--hi")
     p.add_argument("--minus", help="drop the addresses of a saved diff (a noise set)"); p.add_argument("--save", help="save this diff's addresses under a name")
     p.set_defaults(fn=cmd_ram)
-    p = sp.add_parser("ck"); p.add_argument("run"); p.add_argument("op", choices=("save", "load", "list")); p.add_argument("name", nargs="?"); p.add_argument("note", nargs="*"); p.set_defaults(fn=cmd_ck)
+    p = sp.add_parser("ck"); p.add_argument("run"); p.add_argument("op", choices=("save", "load", "list", "drop")); p.add_argument("name", nargs="?"); p.add_argument("note", nargs="*"); p.set_defaults(fn=cmd_ck)
     p = sp.add_parser("undo"); p.add_argument("run"); p.set_defaults(fn=cmd_undo)
     p = sp.add_parser("rewind"); p.add_argument("run"); p.add_argument("--to", type=int); p.add_argument("--frames", type=int, default=0); p.set_defaults(fn=cmd_rewind)
     p = sp.add_parser("search"); p.add_argument("run"); p.add_argument("--goal", required=True); p.add_argument("--avoid"); p.add_argument("--cell")

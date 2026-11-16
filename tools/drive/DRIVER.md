@@ -33,13 +33,13 @@ rd new R --from fresh | SCENARIO[@F] | RUN[:CK|@F] | end:SCENARIO | save:DIGEST 
 rd play R "SPEC" [--until EXPR] [--avoid EXPR] [--watch EXPR,EXPR] [--every N] [--rows N]
 rd tap R "ent" [--n 40] [--gap 8] [--until EXPR] [--text]     # (KEY .*gap) x n: advance dialogue, mash a menu
 rd status R        rd text R        rd eval R EXPR [EXPR..] [--at CHECKPOINT | --at-frame F]
-rd map R [--scale 8]   # PNG of the room's COLLISION grid (grey wall, green slope, red-outlined pit) + zones → rooms, objects code:state,
+rd map R [--scale 8] [--crop X0,Y0,X1,Y1] # PNG of the room's COLLISION grid (grey wall, green slope, red-outlined pit) + zones → rooms, objects code:state,
                        # party (named) / hostiles (code), white ring = leader. Black = open space. Read it when a route is unclear.
 rd zones R [--all]     # the room's doors / exits: zone id, kind (walk in / press up), x y, → destination room; --all + objects (code, state)
 rd scan R --from F [--to T] --watch "EXPR,EXPR.." [--every N] [--changes] [--where EXPR]
 rd ram R list | read VA [NBYTES] | dwords VA [N] | str VA | define NAME --addr HEX --type s32 | --expr "..." [--status] [--event]
 rd ram R mark ; (act) ; rd ram R diff [--lo VA --hi VA] [--save NAME] [--minus NAME] [--show N]
-rd ck R save NAME | load NAME | list        rd undo R        rd rewind R --to F
+rd ck R save NAME | load NAME | list | drop NAME (frees its savestate: the pool is finite)        rd undo R        rd rewind R --to F
 rd search R --goal EXPR [--avoid EXPR] [--cell "(a, b)"] [--actions SPEC ..] [--time-limit S] [--apply] [-j N]
             [--score EXPR [--apply-best] [--greed G]] [--hold N [--hold-actions SPEC ..]]
 rd look R [--at F,F]        rd strip R --from F --to F [--every N]      # PNGs → Read them
