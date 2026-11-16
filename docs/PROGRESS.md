@@ -6,6 +6,20 @@ specific commits where relevant.
 
 ---
 
+## 2026-11-17 — corpus 44: `story-day7`; `scene_party_gather` floor fix
+
+- `story-day7` (API driver story-d7, $9.33, 292 turns, 271179 → 314753): post-boss cutscene, 320170 Topah Herb, Give Up →
+  270135 → Sana's-house scene (`story` 1140 → 1150), Day 6 ends at the back door (save `2ed9735ba893`); Day 7 class, Colm,
+  the moms (+30 CP each), Tonkiness shops (lists in the walkthrough; no Better Herbs), inn save `d89ccc7f7e38`, out LEFT to
+  260180. Sana rejoined unequipped → Iron Staff. Driver skipped check / verify; orchestrator ran them (PASS / MATCH).
+  Accepted; volatile 46,797 → 47,247.
+- **Fixed:** wine hybrid + standalone diverged from f286200 (tick +688). hookbisect (WinMain excluded) → `scene_party_gather`;
+  shadow: f285666, 2/14 calls, +0x15b70 on both cast actors (`fy` 0xa27e vs 0x978e); `--trap` on retail's stores gave the
+  actor bases. The leader stood on an object: retail's floor = `under->body` **+0x14** (margin, the collision top) + y − 1
+  (0x405ed7); the port read +0x10 (h). → 0/21 calls; wine hybrid 44/44 + standalone 43/43 PASS.
+- Windows: the runner task had stopped after the box's network drop (state Ready; `Start-ScheduledTask` fixed it); sshd
+  on win-wifi then reset ~1/3 of connections, so the Windows gates are pending.
+
 ## 2026-11-16 (evening) — corpus 43: `story-herb-boss`; `rd ck drop`, `rd map --crop`
 
 - `story-herb-boss` (API driver story-hc2, $9.13, 244 turns, 234130 → 271179): 320140 torch 2 (block 70210 pushed to
