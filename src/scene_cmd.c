@@ -384,7 +384,7 @@ int scene_party_gather(wl_event *ev, int32_t lead, int32_t dir, int32_t spread, 
     if (use_x == 0) x = lx;
     const wl_entity *under = ldp(lb, 0x284);   /* (what the leader stands on) */
     if (under != NULL) {
-        fy = under->body->h + under->body->y - 1;
+        fy = under->body->margin + under->body->y - 1;   /* +0x14 (the collision top), not h: 0x405ed7 */
     } else {
         int32_t row;
         grid_floor_below(lb, &row);
