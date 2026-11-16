@@ -222,7 +222,17 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      = half). Inn 210150: rest 3 CP. Route out: 210110 zone 1 → 260110 → 260120 (Mothbees: sleep, `lpose` 117 >300 f)
      → 260130 → 260140 → 260150 → 260180 → zone 2 (walk-in x 0) → 260190 (sign: Weathervane / Loch Carudale).
 3. 🔑 Lake street → crate → past Weathervane Tower → next area: couple attacked → **BOSS: Lead Kobold** (+ Snivelly Kobold; kill Snivelly first). Couple: tunnels under the lake.
+   - [RD story-d7b] EN-old: 260190 sign: **↑ gate (zone 2, x 44800) = Weathervane road**; ← zone 3 → 265170 → 265160
+     = Chartreux road, blocked by burnable vines 70400 at lx ≈ 214800 (chest 225600 = 300 CP). **260200 crate 70205**
+     (alcove x 19200): run-jump left to get behind it, push it right (sheathed) to x ≈ 43000, climb to exit (0, 12800).
+     260210 zone 3 (35200 ↑) → 410110 Weathervane Tower; left → 260215: the kobold scene fires on entry (no heal chance;
+     F2 works mid-fight). Lead Kobold = char slot 14 (code 100171, 430 HP), Snivelly slot 15 (51030, 77). Couple talk
+     → 260220 (Mothbees + Merkid Mage hold exit (0, 12800)) → 260230 Loch Carudale.
 4. 🔑 Loch Carudale: **Sana** dives; 💎 left chest [Mermaid Scale]; talk to **old man by boat** → boat usable. Enter cave → **Carudale Tunnels** (Lead Merkid, Merkid Mage, Yellow Slime):
+   - [RD story-d7b] EN-old: underwater ledge chest (150400, 51200) did NOT open with V / X / U while swimming (open
+     question); dock pot 70304 (270600) likewise. Merkids hit swimming Sana hard (104 → 15). Cave zone 2 ↑ (x 105600) on
+     the far-left shore → 330110 (takes Arche along even if left on the pier). 330110 → 330120; 330120 zone 3 ↑ → 330125
+     (doors wait for nearby Lead-Merkid-class foes to die: `zrest` 30).
    1. Jump water pits, drop into shallows, tunnel: ⚠ left chest = poison; right → **MoH 7** (cap 10, 15,000) + pull lever.
    2. 🔑 Start area top-left tunnel → down past **sun** symbol → bottom-right tunnel → right; 💎 past pit: [Magic Candy], [Better Herb]×3.
    3. 🔑 Big cavern: 3 tall movable platforms → space evenly → jump across.
