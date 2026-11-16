@@ -33,6 +33,7 @@ import json
 import os
 import re
 import shutil
+import struct
 import signal
 import socket
 import subprocess
@@ -1613,6 +1614,90 @@ def cmd_zones(a):
     r.close()
 
 
+MAP_CELL = 0xc80          # world units per grid cell (32 px)
+MAP_COLORS = {10: (150, 150, 160), 1: (110, 160, 110)}   # region-B class: 10 solid wall, 1 slope surface (src/collision.h)
+
+
+def cmd_map(a):
+    """the room's COLLISION grid as a PNG (world+0x1048: region B 0x10 B/cell at +0x140030, class u16 +0 / slope +8;
+    region C 0xc B/cell at +0x195030, +0 = 1 / 3 a pit cell; cell index col*0x80 + row; dims +0x2c1030 —
+    src/map_grid.h, src/collision.h, src/char_state.h) with the zones, live objects, party and hostiles drawn on it"""
+    from PIL import Image, ImageDraw
+    r = Run(a.run)
+    lv = r.attach()
+    grid, room, lx, ly = r.ev("s32(world + 0x1048) if world else 0", "room", "lx", "ly")
+    if not grid:
+        raise SystemExit("no room loaded")
+    rd = lambda va, n: bytes.fromhex(lv.cmd(f"r {va:x} {n}").split()[1])
+    cols, rows = struct.unpack("<ii", rd(grid + 0x2c1030, 8))
+    B = rd(grid + 0x140030, cols * 0x80 * 0x10)
+    C = rd(grid + 0x195030, cols * 0x80 * 0xc)
+    s = max(2, a.scale)
+    img = Image.new("RGB", (cols * s, rows * s), (12, 12, 16))
+    d = ImageDraw.Draw(img)
+    seen = {}
+    for c in range(cols):
+        for y in range(rows):
+            i = c * 0x80 + y
+            cls, = struct.unpack_from("<H", B, i * 0x10)
+            slope, = struct.unpack_from("<I", B, i * 0x10 + 8)
+            pit, = struct.unpack_from("<i", C, i * 0xc)
+            key = cls if not slope else f"{cls}/slope"
+            if cls:
+                seen[key] = seen.get(key, 0) + 1
+            col = MAP_COLORS.get(cls, (200, 140, 60)) if cls else None
+            if col:
+                d.rectangle([c * s, y * s, c * s + s - 1, y * s + s - 1], fill=col)
+            if pit in (1, 3):
+                seen[f"pit{pit}"] = seen.get(f"pit{pit}", 0) + 1
+                d.rectangle([c * s, y * s, c * s + s - 1, y * s + s - 1], outline=(200, 40, 40))
+    P = lambda x, y: (x * s // MAP_CELL, y * s // MAP_CELL)
+    # objects + zones (world+0x11e0 actors) and characters (world+0x1160: party faction != 2, hostiles == 2)
+    acts = r.ev(*[f"s32(world + 0x11e0 + {4 * k})" for k in range(128)])
+    chars = r.ev(*[f"s32(world + 0x1160 + {4 * k})" for k in range(32)])
+    AF = lambda p: [f"u8(s32({p} + 0x40))", f"s32(s32({p} + 0x40) + 4)", f"s32(s32({p} + 0x40) + 8)", f"s32({p} + 0x28)",
+                    f"s32({p} + 0x2c)", f"s32({p} + 0x1d4)", f"s32({p} + 0x274)", f"s32({p} + 0xc)"]
+    CF = lambda p: [f"u8(s32({p} + 0x40))", f"s32(s32({p} + 0x40) + 4)", f"s32(s32({p} + 0x40) + 8)", f"s32({p} + 0x1dc)",
+                    f"s32({p} + 0x1d4)"]
+    av = r.ev(*[e for p in acts if p for e in AF(p)])
+    cv = r.ev(*[e for p in chars if p for e in CF(p)])
+    tab = r.ev(*[f"s32(s32(world + 0x1038) + 0x1c + {12 * i} + {o})" for i in range(20) for o in (0, 4)])
+    dest = {tab[2 * i] & 0xffff: tab[2 * i + 1] for i in range(20) if tab[2 * i] & 0xffff}
+    legend = []
+    for i in range(len(av) // 8):
+        use, x, y, w, h, code, zone, st = av[8 * i:8 * i + 8]
+        if not use:
+            continue
+        x0, y0 = P(x, y)
+        x1, y1 = P(x + max(w, MAP_CELL // 2), y + max(h, MAP_CELL // 2))
+        if zone:
+            d.rectangle([x0, y0, x1, y1], outline=(60, 220, 90), width=2)
+            d.text((x0 + 2, y0 + 2), f"z{zone}→{dest.get(zone, '?')}", fill=(120, 255, 140))
+        else:
+            d.rectangle([x0, y0, x1, y1], outline=(80, 160, 255))
+            d.text((x0 + 2, y0 + 2), f"{code}:{st}", fill=(140, 200, 255))
+    for i in range(len(cv) // 5):
+        use, x, y, fac, code = cv[5 * i:5 * i + 5]
+        if not use:
+            continue
+        cx, cy = P(x, y)
+        colr = (255, 70, 70) if fac == 2 else (255, 230, 60)
+        d.ellipse([cx - 4, cy - 4, cx + 4, cy + 4], fill=colr)
+        d.text((cx + 5, cy - 5), {50010: "Arche", 50011: "Sana", 50012: "Stella", 50013: "Chiffon"}.get(code, str(code)), fill=colr)
+    lx0, ly0 = P(lx, ly)
+    d.ellipse([lx0 - 6, ly0 - 6, lx0 + 6, ly0 + 6], outline=(255, 255, 255), width=2)
+    out = os.path.join(r.dir, "view", f"map_{room}_f{r.movie.frame}.png")
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    img.save(out)
+    print(out)
+    print(f"room {room}: {cols} x {rows} cells of {MAP_CELL} units ({MAP_CELL // 100} px), {s} px each; x = col*{MAP_CELL}, "
+          f"y = row*{MAP_CELL}; leader at col {lx // MAP_CELL} row {ly // MAP_CELL}")
+    print("legend: grey = class 10 wall, green = class 1 slope, orange = other classes, red outline = pit cell (region C 1/3), "
+          "green box = zone → room, blue box = object code:state, yellow dot = party, red dot = hostile (code), white ring = leader")
+    print("classes: " + "  ".join(f"{k}×{v}" for k, v in sorted(seen.items(), key=lambda kv: str(kv[0]))))
+    r.close()
+
+
 def scan_filter(rows, lo, nw, every=0, changes=False, where=False):
     """rows [(f, [watch values.., where value])] → the rows to print: every N-th tick from LO, only those whose watched
     values differ from the previous printed row (--changes), only where the last column holds (--where)"""
@@ -2423,6 +2508,8 @@ def main():
     p.set_defaults(fn=cmd_tap)
     p = sp.add_parser("status"); p.add_argument("run"); p.set_defaults(fn=cmd_status)
     p = sp.add_parser("text"); p.add_argument("run"); p.set_defaults(fn=cmd_text)
+    p = sp.add_parser("map", help="the room's collision grid as a PNG (walls, slopes, pits) + zones, objects, party, hostiles")
+    p.add_argument("run"); p.add_argument("--scale", type=int, default=8, help="pixels per 32-px cell (default 8)"); p.set_defaults(fn=cmd_map)
     p = sp.add_parser("zones", help="the room's event zones (doors / exits): position, kind, destination room; --all: every live actor (code, handle, state)")
     p.add_argument("run"); p.add_argument("--all", action="store_true"); p.set_defaults(fn=cmd_zones)
     p = sp.add_parser("endsave"); p.add_argument("run"); p.set_defaults(fn=cmd_endsave)

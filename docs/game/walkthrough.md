@@ -187,6 +187,18 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
       (`rd zones`: 1 ↑ (22400, 25600) → 320110; 2 ↑ (28800, 121600) → 320130; 3 walk-in (0, 96000) → 320125; chest
       70220 at (177600, 60800); 7 × code 70371; many slimes). `ent` in free roam swaps the
       leader; `C` advances field dialogue.
+    - [RD story-herb-cave] EN-old: 320120 zone 3 (walk-in, x 0) → **320125** = the Memory Photo 4 side room (vines 70400
+      ×19 at x 57–89k, chest 70202 in them at (72400, 35200); the wooden beam is not solid — a pit; photo skipped).
+      320120 zone 2 ↑ (28800, 121600) → **320130**: Stella burns 6 vine pieces (x 26800–31600; Fire Handling = ↓+X), Arche
+      (sword sheathed) jumps the block 70210 (x 16000) and pushes it right onto the blue button 70215 (x 45600) → the
+      **crescent wall 70230 at x 354200** (far right, before zone 3) opens. Zone 2 ↑ (304000, 51200) → **320135** (east
+      of the button; 2 Kobolds + Myconid) chest = Stronggirl Juice. Zone 3 ↑ (387200, 57600) → **320140** (128 × 78
+      cells): torches = code 70251, state **1 unlit / 0 lit** — torch 1 (368000, 102400) top right, torch 3 (57600,
+      230400) bottom basin after burning vines, torch 2 (393600, 160000) in the lower-right cave with block 70210 at
+      (313600, 188800). `rd map`: that cave is reached from the LEFT, via the central shaft (drop at x ≈ 187000–208000
+      from the y ≈ 120000 corridor to y ≈ 155000–176000, then right) — not from the bottom basin (wall at x 231600) nor
+      the torch-1 shelf. Zone 2 (35200, 134400) → 320150 lies behind the scales wall. Myconid spores + Kobolds drop
+      Stella fast; an F1 item with an enemy near = a timed cast.
     7. 🔑 Next area chest [Topah Herb] → leave → Sana's house cutscene → save.
 
 ### Day 7 — field-trip prep: Sweet Sticks from Chartreux

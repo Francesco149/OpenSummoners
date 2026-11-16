@@ -33,6 +33,8 @@ rd new R --from fresh | SCENARIO[@F] | RUN[:CK|@F] | end:SCENARIO | save:DIGEST 
 rd play R "SPEC" [--until EXPR] [--avoid EXPR] [--watch EXPR,EXPR] [--every N] [--rows N]
 rd tap R "ent" [--n 40] [--gap 8] [--until EXPR] [--text]     # (KEY .*gap) x n: advance dialogue, mash a menu
 rd status R        rd text R        rd eval R EXPR [EXPR..] [--at CHECKPOINT | --at-frame F]
+rd map R [--scale 8]   # PNG of the room's COLLISION grid (grey wall, green slope, red-outlined pit) + zones → rooms, objects code:state,
+                       # party (named) / hostiles (code), white ring = leader. Black = open space. Read it when a route is unclear.
 rd zones R [--all]     # the room's doors / exits: zone id, kind (walk in / press up), x y, → destination room; --all + objects (code, state)
 rd scan R --from F [--to T] --watch "EXPR,EXPR.." [--every N] [--changes] [--where EXPR]
 rd ram R list | read VA [NBYTES] | dwords VA [N] | str VA | define NAME --addr HEX --type s32 | --expr "..." [--status] [--event]

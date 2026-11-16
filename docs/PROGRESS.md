@@ -6,6 +6,20 @@ specific commits where relevant.
 
 ---
 
+## 2026-11-16 (later) — corpus 42: `story-herb-cave`; `rd map`
+
+- `story-herb-cave` (API driver, $9.19, 226 turns, 219262 → 234130): 320120 → 320125 (Memory Photo 4 side room,
+  skipped) → 320130 crescent puzzle (vines, block onto button 70215 → wall 70230 at x 354200) → 320135 Stronggirl Juice
+  (→ Arche, +3 max HP) → 320140 torch room: torch 1 lit; stuck on torch 2. Driver verified at its end. Accepted;
+  volatile 46,210 → 46,383; hybrid 42/42 + standalone 41/41 Windows + wine.
+- `rd map R [--scale N]`: the room's collision grid (world+0x1048 region B class 10 wall / 1 slope, region C pit cells;
+  `src/map_grid.h`) as a PNG with zones → rooms, objects code:state, party (named) and hostiles. On 320140 it shows the
+  lower-right torch-2 cave opens to the left via the central shaft — the next task carries that route. A suspected stale
+  `rd look` after a restore was not a bug: the visible sprite was Chiffon (50013); Arche was below the lagging camera.
+- Gate loop footgun: zsh does not word-split `$m`, so `for m in "--hybrid --target wine"` silently skipped every wine
+  gate in this session's loops (the explicit reruns passed). Wine standalone 42: bonus-menu FATAL once (`WaitMessage
+  while inactive`, f47) → `--only` reruns 2/2 PASS; logged as an open flake.
+
 ## 2026-11-16 — corpus 41: `story-herb-farm`; `rd zones`
 
 - `story-herb-farm` (API driver, $9.54, 292 turns, 174304 → 219262): out of Stella's dungeon (290230 → … → 280115 →
