@@ -238,6 +238,14 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
    3. 🔑 Big cavern: 3 tall movable platforms → space evenly → jump across.
    4. Sana: 💎 water chest [Life Dew]; left [Cloth Gloves]; 🔑 board boat (it rises): face right to pick up Arche, face left to cross. Other tunnel exits. (Halfway: burnable vines → Day 11 Memory Photo 5.)
 5. 💎 Outside: Arche pushes boat (right) into water → island: [Mystery Juice], [Magic Candy]. 🔑 Left to Chartreux.
+   - [RD story-d7c] EN-old: MoH 7 + lever in 330126 (Arche Lv7, 7 Marks, Combo Wide Slash). "[Better Herb]×3" = ONE chest
+     (stack of 3) in 330130 bottom-left, beside [Magic Candy]. 330135: 3 tall platforms. **330140 (lake)**: no swimming —
+     Sana sinks, jump works only off the floor; underwater ledges = steer while sinking. [Life Dew] / [Cloth Gloves] water
+     chests each guarded by a Lead Merkid (112 / 130 HP; a chest will not open with one nearby) — skipped. Sunken boat
+     (196800, 108800) rises when the leader stands on it, moves toward the leader's facing, stops at each end; Arche
+     boards by herself. Merkid Mage (51041) heals the Lead Merkid — kill it first. Exit zone 2 ↑ (x 41600) → 265200;
+     island chests there; then 265190 (its west exit fires on ↑, though `rd zones` says walk-in) → 265180 → 265130 →
+     265120 → 265110 → **Chartreux 300120**. Dancing Piglet Inn = 300240 (rest 8 CP, save).
 6. Chartreux City:
    1. Weapons store now open: barrel 30 CP; top drawer [Power Drop]; buy upgrades.
    2. Candy store: **200 CP capsule machine** (grand prize [Legendary Sword]) + 20 CP machine inside. Counter: sold out.
