@@ -128,7 +128,7 @@ Tags: see `README.md`. EN labels in `quotes` are verbatim [EXE] strings.
 - Status prevention items exist except vs freeze [DK].
 
 ## 8. Items, inventory, equipment
-- **Items never stack** (each copy = one slot) [DK]. Bag full → can't take chest contents [EXE].
+- **Items never stack** (each copy = one slot) [DK]. ⚠ [RD story-d7d] EN-old: the F1 Items list showed "Better Herb ×3" — stacking (display or real) contradicts this; open. Bag full → can't take chest contents [EXE].
 - **Storage chest** (128 items): Arche's room; every item shop; Org-Lair merchant [DK]. North Chartreux Guardpost inn has none.
 - Equipment slots [EXE]: `Weapon`, `Armor #1` (body), `Armor #2` (gloves/capes/sash), `Accessory`; plus **costumes** (colour/vanity: dresses, hairbands, smocks, berets; Chiffon can wear Green Clothes/Hat). Weapons per character: swords=Arche, staves (+[Wooden Sword])=Sana, daggers/[Rapier]=Stella [DK]. Confused member: can't change equipment [EXE].
 - Key/special items: `Special Items` menu (crests, stones, keys, Memory Photos — viewable) [EXE][DK].

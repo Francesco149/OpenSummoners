@@ -32,6 +32,8 @@ One command at a time per run (a run is locked while a command works). Give shel
 rd new R --from fresh | SCENARIO[@F] | RUN[:CK|@F] | end:SCENARIO | save:DIGEST   [--force]
 rd play R "SPEC" [--until EXPR] [--avoid EXPR] [--watch EXPR,EXPR] [--every N] [--rows N]
 rd tap R "ent" [--n 40] [--gap 8] [--until EXPR] [--text]     # (KEY .*gap) x n: advance dialogue, mash a menu
+#   ⚠ mashing `ent` also answers Yes/No prompts (paid a fortune teller, played capsules, bought Herbs — story-d7d) and the
+#   press after a dialogue ends SWAPS the leader: stop at each Yes/No (`--until`) and step through choices by hand
 rd status R        rd text R        rd eval R EXPR [EXPR..] [--at CHECKPOINT | --at-frame F]
 rd map R [--scale 8] [--crop X0,Y0,X1,Y1] # PNG of the room's COLLISION grid (grey wall, green slope, red-outlined pit) + zones → rooms, objects code:state,
                        # party (named) / hostiles (code), white ring = leader. Black = open space. Read it when a route is unclear.

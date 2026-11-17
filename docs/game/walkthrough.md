@@ -251,6 +251,15 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
    2. Candy store: **200 CP capsule machine** (grand prize [Legendary Sword]) + 20 CP machine inside. Counter: sold out.
    3. 💎 Past stone archway, 2nd bldg RIGHT door now open: **nun donations** (100–100,000 CP; 100,000 at once → [Silver Rosary]). Left door: **fortune teller** = tells if you've missed any Marks so far.
    4. 🔑 Candy boy (far-left house, 2F) wants another rare candy → **bakery** (city entrance; the rescued couple) → [Handmade Tart] → trade to boy → [Taiyaki Sweet Sticks].
+   - [RD story-d7d] EN-old rooms: weapons 300220 (door in 300110 at x 220800; drawer upstairs = [Power Drop]): Shortsword
+     2800, Longsword 5500, Iron Staff 350, Mahogany Staff 2900, Rondel 1050, Thick Leather 950, Bronze Armor 2600 (buy =
+     equip compare + Yes/No). Items 300250: Herb 10, Better Herb 18, Venom-Away 7, Revival Drink 350, Letter Opener 180,
+     Cloth Armor 280, Honey 24, Chest Sash 78 (sell = half). Inn 300240 3F right closet [Chest Sash] (0 DEF); 300280 2F
+     closet [Woven Gloves]; candy store 300210 drawer [Mystery Juice]. Fortune teller 300290 (left door): with Marks
+     6/20 at that point → "1 Mark missed"; 700 CP reveals **Barness Hills Dungeon**. Capsules: 20 CP inside (grand prize
+     Merrin's Staff), 200 CP outside (got [Kitty Ears]); "try again?" defaults to Yes. **Quest order:** candy-store
+     sold-out scene FIRST (else the boy, 300300 2F, only chats) → boy → bakery 300270 (east, by the gate) [Handmade Tart]
+     → boy → [Taiyaki Sweet Sticks]; `story` stays 1210.
 7. 🔑 Return to Tonkiness the same way (Tunnels, boat). Sana home; talk to parents; pajamas; save.
 
 ### Day 8 — Korat field trip; Sana kidnapped (Org Lair) → Korat Village
