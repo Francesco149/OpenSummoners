@@ -58,8 +58,24 @@ def sh(cmd, check=True):
     return r
 
 
+# ssh failures BEFORE authentication (the command never ran ⇒ safe to retry even a non-idempotent one): the Windows sshd
+# resets handshakes intermittently under concurrent connections (win-wifi 2026-11-17: 2/5 bare `echo ok` reset). A drop
+# mid-session prints "Connection to HOST closed by remote host" instead — NOT matched, never retried.
+SSH_PREAUTH = re.compile(r"kex_exchange_identification|banner exchange|Connection (reset|closed) by \S+ port \d+|"
+                         r"connect to host .* (Connection refused|Connection timed out|No route to host)", re.I)
+
+
+def _ssh_retry(cmd, timeout=None, tries=5):
+    for attempt in range(tries):
+        r = subprocess.run(cmd, text=True, capture_output=True, timeout=timeout)
+        if r.returncode == 255 and SSH_PREAUTH.search(r.stderr) and attempt < tries - 1:
+            time.sleep(2 + 3 * attempt)
+            continue
+        return r
+
+
 def ssh_win(ps, timeout=7200):
-    r = subprocess.run(["ssh", "-o", "BatchMode=yes", WIN, ps], text=True, capture_output=True, timeout=timeout)
+    r = _ssh_retry(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", WIN, ps], timeout=timeout)
     err = "\n".join(l for l in r.stderr.splitlines() if not SSH_NOISE.search(l))
     if r.returncode != 0:
         raise SystemExit(f"ssh win failed ({r.returncode}): {ps[:300]}\n{err}")
@@ -68,13 +84,12 @@ def ssh_win(ps, timeout=7200):
 
 def scp(src, dst, recursive=False, check=True):
     cmd = ["scp", "-q", "-o", "BatchMode=yes"] + (["-r"] if recursive else []) + [src, dst]
-    r = subprocess.run(cmd, text=True, capture_output=True)
+    r = _ssh_retry(cmd)
     if check and r.returncode != 0:
         raise SystemExit(f"scp failed: {' '.join(cmd)}\n{r.stderr}")
     return r.returncode == 0
 
 
-SSH_TRANSIENT = re.compile(r"Connection (reset|closed|refused|timed out)|kex_exchange|Broken pipe|No route to host|banner exchange", re.I)
 VOLATILE = volatile_file("enold")
 
 

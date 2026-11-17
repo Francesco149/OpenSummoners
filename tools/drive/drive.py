@@ -768,10 +768,10 @@ def free_local_port():
 
 
 def win_ps(ps, timeout=600, host=None):
-    """a PowerShell command on the Windows box → (rc, stdout); transient ssh failures retried (RH.ssh_win's rule)"""
+    """a PowerShell command on the Windows box → (rc, stdout); pre-auth ssh failures retried (RH.ssh_win's rule)"""
     for attempt in range(4):
         r = subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", host or RH.WIN, ps], text=True, capture_output=True, timeout=timeout)
-        if r.returncode == 255 and RH.SSH_TRANSIENT.search(r.stderr) and attempt < 3:
+        if r.returncode == 255 and RH.SSH_PREAUTH.search(r.stderr) and attempt < 3:
             time.sleep(2 + 3 * attempt)
             continue
         return r.returncode, r.stdout
