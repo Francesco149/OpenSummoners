@@ -203,7 +203,8 @@ static rf_t r_RenderFile; static m0_t r_Run, r_Pause, r_Stop; static gs_t r_GetS
 static sp_t r_SetPositions; static gp_t r_GetPositions; static g1_t r_GetCurrentPosition, r_GetDuration;
 
 typedef struct { void *id; int state; LONGLONG pos0, stop, dur; uint32_t t0; int has_dur; } vplay_t;   /* state 0 stop 1 pause 2 run */
-static vplay_t g_vp[16]; static int g_nvp;
+#define NVP 64
+static vplay_t g_vp[NVP]; static int g_nvp;
 static long g_bgm_runs, g_bgm_seeks, g_bgm_reads;
 
 static void *identity(void *itf)
@@ -216,8 +217,16 @@ static void *identity(void *itf)
 static vplay_t *vp_of(void *itf)
 {
     void *id = identity(itf);
-    for (int i = 0; i < g_nvp; i++) if (g_vp[i].id == id) return &g_vp[i];
-    if (g_nvp == 16) { memmove(g_vp, g_vp + 1, 15 * sizeof *g_vp); g_nvp = 15; }
+    /* LRU, most recent last: a hit moves to the end.  It was FIFO over 16: a graph still alive after 16 newer ones
+     * (quartz's heap addresses vary per run, so how many were NEW slots varied) lost its entry → position 0 /
+     * stopped → retail's fade / loop check read a different BGM position (story-day7b det flake, 2026-11-17).
+     * Retail polls its live graph every tick, so it is never the least recent */
+    for (int i = 0; i < g_nvp; i++)
+        if (g_vp[i].id == id) {
+            if (i != g_nvp - 1) { vplay_t t = g_vp[i]; memmove(g_vp + i, g_vp + i + 1, (g_nvp - 1 - i) * sizeof *g_vp); g_vp[g_nvp - 1] = t; }
+            return &g_vp[g_nvp - 1];
+        }
+    if (g_nvp == NVP) { memmove(g_vp, g_vp + 1, (NVP - 1) * sizeof *g_vp); g_nvp = NVP - 1; }
     vplay_t *v = &g_vp[g_nvp++]; memset(v, 0, sizeof *v); v->id = id; v->stop = -1;
     return v;
 }
@@ -339,6 +348,11 @@ static int g_dshow_patched;
 static HRESULT WINAPI my_CoCreateInstance(REFCLSID c, LPUNKNOWN outer, DWORD ctx, REFIID iid, LPVOID *out)
 {
     HRESULT r = r_CoCreateInstance(c, outer, ctx, iid, out);
+    if (O.log_media && r == 0 && c && !memcmp(c, &kCLSID_FilterGraph, sizeof(GUID))) {
+        void **vg = *(void ***)*out;
+        rh_log("bgm CoCreate FilterGraph %p vt %p slot13 %p (ours %p) quartz %p (f%u)\n", *out, (void *)vg, vg[13],
+               (void *)p_RenderFile, (void *)GetModuleHandleA("quartz.dll"), g_frame);
+    }
     if (r == 0 && c && !memcmp(c, &kCLSID_FilterGraph, sizeof(GUID)) && !g_dshow_patched) {
         void *gb = *out, *mc = NULL, *ms = NULL;
         (*(qi_t *)(*(void ***)gb))(gb, &kIID_IMediaControl, &mc);
