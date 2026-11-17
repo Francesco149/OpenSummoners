@@ -271,9 +271,18 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      (one during Heal Water's animation is dropped). Out of 330110: ↑ exit at (195200, 32000) → Loch Carudale 260230.
      Menu: Magic Candy (F1 → Items) acts at once; a Herb on Sana = ~200 f cast bar "Herb-Sana", ~99 HP; Party Commands =
      Magic Usage / Follow Mode / Formation only.
+   - [RD story-d7f] Loch Carudale 260230: the old man's boat carries ONLY the leader — let Sana lead (Arche alone leaves
+     her behind → she falls in → Merkids); ride to the pier, walk to the right exit (pulls Arche). Road: 260220 → 260215
+     → 260210 → 260200 → 260190 → 260180 → 260150 → 260140 → 260130 → 260120 → 260110 → Tonkiness. Home: gate scene, Dad's
+     sweet-sticks scene; Mom not interactive; pajamas/save scene fires walking along the bedroom floor (from the middle
+     floor's left stairs, run-jump right at the top — walking right goes back down).
 
 ### Day 8 — Korat field trip; Sana kidnapped (Org Lair) → Korat Village
 1. 🔑 Class: Stella left without you. Exit school RIGHT (east road). Classmates; **wandering healer** (heal/save).
+   - [RD story-d7f] EN-old: school 230140 → 230130 → 230110 → 235110 → 235120; Korat road = 235120's ↑ at x 150400
+     (→ 340110; the ↑ at x 249600 = Mountain Cave). Healer in **340120** (30 CP heal + save; approach SHEATHED — drawn,
+     Arche slashes her bag). Kidnapping = 340130 (`story` 1310), classmates' scene 340125; side street = 340120's ↑ at
+     x 131200 → **340150** (exit to 340160 = walk-in at (278400, 0) along the upper ledges; low right alcove = trap).
 2. Couple of screens on, Sana is **captured by Orgs** → go back to the side street. 💎 top-left ledge [Herb]; right → cave w/ bones (Org Lair); right → **traveling merchant** + storage; drop off right edge → tiny tunnel → chest 650 CP. 🔑 Enter **Org Lair** (Arche + Stella):
    1. Falling platforms, ride spike trap to ledge, door; pass 1st stairs down, take 2nd; left, drop to bottom, door: see-saw platforms (let last rise just enough) → 💎 [Tough Drop]; water platforms, spikes → 💎 [Org Slayer] (anti-Org sword).
    2. ⚠ Left pair: left chest = poison; right [Moldy Bread]. Bottom right [Better Herb]; top right crates [Herb].
