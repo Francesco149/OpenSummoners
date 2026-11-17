@@ -261,6 +261,16 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      sold-out scene FIRST (else the boy, 300300 2F, only chats) → boy → bakery 300270 (east, by the gate) [Handmade Tart]
      → boy → [Taiyaki Sweet Sticks]; `story` stays 1210.
 7. 🔑 Return to Tonkiness the same way (Tunnels, boat). Sana home; talk to parents; pajamas; save.
+   - [RD story-d7e] EN-old return: 300120 exit ↑ at x 281600 → 265110 → 265120 (low route ends at a pit x 164–170k: take
+     the UPPER ledge from the west steps, run-jumps + air jumpkicks) → 265130 → 265180 → 265190 → 265200 → 330140. Lake:
+     boat back at (196800, 108800); Sana (leader) dives onto it → it rises; facing left → left stop (x ≈131200), right →
+     right stop (≈384000). A Lead Merkid boards when it surfaces and knocks Sana off (Heal Water while riding kept her up);
+     Arche never boarded but the exit zone pulls the whole party. A Lead Merkid holds the right exit: Diamond Dust (`n1`,
+     hold X ~130 f) + Heal Water. Lead Merkids respawn on every tunnel entry and hold the ↑ exits (330135 → 330130 →
+     330128 → 330120 → 330110); 330130 bottom pit = trap with 2 Lead Merkids. Turning the boat needs a FRESH ←/→ press
+     (one during Heal Water's animation is dropped). Out of 330110: ↑ exit at (195200, 32000) → Loch Carudale 260230.
+     Menu: Magic Candy (F1 → Items) acts at once; a Herb on Sana = ~200 f cast bar "Herb-Sana", ~99 HP; Party Commands =
+     Magic Usage / Follow Mode / Formation only.
 
 ### Day 8 — Korat field trip; Sana kidnapped (Org Lair) → Korat Village
 1. 🔑 Class: Stella left without you. Exit school RIGHT (east road). Classmates; **wandering healer** (heal/save).
