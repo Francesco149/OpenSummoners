@@ -191,8 +191,11 @@ def win_job(job_id, ps_path_win, timeout=14400):
           f"if (!$rt) {{ 'NO RUNNER: rhost.py setup'; exit 3 }}; "
           f"if ($rt.State -ne 'Running') {{ Start-ScheduledTask -TaskName oss-rhost-runner }}; "
           f"Copy-Item '{ps_path_win}' '{q}\\{job_id}.tmp'; Move-Item '{q}\\{job_id}.tmp' '{q}\\{job_id}.job.ps1'; "
-          f"$t0 = Get-Date; while (!(Test-Path '{q}\\{job_id}.done') -and ((Get-Date) - $t0).TotalSeconds -lt {int(timeout)}) "
-          f"{{ Start-Sleep -Milliseconds 200 }}; if (!(Test-Path '{q}\\{job_id}.done')) {{ 'WIN JOB TIMEOUT'; exit 124 }}; "
+          # the deadline counts from the job's START (time queued behind other jobs / a stopped runner ate a whole
+          # 4 h bless budget once, 2026-11-17), with a 3x cap on queued + running
+          f"$t0 = Get-Date; $t1 = $t0; while (!(Test-Path '{q}\\{job_id}.done') -and ((Get-Date) - $t0).TotalSeconds -lt {int(timeout)} "
+          f"-and ((Get-Date) - $t1).TotalSeconds -lt {3 * int(timeout)}) "
+          f"{{ if (Test-Path '{q}\\{job_id}.job.ps1') {{ $t0 = Get-Date }}; Start-Sleep -Milliseconds 200 }};if (!(Test-Path '{q}\\{job_id}.done')) {{ 'WIN JOB TIMEOUT'; exit 124 }}; "
           f"Get-Content '{q}\\{job_id}.out'; Remove-Item '{q}\\{job_id}.*'")
     try:   # the deadline runs on the box (no client-side kill: see _ssh_retry)
         return ssh_win(ps)
