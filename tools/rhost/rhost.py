@@ -65,10 +65,18 @@ SSH_PREAUTH = re.compile(r"kex_exchange_identification|banner exchange|Connectio
                          r"connect to host .* (Connection refused|Connection timed out|No route to host)", re.I)
 
 
-def _ssh_retry(cmd, timeout=None, tries=5):
+# a copy is idempotent (it overwrites) ⇒ scp retries any lost connection; `scp -q` hides ssh's handshake text, so the
+# reset shows only as "scp: Connection closed" / "lost connection".
+SCP_LOST = re.compile(r"Connection closed|lost connection|Connection reset", re.I)
+
+
+def _ssh_retry(cmd, timeout=None, tries=5, idempotent=False):
+    """ssh: retry only 255 + a pre-auth failure; idempotent (scp): also any lost connection, whatever the rc"""
     for attempt in range(tries):
         r = subprocess.run(cmd, text=True, capture_output=True, timeout=timeout)
-        if r.returncode == 255 and SSH_PREAUTH.search(r.stderr) and attempt < tries - 1:
+        lost = (r.returncode == 255 and SSH_PREAUTH.search(r.stderr)) or \
+               (idempotent and r.returncode != 0 and (SCP_LOST.search(r.stderr) or SSH_PREAUTH.search(r.stderr)))
+        if lost and attempt < tries - 1:
             time.sleep(2 + 3 * attempt)
             continue
         return r
@@ -84,7 +92,7 @@ def ssh_win(ps, timeout=7200):
 
 def scp(src, dst, recursive=False, check=True):
     cmd = ["scp", "-q", "-o", "BatchMode=yes"] + (["-r"] if recursive else []) + [src, dst]
-    r = _ssh_retry(cmd)
+    r = _ssh_retry(cmd, idempotent=True)
     if check and r.returncode != 0:
         raise SystemExit(f"scp failed: {' '.join(cmd)}\n{r.stderr}")
     return r.returncode == 0
