@@ -70,10 +70,13 @@ SSH_PREAUTH = re.compile(r"kex_exchange_identification|banner exchange|Connectio
 SCP_LOST = re.compile(r"Connection closed|lost connection|Connection reset", re.I)
 
 
-def _ssh_retry(cmd, timeout=None, tries=5, idempotent=False):
+# NEVER a client-side timeout / kill on an ssh or scp to the Windows box: a client dropped mid-session orphans a Windows
+# sshd that spins a core (2026-11-17: dozens bricked the box). A deadline belongs IN the remote command (win_job's loop),
+# so the server ends the session itself.
+def _ssh_retry(cmd, tries=5, idempotent=False):
     """ssh: retry only 255 + a pre-auth failure; idempotent (scp): also any lost connection, whatever the rc"""
     for attempt in range(tries):
-        r = subprocess.run(cmd, text=True, capture_output=True, timeout=timeout)
+        r = subprocess.run(cmd, text=True, capture_output=True)
         lost = (r.returncode == 255 and SSH_PREAUTH.search(r.stderr)) or \
                (idempotent and r.returncode != 0 and (SCP_LOST.search(r.stderr) or SSH_PREAUTH.search(r.stderr)))
         if lost and attempt < tries - 1:
@@ -82,8 +85,8 @@ def _ssh_retry(cmd, timeout=None, tries=5, idempotent=False):
         return r
 
 
-def ssh_win(ps, timeout=7200):
-    r = _ssh_retry(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", WIN, ps], timeout=timeout)
+def ssh_win(ps):
+    r = _ssh_retry(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", WIN, ps])
     err = "\n".join(l for l in r.stderr.splitlines() if not SSH_NOISE.search(l))
     if r.returncode != 0:
         raise SystemExit(f"ssh win failed ({r.returncode}): {ps[:300]}\n{err}")
@@ -184,11 +187,12 @@ def win_job(job_id, ps_path_win, timeout=14400):
     q = WROOT + "\\queue"
     ps = (f"if (!(Get-ScheduledTask -TaskName oss-rhost-runner -ErrorAction SilentlyContinue)) {{ 'NO RUNNER: rhost.py setup'; exit 3 }}; "
           f"Copy-Item '{ps_path_win}' '{q}\\{job_id}.tmp'; Move-Item '{q}\\{job_id}.tmp' '{q}\\{job_id}.job.ps1'; "
-          f"while (!(Test-Path '{q}\\{job_id}.done')) {{ Start-Sleep -Milliseconds 200 }}; "
+          f"$t0 = Get-Date; while (!(Test-Path '{q}\\{job_id}.done') -and ((Get-Date) - $t0).TotalSeconds -lt {int(timeout)}) "
+          f"{{ Start-Sleep -Milliseconds 200 }}; if (!(Test-Path '{q}\\{job_id}.done')) {{ 'WIN JOB TIMEOUT'; exit 124 }}; "
           f"Get-Content '{q}\\{job_id}.out'; Remove-Item '{q}\\{job_id}.*'")
-    try:
-        return ssh_win(ps, timeout=timeout)
-    except (KeyboardInterrupt, SystemExit, subprocess.TimeoutExpired):
+    try:   # the deadline runs on the box (no client-side kill: see _ssh_retry)
+        return ssh_win(ps)
+    except (KeyboardInterrupt, SystemExit):
         win_cancel(job_id)
         raise
 
@@ -204,7 +208,7 @@ def win_cancel(job_id):
           f"$_.CommandLine.Contains($j) }} | ForEach-Object {{ Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }}; "
           f"Start-Sleep 2; Remove-Item \"{q}\\$j.*\" -ErrorAction SilentlyContinue; exit 0")
     try:
-        ssh_win(ps, timeout=60)
+        ssh_win(ps)
         print(f"[cancelled Windows job {job_id}]", file=sys.stderr)
     except BaseException as e:   # noqa: BLE001 — best effort while exiting
         print(f"[could not cancel Windows job {job_id}: {e!r}]", file=sys.stderr)

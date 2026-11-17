@@ -767,10 +767,11 @@ def free_local_port():
     return p
 
 
-def win_ps(ps, timeout=600, host=None):
-    """a PowerShell command on the Windows box → (rc, stdout); pre-auth ssh failures retried (RH.ssh_win's rule)"""
+def win_ps(ps, host=None):
+    """a PowerShell command on the Windows box → (rc, stdout); pre-auth ssh failures retried (RH.ssh_win's rule). No
+    client-side timeout (RH._ssh_retry: a dropped client orphans a spinning Windows sshd) — waits belong in PS"""
     for attempt in range(4):
-        r = subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", host or RH.WIN, ps], text=True, capture_output=True, timeout=timeout)
+        r = subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", host or RH.WIN, ps], text=True, capture_output=True)
         if r.returncode == 255 and RH.SSH_PREAUTH.search(r.stderr) and attempt < 3:
             time.sleep(2 + 3 * attempt)
             continue
@@ -818,7 +819,7 @@ def win_spawn(name, ld, rhost_args, wait, tag):
           "    \"NOSTART pid $wpid\"; if (Test-Path \"$rd\\rhost.log\") { Get-Content \"$rd\\rhost.log\" -Tail 8 }; exit 0 }\n"
           "  Start-Sleep -Milliseconds 50 }\n"
           "\"LIVE $wpid \" + (Get-Content \"$rd\\serve.port\" -TotalCount 1)\n")
-    rc, out = win_ps(ps, timeout=wait + 900)
+    rc, out = win_ps(ps)
     m = re.search(r"^LIVE (\d+) (\d+) ", out, re.M)
     if not m:
         if "NOADMIT" in out:
