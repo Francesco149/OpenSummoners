@@ -676,11 +676,16 @@ def run_batch(a, runs, tag, fetch=("rhost.log",)):
         sys.path.insert(0, os.path.join(ROOT, "tools", "bunker"))
         import bunker
         return bunker.run_batch(a, runs, tag, fetch)
+    win_disk_check()
     ensure_staged()
     batch, bdir = make_batch(a, runs, tag)
     scp(bdir, f"{WIN}:C:/oss-rhost/runs/", recursive=True)
     t0 = time.time()
-    out = win_job(batch, f"{WROOT}\\runs\\{batch}\\go.ps1")
+    try:
+        out = win_job(batch, f"{WROOT}\\runs\\{batch}\\go.ps1")
+    except BaseException:
+        win_prune(batch)
+        raise
     results, cur = {}, None
     for line in out.splitlines():
         if line.startswith("=== "):
@@ -693,8 +698,43 @@ def run_batch(a, runs, tag, fetch=("rhost.log",)):
         for f in fetch:
             dst = os.path.join(bdir, name) if "*" in f else os.path.join(bdir, name, f)
             scp(f"{WIN}:C:/oss-rhost/runs/{batch}/{name}/{f}", dst, check=False)
+    win_prune(batch)
     print(f"[batch {batch}: {len(runs)} run(s) in {time.time() - t0:.1f}s (-j{a.jobs}) → {bdir}]")
     return batch, bdir, results, out
+
+
+WIN_MIN_FREE_GB = float(os.environ.get("RHOST_WIN_MIN_FREE_GB", "40"))
+
+
+def win_disk_check():
+    """refuse to start anything on the Windows box when C: is low (2026-11-17: our run dirs filled it → ssh wedged).
+    Exit 5 + a DISK LOW line: drivers stop and tell the orchestrator (DRIVER.md); the orchestrator frees space
+    (finished batch dirs under C:\\oss-rhost\\runs — win_prune does it per batch) or asks the owner."""
+    out = ssh_win("[math]::Floor((Get-PSDrive C).Free / 1GB)").strip().splitlines()
+    try:
+        free = float(out[-1])
+    except (IndexError, ValueError):
+        return   # unreadable: let the run fail on its own
+    if free < WIN_MIN_FREE_GB:
+        print(f"DISK LOW on the Windows box: {free:.0f} GB free on C: (< {WIN_MIN_FREE_GB:.0f}; RHOST_WIN_MIN_FREE_GB). "
+              f"Nothing was started. Drivers: STOP and tell the orchestrator to free disk space before continuing.",
+              file=sys.stderr)
+        sys.exit(5)
+
+
+def win_prune(batch):
+    """free the box's disk: drop THIS batch's run dir (its files are fetched) + any dated batch dir older than 2 days (a
+    crashed / killed client's leftovers).  2026-11-17: C:\\oss-rhost\\runs had grown to 441 GB, 945 dirs → the disk FULL,
+    ssh wedged.  RHOST_WIN_KEEP=1 keeps this batch (fetch more by hand later).  runs\\drive (rd sessions) is never touched."""
+    keep = os.environ.get("RHOST_WIN_KEEP") == "1"
+    ps = (("" if keep else f"Remove-Item '{WROOT}\\runs\\{batch}' -Recurse -Force -ErrorAction SilentlyContinue; ") +
+          f"$cut = (Get-Date).AddDays(-2); Get-ChildItem '{WROOT}\\runs' -Directory | Where-Object {{ "
+          f"$_.Name -match '^20\\d{{6}}-\\d{{6}}-' -and $_.LastWriteTime -lt $cut }} | "
+          f"ForEach-Object {{ Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }}; exit 0")
+    try:
+        ssh_win(ps)
+    except BaseException as e:   # noqa: BLE001 — best effort
+        print(f"[could not prune Windows batch {batch}: {e!r}]", file=sys.stderr)
 
 
 def resolve_runs(names, a=None):

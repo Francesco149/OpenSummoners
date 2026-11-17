@@ -78,6 +78,10 @@ an Xvfb batch, so sessions and headless batches run side by side.
 4. **Accept:** `rd accept R NAME --task T`; several finished runs at once: `tools/drive/accept-batch.sh LIST` ("RUN NAME
    TASK" lines → accept + calibrate each, ONE re-bless), then `corpus --check --hybrid` / `--standalone`. A hybrid / standalone FAIL is the payoff: port that code by the porting loop
    (CLAUDE.md), re-gate.
+   **Disk:** Windows batches delete their run dir once fetched (`win_prune`; `RHOST_WIN_KEEP=1` keeps one) and sweep dated
+   dirs > 2 days old; under 40 GB free (`RHOST_WIN_MIN_FREE_GB`) rhost / rd refuse to start (exit 5, `DISK LOW`) and drivers
+   stop with `BLOCKED: DISK LOW` — free space under `C:\oss-rhost\runs`, then resume them (2026-11-17: 441 GB of old
+   batches filled C: and wedged ssh).
 5. **Keep what was learned:** names → `vars.json`, game facts → `docs/game/` (corrections tagged [RD]) and DRIVER.md,
    tool gaps → fix the tool. **Chain by saves**: `rd endsave R` → `--from save:DIGEST`.
 

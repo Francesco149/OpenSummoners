@@ -143,3 +143,9 @@ Report the party's gear / level / notable items at the end, and what upgrade you
   own. Reading `docs/game/`, findings and the decompile is the point.
 - Do not kill processes by name; `rd stop R` ends your session. Do not touch `C:\orc-rhost` / other projects' runners.
 - Do not commit; report instead. A run that was poked (`w`) is flagged POKED and cannot be filed.
+- **`DISK LOW` (exit 5) = STOP.** rhost / rd refuse to start anything on the Windows box when its C: is under 40 GB free.
+  Do not retry, do not switch hosts to dodge it, do not delete anything on the box yourself: end your turn / finish with a
+  report whose FIRST line is `BLOCKED: DISK LOW on the Windows box — orchestrator, free disk space before I continue`,
+  plus your run's state (frame, room, last end-save digest) so the orchestrator can resume you.
+- Never put a timeout on, or kill, an ssh / scp / rd process talking to the Windows box (a dropped client orphans a
+  spinning sshd there); let it finish.

@@ -787,6 +787,7 @@ def win_spawn(name, ld, rhost_args, wait, tag):
     """ld (a local dir with the session's files) → C:\\oss-rhost\\runs\\drive\\NAME; start rhost there detached (WMI: outside
     sshd's job), admitted by the box's gate (≤ queue\\procs.txt oss-rhost processes, RAM floor, one Global\\oss-rhost-admit
     mutex, ≤ RD_WIN_MAX_SESSIONS rd sessions) → (windows pid, its serve port)"""
+    RH.win_disk_check()
     exe = staged_exe("win")
     rd = f"{WIN_SESS}\\{name}"
     dst = f"{RH.WIN}:{WIN_SESS.replace(chr(92), '/')}/"
@@ -992,7 +993,7 @@ def kill_session(s):
         win_ps(host=s.get("ssh"), ps=f"$p = Get-CimInstance Win32_Process -Filter 'ProcessId={int(s['pid'])}'; "
                f"if ($p -and $p.Name -eq '{RH.WEXE}' -and $p.CommandLine -like '*{rd}*') {{ Stop-Process -Id {int(s['pid'])} -Force; "
                f"Wait-Process -Id {int(s['pid'])} -Timeout 10 -ErrorAction SilentlyContinue }}; "
-               f"Remove-Item '{rd}' -Recurse -Force -ErrorAction SilentlyContinue; exit 0", timeout=120)
+               f"Remove-Item '{rd}' -Recurse -Force -ErrorAction SilentlyContinue; exit 0")
         return
     try:
         os.killpg(s["pid"], signal.SIGKILL)
