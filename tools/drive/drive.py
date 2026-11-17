@@ -2189,10 +2189,17 @@ def shots(r, frames, target=None, tag="look"):
 
 
 def win_up(timeout=4):
+    """does the Windows box's sshd answer — reads its TCP banner ("SSH-2.0-…"), NO session: a session whose client is killed
+    mid-command (the old `ssh … echo ok` under a timeout, on a loaded box) leaves a Windows sshd spinning a core (2026-11-17:
+    ~33 orphans bricked the box, with OpenMare's 20 s lease beat)"""
+    import socket
     try:
-        return subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={timeout}", RH.WIN, "echo ok"], capture_output=True,
-                              text=True, timeout=timeout + 8).stdout.strip().endswith("ok")
-    except (subprocess.TimeoutExpired, OSError):
+        cfg = dict(l.split(" ", 1) for l in subprocess.run(["ssh", "-G", RH.WIN], capture_output=True, text=True,
+                                                           timeout=10).stdout.splitlines() if " " in l)
+        with socket.create_connection((cfg.get("hostname", RH.WIN), int(cfg.get("port", 22))), timeout=timeout) as so:
+            so.settimeout(timeout)
+            return so.recv(64).startswith(b"SSH-")
+    except (OSError, ValueError, subprocess.TimeoutExpired):
         return False
 
 
