@@ -185,7 +185,11 @@ class admit_local:
 def win_job(job_id, ps_path_win, timeout=14400):
     """run C:\\...\\x.ps1 in the INTERACTIVE session through the oss-rhost queue runner"""
     q = WROOT + "\\queue"
-    ps = (f"if (!(Get-ScheduledTask -TaskName oss-rhost-runner -ErrorAction SilentlyContinue)) {{ 'NO RUNNER: rhost.py setup'; exit 3 }}; "
+    # a STOPPED runner (task state Ready, e.g. after the box's disk filled: 2026-11-17) left jobs queued for hours,
+    # silently — start it (a no-op while it runs)
+    ps = (f"$rt = Get-ScheduledTask -TaskName oss-rhost-runner -ErrorAction SilentlyContinue; "
+          f"if (!$rt) {{ 'NO RUNNER: rhost.py setup'; exit 3 }}; "
+          f"if ($rt.State -ne 'Running') {{ Start-ScheduledTask -TaskName oss-rhost-runner }}; "
           f"Copy-Item '{ps_path_win}' '{q}\\{job_id}.tmp'; Move-Item '{q}\\{job_id}.tmp' '{q}\\{job_id}.job.ps1'; "
           f"$t0 = Get-Date; while (!(Test-Path '{q}\\{job_id}.done') -and ((Get-Date) - $t0).TotalSeconds -lt {int(timeout)}) "
           f"{{ Start-Sleep -Milliseconds 200 }}; if (!(Test-Path '{q}\\{job_id}.done')) {{ 'WIN JOB TIMEOUT'; exit 124 }}; "
