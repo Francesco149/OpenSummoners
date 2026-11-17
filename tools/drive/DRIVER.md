@@ -97,7 +97,7 @@ holds, then spends `--refine` seconds shortening the path.
   Difficulty`, `Auto-guard`, `Start Game`): `D D ent`. `ent` advances dialogue (a press during typing completes the line).
 - In the first house (210140): X talks (Enter does not), C jumps, ↑ enters doors; the front door refuses until the errands.
 - Movement [RD field-movement]: walk 240 lx/frame after ~10 frames; dash (`R . R*20`, short first press) 480; slide = ↓
-  while dashing; short jump `C*2` ≈ 4800 up, long `C*12` ≈ 8400. Field exits are ↑ markers at the room edge (not
+  while dashing; short jump `C*2` ≈ 4800 up, long `C*12` ≈ 8400, full `C*30` ≈ 15600 (add it to searches for tall ledges [RD story-d8a]). Field exits are ↑ markers at the room edge (not
   walk-offs) and refuse while an enemy is attacking; town → field: ↑ at the tower right of the boutique (210110 → 225110).
   X examines unless the sword is drawn (then it slashes); V always examines. In a shop's Buy list `ent` BUYS AT ONCE (no
   quantity / confirm) — never mash `ent` in a shop, mind `gold`. A heal item used from F1 → Items in the field becomes a
