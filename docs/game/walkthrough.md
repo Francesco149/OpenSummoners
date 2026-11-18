@@ -296,6 +296,13 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      2nd stairs (x 217600) → 350130 → bottom-left door → see-saws 350135 → **350140** (dead end: [Tough Drop] +
      [Org Slayer], Attack 47 → 57). Several "walk-in" exits (340125, 340150, 350110, 350135) fire only on ↑ while standing
      still with no foe near. Stella had not joined by 350150. Quick-heal F works only while idle.
+   - [RD story-d8b] EN-old: 350150 gargoyle → push right until CENTRED on the plate (x 187000) → tall bottom-left door;
+     chest (190400, 102400) = [Power Drop] (+1 Attack, instant) → 350160 (Org cave, ~16 foes) → top-left door → 350162
+     puzzle, Arche alone: the statue lands against the platform's right edge (no room to push) → push the platform right
+     (the statue jams under the centre ledge, the platform slides beneath it; stop x 46500) → platform far left → push the
+     statue onto the button. Heart platform → 350165 (Better Herb chest: an Org + 2 archers) → 350170 → **fountain
+     350180** (save) → **350190**: cutscene (Dark Witch Selene takes Sana's stone; Stella appears) → Sana + Stella fight
+     Boss Org (948 HP) + a 684-HP boss + 2 Orgs → Stella joins → 350200 **MoH 8** (Stella 6 → 7, Phoenix).
 3. 🔑 Right → **Cranbal Valley** (Poison Mothbee, Sabercat, Vicious Cocorat…): bottom-left cave → drop, right [Leather Cape]; left, tunnel down → **MoH 9** (cap 12, 30,000). Exit right; Sana fetches boat for others; up ledges → cave → exit left: **diamond lever** + [Holy Water]; back in, exit top right → moving platform → [Holy Water], [Good Child Drop]. Ignore dead-end street. → red steaming hot springs = **Korat Village**.
 4. Korat Village: pots behind Colm/Leon [Hot Water Salts]; food/souvenir store drawer [Mind Chocolate] (sells costumes, [Hot Springs Bun], [Wooden Sword]); **weapon store**; **item store** ([Recall Lamp] — buy for dungeons; storage). **Inn/Spa**: cutscene; 2F far right 'Merrin 9/12', closet [Good Child Drop]. Through cave east: 1st bldg [Orange Beret], crates → 2F [Mystery Juice]; next bldg (Mayor) [Tough Drop], [Chest Sash]; pots [Guardian Drop]; bridge → house [Power Drop], 'Merrin 10/12'. Mayor's 2F high shelf 'Secret Tome of Magic' (needs Unison jump; NG+).
 5. 🔑 Inn ground floor door → hot spring → problem cutscene (springs off). 💎 dresser [Underwear](F); pot behind teacher [Stronggirl Juice]. 🔑 Talk to **Mayor** (needs pamphlet person) → **Ellie** (Inn 1F fireplace) → **Kanon** went to the Fire Shrine (far east of town).
