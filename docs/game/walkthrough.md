@@ -335,8 +335,15 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      Shrine 380110: up the shaft x ≈ 348–353k → upper corridor east → 380130 → arch door (x 169600) → **380135 chest =
      [Mahogany Staff]**. Boss route not yet found: 380110 zone 3 (412800, 67200) → 380120, or down from 380135/380130.
      Poison Myconid spores = sleep (450+ f).
+   - [RD story-d8f] EN-old: the boss route is **EAST**, not left: 380135 → 380130 → 380110, drop the shaft, go east
+     along the bottom → zone 3 (412800, 67200) → **380120 Great Scorpion** (2354 HP; Arche's sword 2–12/hit; Stella's
+     **Phoenix** ~110–135/cast does the work — "magic can't pierce my shell" is a bluff). After it the game moves the
+     party to the inn: [Password Note]. Sealed door = 360140's right door → Korat Caves 370110.
 7. 🔑 **Korat Caves** (cave connecting Korat; 1st tunnel). Steam + hot water burn.
    1. Right tunnel → **MoH 10** (cap 13, 40,000). Left, drop, tunnel, right lever → steam stops (sword symbol).
+   - [RD story-d8f] EN-old: MoH 10 in 370115 (a full jump grabs it); money cap → **30,000** (not 40,000). Steam lever =
+     V at 370120's bottom-left. 370120 bottom-right chests = [Salamander Scale] + [Power Drop] (not Lady's Dagger /
+     Tough Drop); bottom-left chest (unopened) likely the poison one.
    2. Go right (loot) → [Lady's Dagger], [Tough Drop]; down-left; ⚠ chest = poison; top-left tunnel → top right push block over vent → [Good Child Drop], [Orange Smock].
    3. 🔑 Bottom area 2 blocks: left → [Mystery Juice], [Anti-Poison Ring]; push block over constantly-blowing vent → next area: time jumps under ceiling vents; moving stone block w/ start/stop lever: Arche rides, another member works lever through vents; flip **clover switch**.
    4. 🔑 Back; top-left tunnel → right, lower path; moving platform, duck steam → [Guardian Drop]; up → 3000 CP; right ledge: push both blocks off (right first) → push stack right over vent → lever → upper-left vent off → tunnel → cutscene → **BOSS: New Age Myconid** (+ Myconid, Toxic Myconid).
