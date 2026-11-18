@@ -368,6 +368,14 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      (192000, 22400) + (216000, 22400) on the top ledge; floor vent (236800, 20800); chests 501 (142400, 38400), 502
      (257600, 64000). Zone hold y-range 20000. Heal items from F1: instant on a non-leader, ~170 f cast on the leader.
    5. Wooden door right → **MoH 11** (cap 14, 50,000) + [Better Herb]×3. Exit ([Recall Lamp] saves time) → hot spring scene → save.
+   - [RD story-d8i] EN-old: 370180: chest 501 = 3000 CP (opens only with no foe flagged near — chests stay shut while ANY
+     foe in the room is flagged near); sword SHEATHED, push the right block off the top ledge, then the left → they
+     stack in the x 227–240k column; push the stack (moves as one) along the lower floor to the **right-wall vent
+     (294800, 43200)** (not the floor vent) → steam off + a step; dash-jump + air jumpkick → lever 511 V → zone 2 →
+     370190 (cutscene) → **370200 = the boss room** (New Age Myconid 1286 HP + Toxic Myconid 672 + Myconid 716; spores
+     poison / sleep). 370210 = MoH 11 (full heal + revive; cap → **40,000**, not 50,000) + chest [Better Herb]. Recall
+     Lamp → 360140 → hot spring 360176 → Stella night scene 310140 → save prompt (comes up mid-`ent`: don't tap through
+     it) → Day 9 school (230140). MP does NOT regenerate while idle.
 
 ### Day 9 — Sleepover at Stella's; Chartreux Catacombs
 1. 🔑 School: Stella invites you (scared of moaning). Sana in barn → talk. Tonkiness: Mom + Sana's mom permission.
