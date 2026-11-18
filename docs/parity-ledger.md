@@ -58,6 +58,17 @@ were removed 2026-10-31 (last commit with them `57b8ccb`); the retail facts they
 
 _(R1 moved to Confirmed bit-exact above.)_
 
+### R12 — Windows hybrid `fb` flake: 7 scenarios' pixel chain ≠ pure, intermittently (OPEN, found 2026-11-18)
+`corpus --check --hybrid` on Windows (real mode, -j 3), batch `20261118-021316-corpus`: rh-intro-errands, rh-my-play,
+rh-water-shrine, story-herb-boss, story-herb-cave, story-herb-farm, story-stella-barness → `fb` only (frame / tick / RNG /
+state_sem all match). Same binary + hooks passed 45/45 the run before (`20261117-214822`); a re-run of the 7 passed
+(`20261118-041909`). Pure re-bless = identical fb; wine hybrid 49/49 + Windows standalone 48/48 PASS. Lead: the real
+desktop's traffic reaching the game procedure varies per run — mostly `WM_GETICON` (0x7f: 99–996 per run) + `WM_GETOBJECT`
+(0x3d) from other processes (`--log-input` now logs each `wndmsg`); the port's `wm_5b12e0` answers them like retail
+(DefWindowProcA), so suspect WHERE a cross-process send is delivered (a host call on the retail stack → pillar 5 stack
+garbage) rather than the port. Hunt: `runs/accept/fbhunt.log` (pure + hybrid rounds with `--hash-every 600
+--log-input`: first diverging fb window vs the `wndmsg` frames).
+
 ### R11 — bonus-menu hybrid `state_sem` ≠ expected: the WinMain stack-ref mask missed a stale world — RESOLVED (2026-11-14)
 - Was: `corpus --check --hybrid` bonus-menu `state_sem 87ad1f7c5b9c32aa → f8b1d3713e4ea702` (frame / tick / RNG / fb equal);
   `hookbisect` → wn_562210 (`_WinMain`); 2 words = world `+0x27ac` / `+0x27b0` (load_room's caller-stack ref; retail

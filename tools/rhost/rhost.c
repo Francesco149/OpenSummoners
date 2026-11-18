@@ -687,7 +687,8 @@ static LRESULT CALLBACK filter_proc(HWND h, UINT m, WPARAM w, LPARAM l, WNDPROC 
     case WM_CLOSE:
         if (O.record) rh_finish("window-closed");
         return 0;
-    default:
+    default:   /* --log-input: what still reaches the game's procedure (real mode: the desktop's own traffic) */
+        if (O.log_input) rh_log("wndmsg f%u %p %04x %08lx %08lx\n", g_frame, (void *)h, m, (unsigned long)w, (unsigned long)l);
         return CallWindowProcA(orig, h, m, w, l);
     }
 }
