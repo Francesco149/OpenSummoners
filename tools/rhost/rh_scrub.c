@@ -224,6 +224,17 @@ static HRESULT WINAPI w_CreateSurface(void *dd, DDSURFACEDESC2 *d, IDirectDrawSu
 {
     HRESULT r = r_CreateSurface(dd, d, out, o);
     if (r == DD_OK && out && *out) surf_seen(*out);
+    if (r == DD_OK && out && *out && O.surf_fill) {   /* the real driver's new surfaces hold whatever memory had; headless zeroes */
+        IDirectDrawSurface7 *sf = *out; DDSURFACEDESC2 sd; memset(&sd, 0, sizeof sd); sd.dwSize = sizeof sd;
+        if (sf->lpVtbl->Lock(sf, NULL, &sd, DDLOCK_WAIT | DDLOCK_WRITEONLY, NULL) == DD_OK) {
+            uint16_t v = (uint16_t)(O.surf_fill - 1);
+            for (DWORD y = 0; y < sd.dwHeight; y++) {
+                uint16_t *row = (uint16_t *)((uint8_t *)sd.lpSurface + y * sd.lPitch);
+                for (DWORD x = 0; x < (DWORD)sd.lPitch / 2; x++) row[x] = v;
+            }
+            sf->lpVtbl->Unlock(sf, NULL);
+        }
+    }
     return r;
 }
 static HRESULT WINAPI w_GetAttachedSurface(void *s, DDSCAPS2 *c, IDirectDrawSurface7 **out)

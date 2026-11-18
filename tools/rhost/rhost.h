@@ -73,6 +73,7 @@ typedef struct {
     int serve_idle;             /* --serve-idle S: a session nobody talks to for S seconds ends (default 1800) */
     uint32_t serve_until;       /* --serve-until F: replay the trace to frame F only, then serve */
     int serve, serve_port;      /* --serve PORT: the command server (rh_serve.c; implies --headless; 0 = any free port → <run>\\serve.port) */
+    int surf_fill;              /* --surface-fill HEX: fill each new REAL DirectDraw surface with this 16-bit value + 1 (0 = off) — probe for retail reading unwritten surface memory (R12) */
     int dev_census;             /* --dev-census: count every external call (IAT import / COM slot), logged at exit */
     int log_ddraw;              /* --log-ddraw (live): surfaces created / restored, failing surface calls + callers */
     const char *coverage;

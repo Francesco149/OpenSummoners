@@ -68,6 +68,16 @@ desktop's traffic reaching the game procedure varies per run — mostly `WM_GETI
 (DefWindowProcA), so suspect WHERE a cross-process send is delivered (a host call on the retail stack → pillar 5 stack
 garbage) rather than the port. Hunt: `runs/accept/fbhunt.log` (pure + hybrid rounds with `--hash-every 600
 --log-input`: first diverging fb window vs the `wndmsg` frames).
+**Findings (2026-11-18):** NOT the port — PURE retail flakes too (`20261118-043721`: 3/7 fb ≠; hybrid rounds then
+pass, pass, fail 3/7). Failures come in batches (the scenarios running concurrently at -j 3 fail together; first
+diverging frame differs per run) and cluster when the box is loaded (OpenMare gates running alongside); quiet: real 3/3
+rounds pass (`074552` / `075827` / `081032`), headless 3/3 pass (`082257` … `084219`, = the real expected incl. state_sem).
+Ruled out: WM_GETICON (arrives in pairs every 300–450 frames in passing and failing runs alike); session / font-smoothing
+changes (none; ClearType steady); retail threads / timers (none) and unvirtualized clocks (GetTickCount / GetLocalTime /
+GetSystemTime / Sleep all virtual; no timeGetTime / QPC); uninitialized new DDraw surfaces (`--surface-fill 0000` still
+flakes). Remaining suspect: the real DirectDraw-emulation / GDI path ordering under load (Blt vs GetDC/TextOutA on
+sysmem surfaces) — pixels only, state never. Next: a loaded A/B (real vs `--headless`, many rounds with a CPU hog on the
+box); if headless never flakes, propose (USER decision) running the Windows gates headless like wine.
 
 ### R11 — bonus-menu hybrid `state_sem` ≠ expected: the WinMain stack-ref mask missed a stale world — RESOLVED (2026-11-14)
 - Was: `corpus --check --hybrid` bonus-menu `state_sem 87ad1f7c5b9c32aa → f8b1d3713e4ea702` (frame / tick / RNG / fb equal);
