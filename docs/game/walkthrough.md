@@ -304,6 +304,13 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      350180** (save) → **350190**: cutscene (Dark Witch Selene takes Sana's stone; Stella appears) → Sana + Stella fight
      Boss Org (948 HP) + a 684-HP boss + 2 Orgs → Stella joins → 350200 **MoH 8** (Stella 6 → 7, Phoenix).
 3. 🔑 Right → **Cranbal Valley** (Poison Mothbee, Sabercat, Vicious Cocorat…): bottom-left cave → drop, right [Leather Cape]; left, tunnel down → **MoH 9** (cap 12, 30,000). Exit right; Sana fetches boat for others; up ledges → cave → exit left: **diamond lever** + [Holy Water]; back in, exit top right → moving platform → [Holy Water], [Good Child Drop]. Ignore dead-end street. → red steaming hot springs = **Korat Village**.
+   - [RD story-d8c] ⚠ EN-old: "Right → Cranbal Valley" after MoH 8 is WRONG — 350180/350190/350200 are dead ends; the
+     lair's only outside door is 350110 ↔ 340160 (room graph read from memory: area table `s32(world+0x103c)`, 336-byte
+     room records, zone table +0x1c). Walk back out: 350170 (Selene scene) → 350165 → 350160 → 350150 → 350125 → 350120 →
+     350110 → 340160 (walled in by the door: a jump-through ledge high right, y ≈ 20000, then left to the far-left exit)
+     → 340150 → 340120 (healer) → 340125 → 340130 → right exit → **Cranbal Valley 345110** → 345210 → 345230 (door: 2
+     Sabercats) → **345240 MoH 9** (money cap 20,000). On toward Korat: 345240 → 345230 (top-right) → 345210 zone 2
+     (150400, 89600) → 345120 → 345220 → 345130 → 340190 → 340200 → **360110** (likely Korat).
 4. Korat Village: pots behind Colm/Leon [Hot Water Salts]; food/souvenir store drawer [Mind Chocolate] (sells costumes, [Hot Springs Bun], [Wooden Sword]); **weapon store**; **item store** ([Recall Lamp] — buy for dungeons; storage). **Inn/Spa**: cutscene; 2F far right 'Merrin 9/12', closet [Good Child Drop]. Through cave east: 1st bldg [Orange Beret], crates → 2F [Mystery Juice]; next bldg (Mayor) [Tough Drop], [Chest Sash]; pots [Guardian Drop]; bridge → house [Power Drop], 'Merrin 10/12'. Mayor's 2F high shelf 'Secret Tome of Magic' (needs Unison jump; NG+).
 5. 🔑 Inn ground floor door → hot spring → problem cutscene (springs off). 💎 dresser [Underwear](F); pot behind teacher [Stronggirl Juice]. 🔑 Talk to **Mayor** (needs pamphlet person) → **Ellie** (Inn 1F fireplace) → **Kanon** went to the Fire Shrine (far east of town).
 6. **Fire Shrine**: right, climb steps, path → 💎 [Mahogany Staff]; drop, go left → **BOSS: Great Scorpion** → Kanon → Inn → pamphlet → **password** copied ([Password Note]).
