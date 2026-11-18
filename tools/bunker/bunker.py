@@ -218,7 +218,9 @@ def run_batch(a, runs, tag, fetch=None, keep=False):
     rc = ssh(f"{POOL} run {batch} python3 /bunker/batch.py /oss/runs/{batch} '{WROOT}\\bin\\{sha}\\{EXE}' "
              f"-j {jobs} --timeout {to}", check=False)
     wall = time.time() - t0
-    rsync(f"{HOST}:{W}/root/runs/{batch}/", bdir + "/")
+    # not each run's tmp\ (retail unpacks the BGM .wma there: ~80 MB per scenario, ~4 GB per corpus batch; 2026-11-18
+    # bunker-runs had grown to 163 GB of it) — nothing reads it after the run
+    rsync("--exclude=/*/tmp/", f"{HOST}:{W}/root/runs/{batch}/", bdir + "/")
     if not keep:
         ssh(f"rm -rf {W}/root/runs/{batch}")
     res, out_lines = {}, []
