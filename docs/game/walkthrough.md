@@ -403,6 +403,15 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
    1. 2 ghosts → chest [Crypt Key] → unlock right door, stairs down. Left [Recall Lamp].
    2. 🔑 Right: Stella burns vines, door; drop pit hugging LEFT → ledge → [Crypt Key] (miss → left door, retry). Left door; spikes; use key; up: [Mystery Juice], [Scale Armor].
    3. 🔑 Down, lever; bottom-left burn vines, pot 1200 CP, tunnel → **3 floor buttons**: park each member on one (Stay There!) → right wall opens → **MoH 12** (cap 15, 60,000) + [Crypt Key].
+   - [RD story-d9c] EN-old object codes: 70220 chest, 70230 barred gate, 70217 its keyhole (V; the key breaks), 70216
+     wall lever (V only, facing it), 70215 floor plate, 70304 pot, 70400 vine piece, 70100 MoH. 400110: Crypt Key chest
+     x 65600 (left, by the ghosts) → gate → zone 2 → 400120 (Stella burns vines: ←X / ↓X low, ↑X high) → 400130: drop
+     hugging LEFT → ledge chest [Crypt Key] → left door → 400120 bottom → zone 4 → 400125: keyhole, up the right shaft →
+     [Mystery Juice], **[Scale Armor]** (Stella: Def 35 → 73) → 400140: wall lever at lx ≈ 156700 facing left (V) →
+     gate; pot +1200 CP → zone 3 → **400145** 3 floor plates x 13600 / 45600 / 64800: Follow Mode 'Stay There!' must be
+     set for All Members AND each member's own row (a member's 'Follow Me!' overrides); gate stays open → 400146:
+     [Crypt Key] + **MoH 12**. Ghosts (51081) are often immune to the sword (Phoenix works); Ghost Mages (51082) sleep /
+     confuse (reversed controls ~150 f).
    4. 🔑 Back to pot area, right, key, tunnel → water area: [Doll Hand]; Sana right water crevice [Memory Photo 6]; skip next pit, take next-next → [Crypt Key]; left door.
    5. 🔑 2 platforms + high lever: one member on right platform, two on left → right one reaches lever.
    6. 🔑 Drop, right, up: 2 pushable tombstones → right one far right, left one far left → secret door; ride spike trap → [Crypt Key]; right door needs another key → left door (fall into skeletons) → left pit hugging right → [Crypt Key], [Guardian Drop]; bottom [Power Drop]; left area barrels [Good Child Drop].
