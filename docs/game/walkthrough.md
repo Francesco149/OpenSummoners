@@ -392,6 +392,14 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      down), far-left stairs → upper floor; jump the maid. 310140 top floor (Stella's room?) not yet reached: its ladder
      did not climb with `U*40`.
 4. 🔑 **Mayberk Manor**: Stella's room talk; talk to everyone; evening → talk to **Rowen** → dinner → night: moans → go to cemetery. 💎 First: weapon store at night → [Ghost Blaster] 12,500 (good vs ghosts). 🔑 Kitchen back door → **Chartreux Graveyard** (Vile Bats; Sana appears). Deeper: push the first pushable **gravestone** fully left → secret entrance → **Chartreux Catacombs**:
+   - [RD story-d9b] EN-old: Stella's room = 310140 top floor; its box (70220) = Item Storage. Dinner (310120) → `story`
+     1420 → 1430, night (`tod` 4): Arche + Stella (party 5). Hall 310130 down: far-left landing → right down the stairs
+     → middle floor → landing (177200, 58400) → left down → ground. Hall zone 7 → **kitchen 310150**; back door = its
+     zone 4 (x 99200) → 310160 (behind the manor) → zone 2 (x 192000) → **graveyard 390110**: Sana joins on arrival
+     (party 7). Vile Bats (51062) hold 390110's exit. **390120**: the first pushable gravestone (x ≈ 108000) — push it
+     LEFT from its right side, sword sheathed (from the left: nothing) to lx ≈ 87248 → crypt doorway at x 92800 (↑) →
+     **400110** (Catacombs 1st room): chest 70230 (114200, 22400), 70217 (108800, 27200; locked door?), storage box
+     70220 (65600, 32000), zone 2 (182400, 48000) → 400120; 2 Ghosts (51081).
    1. 2 ghosts → chest [Crypt Key] → unlock right door, stairs down. Left [Recall Lamp].
    2. 🔑 Right: Stella burns vines, door; drop pit hugging LEFT → ledge → [Crypt Key] (miss → left door, retry). Left door; spikes; use key; up: [Mystery Juice], [Scale Armor].
    3. 🔑 Down, lever; bottom-left burn vines, pot 1200 CP, tunnel → **3 floor buttons**: park each member on one (Stay There!) → right wall opens → **MoH 12** (cap 15, 60,000) + [Crypt Key].
