@@ -379,8 +379,18 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
 
 ### Day 9 — Sleepover at Stella's; Chartreux Catacombs
 1. 🔑 School: Stella invites you (scared of moaning). Sana in barn → talk. Tonkiness: Mom + Sana's mom permission.
+   - [RD story-d9a] EN-old: Sana = barn 230125 (yard 230120 door x 51200); Arche's mom = 210140 kitchen, answers **V**
+     only; **Sana's mom = 210190** (via 210130 zone 3; 210180 has only the grandmother). Road 260110 → 265160 rose bush
+     (70400): Stella leading, **↑+X burns the high pieces, ↓+X the low**. White Rose Inn 265165: rest 7 CP + save; shop
+     Fresh Milk 8, Better Herb 18, Venom-Away 7, Cloth Cape 520. 265120: dash-jumps over water.
 2. 💎 Before Chartreux: Barness road cave w/ weight (Day 3-style): Sana+Stella stand on top platform (Stay There!), Arche under weight → chest [Calming Cocoa] (Help Out item).
 3. Chartreux new stock: bakery [Handmade Tart]; boutique [Heroic Cape] 12,800; item store [Venom-Away S], [Holy Water], [Magic Candy], [Recall Lamp]; weapons new tier; boy hints a sword sold **only at night**.
+   - [RD story-d9a] EN-old: item store 300250 p2 = Venom-Away S 40, Holy Water 65, Magic Candy 120, Recall Lamp 500;
+     weapons 300220 (keeper answers X only from his right side, lx ≈ 68432 facing left): Bronze Armor 2600, Scale Armor
+     4800; no Ghost Blaster by day. Manor: 310110 title card → 310120 Rowen intro → 310140 ground floor (walking left =
+     grandfather-portrait scene) → hall 310130: middle floor = JUMP up from the right landing (walking left goes back
+     down), far-left stairs → upper floor; jump the maid. 310140 top floor (Stella's room?) not yet reached: its ladder
+     did not climb with `U*40`.
 4. 🔑 **Mayberk Manor**: Stella's room talk; talk to everyone; evening → talk to **Rowen** → dinner → night: moans → go to cemetery. 💎 First: weapon store at night → [Ghost Blaster] 12,500 (good vs ghosts). 🔑 Kitchen back door → **Chartreux Graveyard** (Vile Bats; Sana appears). Deeper: push the first pushable **gravestone** fully left → secret entrance → **Chartreux Catacombs**:
    1. 2 ghosts → chest [Crypt Key] → unlock right door, stairs down. Left [Recall Lamp].
    2. 🔑 Right: Stella burns vines, door; drop pit hugging LEFT → ledge → [Crypt Key] (miss → left door, retry). Left door; spikes; use key; up: [Mystery Juice], [Scale Armor].
