@@ -345,6 +345,15 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      V at 370120's bottom-left. 370120 bottom-right chests = [Salamander Scale] + [Power Drop] (not Lady's Dagger /
      Tough Drop); bottom-left chest (unopened) likely the poison one.
    2. Go right (loot) → [Lady's Dagger], [Tough Drop]; down-left; ⚠ chest = poison; top-left tunnel → top right push block over vent → [Good Child Drop], [Orange Smock].
+   - [RD story-d8g] EN-old cave graph: 370110 → 360140/370115/370120/370130; 370130 → 370110/370140/370150; 370140 →
+     370145; 370145 → 370150; 370150 → 370155 (z4) / 370160 (z3); 370155 → 370156 → 370157 (clover dead end); boss line
+     370160 → 370170 → 370175 → 370180 → 370190 → 370200 → 370210. 370120 bottom exit = jump-through ledges over the
+     hot-water pit (x 83–90k; short hop from x ≈ 97.4k, full jumps up). 370130 top-right lever (244800, 40000) = V →
+     both horizontal blowers off; its zone 3 (→ 370140) fires on ↑ while idle. **[Lady's Dagger] + [Tough Drop] = 370140
+     right-hand chests**; **[Anti-Poison Ring] + [Mystery Juice] = 370150 bottom-left chests** (handle-less chest at
+     (214400, 108800) left closed, likely the poison one). 370157 = start/stop lever (53200, 34800), moving block
+     (62800, 41600), ceiling vents x 65.6k/77.2k/88k, **clover lever (136000, 33600)** behind a blower. Zone hold counts
+     EVERY party member within 48000 of a foe (stranded follower ⇒ switch leader to it). Blowers burn 30–40/tick.
    3. 🔑 Bottom area 2 blocks: left → [Mystery Juice], [Anti-Poison Ring]; push block over constantly-blowing vent → next area: time jumps under ceiling vents; moving stone block w/ start/stop lever: Arche rides, another member works lever through vents; flip **clover switch**.
    4. 🔑 Back; top-left tunnel → right, lower path; moving platform, duck steam → [Guardian Drop]; up → 3000 CP; right ledge: push both blocks off (right first) → push stack right over vent → lever → upper-left vent off → tunnel → cutscene → **BOSS: New Age Myconid** (+ Myconid, Toxic Myconid).
    5. Wooden door right → **MoH 11** (cap 14, 50,000) + [Better Herb]×3. Exit ([Recall Lamp] saves time) → hot spring scene → save.
