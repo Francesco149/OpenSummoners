@@ -356,6 +356,17 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      EVERY party member within 48000 of a foe (stranded follower ⇒ switch leader to it). Blowers burn 30–40/tick.
    3. 🔑 Bottom area 2 blocks: left → [Mystery Juice], [Anti-Poison Ring]; push block over constantly-blowing vent → next area: time jumps under ceiling vents; moving stone block w/ start/stop lever: Arche rides, another member works lever through vents; flip **clover switch**.
    4. 🔑 Back; top-left tunnel → right, lower path; moving platform, duck steam → [Guardian Drop]; up → 3000 CP; right ledge: push both blocks off (right first) → push stack right over vent → lever → upper-left vent off → tunnel → cutscene → **BOSS: New Age Myconid** (+ Myconid, Toxic Myconid).
+   - [RD story-d8h] EN-old: **370157 clover**: the block shuttles alone x ≈ 54.6k–97.6k (200/f); the start/stop lever
+     (53200, 34800) toggles it (V from the ledge, not from the block); ceiling vents 132 f on / 132 off, offset phases.
+     Stop the block at its left end, V, hop on, ride the vent gaps → right ledge → clover lever V (stand still; a
+     double-tap R dashes past it) → "sound of machinery". One member suffices. Followers stranded in the room still
+     change rooms with the leader. **370150 bottom → zone 3**: the x 86–106k shaft (jump-through ledges y ≈ 171k / 158k /
+     145.6k, then chained full jumps + air jumpkicks to a right-wall ledge ≈ (107k, 123.6k)); AI followers rarely
+     follow — lead with Stella (Phoenix = spell slot 3, 4 MP homing) vs the Myconids (51231, poison on contact).
+     370160 → 370170 (2 top-right chests, skipped) → 370175 → **370180** = the 7.4 block / lever / vent room: exit
+     zone 2 (35200, 38400) → 370190 beside vent 512 (54400, 43200); lever 511 (257600, 33600) top-right pocket; blocks
+     (192000, 22400) + (216000, 22400) on the top ledge; floor vent (236800, 20800); chests 501 (142400, 38400), 502
+     (257600, 64000). Zone hold y-range 20000. Heal items from F1: instant on a non-leader, ~170 f cast on the leader.
    5. Wooden door right → **MoH 11** (cap 14, 50,000) + [Better Herb]×3. Exit ([Recall Lamp] saves time) → hot spring scene → save.
 
 ### Day 9 — Sleepover at Stella's; Chartreux Catacombs
