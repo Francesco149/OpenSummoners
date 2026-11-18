@@ -38,6 +38,8 @@ rd status R        rd text R        rd eval R EXPR [EXPR..] [--at CHECKPOINT | -
 rd map R [--scale 8] [--crop X0,Y0,X1,Y1] # PNG of the room's COLLISION grid (grey wall, green slope, red-outlined pit) + zones → rooms, objects code:state,
                        # party (named) / hostiles (code), white ring = leader. Black = open space. Read it when a route is unclear.
 rd zones R [--all]     # the room's doors / exits: zone id, kind (walk in / press up), x y, → destination room; --all + objects (code, state)
+                       #   + "zone hold": which foe holds the exit timer (zrest = 30) next to which member — the leader within
+                       #   56000, EVERY active member within 48000 (a stranded follower blocks the exit: switch leader to it)
 rd scan R --from F [--to T] --watch "EXPR,EXPR.." [--every N] [--changes] [--where EXPR]
 rd ram R list | read VA [NBYTES] | dwords VA [N] | str VA | define NAME --addr HEX --type s32 | --expr "..." [--status] [--event]
 rd ram R mark ; (act) ; rd ram R diff [--lo VA --hi VA] [--save NAME] [--minus NAME] [--show N]

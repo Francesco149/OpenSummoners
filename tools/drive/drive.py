@@ -1619,7 +1619,45 @@ def cmd_zones(a):
         where = (f"→ {to[0]} (entry {to[1]})" if to else "(event, no table row)") if zone else ""
         print(f"  slot {k:3d}  " + (f"zone {zone:3d} {ZONE_KIND.get(kind, f'kind {kind}'):9s} " if zone else " " * 24)
               + f"x {x:7d} y {y:7d}  code {code:6d} handle {handle:10d} state {st}  {where}")
+    zone_holders(r)
     r.close()
+
+
+def zone_holders(r):
+    """who holds the zone timer (zrest = 30): zone_pass's foe test (src/gimmick.c zone_pass / foe_near / entity_near,
+    char_targetable): a targetable char of another faction within rx (56000 leader, 48000 each active member; 48000
+    for the leader alone once the zone's scene is done) and 20000 in y, centre to centre"""
+    rm = "s32(world + 0x2784)"
+    lead, *slots = r.ev(f"s32({rm} + 0x200c) if world else 0", *[f"s32({rm} + 0x4030 + {4 * k}) if world else 0" for k in range(8)])
+    S = lambda s: [f"s32({s} + 0x9c4)", f"s32({s} + 0x9f0)", f"s32({s} + 0x9f4)"]
+    sv = r.ev(*[e for s in slots if s for e in S(s)])
+    lch, = r.ev(f"s32({lead} + 0x9f4)") if lead else (0,)
+    mem = [(sv[3 * i + 2], sv[3 * i + 2] == lch) for i in range(len(sv) // 3) if sv[3 * i] == 1 and sv[3 * i + 1] != 100000104]
+    chars = [p for p in r.ev(*[f"s32(world + 0x1160 + {4 * k})" for k in range(32)]) if p]
+    C = lambda p: [f"s32({p} + 0x1d0)", f"u8(s32({p} + 0x40))", f"u8(s32({p} + 0x40) + 0x7e)", f"u16(s32({p} + 0x750) + 0x44a)",
+                   f"s32({p} + 0x1dc)", f"s32({p} + 0x1d4)"] + [f"s32(s32({p} + 0x40) + {o})" for o in (4, 8, 12, 16, 20)]
+    cv = r.ev(*[e for p in chars for e in C(p)])
+    info = {p: cv[11 * i:11 * i + 11] for i, p in enumerate(chars)}
+    names = {50010: "Arche", 50011: "Sana", 50012: "Stella", 50013: "Chiffon"}
+    out = []
+    for m, is_lead in ([(lch, True)] if lch else []) + [x for x in mem if not x[1]]:
+        if m not in info:
+            continue
+        alive, act, f7e, busy, fac, code, x, y, w, h, mg = info[m]
+        if not is_lead and (alive != 1 or act != 1 or f7e or busy):
+            continue
+        rx = 56000 if is_lead else 48000
+        for o, (oal, oact, of7e, obusy, ofac, ocode, ox, oy, ow, oh, omg) in info.items():
+            if oal != 1 or oact != 1 or of7e or obusy or not fac or not ofac or (fac == ofac and 3 not in (fac, ofac)):
+                continue
+            dx = abs(w // 2 - ow // 2 - ox + x)
+            dy = abs((h - mg) // 2 - (oh - omg) // 2 - oy + y - omg + mg)
+            if dx < rx and dy < 20000:
+                out.append(f"{names.get(code, code)}{' (leader)' if is_lead else ''} ← foe code {ocode} at "
+                           f"({ox}, {oy}) dx {dx} dy {dy}")
+    zr, = r.ev("zrest")
+    print(f"zone hold: zrest {zr}; " + ("nothing near (leader rx 56000 / 48000 once done, members 48000)" if not out else
+                                         "holding:\n  " + "\n  ".join(out)))
 
 
 MAP_CELL = 0xc80          # world units per grid cell (32 px)
