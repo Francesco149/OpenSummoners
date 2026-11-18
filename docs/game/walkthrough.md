@@ -319,8 +319,22 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      the party; buy Venom-Away). Korat inn = **Warm Breeze Inn**, door x 288000 in 360110 → 360170; innkeeper upstairs
      (2F counter; rest 16 CP, then the save offer). Inn ground-floor door (83200, 54400) → 360175 (hot spring).
 4. Korat Village: pots behind Colm/Leon [Hot Water Salts]; food/souvenir store drawer [Mind Chocolate] (sells costumes, [Hot Springs Bun], [Wooden Sword]); **weapon store**; **item store** ([Recall Lamp] — buy for dungeons; storage). **Inn/Spa**: cutscene; 2F far right 'Merrin 9/12', closet [Good Child Drop]. Through cave east: 1st bldg [Orange Beret], crates → 2F [Mystery Juice]; next bldg (Mayor) [Tough Drop], [Chest Sash]; pots [Guardian Drop]; bridge → house [Power Drop], 'Merrin 10/12'. Mayor's 2F high shelf 'Secret Tome of Magic' (needs Unison jump; NG+).
+   - [RD story-d8e] EN-old: 360160 = item store (right door x 230400: Better Herb 18, Venom-Away S 40, Holy Water 65,
+     Revival Drink 350, Magic Candy 120, Recall Lamp 500, Leather Cape 1100, Magic Earring 4200; + storage — Enter on it
+     DEPOSITS) + weapon store (left door x 192000: Longsword 5500, Bastard Sword 10500, Mahogany Staff 2900, Lady's Dagger
+     4300, Scale Armor 4800, Iron Armor 9800, Bronze Gauntlets 2800); souvenir 360150 (Hot Springs Bun 30 = 200–250 HP,
+     Wooden Sword 850, Hot Water Salts 240, costumes 30–160; drawer [Mind Chocolate]). **Pots (70302/70304) open only
+     when HIT with the sword drawn** (hit box left of the pot); drawers / shelves / closets open with V. Pot behind
+     Colm/Leon = 100 CP (not Salts). [Good Child Drop] closet = 360175 2F (not the inn). East village 360130: 360180
+     [Orange Beret] [Mystery Juice]; pot [Guardian Drop]; Mayor 360200 → 360206 [Tough Drop] [Chest Sash]; 360190 drawer
+     [Power Drop]; Fire Shrine 380110 at the far right.
 5. 🔑 Inn ground floor door → hot spring → problem cutscene (springs off). 💎 dresser [Underwear](F); pot behind teacher [Stronggirl Juice]. 🔑 Talk to **Mayor** (needs pamphlet person) → **Ellie** (Inn 1F fireplace) → **Kanon** went to the Fire Shrine (far east of town).
 6. **Fire Shrine**: right, climb steps, path → 💎 [Mahogany Staff]; drop, go left → **BOSS: Great Scorpion** → Kanon → Inn → pamphlet → **password** copied ([Password Note]).
+   - [RD story-d8e] EN-old: Mayor (360206): the spring source is behind a sealed door in the village cave; the password
+     is on a pamphlet he gave a sightseeing girl → Ellie (inn 1F): Kanon missing with it (`story` stays 1320). Fire
+     Shrine 380110: up the shaft x ≈ 348–353k → upper corridor east → 380130 → arch door (x 169600) → **380135 chest =
+     [Mahogany Staff]**. Boss route not yet found: 380110 zone 3 (412800, 67200) → 380120, or down from 380135/380130.
+     Poison Myconid spores = sleep (450+ f).
 7. 🔑 **Korat Caves** (cave connecting Korat; 1st tunnel). Steam + hot water burn.
    1. Right tunnel → **MoH 10** (cap 13, 40,000). Left, drop, tunnel, right lever → steam stops (sword symbol).
    2. Go right (loot) → [Lady's Dagger], [Tough Drop]; down-left; ⚠ chest = poison; top-left tunnel → top right push block over vent → [Good Child Drop], [Orange Smock].
