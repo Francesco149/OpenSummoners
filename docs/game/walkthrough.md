@@ -311,6 +311,13 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      → 340150 → 340120 (healer) → 340125 → 340130 → right exit → **Cranbal Valley 345110** → 345210 → 345230 (door: 2
      Sabercats) → **345240 MoH 9** (money cap 20,000). On toward Korat: 345240 → 345230 (top-right) → 345210 zone 2
      (150400, 89600) → 345120 → 345220 → 345130 → 340190 → 340200 → **360110** (likely Korat).
+   - [RD story-d8d] EN-old: 345240 → 345230 → 345210 ([Leather Cape] chest) → **345120 lake** (no swimming: walk the
+     floor; two holes = dash-jump with Sana leading; the sunken boat sits under the right dock — drop through with `D`,
+     it rises, moves toward the leader's facing; a member left on the dock boards only as leader) → 345220 (its
+     top-right exit = the only way onto 345130's upper ledge) → 345130 ([Holy Water], diamond lever; island: [Holy
+     Water], [Good Child Drop]) → 340190 → 340200 → **Korat 360110**. **Poison Mothbee = code 51221** (its poison drained
+     the party; buy Venom-Away). Korat inn = **Warm Breeze Inn**, door x 288000 in 360110 → 360170; innkeeper upstairs
+     (2F counter; rest 16 CP, then the save offer). Inn ground-floor door (83200, 54400) → 360175 (hot spring).
 4. Korat Village: pots behind Colm/Leon [Hot Water Salts]; food/souvenir store drawer [Mind Chocolate] (sells costumes, [Hot Springs Bun], [Wooden Sword]); **weapon store**; **item store** ([Recall Lamp] — buy for dungeons; storage). **Inn/Spa**: cutscene; 2F far right 'Merrin 9/12', closet [Good Child Drop]. Through cave east: 1st bldg [Orange Beret], crates → 2F [Mystery Juice]; next bldg (Mayor) [Tough Drop], [Chest Sash]; pots [Guardian Drop]; bridge → house [Power Drop], 'Merrin 10/12'. Mayor's 2F high shelf 'Secret Tome of Magic' (needs Unison jump; NG+).
 5. 🔑 Inn ground floor door → hot spring → problem cutscene (springs off). 💎 dresser [Underwear](F); pot behind teacher [Stronggirl Juice]. 🔑 Talk to **Mayor** (needs pamphlet person) → **Ellie** (Inn 1F fireplace) → **Kanon** went to the Fire Shrine (far east of town).
 6. **Fire Shrine**: right, climb steps, path → 💎 [Mahogany Staff]; drop, go left → **BOSS: Great Scorpion** → Kanon → Inn → pamphlet → **password** copied ([Password Note]).
