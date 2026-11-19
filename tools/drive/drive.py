@@ -1069,6 +1069,8 @@ class Run:
         os.replace(self.meta_p + ".tmp", self.meta_p)
 
     def save_sess(self):
+        if self.sess is None:                       # never overwrite a live session's record with null (it orphans it)
+            return
         json.dump(self.sess, open(self.sess_p + ".tmp", "w"))
         os.replace(self.sess_p + ".tmp", self.sess_p)
 
@@ -1931,11 +1933,16 @@ def cmd_ck(a):
     elif a.op == "drop":                           # free the checkpoint's savestate (the pool is finite); the name goes
         if a.name not in cks:                      # too — a later `ck load` would have to replay from boot anyway
             raise SystemExit(f"no checkpoint {a.name!r} ({', '.join(cks) or 'none'})")
+        # attach (cached only) FIRST: r.sess is None until then — popping from it freed nothing and save_sess() wrote
+        # `null`, orphaning the live session on its host (story-d9d: 3 boot replays + leaked pool memory)
+        r.attach(cached_only=True)
         sid = ((r.sess or {}).get("snaps", {}).pop(a.name, None) or [None])[0]
-        if sid is not None and r.attach(cached_only=True):
+        if sid is not None and r.live:
             r.live.cmd(f"free {sid}", check=False)
         del cks[a.name]
-        r.save_meta(); r.save_sess()
+        r.save_meta()
+        if r.sess is not None:
+            r.save_sess()
         print(f"dropped checkpoint {a.name}" + (f" (savestate {sid} freed)" if sid is not None else " (it had no live savestate)"))
     elif a.op == "load":
         if a.name not in cks:
