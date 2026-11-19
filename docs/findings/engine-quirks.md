@@ -5217,3 +5217,17 @@ race" misdiagnosis: the mob silence is this deterministic deluxe-skip, not a hea
   wait runs the game's frames until the shown message is dismissed.  `0x41a3a0` (raise the progress value `cfg+0xadc`,
   look its row up in `cfg+0xae4`, show message 3 `0x854ddc`, wait) on `rh-water-shrine`: entered before f139600,
   returned f139688; the frames inside read input and write timestamps (`GetTickCount` values) into state.
+
+### #184 — torches (70251 / 70252 / 70371) flip only from an attack's "touch mode", and only from a shot that hits no one (2026-11-19)
+- A torch with `kind != 1` gets hit material 3 (`+0x290`, set in the device setup — `device_init.c` case 70251); kind 1 =
+  inert. It is on the room's switch list `world+0x2798`.
+- `0x5b1aa0` (`switch_touch(rect, part, mode)`) is called from `0x5b15e0` (`body_hit_spawn`) ONLY when the hitbox hits
+  no character (`char_hit_target` NULL), the attacker's faction `+0x1dc == 1` and `world+0x27b4 == 0`. Material 3:
+  `mode 1` sets the pending hit only when state `+0xc == 1` (unlit → lit), `mode 2` only when state `!= 1` (lit → unlit);
+  the pending hit `+0x294` then toggles the state (`step_tail`, material 3). Every overlapped torch flips in one pass.
+- `mode` = the 20th arg: a skill's `+0x2f4` (0 for every Sana skill record, EN-old Lv12 — her spells never flip a
+  torch) or a projectile's `+0x244` (`0x55d140` shot setup: default 3 = no effect; **shot 100001 sets 2**). Shot 100001 =
+  Sana's skill 10202, the "magic shot" (`0x45e830`, case 0x27da): combo key 8 (the bound attack key, keycfg `+0x548`) +
+  a direction (ids: up 1, left 2, down 3, right 4; 5 = forward, 6 = back) — X and forward pressed together, X 10–300
+  ticks old, the direction 0–210. A tap of X alone is the staff swing 10201.
+- Weathervane Tower 410130 (story-d10a f372982–f373565): Sana `LX` / `RX` doused all 8; the gate 70230 (x 131800) opened.

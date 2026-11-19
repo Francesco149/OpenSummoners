@@ -449,6 +449,14 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
 2. **Weathervane Tower** (Young Harpy, Harpy, Rattlesnake, Kobold Ace). ⚠ Harpies grab & drop you to lower floors; Harpy song confuses (consider [Blessed Earring]/ fighting w/ Arche alone [EG]).
    1. Boys. ⚠ chests on both sides of 1st floor = spike traps. Centre: climb ledges from left, then right ledge → stairs.
    2. 🔑 2 unlit torches: do NOT light — use **Sana's water to put ALL out** → door opens. Boys; stairs up; spike traps.
+   - [RD story-d10a] EN-old: Chartreux weapons 300220: Scale Armor 4800 (buying equips it), Iron Armor 9800 (Arche);
+     260200 crate: only Arche pushes it. Tower 2.1: climb on the RIGHT side of 410120 (mound → floating platform →
+     upper floor → harpy platform → exit 3) → 410125 upper-left ledge → door (80000, 22400) → **410130** (torch room).
+     **2.2 torches** (8 × 70251, x 110400–161600; state 0 lit / 1 unlit; gate 70230 at x 131800): Sana's SPELLS do
+     nothing — the water is her **magic shot: forward + X pressed together** (`LX*4` facing left / `RX*4` facing right;
+     a plain X tap is the staff swing). One shot douses every lit torch it passes (range ≈ 20–35k) and never relights an
+     unlit one; it spawns ~3200 ahead, so a torch right beside Sana is skipped — step past it and shoot back. Keep
+     Stella's fire off the torches (fire relights). All 8 out → the gate opens (quirk #184).
    3. 💎 Far right stairs down: moving blocks over spikes → [Rune Staff].
    4. 🔑 Ride platform up, push block → lever. Open area: far right [Revival Drink]; zigzag → [Water of Life] (Help Out item).
    5. 🔑 Moving blocks → 2 blocks: push right one to floor, left of the left ledge's edge; push 2nd off onto it; push stack to lever. Boys. Switch; ⚠ mid-hall spike trap; 2nd switch; right, stairs; drop off right edge → hidden stairs down.
