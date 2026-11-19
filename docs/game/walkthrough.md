@@ -423,6 +423,15 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      right basket rises, Arche `R*10 V` the lever → gate → 400160. 70800 = gravestones with handles.
    5. 🔑 2 platforms + high lever: one member on right platform, two on left → right one reaches lever.
    6. 🔑 Drop, right, up: 2 pushable tombstones → right one far right, left one far left → secret door; ride spike trap → [Crypt Key]; right door needs another key → left door (fall into skeletons) → left pit hugging right → [Crypt Key], [Guardian Drop]; bottom [Power Drop]; left area barrels [Good Child Drop].
+   - [RD story-d9e] EN-old: **400160**: bottom-corridor pits x 115–128k / 140.8–153.6k (two run-jumps); upper corridor =
+     held jump `LC*67` from the lower corridor's right end. Pushable tombstones = **70411** (handles 511 / 512); the 70800
+     are target plates (state 1 when a tombstone arrives): right one right (stops 226500), left one left (194500) →
+     secret door zone 5 (70440) at (208000, 35200) → **400180**. Spike trap = ceiling crusher 70430 (drops when the
+     leader is within ~8000; stop at lx ≈ 104500, let it land, ride it up) → chest (94400, 16000) [Crypt Key] (V from lx
+     90400 facing right) → that key opens the gate at x 149400 (trap chamber → right half). The gate at x 335000 needs
+     ANOTHER Crypt Key (exits 400190 / 400185 behind it): the "left door → skeletons → left pit hugging right → [Crypt
+     Key], [Guardian Drop]" leg is not found yet (leads: floor spike platform 70430 (238000, 24600), upper room with a
+     70800 at (246400, 12800)). Ghost Mages (51082) self-heal near full, bind the leader ~40 f: Phoenix.
    7. 🔑 Back to spike area, far right, unlock; right of fancy doors = **fountain**. Doors → **BOSS: Master Ghost** → drops [Pocketwatch].
    8. 🔑 Stairs down: left [Crypt Key] + **MoH 13** (cap 16, 70,000); key right, stairs → the "moaning" = a guard → give [Pocketwatch] → [Thieves' Key] (opens Weathervane Tower). Save.
 
