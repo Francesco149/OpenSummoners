@@ -413,6 +413,14 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      [Crypt Key] + **MoH 12**. Ghosts (51081) are often immune to the sword (Phoenix works); Ghost Mages (51082) sleep /
      confuse (reversed controls ~150 f).
    4. 🔑 Back to pot area, right, key, tunnel → water area: [Doll Hand]; Sana right water crevice [Memory Photo 6]; skip next pit, take next-next → [Crypt Key]; left door.
+   - [RD story-d9d] EN-old: 400140 bottom gap x 36–52k = a pit (−11 HP), not the tunnel; vines reset on re-entry; the
+     upper-right walk-in exit → **400141** (keyhole (88000, 30400)) → **400150 water area** (only Sana swims; slow damage
+     underwater): right channel chest (228800, 92800) [Memory Photo 6] → left channel chest (116800, 92800) [Crypt Key] →
+     upper-right chest (353600, 32000) [Doll Hand] (gate + lever) → left keyhole gate → zone 2. Ghost Mages heal each
+     other: Stella's fire mode out-damages them. **400155 baskets** (70460, a balance: 1 rider sinks, 1+1 level, 2 beat
+     1): the stone ledge left of the left basket (ly 26400) lets you jump in when it is up. Follow Mode: All Members
+     'Stay There!' + each member 'Match party'. Arche → right basket, Sana (from the ledge) → left, Stella → left: the
+     right basket rises, Arche `R*10 V` the lever → gate → 400160. 70800 = gravestones with handles.
    5. 🔑 2 platforms + high lever: one member on right platform, two on left → right one reaches lever.
    6. 🔑 Drop, right, up: 2 pushable tombstones → right one far right, left one far left → secret door; ride spike trap → [Crypt Key]; right door needs another key → left door (fall into skeletons) → left pit hugging right → [Crypt Key], [Guardian Drop]; bottom [Power Drop]; left area barrels [Good Child Drop].
    7. 🔑 Back to spike area, far right, unlock; right of fancy doors = **fountain**. Doors → **BOSS: Master Ghost** → drops [Pocketwatch].
