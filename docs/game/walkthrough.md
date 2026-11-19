@@ -435,6 +435,15 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
    7. 🔑 Back to spike area, far right, unlock; right of fancy doors = **fountain**. Doors → **BOSS: Master Ghost** → drops [Pocketwatch].
    8. 🔑 Stairs down: left [Crypt Key] + **MoH 13** (cap 16, 70,000); key right, stairs → the "moaning" = a guard → give [Pocketwatch] → [Thieves' Key] (opens Weathervane Tower). Save.
 
+   - [RD story-d9f] EN-old: the "left door" = **400160 zone 4** (upper floor, x 128000) → **400170**: shaft hugging the
+     RIGHT wall (x 73600–86000) → [Crypt Key] + [Guardian Drop]; bottom-left (2 Ghosts + a Ghost Mage) [Power Drop]; exit
+     only via **400175** (barrel x 5000 → [Good Child Drop]). 400180's x 238000 platform = a spiked elevator (y 41240 ↔
+     16000), not a trapdoor. Gate x 335000 (Crypt Key) → **400185: the fountain = the statue** (full refill + save) →
+     **BOSS Master Ghost** (2343 HP; Phoenix ~90/cast) → [Pocketwatch] → **400200**: [Crypt Key] + **MoH 13** (jump in;
+     ~850-f scene, full heal) → **400210**: the "moaning" = Alex (lost ex-adventurer, singing); Stella gives the
+     Pocketwatch → **[Thieves' Key]** → manor 310120: save prompt (do NOT tap `ent` through it) → Day 10 morning.
+     Keyholes / chests can't be examined with a foe close or the leader bound; ghosts / mages respawn on every entry.
+
 ### Day 10 — Weathervane Tower (Wind Crest 3)
 1. 🔑 From Chartreux go right past White Rose Inn to the Weathervane Tower road → key opens tower.
 2. **Weathervane Tower** (Young Harpy, Harpy, Rattlesnake, Kobold Ace). ⚠ Harpies grab & drop you to lower floors; Harpy song confuses (consider [Blessed Earring]/ fighting w/ Arche alone [EG]).
