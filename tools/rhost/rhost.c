@@ -25,7 +25,7 @@
  *   --trace F         input trace .jsonl ({"frame":N,"keys":[DIK..]} levels; "#" comments)
  *   --record F        HUMAN PLAY: visible, realtime 60 Hz, real keyboard → flat trace F
  *   --dump-at F[,F]   state dump(s) <rundir>\state_fNNNNNN.rhs (also "end")
- *   --shot-at F[,F]   back-buffer PNG(s) <rundir>\shot_fNNNNNN.png; --shot-every N
+ *   --shot-at F[,F]   back-buffer PNG(s) <rundir>\shot_fNNNNNN.png; --shot-every N (window: --shot-from F --shot-to F)
  *   --hash-every N    log the state hash every N frames
  *   --hook SPEC       shadow:/replace:/off: + name, comma-separated (rh_hooks.c)
  *   --coverage F      first-hit coverage over the hex VAs in F → <rundir>\coverage.txt
@@ -1141,7 +1141,7 @@ static void __cdecl boundary(void)
     if (is_dump_frame(g_frame)) dump_now(t);
     for (int i = 0; i < O.n_vmmap; i++) if (O.vmmap_at[i] == g_frame) vmmap_log();
     for (int i = 0; i < O.n_shot; i++) if (O.shot_at[i] == g_frame) rh_shot(t);
-    if (O.shot_every && g_frame % O.shot_every == 0) rh_shot(t);
+    if (O.shot_every && g_frame % O.shot_every == 0 && g_frame >= O.shot_from && (!O.shot_to || g_frame <= O.shot_to)) rh_shot(t);
     if (O.log_every && g_frame % O.log_every == 0) {
         uint16_t cw; __asm__ volatile("fnstcw %0" : "=m"(cw));
         char wb[256]; watch_str(wb, sizeof wb);
@@ -1392,7 +1392,7 @@ static void sa_seal(const char *exe_abs, const retail_image_t *img)
 static void usage(void)
 {
     fprintf(stderr, "usage: rhost --exe RETAIL --game DIR --run DIR [--standalone] [--live] [--frames N] [--seed S|--no-seed] [--trace F]\n"
-                    "  [--record F] [--realtime] [--dump-at F[,F|end]] [--shot-at F[,F|end]] [--shot-every N]\n"
+                    "  [--record F] [--realtime] [--dump-at F[,F|end]] [--shot-at F[,F|end]] [--shot-every N [--shot-from F] [--shot-to F]]\n"
                     "  [--hash-every N] [--log-every N] [--hook SPEC] [--shadow-from F] [--coverage F] [--stall-ms N] [--tail N]\n"
                     "  [--watch VA,..] [--step-ms N] [--creep-after N] [--audible] [--show] [--no-arena] [--no-overlay]\n"
                     "  [--log-files] [--log-heap] [--log-ext] [--log-media] [--log-input]\n");
@@ -1435,6 +1435,8 @@ static void parse(int argc, char **argv)
         else if (!strcmp(a, "--bgm-fail")) O.bgm_fail = (int)strtoul(ARG(), 0, 0);
         else if (!strcmp(a, "--shot-at")) parse_list(ARG(), O.shot_at, &O.n_shot, 64);
         else if (!strcmp(a, "--shot-every")) O.shot_every = strtoul(ARG(), 0, 0);
+        else if (!strcmp(a, "--shot-from")) O.shot_from = strtoul(ARG(), 0, 0);   /* window for --shot-every (clips) */
+        else if (!strcmp(a, "--shot-to")) O.shot_to = strtoul(ARG(), 0, 0);
         else if (!strcmp(a, "--fb-hash")) O.fb_hash = 1;
         else if (!strcmp(a, "--hash-every")) O.hash_every = strtoul(ARG(), 0, 0);
         else if (!strcmp(a, "--log-every")) O.log_every = strtoul(ARG(), 0, 0);

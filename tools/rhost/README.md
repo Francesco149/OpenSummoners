@@ -12,6 +12,7 @@ Findings + measurements: `docs/findings/in-process-retail-host.md`.
 python3 tools/rhost/rhost.py setup                     # one-time: build, stage, runner task, game copies
 python3 tools/rhost/rhost.py boot --frames 1500 --shot-at 300,1499     # smoke: boot → title
 python3 tools/rhost/rhost.py run rh-intro-errands --shot-every 150      # replay a scenario
+python3 tools/rhost/rhost.py run story-day8f --target wine --headless --standalone --shot-every 2 --extra="--shot-from 250000 --shot-to 251000"   # a clip: every 2nd flip (30 fps) in a window
 python3 tools/rhost/rhost.py det rh-intro-errands -n 3                  # determinism gate
 python3 tools/rhost/rhost.py corpus                                     # every rh-* scenario
 python3 tools/rhost/rhost.py verify                                     # every scenario × every shadow hook
