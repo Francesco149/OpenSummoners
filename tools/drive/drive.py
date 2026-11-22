@@ -1593,7 +1593,10 @@ def cmd_eval(a):
     r.close()
 
 
-ZONE_KIND = {1: "walk in", 2: "press up", 3: "press up"}
+# kind 1 fires on walk-in only on a FRESH entry with band96_near == 0 (src/gimmick.c zone_pass); else it falls through to
+# the press-up path — d10b's "walk in" doors in 410160 / 410180 fired only on up. Up triggers when the leader's body
+# overlaps the zone (zone_hit), so the up x can differ from the zone's listed x.
+ZONE_KIND = {1: "walk/up", 2: "press up", 3: "press up"}
 
 
 def cmd_zones(a):
