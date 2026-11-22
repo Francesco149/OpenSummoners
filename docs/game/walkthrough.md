@@ -460,6 +460,18 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
    3. 💎 Far right stairs down: moving blocks over spikes → [Rune Staff].
    4. 🔑 Ride platform up, push block → lever. Open area: far right [Revival Drink]; zigzag → [Water of Life] (Help Out item).
    5. 🔑 Moving blocks → 2 blocks: push right one to floor, left of the left ledge's edge; push 2nd off onto it; push stack to lever. Boys. Switch; ⚠ mid-hall spike trap; 2nd switch; right, stairs; drop off right edge → hidden stairs down.
+   - [RD story-d10b] EN-old: 2.3 410150 → [Rune Staff] (Sana: max MP 173 → 208). 2.4 410140: ride the platform, push the
+     block to bkx 211200 under the lever, stand on it, V. 410160: [Revival Drink] chest (164800, 67200) right floor;
+     [Water of Life] (169600, 32000) via the zigzag right floor → B (ly 52000) → left ledge → A (ly 29600) → D → upper
+     floor. **Chests open only when facing them.** 2.5 410170: the right ledge's block off its left edge, push it to
+     bx 176000 (under the LEFT ledge's right edge), push the left ledge's block RIGHT off onto it; a stack moves as one
+     when the bottom block is pushed; lever (139200, 22400) from on top. Blocks 6400 × 6400; one falls when wholly past
+     the edge. Switches: 410180 (174400, 46400), 410185 (123200, 46400). Doors 410170 → 180 → 185 → 190 fire on ↑.
+     410190 "hidden stairs": walk off the arrival ledge right and **steer LEFT while falling** → chamber (floor ly
+     141600), its door (↑ at lx ≈ 255700) → 410215; straight down = pit. 410215 (2.6): star lever 70216 (12800, 19200)
+     on the left ledge (x 0–38400, top 25600); tower 70480 (b0x 51600, top 100144 at y 38400); left door → 410210 is
+     BEHIND the tower; from the right Arche can only push it left (stops at 38400); jumps reach ly ≈ 40000 (top needs
+     ≈ 32800). The tower resets on re-entry. Open: how to get Arche to its left side (task story-day10c).
    6. 🔑 Left: Arche pushes platform right; Sana/Stella stays on it; push back → they reach ledge → **star lever**. Down, stairs up: [Stronggirl Juice]; drop → **fountain**; right → **MoH 14** (cap 17, 80,000). Door → [Mystery Juice]; left door → past spikes [Best Herb]; right door, drop off edge → [Blessed Earring].
    7. 🔑 Left past open **star wall**, stairs, lever ×3 going up → dead end → fall off edge → stairs up (no monsters) → top → **BOSS: Wyvern** (aim for head).
    8. 🔑 Stairs right → **MoH 15** (cap 18, 90,000). Crest too high → Colm's skirt-flip wind gets it → [Wind Crest 3]. Recall Lamp / walk out → Tonkiness → home → argument → next day.
