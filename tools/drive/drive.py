@@ -2362,9 +2362,12 @@ def cmd_verify(a):
             h2 = RH.replay_args(frames=stop, target="win", headless=True, fb_hash=True, edition=r.movie.edition)
             _, _, res3, _ = RH.run_batch(h2, [("verify", tr, r.movie.save, r.movie.edition)], "rd-verify-hlwin")
             v = res3.get("verify") or {}
-        real = str(int(w.get("frame", -2)) + 1) == live["frame"] and w.get("rng") == live["rng"] and w.get("fb") == v.get("fb")
+        # USER 2026-11-23 (parity-ledger R12): frame + RNG on the real device block; its fb is informational (it flakes
+        # under load, pure retail included — the headless fb is the gate, as in corpus --bless / --check)
+        real = str(int(w.get("frame", -2)) + 1) == live["frame"] and w.get("rng") == live["rng"]
         print(f"real-device replay: frame {w.get('frame')} rng {w.get('rng')} fb {w.get('fb')}  (Windows, DirectDraw)  "
-              f"vs headless (Windows) fb {v.get('fb')}")
+              f"vs headless (Windows) fb {v.get('fb')}" +
+              ("" if w.get("fb") == v.get("fb") else "  — fb DIFFERS (R12: informational, not blocking)"))
         # headless ≡ real in state_sem too (rh_scrub thunk regions, 2026-11-15) — but only once volatile.<ed>.txt covers
         # the device-pointer slots this movie's content fills (det --calibrate, which runs AFTER this in accept): a note
         print(f"  state_sem real {w.get('state_sem')} vs headless {v.get('state_sem')}: " +

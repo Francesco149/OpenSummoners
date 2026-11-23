@@ -80,7 +80,13 @@ renderer's frames — not a local fix.
 Evidence: `runs/accept/d10b-gates-wine.log`, hookbisect `wine/root/runs/20261123-002950-bisect2-story-day10b`, census
 `wine/root/runs/20261123-013322-run`.
 
-### R12 — Windows hybrid `fb` flake: 7 scenarios' pixel chain ≠ pure, intermittently (OPEN, found 2026-11-18)
+### R12 — Windows real-device `fb` flake: pixel chain ≠ pure, intermittently (MITIGATED: gates headless, USER 2026-11-23; root cause OPEN)
+**Decision (USER, 2026-11-23):** Windows `corpus --bless/--check` run `--headless` by default (`--real-device` = the old
+path, informational); `rd verify --real` blocks on the real device's frame + RNG only, its fb is printed, not gated.
+Trigger: the 2026-11-23 d10c batch — Windows PURE bless baked 7 flaked fb values (options-deep, party-magic-controls,
+rh-after-prologue, rh-water-shrine, story-barness-dungeon2, story-day10a, story-day7), hybrid 9 + standalone 13 fb-only
+REGRESSIONs, d10c `verify --real` fb-only MISMATCH; story-day7 alone gave 3 fb values (HEAD 9f7e39e8, bless 734212a7,
+hybrid -j 1 6de02c28) with frame / tick / RNG / state equal; another process loading the box throughout.
 `corpus --check --hybrid` on Windows (real mode, -j 3), batch `20261118-021316-corpus`: rh-intro-errands, rh-my-play,
 rh-water-shrine, story-herb-boss, story-herb-cave, story-herb-farm, story-stella-barness → `fb` only (frame / tick / RNG /
 state_sem all match). Same binary + hooks passed 45/45 the run before (`20261117-214822`); a re-run of the 7 passed

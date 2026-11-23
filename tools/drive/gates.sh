@@ -2,8 +2,7 @@
 # gates.sh [ONLY_REGEX] — the hybrid + standalone corpus checks on Windows (-j 3) and wine (-j 4) IN PARALLEL (separate
 # machines; serially the four passes took ~6.5 h on 2026-11-23, the Windows pair alone ~4.5 h). ONLY_REGEX scopes them
 # (`corpus --only`) — enough after filing new scenarios with an unchanged binary; run unscoped after a code change.
-# Windows hybrid fb-only REGRESSIONs (frame / tick / RNG / state equal) are parity-ledger R12 until a quiet re-run of
-# just those scenarios says otherwise — the summary lists them for that re-run.
+# Windows runs headless (rhost.py corpus default since USER 2026-11-23, parity-ledger R12: the real device's fb flakes).
 # Exit 0 = every pass PASS. Logs: runs/accept/.gate-<target>-<mode>.log
 set -u
 cd "$(dirname "$0")/../.."

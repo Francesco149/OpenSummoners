@@ -880,6 +880,12 @@ def cmd_corpus(a):
         names = [n for n in names if n not in skip]
     if a.bless or a.check:
         a.fb_hash = True   # the render gate: every presented frame's pixels, chained (expected "fb" / "fb_series")
+        # USER 2026-11-23 (parity-ledger R12): the Windows bless / gates run HEADLESS — the real device's fb flakes under
+        # load (pure retail too: story-day7 gave 3 fb values in one afternoon, frame / tick / RNG / state equal), the
+        # fake devices never have, and headless fb = the real device's on a quiet box.  --real-device: the old path
+        # (informational — a pixel check of the real DirectDraw, not a gate).
+        if getattr(a, "target", "win") == "win" and not getattr(a, "real_device", False):
+            a.headless = True
     if getattr(a, "hybrid", False):     # the hybrid gate: every ported function REPLACES retail
         hs = hybrid_hooks()
         a.hook = ",".join(["replace:" + h for h in hs] + ([a.hook] if a.hook else []))
@@ -1359,6 +1365,8 @@ def main():
     p = sub.add_parser("corpus"); p.add_argument("--only"); p.add_argument("--bless", action="store_true")
     p.add_argument("--check", action="store_true")
     p.add_argument("--hybrid", action="store_true", help="replace: every VERIFY_HOOKS + REPLACE_ONLY_HOOKS function (the hybrid gate)")
+    p.add_argument("--real-device", action="store_true", help="Windows --bless/--check on the REAL DirectDraw (default: headless, "
+                   "parity-ledger R12 — informational only)")
     common(p); p.set_defaults(fn=cmd_corpus)
     p = sub.add_parser("verify"); p.add_argument("--only"); p.add_argument("--hooks", help="only these VERIFY_HOOKS names")
     p.add_argument("--split", type=int, default=1, help="run each scenario N times in parallel, 1/N of the hooks each")
