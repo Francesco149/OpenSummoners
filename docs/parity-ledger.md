@@ -69,6 +69,14 @@ need one too; (b) model the slot: a port-side "dispatcher-depth stack word" that
 dispatcher callee that overlaps `esp+0x14` at that depth updates (bounded: the `0x550427` dispatcher's callees; RE each
 callee's local at that address) — exact but large; (c) neutralize in retail (rhost site: zero `var_114`) — matches a
 zeroed port but changes recorded play (d10b / d10c re-drive) and departs from real retail for players.
+**Writer census (2026-11-23, `--watch-write 58ff05c0,58ff05c8@374100` + `--trap 0x5546c3`, f374101–375240, change-only
+log so same-value rewrites are invisible):** last value-changing write before a case-4 read — `sub_554570` itself (cases
+2/3, 0x5546fb / 0x55473a: 1) on most; **`sub_5BD680`** (the renderer, under `blt_alpha` 0x5BD550: its blit-loop row
+counter `[esp+arg_8]`) 9348 ×1 + 231 ×other; `sub_476EF0` (`push ecx`, 0x476f2c) 4107 ×1; the `call sub_442A70` return
+push 0x48692e (from `sub_485FC0`) ~680 ×non-1; `sub_554570`'s own prologue push (0x554577, the 0x58ff05c0 depth). Spike
+calls reach the slot at 3 depths (`esp` 0x58ff05b4 / 05ac / 0x58ff0304) via character physics (`sub_485FC0` →
+`sub_54D090` → `actor_update`) and the actor loop. ⇒ an exact model must emulate cross-subsystem stack aliasing incl. the
+renderer's frames — not a local fix.
 Evidence: `runs/accept/d10b-gates-wine.log`, hookbisect `wine/root/runs/20261123-002950-bisect2-story-day10b`, census
 `wine/root/runs/20261123-013322-run`.
 
