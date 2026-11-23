@@ -75,8 +75,13 @@ an Xvfb batch, so sessions and headless batches run side by side.
    mid-run → hand the task to a subagent); otherwise a Claude Code subagent on the session's own model (owner rule:
    no model override) with the brief "read tools/drive/DRIVER.md and tools/drive/tasks/NAME.md; your run is NAME;
    report per the card".
-4. **Accept:** `rd accept R NAME --task T`; several finished runs at once: `tools/drive/accept-batch.sh LIST` ("RUN NAME
-   TASK" lines → accept + calibrate each, ONE re-bless), then `corpus --check --hybrid` / `--standalone`. A hybrid / standalone FAIL is the payoff: port that code by the porting loop
+4. **Accept:** `rd accept R NAME --task T`; several finished runs at once: `tools/drive/accept-batch.sh LIST [--gates]`
+   ("RUN NAME TASK" lines → accept + calibrate each; stops if none accepted; blesses only the accepted scenarios unless
+   `--calibrate` changed the volatile list; Windows ∥ wine; R12 guard re-blesses any existing scenario whose Windows `fb`
+   moved), then `tools/drive/gates.sh [ONLY_REGEX]` (hybrid + standalone, Windows ∥ wine; scope it to the new scenarios
+   when the binary did not change). From a Claude session wait on the script's EXIT, never on a marker line deep in a
+   chain: a failure must wake the session early, while its context is cached (2026-11-23: a failed d10c accept was
+   followed by ~11 h of unscoped bless + gates). A hybrid / standalone FAIL is the payoff: port that code by the porting loop
    (CLAUDE.md), re-gate.
    **Disk:** Windows batches delete their run dir once fetched (`win_prune`; `RHOST_WIN_KEEP=1` keeps one) and sweep dated
    dirs > 2 days old; under 40 GB free (`RHOST_WIN_MIN_FREE_GB`) rhost / rd refuse to start (exit 5, `DISK LOW`) and drivers
