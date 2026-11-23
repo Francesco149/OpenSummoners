@@ -5231,3 +5231,16 @@ race" misdiagnosis: the mob silence is this deterministic deluxe-skip, not a hea
   a direction (ids: up 1, left 2, down 3, right 4; 5 = forward, 6 = back) — X and forward pressed together, X 10–300
   ticks old, the direction 0–210. A tap of X alone is the staff swing 10201.
 - Weathervane Tower 410130 (story-d10a f372982–f373565): Sana `LX` / `RX` doused all 8; the gate 70230 (x 131800) opened.
+
+### #185 — spike traps (70245–70248) decide "retracting spikes still hurt" on an UNINITIALIZED stack slot (2026-11-23)
+- `0x554570` (the spike-trap behaviour; called from the per-actor dispatcher at `0x550427` for codes `0x11265`–`0x11268`
+  = 70245–70248, once per spike body `a2`, stride 0x294) runs a phase machine on `a2+0x58` (0 idle, 1 armed, 2 rising
+  10 ticks, 3 out, 4 retracting 20 ticks). Its tail spawns the damage box (`0x5b15e0`) iff `[esp+0x14]` (`var_114`)
+  `== 1 && v8 > 0` (`0x554bd6`). Cases 2 and 3 store `var_114 = 1` (`0x554732`, `0x5546f7`); **case 4 (`0x5546c3`)
+  stores only `var_118` (the fade `v8 = 1000 − 50·t`) — `var_114` is whatever the stack held.**
+- That slot is shared by every behaviour the dispatcher calls at the same depth, so it usually still holds a 1 (which
+  writer leaves it is not traced yet). story-day10b f373565–375240 (`--trap 0x5546c3 --trap-mem esp+0x14:4`): 48555 case-4 calls — 46544
+  read 1 (retracting spikes keep hurting), the rest read other callees' leftovers (return address 0x48692e ×816,
+  coordinates 0x49a20 / 0x4d8a0 / 0x3e4e0 / 0x38d60, 5, 0, heap pointers) → no damage box.
+- Effect: the retract phase's damage box (and its hit sparks + RNG draws) exists or not depending on unrelated code that
+  ran before. Same class as #182 (pillar 5). SE: not mapped yet.

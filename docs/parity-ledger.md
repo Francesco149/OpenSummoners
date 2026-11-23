@@ -58,6 +58,20 @@ were removed 2026-10-31 (last commit with them `57b8ccb`); the retail facts they
 
 _(R1 moved to Confirmed bit-exact above.)_
 
+### R13 — story-day10b hybrid / standalone ≠ pure from f375239: spike-trap retract damage reads stale stack (OPEN, found 2026-11-23)
+Wine `corpus --check --hybrid` + `--standalone`: story-day10b only (sem@f374400 first, RNG from f375239: pure
+`0x60eefd0` vs port `0x3dcfe098`; pixels: Arche's slash sparks on the 410150 spike slope). `hookbisect` (wine, f375241)
+→ single hook **`ab_554570`** (replace-only: no shadow row; the port transcribes IDA's control flow). Cause = quirk #185:
+retail's case 4 reads uninitialized `var_114`; the port's frame is zeroed ⇒ retracting spikes never hurt in the port,
+while retail sees a stale 1 on 96% of case-4 calls. Not an init fix — the slot holds the last same-depth callee's local.
+Options (USER decision): (a) KNOWN_GAPS story-day10b @ f374400-ish (like R9 / #182) — every later spike-trap leg would
+need one too; (b) model the slot: a port-side "dispatcher-depth stack word" that ab_554570 reads / writes and every
+dispatcher callee that overlaps `esp+0x14` at that depth updates (bounded: the `0x550427` dispatcher's callees; RE each
+callee's local at that address) — exact but large; (c) neutralize in retail (rhost site: zero `var_114`) — matches a
+zeroed port but changes recorded play (d10b / d10c re-drive) and departs from real retail for players.
+Evidence: `runs/accept/d10b-gates-wine.log`, hookbisect `wine/root/runs/20261123-002950-bisect2-story-day10b`, census
+`wine/root/runs/20261123-013322-run`.
+
 ### R12 — Windows hybrid `fb` flake: 7 scenarios' pixel chain ≠ pure, intermittently (OPEN, found 2026-11-18)
 `corpus --check --hybrid` on Windows (real mode, -j 3), batch `20261118-021316-corpus`: rh-intro-errands, rh-my-play,
 rh-water-shrine, story-herb-boss, story-herb-cave, story-herb-farm, story-stella-barness → `fb` only (frame / tick / RNG /
