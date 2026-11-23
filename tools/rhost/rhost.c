@@ -864,7 +864,8 @@ static LONG CALLBACK watch_veh(EXCEPTION_POINTERS *e)
         if (c->Eip >= 0x5f010000u && c->Eip < 0x5f050000u) continue;   /* the scrubber zeroing it */
         uint32_t nv = G32(g_wva[i]);
         int changed = nv != g_wlast[i]; g_wlast[i] = nv;
-        if (g_whits[i]++ < 40 || (changed && g_whits[i] < 1000000)) {   /* first 40, then every value change */
+        static long logged[4];   /* the cap counts LOGGED lines: a hot stack slot passes 1M same-value hits in ~500 frames */
+        if (g_whits[i]++ < 40 || (changed && logged[i]++ < 1000000)) {   /* first 40, then every value change */
             char st[128]; stack_chain(st, sizeof st, c->Esp);
             rh_log("watch %08x f%u eip=%08x val=%08x [%s]\n", g_wva[i], g_frame, c->Eip, G32(g_wva[i]), st);
         }
@@ -942,9 +943,13 @@ static LONG CALLBACK trap_veh(EXCEPTION_POINTERS *e)
 
 static void watch_arm_due(void)
 {
+    /* arm on the first boundary at / past FRAME (a frame may never reach the boundary exactly), then re-assert
+     * Dr0-3 / Dr7 every boundary: the thread's debug registers were found cleared mid-run (story-day10b, the
+     * 410130 → 410140 room change at ~f374115: hits stopped for good) */
     int arm = 0;
-    for (int i = 0; i < g_nw; i++) if (!(g_warmed & (1 << i)) && g_wfr[i] == g_frame) { g_warmed |= 1 << i; arm = 1; }
-    if (arm) { RaiseException(WATCH_ARM_CODE, 0, 0, NULL); rh_log("watch: armed at frame %u\n", g_frame); }
+    for (int i = 0; i < g_nw; i++) if (!(g_warmed & (1 << i)) && g_frame >= g_wfr[i]) { g_warmed |= 1 << i; arm = 1; }
+    if (arm) rh_log("watch: armed at frame %u\n", g_frame);
+    if (g_warmed) RaiseException(WATCH_ARM_CODE, 0, 0, NULL);
 }
 
 /* ---- uninitialized-read fixes (quirk #123) ----
