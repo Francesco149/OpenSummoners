@@ -498,6 +498,13 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      410230 zone 2 (108800) → 410240 (2.8).
    8. 🔑 Stairs right → **MoH 15** (cap 18, 90,000). Crest too high → Colm's skirt-flip wind gets it → [Wind Crest 3]. Recall Lamp / walk out → Tonkiness → home → argument → next day.
 
+   - [RD story-d10e] EN-old 2.8: 410240 MoH 70100 floats at (68800, 22015) — full `C*30` from under it; afterwards the
+     Status page read **Marks 14/20, cap 17** (one behind this walkthrough's "MoH 15 / cap 18" — numbering, or a mark the
+     corpus skipped: unresolved). Crest scene fires walking right at lx ≈ 104000 → [Wind Crest 3]. Recall Lamp → the
+     `retry` room 260210 (outside the tower), NOT town; Stella leaves there; 9 rooms home (260180 right exit needs ↑;
+     260110 pit gap: dash run-jump). Sana leaves in town. 210140: right stairs top → `LC*14` to the middle floor → the
+     argument → save prompt → Day 11 school scene directly (no bedroom step). New abilities arrive switched ON.
+
 ### Day 11 — Breaking the seal; Archmage's Tower; Unison; final dungeon
 1. 🔑 School: ask **Sophia** about the stone → [Sophia's Letter]; find **former headmaster north of Chartreux**. (Free to prep in Tonkiness.) Chiffon: return the Weathervane key.
 2. 🔑 **Barness Mayor** (windmills turning): return key → [Ultimate Wheat]. → **Chartreux bakery** man → [Ultimate Bread].
