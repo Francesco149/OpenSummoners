@@ -155,7 +155,8 @@ def mem_available_gb():
 
 class admit_local:
     """with admit_local(wait=S, what=..): a slot for one more local rhost process (≤ RHOST_MAX_PROCS, ≥ RHOST_MEM_FLOOR_GB
-    available), under a lock so concurrent admissions count each other; SystemExit after WAIT seconds"""
+    available), under a lock so concurrent admissions count each other; SystemExit after WAIT seconds (None: wait as long
+    as it takes, saying so every 10 minutes)"""
     def __init__(self, wait=300, what="rhost"):
         self.wait, self.what = wait, what
 
@@ -170,7 +171,12 @@ class admit_local:
             if n < RHOST_MAX_PROCS and mem >= RHOST_MEM_FLOOR_GB:
                 return self
             fcntl.flock(self.lk, fcntl.LOCK_UN)
-            if time.time() - t0 > self.wait:
+            if self.wait is None:
+                if time.time() - getattr(self, "said", t0) >= 600:
+                    self.said = time.time()
+                    print(f"  {self.what}: waiting for a local slot ({n} rhost processes, cap {RHOST_MAX_PROCS}; "
+                          f"{mem:.1f} GB available, floor {RHOST_MEM_FLOOR_GB})", flush=True)
+            elif time.time() - t0 > self.wait:
                 raise SystemExit(f"{self.what}: not admitted here ({n} rhost processes, cap {RHOST_MAX_PROCS}; {mem:.1f} GB available, "
                                  f"floor {RHOST_MEM_FLOOR_GB}) — `./rd ls` / `./rd stop R`, or wait")
             time.sleep(1)
@@ -606,7 +612,9 @@ def run_batch_wine(a, runs, tag, fetch):
         note = ""
         with open(os.path.join(bdir, name, "wine.out"), "w") as wo:
             if hl:
-                with admit_local(wait=3600, what=f"wine run {name}"):
+                # no deadline: a run already in a batch waits its turn (2026-11-22: wait=3600 silently dropped the
+                # queued groups of a memory-bound hookbisect round, then the round died with "not admitted here")
+                with admit_local(wait=None, what=f"wine run {name}"):
                     p = subprocess.Popen(["wine", f"{WROOT}\\bin\\rhost.exe"] + argv, stdout=wo, stderr=subprocess.STDOUT, env=env)
             else:
                 p = subprocess.Popen(["wine", f"{WROOT}\\bin\\rhost.exe"] + argv, stdout=wo, stderr=subprocess.STDOUT,
