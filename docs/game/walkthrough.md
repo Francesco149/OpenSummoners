@@ -484,6 +484,18 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      through), the **fountain** = angel statue at lx ≈ 26400 (V: heal, then save prompt); the statue 70410 at x 124800 is
      decoration. All 24 save slots full after d10c (slot 1 overwritten; the prompt defaults to Yes).
    7. 🔑 Left past open **star wall**, stairs, lever ×3 going up → dead end → fall off edge → stairs up (no monsters) → top → **BOSS: Wyvern** (aim for head).
+   - [RD story-d10d] EN-old 2.6 chests + 2.7: all from 410210 zone 2 (↑ x 99200) → 410190 bottom: chest (196800, 144000)
+     [Mystery Juice]; 410190 zone 5 (54400, 124800) → 410200: central shaft x ≈ 128000, class-1 platforms ly 71200 / 58400
+     / 45600 (`C*30` each); upper-left corridor past floor spike 70245 → (59200, 38400) [Best Herb]; [Blessed Earring]
+     (216000, 67200) on a tall block: shaft → `RC*30 R*30` right corridor → stairs to the top (ly 26400) → walk off the
+     RIGHT room edge (x > 230560) steering LEFT (straight down = pit outside). Earring: Resist +6 + anti-confusion (vs
+     Kitty Ears Atk/Def +6). Back: 410200 zone 1 → 410190 top right; **star wall** 70230 x 101400 open → 410190 zone 6
+     (70400, 28800) → **410220** levers 70216 → gates 70230: bottom (131200, 140800) → mid (73600, 83200) → top (123200,
+     28800); the mid lever went back to 0 during a harpy fight (re-pull); V fails while a foe is engaged. Top level right
+     edge x 202800: fall steering LEFT → 410225 doorway (180000, 71200) zone 2. **410225** (no monsters): 3 jump-ups →
+     zone 2 → **410230 = tower top, BOSS Wyvern on arrival** (code 100179, **5759 HP** EN-old Easy, slot 4; head on the
+     left, 60–70 per sword hit to the head; drops 2830 CP). NO save point between the 410210 fountain and the boss.
+     410230 zone 2 (108800) → 410240 (2.8).
    8. 🔑 Stairs right → **MoH 15** (cap 18, 90,000). Crest too high → Colm's skirt-flip wind gets it → [Wind Crest 3]. Recall Lamp / walk out → Tonkiness → home → argument → next day.
 
 ### Day 11 — Breaking the seal; Archmage's Tower; Unison; final dungeon
