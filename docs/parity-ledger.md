@@ -58,7 +58,14 @@ were removed 2026-10-31 (last commit with them `57b8ccb`); the retail facts they
 
 _(R1 moved to Confirmed bit-exact above.)_
 
-### R13 — story-day10b hybrid / standalone ≠ pure from f375239: spike-trap retract damage reads stale stack (OPEN, found 2026-11-23)
+### R13 — story-day10b hybrid / standalone ≠ pure from f375239: spike-trap retract damage reads stale stack (RESOLVED 2026-11-24: the undefined-data oracle; found 2026-11-23)
+**Resolution (2026-11-24):** option (d) — the gates carry pure retail's value. Pure `corpus --bless` records every case-4
+read of `[esp+0x14]` (`rhost --undef-record`: a jmp stub at 0x5546c3 that touches no retail stack — pure rng / sem / fb
+identical with it on) into `tests/scenarios/<s>/undef[.wine].txt.gz` (d10b: 81,879 reads, 2,597 runs; Windows stream ==
+wine's); hybrid / standalone checks feed it (`--undef-feed` → the port's `UNDEF_READ(185, …)` in `ab_554570` case 4).
+The product (no feed) keeps the port's 0 (no retract damage) — retail's own value is undefined. **KNOWN_GAPS story-day10b /
+10c removed:** wine + Windows hybrid 2/2 + standalone 2/2 PASS (end state + every sem / fb sample). Later legs
+(their prefix = d10b's movie) are gated in full again. README "The undefined-data oracle".
 Wine `corpus --check --hybrid` + `--standalone`: story-day10b only (sem@f374400 first, RNG from f375239: pure
 `0x60eefd0` vs port `0x3dcfe098`; pixels: Arche's slash sparks on the 410150 spike slope). `hookbisect` (wine, f375241)
 → single hook **`ab_554570`** (replace-only: no shadow row; the port transcribes IDA's control flow). Cause = quirk #185:
@@ -135,7 +142,11 @@ box); if headless never flakes, propose (USER decision) running the Windows gate
   (an address mask also hides any other object landing there) and is the likely path to headless state_sem ≡ real
   (`docs/findings/headless-devices.md` "Open").
 
-### R9 — rh-after-prologue hybrid ≠ pure from f102660: retail's skill AI reads stack leftovers (KNOWN GAP, USER 2026-10-31)
+### R9 — rh-after-prologue hybrid ≠ pure from f102660: retail's skill AI reads stack leftovers (RESOLVED 2026-11-24: the undefined-data oracle; was KNOWN GAP, USER 2026-10-31)
+**Resolution (2026-11-24):** the R13 oracle, site 182: pure bless records the two dry-run bodies' `+0x68` dwords at
+`0x481ac0`'s entry (`[esp−0x528+0x68]` / `[esp−0x294+0x68]`; entry esp 0x58ff0614 at f102660 ⇒ 0x58ff03e8 = the census
+slot); the port's `beh_481ac0` takes them through `UNDEF_READ(182, 0|1, …)`. rh-after-prologue: 2903 calls; KNOWN_GAPS
+entry removed — wine hybrid + standalone PASS on the END state (story-day10b / 10c too). The product keeps 0.
 - Pillar: logic/data, but the data is undefined — `0x481ac0`'s dry-run body keeps a leftover stack byte as f68
   (quirk #182); the port zeroes its frame.  Retail: probe hit at dry-run tick 30 → `act` 15, state 0; port: stage 2,
   `act` 14.  Everything before f102660 is hybrid ≡ pure (sem series, every shadow 0 divergences).

@@ -1931,6 +1931,9 @@ LABEL_66:
       break;
     case 4:
       v16 = F32(a2, 92);
+      /* retail never writes var_114 in case 4 (quirk #185): the tail's `== 1` damage test reads whatever an earlier
+       * callee left in that stack slot.  Port value: its zeroed frame (no retract damage); the gates feed retail's. */
+      (*v52__f) = UNDEF_READ(185, 0, (*v52__f));
       (*v51__f) = 1000 - 1000 * v16 / 20;
       if ( v16 >= 20 )
       {

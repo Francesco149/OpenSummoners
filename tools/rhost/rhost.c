@@ -941,6 +941,136 @@ static LONG CALLBACK trap_veh(EXCEPTION_POINTERS *e)
     return EXCEPTION_CONTINUE_SEARCH;
 }
 
+/* ---- the undefined-data oracle (parity-ledger R13 / quirk #185) ----
+ * Retail reads a stack slot it never wrote; its value is whatever an unrelated callee left there (pillar 5).  A port
+ * can not reproduce that without emulating every frame that aliases the slot, so the GATES carry pure retail's value
+ * instead: a pure run with --undef-record logs every such read (`undef-record SITE v=VALUE n=COUNT f=FIRST`, run-length,
+ * in read order); a hybrid / standalone run with --undef-feed FILE (those lines) hands them, in order, to the port's
+ * g_undef_read seam (engine_calls.h).  Without a feed the port keeps its own value.  The recorder is a jmp to a stub
+ * that touches no retail stack (an INT3 would push an exception frame below esp: other uninitialized reads see it). */
+/* a site: the instruction(s) at VA (moved into the stub, >= 5 bytes) + up to 4 dword reads, each [esp|ebp + off] AT VA
+ * (esp = retail's), each its own stream SITE.K.  Static buffers: rhost's image size is pinned, a host-heap block would
+ * move where the system DLLs place theirs */
+typedef struct { int32_t off; int ebp; } undef_read_t;
+#define UNDEF_RD 2
+typedef struct { int site; uint32_t va; uint8_t want[8]; uint32_t len; int nr; undef_read_t rd[UNDEF_RD]; } undef_site_t;
+static const undef_site_t UNDEF_SITES[] = {
+    /* 0x554570 (spike traps) case 4 @0x5546c3: `cmp ecx,14h; mov [esp+10h],eax` — [esp+14h] = var_114, never set in
+     * case 4, read by the tail's `cmp [esp+14h],1` (0x554bd6) — quirk #185 */
+    { 185, 0x5546c3u, { 0x83, 0xF9, 0x14, 0x89, 0x44, 0x24, 0x10 }, 7, 1, { { 0x14, 0 } } },
+    /* 0x481ac0 (the state-6 skill AI's dry run) entry `sub esp,5FCh`: its two 0x294-byte bodies (var_528 / var_294)
+     * are never cleared and the integrator never writes their +0x68 (f68), which the skill stage reads — quirk #182 */
+    { 182, 0x481ac0u, { 0x81, 0xEC, 0xFC, 0x05, 0x00, 0x00 }, 6, 2, { { -0x528 + 0x68, 0 }, { -0x294 + 0x68, 0 } } },
+};
+#define UNDEF_NS (sizeof UNDEF_SITES / sizeof *UNDEF_SITES)
+#define UNDEF_RUNS 65536
+typedef struct { uint32_t val[UNDEF_RUNS], cnt[UNDEF_RUNS], f[UNDEF_RUNS]; uint32_t n, over; uint64_t reads; } undef_stream_t;
+static undef_stream_t g_urs[UNDEF_NS][UNDEF_RD];
+static int g_ur_on;
+uint32_t g_ur_sv_esp;
+static uint8_t __attribute__((aligned(16))) g_ur_stack[16384];   /* the stub's own stack: retail's stays untouched */
+/* called from the stub on g_ur_stack: blk = pushfd + pushad (eflags, edi, esi, ebp, esp', ebx, edx, ecx, eax) */
+static void __cdecl undef_rec_c(int si, const uint32_t *blk)
+{
+    const undef_site_t *u = &UNDEF_SITES[si];
+    for (int k = 0; k < u->nr; k++) {
+        uint32_t base = u->rd[k].ebp ? blk[3] : g_ur_sv_esp;
+        uint32_t v = *(const uint32_t *)(uintptr_t)(base + (uint32_t)u->rd[k].off);
+        undef_stream_t *t = &g_urs[si][k];
+        t->reads++;
+        if (t->n && t->val[t->n - 1] == v) { t->cnt[t->n - 1]++; continue; }
+        if (t->n == UNDEF_RUNS) { t->over++; continue; }
+        t->val[t->n] = v; t->cnt[t->n] = 1; t->f[t->n++] = g_frame;
+    }
+}
+static void undef_record_install(void)
+{
+    if (strcmp(g_ed->tag, "enold")) { rh_log("undef-record: EN-old sites only\n"); return; }
+    for (size_t si = 0; si < UNDEF_NS; si++) {
+        const undef_site_t *u = &UNDEF_SITES[si];
+        uint8_t *q = (uint8_t *)(uintptr_t)u->va;
+        if (memcmp(q, u->want, u->len)) rh_fatal("undef-record: site %d @%08x bytes differ", u->site, u->va);
+        uint8_t *c = g_stub_top, *o = c;
+        *o++ = 0x89; *o++ = 0x25; *(uint32_t *)o = (uint32_t)(uintptr_t)&g_ur_sv_esp; o += 4;               /* mov [sv],esp */
+        *o++ = 0xBC; *(uint32_t *)o = (uint32_t)(uintptr_t)(g_ur_stack + sizeof g_ur_stack); o += 4;         /* mov esp,top */
+        *o++ = 0x60; *o++ = 0x9C;                                                                          /* pushad; pushfd */
+        *o++ = 0x54;                                                                                       /* push esp */
+        *o++ = 0x6A; *o++ = (uint8_t)si;                                                                   /* push si */
+        *o++ = 0xE8; *(int32_t *)o = (int32_t)((uint32_t)(uintptr_t)undef_rec_c - ((uint32_t)(uintptr_t)o + 4)); o += 4;
+        *o++ = 0x83; *o++ = 0xC4; *o++ = 0x08;                                                             /* add esp,8 */
+        *o++ = 0x9D; *o++ = 0x61;                                                                          /* popfd; popad */
+        *o++ = 0x8B; *o++ = 0x25; *(uint32_t *)o = (uint32_t)(uintptr_t)&g_ur_sv_esp; o += 4;               /* mov esp,[sv] */
+        memcpy(o, u->want, u->len); o += u->len;                                                           /* the moved instructions */
+        *o++ = 0xE9; *(int32_t *)o = (int32_t)(u->va + u->len - ((uint32_t)(uintptr_t)o + 4)); o += 4;
+        g_stub_top = (uint8_t *)(((uintptr_t)o + 15) & ~(uintptr_t)15);
+        q[0] = 0xE9; *(int32_t *)(q + 1) = (int32_t)((uint32_t)(uintptr_t)c - (u->va + 5));
+        for (uint32_t k = 5; k < u->len; k++) q[k] = 0x90;
+        rh_log("undef-record: site %d @%08x, %d read(s)\n", u->site, u->va, u->nr);
+    }
+    g_ur_on = 1;
+}
+static void undef_record_report(void)
+{
+    if (!g_ur_on) return;
+    for (size_t si = 0; si < UNDEF_NS; si++)
+        for (int k = 0; k < UNDEF_SITES[si].nr; k++) {
+            const undef_stream_t *t = &g_urs[si][k];
+            for (uint32_t i = 0; i < t->n; i++)
+                rh_log("undef-record %d.%d v=%08x n=%u f=%u\n", UNDEF_SITES[si].site, k, t->val[i], t->cnt[i], t->f[i]);
+            rh_log("undef-record-total %d.%d reads=%llu runs=%u overflow=%u\n", UNDEF_SITES[si].site, k,
+                   (unsigned long long)t->reads, t->n, t->over);
+        }
+}
+/* the feed: the recorded runs, consumed in order by the port, one cursor per stream */
+extern int32_t (*g_undef_read)(int site, int k, int32_t port_value);
+#define UF_MAX 16
+static struct { int site, k; uint32_t *val, *cnt; uint32_t n, total; } g_ufs[UF_MAX]; static int g_nufs;
+static struct { uint32_t run[UF_MAX], used[UF_MAX], served[UF_MAX], missed[UF_MAX]; } g_uf;   /* (savestate-registered) */
+static int32_t undef_feed(int site, int k, int32_t pv)
+{
+    int s = -1;
+    for (int i = 0; i < g_nufs; i++) if (g_ufs[i].site == site && g_ufs[i].k == k) s = i;
+    if (s < 0) return pv;     /* no recorded reads for this stream: retail never reached it in this scenario */
+    while (g_uf.run[s] < g_ufs[s].n && g_uf.used[s] >= g_ufs[s].cnt[g_uf.run[s]]) { g_uf.run[s]++; g_uf.used[s] = 0; }
+    if (g_uf.run[s] >= g_ufs[s].n) {
+        if (!g_uf.missed[s]++) rh_log("undef-feed: %d.%d read past the recorded stream at frame %u — port value %d\n", site, k, g_frame, pv);
+        return pv;
+    }
+    g_uf.used[s]++; g_uf.served[s]++;
+    return (int32_t)g_ufs[s].val[g_uf.run[s]];
+}
+static void undef_feed_load(const char *path)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f) rh_fatal("--undef-feed %s: cannot open", path);
+    char line[256]; uint32_t cap[UF_MAX] = { 0 };
+    while (fgets(line, sizeof line, f)) {
+        int site, k; unsigned v, n;
+        if (sscanf(line, "undef-record %d.%d v=%x n=%u", &site, &k, &v, &n) != 4) continue;
+        int s = -1;
+        for (int i = 0; i < g_nufs; i++) if (g_ufs[i].site == site && g_ufs[i].k == k) s = i;
+        if (s < 0) {
+            if (g_nufs == UF_MAX) rh_fatal("--undef-feed: more than %d streams", UF_MAX);
+            s = g_nufs++; g_ufs[s].site = site; g_ufs[s].k = k;
+        }
+        if (g_ufs[s].n == cap[s]) {
+            cap[s] = cap[s] ? cap[s] * 2 : 4096;
+            g_ufs[s].val = realloc(g_ufs[s].val, cap[s] * 4); g_ufs[s].cnt = realloc(g_ufs[s].cnt, cap[s] * 4);
+            if (!g_ufs[s].val || !g_ufs[s].cnt) rh_fatal("--undef-feed: out of memory");
+        }
+        g_ufs[s].val[g_ufs[s].n] = v; g_ufs[s].cnt[g_ufs[s].n++] = n; g_ufs[s].total += n;
+    }
+    fclose(f);
+    g_undef_read = undef_feed;
+    for (int i = 0; i < g_nufs; i++) rh_log("undef-feed: %d.%d %u runs, %u reads\n", g_ufs[i].site, g_ufs[i].k, g_ufs[i].n, g_ufs[i].total);
+}
+static void undef_feed_report(void)
+{
+    if (g_undef_read != undef_feed) return;
+    for (int i = 0; i < g_nufs; i++)
+        rh_log("undef-feed-total %d.%d served=%u of %u missed=%u\n", g_ufs[i].site, g_ufs[i].k, g_uf.served[i], g_ufs[i].total, g_uf.missed[i]);
+}
+
 static void watch_arm_due(void)
 {
     /* arm on the first boundary at / past FRAME (a frame may never reach the boundary exactly), then re-assert
@@ -1254,6 +1384,8 @@ static void finish(const char *why)
     rh_hooks_report();
     for (int i = 0; i < g_ntrap; i++) rh_log("trap-count %08x hits=%ld\n", g_tva[i], g_thits[i]);
     census_report();
+    undef_record_report();
+    undef_feed_report();
     rh_media_report();
     rh_dev_report();
     { void rh_scrub_census_report(void); rh_scrub_census_report(); }
@@ -1400,7 +1532,7 @@ static void usage(void)
                     "  [--record F] [--realtime] [--dump-at F[,F|end]] [--shot-at F[,F|end]] [--shot-every N [--shot-from F] [--shot-to F]]\n"
                     "  [--hash-every N] [--log-every N] [--hook SPEC] [--shadow-from F] [--coverage F] [--stall-ms N] [--tail N]\n"
                     "  [--watch VA,..] [--step-ms N] [--creep-after N] [--audible] [--show] [--no-arena] [--no-overlay]\n"
-                    "  [--log-files] [--log-heap] [--log-ext] [--log-media] [--log-input]\n");
+                    "  [--log-files] [--log-heap] [--log-ext] [--log-media] [--log-input] [--undef-record] [--undef-feed F]\n");
     ExitProcess(2);
 }
 static void parse_list(const char *s, uint32_t *out, int *n, int max)
@@ -1501,6 +1633,8 @@ static void parse(int argc, char **argv)
             g_tva[g_ntrap++] = strtoul(t, 0, 16);
             O.trap_max = 0;
         }
+        else if (!strcmp(a, "--undef-record")) O.undef_record = 1;
+        else if (!strcmp(a, "--undef-feed")) O.undef_feed = ARG();
         else if (!strcmp(a, "--trap")) {
             char b[256]; snprintf(b, sizeof b, "%s", ARG());
             for (char *t = strtok(b, ","); t && g_ntrap < 8; t = strtok(NULL, ",")) g_tva[g_ntrap++] = strtoul(t, 0, 16);
@@ -1748,6 +1882,11 @@ platform_done:
     load_volatile();
     rh_trace_init();
     rh_hooks_install();
+    if (O.undef_record) {
+        if (O.standalone) rh_fatal("--undef-record: retail's own reads (the standalone runs none)");
+        undef_record_install();
+    }
+    if (O.undef_feed) undef_feed_load(O.undef_feed);
     if (O.coverage) cov_install();
     AddVectoredExceptionHandler(0, crash_veh);   /* last in line: the trap / watch handlers see theirs first */
     if (g_nw) AddVectoredExceptionHandler(1, watch_veh);
@@ -1765,6 +1904,7 @@ platform_done:
         rh_snap_register("gesp", &g_gesp, sizeof g_gesp); rh_snap_register("gseh", &g_gseh, sizeof g_gseh);
         rh_snap_register("gtib_lo", &g_gtib_lo, sizeof g_gtib_lo); rh_snap_register("gtib_hi", &g_gtib_hi, sizeof g_gtib_hi);
         rh_snap_register("activated", &g_activated, sizeof g_activated);
+        rh_snap_register("undef_feed", &g_uf, sizeof g_uf);
         void rh_media_snapreg(void), rh_dinput_snapreg(void), rh_handles_snapreg(void), rh_gdi_snapreg(void), rh_files_snapreg(void), rh_trace_snapreg(void), rh_state_snapreg(void);
         void *rh_heap_meta_save(void); void rh_heap_snap_restore(const void *); void rh_heap_meta_free(void *); void rh_dev_snapreg(void);
         rh_dev_snapreg();

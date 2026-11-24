@@ -76,6 +76,8 @@ typedef struct {
     int surf_fill;              /* --surface-fill HEX: fill each new REAL DirectDraw surface with this 16-bit value + 1 (0 = off) — probe for retail reading unwritten surface memory (R12) */
     int dev_census;             /* --dev-census: count every external call (IAT import / COM slot), logged at exit */
     int log_ddraw;              /* --log-ddraw (live): surfaces created / restored, failing surface calls + callers */
+    int undef_record;           /* --undef-record: log retail's uninitialized-slot reads (the oracle; parity-ledger R13) */
+    const char *undef_feed;     /* --undef-feed F: hand those values to the port's g_undef_read seam */
     const char *coverage;
     uint32_t stall_ms;
     const char *hooks;          /* hook spec, see rh_hooks.c */

@@ -226,4 +226,10 @@ typedef struct engine_calls {
 
 extern engine_calls g_eng;
 
+/* Undefined data retail reads (pillar 5: a stack slot it never wrote, e.g. quirk #185).  The port computes its own value
+ * (its zeroed frame); the host may install this seam to hand it pure retail's recorded value instead (rhost
+ * --undef-feed: the gates' oracle, parity-ledger R13).  NULL (the product) = the port's value. */
+extern int32_t (*g_undef_read)(int site, int k, int32_t port_value);
+#define UNDEF_READ(site, k, v) (g_undef_read ? g_undef_read((site), (k), (v)) : (v))   /* k: the site's k-th read */
+
 #endif /* OSS_ENGINE_CALLS_H */

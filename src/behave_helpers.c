@@ -2412,6 +2412,10 @@ int32_t beh_481ac0(wl_char *self, int32_t * a3, int32_t a4)
     intptr_t *v51 = (intptr_t *)(frame_ + 0x2c);   /* [5] at ebp-0x5e8 */
     uint8_t *v58 = (uint8_t *)(frame_ + 0xec);   /* [656] at ebp-0x528 */
     intptr_t *v60 = (intptr_t *)(frame_ + 0x380);   /* [165] at ebp-0x294 */
+    /* retail never clears its two dry-run bodies and the integrator never writes their +0x68 (f68), which the skill stage
+     * reads (quirk #182): whatever the stack held.  Port value: its zeroed frame; the gates feed retail's. */
+    *(int32_t *)(v58 + 0x68) = UNDEF_READ(182, 0, *(int32_t *)(v58 + 0x68));
+    *(int32_t *)((uint8_t *)v60 + 0x68) = UNDEF_READ(182, 1, *(int32_t *)((uint8_t *)v60 + 0x68));
     uint16_t *const v44__f = (uint16_t *)(frame_ + 0x0);   /* ebp-0x614 */
     intptr_t *const v43__f = (intptr_t *)(frame_ + 0x0);   /* ebp-0x614 */
     intptr_t *const v46__f = (intptr_t *)(frame_ + 0x18);   /* ebp-0x5fc */

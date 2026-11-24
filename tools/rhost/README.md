@@ -128,6 +128,16 @@ a guarded slot (the input re-poll, DirectInput, the BGM player, the talk steps, 
 callee replaced — 17 functions `coverage --hybrid` caught.  By-address functions (window procedures, the CRT's
 static initializers, callbacks) take an entry patch under REPLACE (`BYADDR`, rh_hooks.c).
 
+**The undefined-data oracle (2026-11-24, parity-ledger R13):** where retail reads a stack slot it never wrote and
+the value steers logic (quirk #185: spike traps' retract damage), the port can not reproduce it (another callee's
+leftover). A pure `corpus --bless` runs `--undef-record` (a jmp stub at each `UNDEF_SITES` row, rhost.c — touches no
+retail stack, verified: pure rng / sem / fb identical with it on) and files the reads run-length as
+`tests/scenarios/<s>/undef[.wine].txt.gz`; `corpus --check --hybrid / --standalone`, `run --hybrid / --standalone` and
+`hookbisect` stage that file and pass `--undef-feed`, which hands the values in order to the port's `UNDEF_READ(site,
+v)` seam (`src/engine_calls.h`). The product has no feed: the port's own value. Log: `undef-feed-total served=N of M
+missed=K` (missed > 0 or served < M on a complete run ⇒ the call order diverged). New site = a row + the port's
+`UNDEF_READ` at the read + one stub per esp offset.
+
 ## Hooks — port functions vs retail on identical state (`--hook shadow:NAME[@N],replace:NAME`)
 
 `rh_hooks.c` registry; port code is linked in, compiled with the port's own `-std`. RET hooks

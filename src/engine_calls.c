@@ -3,3 +3,4 @@
 #include "engine_calls.h"
 
 engine_calls g_eng;
+int32_t (*g_undef_read)(int site, int k, int32_t port_value);

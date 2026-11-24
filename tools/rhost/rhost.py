@@ -421,6 +421,8 @@ def rhost_args(a, run_win, trace_win, edition):
         args += ["--headless"]
     if getattr(a, "standalone", False):
         args += ["--standalone"]
+    if getattr(a, "undef_record", False):
+        args += ["--undef-record"]
     if getattr(a, "coverage_file", None):
         args += ["--coverage", f"{run_win}\\coverage_in.txt"]
     if getattr(a, "show", False):
@@ -428,6 +430,12 @@ def rhost_args(a, run_win, trace_win, edition):
     if getattr(a, "extra", None):
         args += shlex.split(a.extra)
     return args
+
+
+def undef_file(name, target="win"):
+    """the scenario's recorded uninitialized reads (pure bless: rhost --undef-record) — fed to hybrid / standalone checks"""
+    target = "wine" if target == "bunker" else target    # (a wine batch goes to the bunker as target "bunker")
+    return os.path.join(SCEN, name, "undef.txt.gz" if target == "win" else f"undef.{target}.txt.gz")
 
 
 def make_batch(a, runs, tag):
@@ -468,6 +476,12 @@ def make_batch(a, runs, tag):
             del args[k:k + 2]
         open(os.path.join(rdir, "hooks.txt"), "w").write(spec)
         args += ["--hook", f"@{run_win}\\hooks.txt"]
+        fk = getattr(a, "undef_feed", False)    # True: the run's own scenario; a str: that scenario (hookbisect's runs)
+        uf = undef_file(fk if isinstance(fk, str) else name, getattr(a, "target", "win")) if fk else None
+        if uf and os.path.exists(uf):    # the gates' oracle: pure retail's uninitialized reads (parity-ledger R13)
+            import gzip
+            open(os.path.join(rdir, "undef_in.txt"), "wb").write(gzip.decompress(open(uf, "rb").read()))
+            args += ["--undef-feed", f"{run_win}\\undef_in.txt"]
         open(os.path.join(rdir, "argv.json"), "w").write(json.dumps(args))
         ps_args = ",".join("'" + x.replace("'", "''") + "'" for x in args)
         lines.append(f"while (@($procs | Where-Object {{ !$_.HasExited }}).Count -ge $J) {{ Start-Sleep -Milliseconds 50 }}")
@@ -781,6 +795,7 @@ def cmd_run(a):
     if a.hybrid:    # every ported function REPLACING retail (as corpus --hybrid)
         hs = hybrid_hooks()
         a.hook = ",".join(["replace:" + h for h in hs] + ([a.hook] if a.hook else []))
+    a.undef_feed = a.hybrid or a.standalone   # the oracle (parity-ledger R13): pure retail's uninitialized reads
     runs = resolve_runs(a.scenarios, a)
     fetch = ("rhost.log", "shot_*.png", "stdout.txt", "stderr.txt", "grid_*.bin") + (("state_*.rhs",) if a.dump_at else ())
     batch, bdir, res, out = run_batch(a, runs, "run", fetch=fetch)
@@ -856,9 +871,9 @@ SERIES_EVERY = 600   # corpus --bless / --check: the state_sem every N frames (e
 # scenarios a port-replaced run (--hybrid / --standalone) is KNOWN to take off pure retail at frame F: corpus --check
 # compares only the sem / fb series before F (wine; Windows has no series there) + that the run completes, never the end
 # state; --bless skips them.  USER 2026-10-31: R9 stays a gap; zero the frame in rhost (site E) if it starts causing problems
-KNOWN_GAPS = {"rh-after-prologue": (102660, "parity-ledger R9 / quirk #182: retail's skill AI 0x481ac0 reads a stack leftover"),
-              "story-day10b": (374162, "parity-ledger R13 / quirk #185: retail's spike trap 0x554570 case 4 reads a stack leftover"),
-              "story-day10c": (374162, "parity-ledger R13 / quirk #185 (story-day10b's movie is its prefix)")}
+# Was: rh-after-prologue @102660 (R9 / quirk #182), story-day10b / 10c @374162 (R13 / quirk #185) — closed by the
+# undefined-data oracle (rhost --undef-record / --undef-feed, 2026-11-24).  An entry here = a USER decision only.
+KNOWN_GAPS = {}
 
 
 def sem_series(log, target="wine"):
@@ -905,6 +920,11 @@ def cmd_corpus(a):
         # its layout moves per run, and mid-run system pointers stay unmasked there (calibrating them means 16 GB
         # of dumps per scenario over the network) — the end state is the gate there
         a.hash_every = SERIES_EVERY
+    hyb = getattr(a, "hybrid", False) or getattr(a, "standalone", False)
+    if a.bless and not hyb:
+        a.undef_record = True   # pure retail's reads of never-written stack slots (quirk #185) → undef[.target].txt.gz
+    if a.check and hyb:
+        a.undef_feed = True     # ... handed to the port in their order (rhost --undef-feed; parity-ledger R13)
     runs = resolve_runs(names, a)
     batch, bdir, res, out = run_batch(a, runs, "corpus", fetch=("rhost.log",))
     print_results(res, names)
@@ -933,7 +953,16 @@ def cmd_corpus(a):
                 got["sem_series"] = series
             if fbs and a.hash_every == SERIES_EVERY:
                 got["fb_series"] = fbs
-            json.dump({k: v for k, v in got.items() if v is not None}, open(ep, "w"), indent=1); continue
+            json.dump({k: v for k, v in got.items() if v is not None}, open(ep, "w"), indent=1)
+            lg = os.path.join(bdir, n, "rhost.log")
+            ul = [l for l in open(lg, errors="replace").read().splitlines() if l.startswith("undef-record ")] if os.path.exists(lg) else []
+            uf = undef_file(n, getattr(a, "target", "win"))
+            if ul:
+                import gzip
+                open(uf, "wb").write(gzip.compress(("\n".join(ul) + "\n").encode(), mtime=0))
+            elif os.path.exists(uf):
+                os.remove(uf)
+            continue
         if a.check and os.path.exists(ep):
             exp = json.load(open(ep))
             diff = {} if gap else {k: (exp.get(k), got[k]) for k in keys if (k in exp or k != "fb") and exp.get(k) != got[k]}
@@ -1240,6 +1269,7 @@ def cmd_hookbisect(a):
     # coverage → newhooks → verify --hooks (names the function + first frame in one shadow pass).
     cand = a.hooks.split(",") if a.hooks else [h for h in hybrid_hooks() if h != "wn_562210"]
     tr, save, ed = scenario_inputs(a.scenario, a)
+    a.undef_feed = os.path.basename(a.scenario).removesuffix(".jsonl")   # the oracle: the hybrid groups read retail's values
     # wine: semv (blind to system-heap values); Windows: state_sem only at a scenario's end (mid-run it is not
     # stable there: system pointers the end-state calibration never saw)
     keys = ("frame", "tick", "rng") + (("state_semv",) if a.target == "wine" else () if a.frames else ("state_sem",)) \
