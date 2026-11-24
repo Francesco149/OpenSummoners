@@ -856,7 +856,9 @@ SERIES_EVERY = 600   # corpus --bless / --check: the state_sem every N frames (e
 # scenarios a port-replaced run (--hybrid / --standalone) is KNOWN to take off pure retail at frame F: corpus --check
 # compares only the sem / fb series before F (wine; Windows has no series there) + that the run completes, never the end
 # state; --bless skips them.  USER 2026-10-31: R9 stays a gap; zero the frame in rhost (site E) if it starts causing problems
-KNOWN_GAPS = {"rh-after-prologue": (102660, "parity-ledger R9 / quirk #182: retail's skill AI 0x481ac0 reads a stack leftover")}
+KNOWN_GAPS = {"rh-after-prologue": (102660, "parity-ledger R9 / quirk #182: retail's skill AI 0x481ac0 reads a stack leftover"),
+              "story-day10b": (374162, "parity-ledger R13 / quirk #185: retail's spike trap 0x554570 case 4 reads a stack leftover"),
+              "story-day10c": (374162, "parity-ledger R13 / quirk #185 (story-day10b's movie is its prefix)")}
 
 
 def sem_series(log, target="wine"):
