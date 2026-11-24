@@ -6,6 +6,21 @@ specific commits where relevant.
 
 ---
 
+## 2026-11-24 — the undefined-data oracle: R9 + R13 closed, KNOWN_GAPS empty; story-d10d (Wyvern)
+
+- **Oracle:** retail reads stack slots it never wrote — quirk #185 (spike trap 0x554570 case 4 `[esp+0x14]`, the
+  retract-damage flag: 1 on most reads, but also 0 / 5 / coordinates / return addresses) and #182 (0x481ac0's dry-run
+  bodies' f68). Pure `corpus --bless` records them (`--undef-record`, a jmp stub per site that runs on its own stack:
+  verified pure rng / sem / fb + every expected.json unchanged) into `undef[.wine].txt.gz`; hybrid / standalone checks
+  feed them to the port (`UNDEF_READ`). The first INT3 + VEH version would push an exception frame below retail's esp
+  (and other uninitialized reads would see it): rejected before use. d10b: 891k spike reads, 22.5k dry-run reads.
+  rh-after-prologue + story-day10b / 10c: hybrid + standalone PASS on the END state, wine + Windows; Windows stream ==
+  wine. Every later story leg (prefix = d10b's movie) is gated in full again.
+- story-d10d (subagent driver): 410210 chests (Mystery Juice → Stella, Best Herb, Blessed Earring → Arche) → star wall
+  → 410220 levers ×3 → 410225 → BOSS Wyvern (5759 HP) killed f459230; check PASS, verify MATCH. No save on the route.
+- Windows box (win-wifi): quiet; no ssh resets all session. One scp "dest open: Failure" = my own batch still running
+  the old binary (exe locked), not a flake.
+
 ## 2026-11-17 — corpus 44: `story-day7`; `scene_party_gather` floor fix
 
 - `story-day7` (API driver story-d7, $9.33, 292 turns, 271179 → 314753): post-boss cutscene, 320170 Topah Herb, Give Up →
