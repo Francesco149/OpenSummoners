@@ -13,6 +13,7 @@ source of orientation**: all process knowledge that used to live in `~/.claude`
 auto-memory is consolidated here, so even if the uncommitted `.claude` dir is lost you
 can orient from the repo alone. A fresh session needs only this file → `docs/FRONT.md`
 to be productive in ~60 seconds. **The repo is the source of truth.**
+At session start also run `python3 tools/ci/daily_build.py` (the daily playable build; cheap when not due).
 
 ## Current front
 → **`docs/FRONT.md`** — the ONE hand-edited "what we're doing right now" block (a
@@ -161,15 +162,19 @@ runs the port with NO retail code (data sections only); `rhost.exe --standalone`
   + asset scan) + the save inspector and trainer. All mingw, no game assets, no Windows. Green there ⇒ green
   in CI.
 - **Releases:** CI ships the standalone, res_explorer, the voice patch (`ci.yml` / `nightly.yml` /
-  `release.yml`). The rolling `nightly` pre-release is MANUAL (`gh workflow run nightly.yml`, when enough
-  changed; USER 2026-10-31) — never re-add a cron. Download links in README / `tools/ennse_voice/` point at it.
+  `release.yml`). **Daily build (USER 2026-11-24, after a 3-week gap):** the rolling `nightly` pre-release must
+  carry the latest standalone (drop-in `sotes.exe` replacement) and never be > 1 day behind master:
+  `tools/ci/daily_build.py` (new commits + last nightly > 24 h old ⇒ build_all → push master → dispatch
+  `nightly.yml`) runs from the post-commit hook (`tools/git-hooks`, `git config core.hooksPath tools/git-hooks`;
+  log `.git/daily-build.log`; opt out per commit `DAILY_BUILD=0`) and at session start. Still no cron in the
+  workflow. Download links in README / `tools/ennse_voice/` point at it.
 - **Commits: commit in logical units as you go, without waiting to be asked.** Direct to
   `master` (no per-feature branches — they fight the linear checkpoint workflow); one
-  chip/feature per commit; build + test first. There are **no git hooks** here, so add
+  chip/feature per commit; build + test first. The only git hook is post-commit (the daily build), so add
   the trailer by HEREDOC and end the message with it:
   `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`. Regenerate the
   derived ledger in the same commit when you ported anything. No `git add -A`. **Push**
-  only when asked.
+  only when asked — or by the daily build (above).
 - **Subagents are allowed but used judiciously** — wide read-only audits yes; judgment /
   bug-chasing / porting in the main loop. Weigh the debrief cost + the subagent's missing
   context. The rules are LIVING — update `docs/AGENT-WORKFLOW.md` when a pattern helps or

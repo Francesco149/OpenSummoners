@@ -1,9 +1,9 @@
 # Nightly build → single rolling 'nightly' pre-release.
 #
-# MANUAL only: Actions → nightly → "Run workflow" (or `gh workflow run nightly.yml`),
-# fired when enough has changed since the last build. No cron: GitHub disables
-# scheduled workflows after 60 days without repo activity, and an unchanged tree
-# rebuilt every night is noise.
+# Dispatched (workflow_dispatch) by tools/ci/daily_build.py — the post-commit hook / session start —
+# when master has new commits and the last nightly is > 24 h old (USER 2026-11-24), or by hand
+# (`gh workflow run nightly.yml`). No cron: GitHub disables scheduled workflows after 60 days
+# without repo activity, and an unchanged tree rebuilt every night is noise.
 #
 # Cross-compiles the shippable deliverables with mingw via the lean `.#ci` Nix
 # shell (NO game assets needed — the port/patch/tools read the user's own files
