@@ -473,6 +473,16 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      BEHIND the tower; from the right Arche can only push it left (stops at 38400); jumps reach ly ≈ 40000 (top needs
      ≈ 32800). The tower resets on re-entry. Open: how to get Arche to its left side (task story-day10c).
    6. 🔑 Left: Arche pushes platform right; Sana/Stella stays on it; push back → they reach ledge → **star lever**. Down, stairs up: [Stronggirl Juice]; drop → **fountain**; right → **MoH 14** (cap 17, 80,000). Door → [Mystery Juice]; left door → past spikes [Best Herb]; right door, drop off edge → [Blessed Earring].
+   - [RD story-d10c] EN-old 2.6 as played: Arche CAN pass the tower — base 70480 is only 8800 × 4000 (jump it from the
+     floor; the lattice has no collision), deck 100144 (y 38400, stand ly 32800) carries riders; travel b0x 38400..112000.
+     Push it right to 112000 → steps by the right door (class-1 one-way slopes x 124800–128000, tops 54400 / 44800; `C*30`
+     twice) → `LC*20 . R*16` onto the deck. Followers never climb to the deck: switch to Sana, put her there, **F3 ×2 =
+     "Stay There!"** (3-mode cycle; 3rd press = Follow). Arche drops off the steps with `DC*4` (down+jump drops through
+     class 1), pushes the tower left to 38400 → Sana `LC*31` to the ledge → V the star lever (x ≈ 12900): "sound of
+     machinery activating". Left door of 410215 → **410210 UPPER level**: chest 70220 (27200, 22400) [Stronggirl Juice]
+     (EN-old "Strongirl Juice"); drop down the left shaft; lower corridor: **MoH 14** = 70100 at (113600, 56835) (walk
+     through), the **fountain** = angel statue at lx ≈ 26400 (V: heal, then save prompt); the statue 70410 at x 124800 is
+     decoration. All 24 save slots full after d10c (slot 1 overwritten; the prompt defaults to Yes).
    7. 🔑 Left past open **star wall**, stairs, lever ×3 going up → dead end → fall off edge → stairs up (no monsters) → top → **BOSS: Wyvern** (aim for head).
    8. 🔑 Stairs right → **MoH 15** (cap 18, 90,000). Crest too high → Colm's skirt-flip wind gets it → [Wind Crest 3]. Recall Lamp / walk out → Tonkiness → home → argument → next day.
 

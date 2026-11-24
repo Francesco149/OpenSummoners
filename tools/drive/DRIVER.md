@@ -30,6 +30,8 @@ One command at a time per run (a run is locked while a command works). Give shel
 
 ```
 rd new R --from fresh | SCENARIO[@F] | RUN[:CK|@F] | end:SCENARIO | save:DIGEST   [--force]
+#   a task's `start: story-dXX` = the RUN (its movie replayed to its end) → `--from story-dXX`. `end:SCENARIO` boots
+#   the scenario's final user\ dir from the title (its LAST statue save, which may be far before its end — story-d10c)
 rd play R "SPEC" [--until EXPR] [--avoid EXPR] [--watch EXPR,EXPR] [--every N] [--rows N]
 rd tap R "ent" [--n 40] [--gap 8] [--until EXPR] [--text]     # (KEY .*gap) x n: advance dialogue, mash a menu
 #   ⚠ mashing `ent` also answers Yes/No prompts (paid a fortune teller, played capsules, bought Herbs — story-d7d) and the
