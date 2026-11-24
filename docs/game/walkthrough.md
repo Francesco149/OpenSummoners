@@ -518,6 +518,14 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
    2. 🔑 Left next area → event (flower field) → [Cleitcaithream] (Help Out item; requires all 3 members [ZO]).
    3. 🔑 Next cave: ⚠ ceiling spike trap; far left 850 CP; stairs, left, bottom-left ledge [Revival Drink]; back; ledges right; quick jumps on wooden crates to top → [Guardian Drop], [Life Dew].
    4. 🔑 **Grand Gourmand**: give [Ultimate Bread] → reveals secret path between two rocks (→ Archmage's Tower).
+   - [RD story-d11b] EN-old rooms north of Chartreux: 420110 → 420120 → 420125 (flower field: [Cleitcaithream]) / 420130
+     (3.1 boat cave, 2 chests) ; 420150 = the 3.3 cave (gate 70230 via lever 70810; ceiling spike x 175600; far-left
+     850 CP; ↑ x 313600 → 420120, ↑ x 83200 → 420160). 420160 → 420170 (bottom-left x 0) or 420200 (top-left, UNEXPLORED);
+     420170: high-ledge chest (88000, 12800) [Revival Drink] (V standing ON its x); x 0 → 420180 (signpost): zone 2 top
+     right (252800, 6400) → 420220 (UNEXPLORED), zone 3 x 0 (needs ↑) → 430110 Guardpost (barrel 70302 did not open
+     with X / V / slashes) → 430120 Mountain Cat Inn (28 CP) + shop (Life Dew 96, Revival Drink 350, Magic Candy 120,
+     Recall Lamp 500, Magic Bracelet 11000). The Grand Gourmand / crates / [Guardian Drop] / [Life Dew]: behind 420200
+     or 420220 (not found yet).
 4. 💎 First go LEFT → **North Chartreux Guardpost**: barrel [Power Drop]; Inn/item shop (Mountain Cat Inn; rest/save; NO storage): 2F [Best Herb]; other door 2F 10 CP, 3F barrel 3 CP, [Underwear](F), desk 'Merrin 11/12'.
 5. **Archmage's Tower** (Pink Slime, Baby Aquamage, Rattlesnake, Org Bowman, Org Swordsmaster, Kobold Ace, Young Harpy):
    1. Stairs; far left [Mind Chocolate]; up; left ledges [Tough Drop]; right, stairs by locked wall; left, stairs; right [Good Child Drop]; left, drop, stairs; climb; stairs; right → **MoH 16** (cap 19, 100,000). Wooden door = dead end for now. Up → fancy doors → former-headmaster scene (a broken pot must be repaired before he can help — UNVERIFIED wording; [DK] only says "more work for us" / "fix that blasted pot").
