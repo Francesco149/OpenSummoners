@@ -508,6 +508,11 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
 ### Day 11 — Breaking the seal; Archmage's Tower; Unison; final dungeon
 1. 🔑 School: ask **Sophia** about the stone → [Sophia's Letter]; find **former headmaster north of Chartreux**. (Free to prep in Tonkiness.) Chiffon: return the Weathervane key.
 2. 🔑 **Barness Mayor** (windmills turning): return key → [Ultimate Wheat]. → **Chartreux bakery** man → [Ultimate Bread].
+   - [RD story-d11a] EN-old: Sophia = the classroom 230140's UPPER floor (via 230130's left stairs + a jump right);
+     230150 = nurse Ms. Remi (rest / save), library, prep room. "Return the key" = Barness scene on arrival → Mayor
+     upstairs in 270170 (stair top (6400, 36000), `RC*14`) → [Ultimate Wheat]. Bakery 300270: the man far right bakes
+     [Ultimate Bread] on the spot. Chartreux item store 300250: no Mind Chocolate. 265160 rose bush blocks the road again
+     (Stella fire `UX`/`DX`/`LX`). Inventory caps: sell old gear. Exits 260180 / 265170 x 0 held by foes (kill them).
 3. 🔑 Exit Chartreux LEFT of candy store (Kobold Ace, Trippy Myconid, Pink Slime, Rattlesnake, Saber-panther, Young Harpy, Harpy):
    1. 💎 1st cave: right, burn vines, push statue to dock; Sana fetches boat; statue onto boat, ferry, push off past door; burn vines; statue onto button → door → 1000 CP, [Mystery Juice].
    2. 🔑 Left next area → event (flower field) → [Cleitcaithream] (Help Out item; requires all 3 members [ZO]).
