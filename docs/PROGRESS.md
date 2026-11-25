@@ -6,6 +6,18 @@ specific commits where relevant.
 
 ---
 
+## 2026-11-25 — story-d10e … d11c accepted (corpus 72); R12 survives the RAM fix → Windows gates to the laptop
+
+- Accepted story-day10e / 11a / 11b / 11c (det PASS ×4; volatile 56631 → 57355); whole-corpus re-bless win ∥ wine; wine
+  hybrid 72/72 PASS. Drivers: story-d11d (tower MoH 16, Tower Key, Magic Bracelet), story-d11e (Glue / Poton Sap / Rozack
+  Polish; balance-platform puzzle solved), story-d11f running (pot puzzle).
+- R12: cutestation's fb flakes recur on the loosened RAM (memslammer-clean): headless pure bless moved 3 fb, Windows
+  hybrid 9 fb-only fails. The owner's laptop `galaxybook` (browser only) is deterministic run to run (2 rounds, 3 scenarios,
+  identical state_sem + fb — machine-specific values, ≠ cutestation's) ⇒ Windows gates move there. Hypothesis: headless
+  still draws through screen-compatible real GDI (parity-ledger R12).
+- Daily nightly build policy (`tools/ci/daily_build.py` + post-commit hook); rhost default host `win-wifi` (the box's
+  wired link is not connected).
+
 ## 2026-11-24 — the undefined-data oracle: R9 + R13 closed, KNOWN_GAPS empty; story-d10d (Wyvern)
 
 - **Oracle:** retail reads stack slots it never wrote — quirk #185 (spike trap 0x554570 case 4 `[esp+0x14]`, the

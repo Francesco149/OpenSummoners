@@ -2,12 +2,12 @@
  "frame": "1620",
  "tick": "0",
  "rng": "404a0a8f",
- "state_sem": "e9d11f7ecb452b9b",
+ "state_sem": "e57f27d2ec2adf7b",
  "fb": "4962ec6785241b95",
  "sem_series": {
-  "0": "c93ceac15ac4df97",
-  "600": "0b86d26d37ab1ab1",
-  "1200": "6573a450780562c6"
+  "0": "51ee5bf0779b865f",
+  "600": "308b2c893c909c59",
+  "1200": "a68b9da13b8ea5d6"
  },
  "fb_series": {
   "0": "0a11a2ce8b590113",
