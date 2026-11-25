@@ -100,7 +100,10 @@ other machines never), pure retail too, "load-correlated", recent. Tonight's evi
 re-bless items-use fb moved (pure retail cannot change), Windows hybrid 8 fb-only fails, standalone fb not run-to-run
 stable (town-services: gate 52c22127…, a probe run a4c3085d…, same frame count; first diverging sample f7700–7800, yet
 per-frame PNGs of a re-run equal — the flake did not recur). **Until the box is fixed, Windows fb results are not
-evidence; wine (bunker / maximus) is the gate.** Probes added: `--fb-log` (every frame's fb hash) + `--fb-ref F` (shoot
+evidence; wine (bunker / maximus) is the gate.** Likely window: **2026-11-06 → 2026-11-25** — cutestation is memslammer's
+DDR4 test box, set deliberately unstable (`3600 c14 rcd14 rp16 ras36 rfc324`, memslammer `docs/results.md`, 179 runs
+11-06..11-10, same `0x00ff…` byte-6 signature on 11-10) with no record of a revert; the owner loosened it 2026-11-25.
+Windows-only evidence from that window (Windows expected `fb` values, R12 "load" findings, `verify --real` fb) = retest. Probes added: `--fb-log` (every frame's fb hash) + `--fb-ref F` (shoot
 the first frame differing from F's).
 **Decision (USER, 2026-11-23):** Windows `corpus --bless/--check` run `--headless` by default (`--real-device` = the old
 path, informational); `rd verify --real` blocks on the real device's frame + RNG only, its fb is printed, not gated.
