@@ -108,6 +108,15 @@ Windows-only evidence from that window (Windows expected `fb` values, R12 "load"
 errors=0 elapsed_s=7200`). Windows gating resumes; the next full Windows bless re-derives every Windows `fb` (the R12 guard
 names any that moved). Probes added: `--fb-log` (every frame's fb hash) + `--fb-ref F` (shoot
 the first frame differing from F's).
+**2026-11-25 RECURRED on the loosened RAM, HEADLESS:** whole-corpus Windows pure bless (`20261125-130551-corpus`,
+-j 3, headless, 13:05–15:58) → R12 guard: story-day10a, story-day7b, story-day8h fb ≠ HEAD (frame / tick / RNG / state_sem
+equal); re-blessed alone (`155851`) = HEAD again. Headless rules out the real-DDraw path. **Hypothesis (open):** headless
+still renders through REAL GDI with SCREEN-compatible objects — `rh_gdi.c` `CreateCompatibleDC(NULL)`, compatible bitmaps,
+`CreateDIBitmap`, `TextOutA` with the system's font smoothing — so a desktop display-mode change (a fullscreen app on the
+box; other projects' tests) or a smoothing / DWM state change can alter pixels only. Owner ran fullscreen tests on the box
+~17:00–17:10 (AFTER the flaked bless — not its cause) while the Windows hybrid gate (from 16:35) ran: a natural A/B. Next:
+log the screen mode (`GetDeviceCaps(BITSPIXEL)`, `SPI_GETFONTSMOOTHING*`) per frame window in rhost; a controlled A/B
+(display-mode switch mid-run) needs the owner's OK; fix = headless GDI pinned to a fixed-format DIB DC, not the screen.
 **Decision (USER, 2026-11-23):** Windows `corpus --bless/--check` run `--headless` by default (`--real-device` = the old
 path, informational); `rd verify --real` blocks on the real device's frame + RNG only, its fb is printed, not gated.
 Trigger: the 2026-11-23 d10c batch — Windows PURE bless baked 7 flaked fb values (options-deep, party-magic-controls,
