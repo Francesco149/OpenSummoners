@@ -562,6 +562,15 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      opened FACING LEFT; back: down-left jump into the lower corridor, exit x 0 → 440130. 440150 pillar chest (27200, 19200)
      skipped.
    7. 🔑 Save in bedroom (game suggests) → fix the pot = **numbered block puzzle I–IX**. [DK] solution (paraphrased order): VII far left; IX off left edge; VIII off right edge; V off right edge onto VIII; push VIII+V stack left to cover left half of VII/IV/I column; Stella burns vines → VI drops onto stack's top-right; push stack to IX; place VI; place VII; IV off left edge then off right edge → its spot; burn vines AROUND (not under) II, push II slightly left, burn under it → falls to spot (nudge); I off right edge → spot; member on right platform (down), push III onto it; both girls on left platform → III level w/ left ledge; push III onto ledge; girls move to right platform; push III off left edge → spot. **Break any block = reset**; a lever neatens blocks. Talk to the magician → events → **seal broken: Unison / wind boost jump** (Arche can jump 3× total).
+   - [RD story-d11f] EN-old: save = 440220 bed x 95200 (nap → "save?"); the repair = pot 70450 in **440210** (69000, 42400),
+     V → Yes → **440240** "Fixing The Broken Pot". Target cells (top-left): row I/II/III y 54400, IV/V/VI y 60800, VII/VIII/IX
+     y 67200, columns x 54400 / 60800 / 67200 (a 3-wide well x 54400–73600). Blocks 70910 (handle: numeral @ start): 501 VII
+     (83200, 67200), 502 VIII (46400, 41600), 503 IX (73600, 41600), 504 IV (35200, 19200), 505 V (32000, 41600), 506 VI
+     (54400, 6800, in vines), 507 I (46400, 19200), 508 II (67200, 7600, in vines), 509 III? (118400, 67200). Lever 70216
+     (16000, 64000) snaps every block to the 6400 grid — NEEDED before "IV off right edge" (else IV lands on V's corner).
+     Followers don't push. Vines 70400: burning one switches every actor whose handle (+0x1d8) == its link (+0x298),
+     recursively (`0x40be30`; +0x288 == 0 ⇒ first match only) — the burn groups are map data. VII…VI placed by f741344;
+     II stuck (each burn tried also burned the piece under it).
    8. 🔑💎 Roof stairs → **MoH 17** (cap 20, 110,000) w/ boost jump. Left side w/ plank scaffolding → boost to chest [Memory Photo 7].
 6. 💎 **Unison backtrack** (all optional but includes Help Out items + Memory Photos):
    - Flower-picking area: boost twice across → 1500 CP, [Stronggirl Juice].
