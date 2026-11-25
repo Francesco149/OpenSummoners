@@ -40,7 +40,7 @@ SCEN = os.path.join(ROOT, "tests", "scenarios")
 BUILD = os.path.join(ROOT, "build", "rhost")
 LOCAL_RUNS = os.environ.get("RHOST_RUNS", "/mnt/ephemeral/opensummoners/rhost-runs")
 IDA_DIR = os.environ.get("OSS_IDA_LOCAL", "/mnt/ephemeral/opensummoners/decompiled-ida")
-WIN = os.environ.get("RHOST_WIN", "win-wifi")   # USER 2026-11-25: the box is on Wi-Fi; `win` (wired) is not connected
+WIN = os.environ.get("RHOST_WIN", "galaxybook")   # USER 2026-11-25: the quiet laptop (cutestation `win-wifi` fb-flakes, R12)
 WROOT = "C:\\oss-rhost"
 WEXE = "oss-rhost.exe"   # Windows-side binary name (distinct from openrecet's rhost.exe)
 def volatile_file(ed):

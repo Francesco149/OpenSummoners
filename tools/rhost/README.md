@@ -186,7 +186,7 @@ from `tools/ida/crosswalk.py`. Game data: `C:\oss-rhost\game\{enold,ense}\` (pri
 
 ## Windows plumbing (separate from openrecet — both can run at once)
 
-- `ssh win-wifi` (`RHOST_WIN`; the wired alias `win` is not connected, USER 2026-11-25) = Windows OpenSSH (PowerShell). sshd runs in session 0 (no desktop ⇒ no
+- `ssh win-wifi` (`RHOST_WIN`, default `galaxybook` = the owner's quiet laptop since 2026-11-25; cutestation = `win-wifi`, its wired `win` alias is not connected) = Windows OpenSSH (PowerShell). sshd runs in session 0 (no desktop ⇒ no
   DirectDraw), so batches go through **`win/runner.ps1`**, a FIFO queue runner in the interactive
   logon session: scheduled task **`oss-rhost-runner`**, queue **`C:\oss-rhost\queue`**.
   openrecet uses `orc-rhost-runner` + `C:\orc-rhost\queue`: no shared files, names, mutexes or

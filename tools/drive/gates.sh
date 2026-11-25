@@ -6,7 +6,7 @@
 # Exit 0 = every pass PASS. Logs: runs/accept/.gate-<target>-<mode>.log
 set -u
 cd "$(dirname "$0")/../.."
-export RHOST_WIN="${RHOST_WIN:-win-wifi}"
+export RHOST_WIN="${RHOST_WIN:-galaxybook}"
 ONLY=${1:-}
 SC=(); [ -n "$ONLY" ] && SC=(--only "$ONLY")
 side() {   # side TARGET-ARGS... : hybrid then standalone on one machine

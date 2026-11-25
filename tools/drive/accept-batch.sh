@@ -18,7 +18,7 @@
 # failure must wake the session while its context is still cached.
 set -u
 cd "$(dirname "$0")/../.."
-export RHOST_WIN="${RHOST_WIN:-win-wifi}"
+export RHOST_WIN="${RHOST_WIN:-galaxybook}"
 LIST=$1; GATES=${2:-}
 RH="nix develop --command python3 tools/rhost/rhost.py"
 VOL=tools/rhost/volatile.enold.txt
