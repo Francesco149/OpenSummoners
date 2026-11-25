@@ -2,7 +2,7 @@
  "frame": "7119",
  "tick": "2167",
  "rng": "e56a48df",
- "state_sem": "7d9f205a3004b724",
+ "state_sem": "e43b45995986f2fc",
  "fb": "e692acdd5ca197fc",
  "sem_series": {
   "0": "c93ceac15ac4df97",
@@ -13,10 +13,10 @@
   "3000": "450a5f8c716b26ad",
   "3600": "43de345b7c414ead",
   "4200": "f71c94d1195196ad",
-  "4800": "c264db33f849e93b",
-  "5400": "7ffcd98e4055eebe",
-  "6000": "be490382f3add79d",
-  "6600": "7ce5c155f5caf608"
+  "4800": "8d26516df8fdcf24",
+  "5400": "c6b65ffca2fa4a82",
+  "6000": "b1eaa80dc901f32e",
+  "6600": "d5f14800fe7cdc1b"
  },
  "fb_series": {
   "0": "0a11a2ce8b590113",
