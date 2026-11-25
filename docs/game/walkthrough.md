@@ -536,6 +536,15 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
 5. **Archmage's Tower** (Pink Slime, Baby Aquamage, Rattlesnake, Org Bowman, Org Swordsmaster, Kobold Ace, Young Harpy):
    1. Stairs; far left [Mind Chocolate]; up; left ledges [Tough Drop]; right, stairs by locked wall; left, stairs; right [Good Child Drop]; left, drop, stairs; climb; stairs; right → **MoH 16** (cap 19, 100,000). Wooden door = dead end for now. Up → fancy doors → former-headmaster scene (a broken pot must be repaired before he can help — UNVERIFIED wording; [DK] only says "more work for us" / "fix that blasted pot").
    2. Headmaster's room: rightmost shelf 'Merrin 12/12'; far-right drawers [Archmage's Tower Key]; wooden door → beds (rest), closet [Magic Bracelet]; stairs to roof = MoH 17 too high (later).
+   - [RD story-d11d] EN-old tower: 440110 ↑ → 440120 (far-left chest (30400, 32000) [Mind Chocolate]; ↑ (131200, 44800))
+     → 440130 ("left ledges" = OUTSIDE: floating platforms x 89600–102400 → stone block → chest (35200, 48000) [Tough Drop];
+     upper floor ↑ (163200, 25600)) → 440150 (↑ (96000, 35200)) → 440160 (chest (166400, 35200) [Good Child Drop]; drop
+     off the upper floor's left end outside; lower door ↑ (83200, 89600)) → 440190 (two shafts, jump-through ledges; ↑
+     (108800, 32000)) → **440200**: **MoH 16** 70100 at (72000, 78015); "wooden door dead end" = zone 3 ↑ (172800, 60800)
+     → 440205; zone 2 ↑ (38400, 28800) → **440210** headmaster (pot breaks): shelf 70353 x 122800 'Merrin 12/12', drawers
+     70363 x 147200 [Archmage's Tower Key]; ↑ (156800, 48000) → **440220** bedroom: wardrobe x 66800 (V facing)
+     [Magic Bracelet] (Spirit +20), bed nap → heal + save; zone 2 ↑ (19200, 35200) → 440230 (roof?). Menu item use is a
+     timed CAST by the leader while the game runs.
    3. 🔑 Back to dead-end wooden door → key → gate → library: examine shelves; **5th shelf to the right** = the repair book → need [Glue], [Poton Sap], [Rozack Polish].
    4. 🔑 [Glue]: back down, left, unlock gate, tiny ledges, stairs; Arche pushes block on leftmost platform while Sana/Stella holds it; one member on rightmost platform, other two jump to highest → lifts rightmost to lever → chest.
    5. 🔑 [Poton Sap]: back to area start, past stairs, right, drop pit, right stairs down; key starts platforms → cross → chest.
