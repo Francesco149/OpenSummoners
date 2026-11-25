@@ -527,6 +527,12 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      Recall Lamp 500, Magic Bracelet 11000). The Grand Gourmand / crates / [Guardian Drop] / [Life Dew]: behind 420200
      or 420220 (not found yet).
 4. 💎 First go LEFT → **North Chartreux Guardpost**: barrel [Power Drop]; Inn/item shop (Mountain Cat Inn; rest/save; NO storage): 2F [Best Herb]; other door 2F 10 CP, 3F barrel 3 CP, [Underwear](F), desk 'Merrin 11/12'.
+   - [RD story-d11c] EN-old: 430110 → 420180 (top ledge → zone 2) → 420220 → 420200 (scaffold crates 70205; zone 3 top
+     left, ↑) → **420210**: [Life Dew] (83200, 12800), [Guardian Drop] (75200, 12800), the **Grand Gourmand** (~27200,
+     25600; talk with V) takes [Ultimate Bread] → zone 3 ↑ at x 23200 between the rocks → 420230 (climb: middle block,
+     dash-jump kick right onto the top platform) → 420240 → tower door ↑ (163200, 92800) → **440110** (statue =
+     decoration; zone 2 ↑ (150400, 25600) → 440120). No save point after the Guardpost inn. Bag cap 48: a full bag leaves
+     the item in the chest. Guardpost shop lady / NPCs talk on V. Guardpost barrel 70302 never opened (handler 0x407970).
 5. **Archmage's Tower** (Pink Slime, Baby Aquamage, Rattlesnake, Org Bowman, Org Swordsmaster, Kobold Ace, Young Harpy):
    1. Stairs; far left [Mind Chocolate]; up; left ledges [Tough Drop]; right, stairs by locked wall; left, stairs; right [Good Child Drop]; left, drop, stairs; climb; stairs; right → **MoH 16** (cap 19, 100,000). Wooden door = dead end for now. Up → fancy doors → former-headmaster scene (a broken pot must be repaired before he can help — UNVERIFIED wording; [DK] only says "more work for us" / "fix that blasted pot").
    2. Headmaster's room: rightmost shelf 'Merrin 12/12'; far-right drawers [Archmage's Tower Key]; wooden door → beds (rest), closet [Magic Bracelet]; stairs to roof = MoH 17 too high (later).
