@@ -66,6 +66,11 @@ wine's); hybrid / standalone checks feed it (`--undef-feed` → the port's `UNDE
 The product (no feed) keeps the port's 0 (no retract damage) — retail's own value is undefined. **KNOWN_GAPS story-day10b /
 10c removed:** wine + Windows hybrid 2/2 + standalone 2/2 PASS (end state + every sem / fb sample). Later legs
 (their prefix = d10b's movie) are gated in full again. README "The undefined-data oracle".
+**Site 186 (2026-11-24, quirk #186):** story-day10d's first wine hybrid gate: `sem@f447600` (2/768 samples; end state /
+RNG / fb equal). `--dump-at` diff pure vs hybrid → 1 arena dword (char command `+0x1c`, high half); `--watch-write` →
+retail `0x47c39d` (behaviour AI's 32-byte command copy) vs the port's `char_behave` `accept:` copy of an uninitialized C
+local. Port pad now 0 (deterministic); the oracle feeds retail's (`UNDEF_READ(186, 0, …)` at `0x47c38c`). d10d wine
+hybrid PASS incl. every sem sample.
 Wine `corpus --check --hybrid` + `--standalone`: story-day10b only (sem@f374400 first, RNG from f375239: pure
 `0x60eefd0` vs port `0x3dcfe098`; pixels: Arche's slash sparks on the 410150 spike slope). `hookbisect` (wine, f375241)
 → single hook **`ab_554570`** (replace-only: no shadow row; the port transcribes IDA's control flow). Cause = quirk #185:
@@ -88,6 +93,15 @@ Evidence: `runs/accept/d10b-gates-wine.log`, hookbisect `wine/root/runs/20261123
 `wine/root/runs/20261123-013322-run`.
 
 ### R12 — Windows real-device `fb` flake: pixel chain ≠ pure, intermittently (MITIGATED: gates headless, USER 2026-11-23; root cause OPEN)
+**2026-11-25 — HARDWARE: the Windows box's memory is unstable.** memslammer (USER's `../memslammer`, CLI `-d 7200`,
+verify, 6.9 GB = the free half of 16 GB, 24 threads) on win-wifi: `ERROR thread 20 cycle 6 bits 0x00ff000000000000` at
+177.8 s (a whole byte of a 64-bit word wrong). Fits every R12 fact: pixel-only, intermittent, Windows-only (wine on
+other machines never), pure retail too, "load-correlated", recent. Tonight's evidence before the test: Windows pure
+re-bless items-use fb moved (pure retail cannot change), Windows hybrid 8 fb-only fails, standalone fb not run-to-run
+stable (town-services: gate 52c22127…, a probe run a4c3085d…, same frame count; first diverging sample f7700–7800, yet
+per-frame PNGs of a re-run equal — the flake did not recur). **Until the box is fixed, Windows fb results are not
+evidence; wine (bunker / maximus) is the gate.** Probes added: `--fb-log` (every frame's fb hash) + `--fb-ref F` (shoot
+the first frame differing from F's).
 **Decision (USER, 2026-11-23):** Windows `corpus --bless/--check` run `--headless` by default (`--real-device` = the old
 path, informational); `rd verify --real` blocks on the real device's frame + RNG only, its fb is printed, not gated.
 Trigger: the 2026-11-23 d10c batch — Windows PURE bless baked 7 flaked fb values (options-deep, party-magic-controls,

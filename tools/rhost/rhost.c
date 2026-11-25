@@ -961,6 +961,10 @@ static const undef_site_t UNDEF_SITES[] = {
     /* 0x481ac0 (the state-6 skill AI's dry run) entry `sub esp,5FCh`: its two 0x294-byte bodies (var_528 / var_294)
      * are never cleared and the integrator never writes their +0x68 (f68), which the skill stage reads — quirk #182 */
     { 182, 0x481ac0u, { 0x81, 0xEC, 0xFC, 0x05, 0x00, 0x00 }, 6, 2, { { -0x528 + 0x68, 0 }, { -0x294 + 0x68, 0 } } },
+    /* 0x47b990 (behaviour AI) nav-move tail @0x47c38c `lea edi,[esi+14854h]` before the 32-byte command copy: the local
+     * command var_A0 ([esp+0x54]) was cleared by 0x411530, which never writes +0x1e — the dword at +0x1c ([esp+0x70])
+     * carries a stale high half into the character's command (+0x14872) — quirk #186 */
+    { 186, 0x47c38cu, { 0x8D, 0xBE, 0x54, 0x48, 0x01, 0x00 }, 6, 1, { { 0x70, 0 } } },
 };
 #define UNDEF_NS (sizeof UNDEF_SITES / sizeof *UNDEF_SITES)
 #define UNDEF_RUNS 65536
@@ -1267,6 +1271,43 @@ static LONG CALLBACK crash_veh(EXCEPTION_POINTERS *e)
     return EXCEPTION_CONTINUE_SEARCH;
 }
 
+/* --fb-ref FILE (R12 probe): another run's `fbh fN HASH` lines (--fb-log).  At the first frame whose back-buffer hash
+ * differs from it, shoot that frame and the next 7 (shot_fNNNNNN.png) and log `fb-ref: first differing frame N`. */
+static uint64_t *g_fbref; static uint32_t g_fbref_n, g_fbref_hit, g_fbref_shots;
+static void fb_ref_load(const char *path)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f) rh_fatal("--fb-ref %s: cannot open", path);
+    char line[256]; unsigned fr; unsigned long long h;
+    while (fgets(line, sizeof line, f)) {
+        const char *p = strstr(line, "fbh f");
+        if (!p || sscanf(p, "fbh f%u %llx", &fr, &h) != 2) continue;
+        if (fr >= g_fbref_n) {
+            uint32_t n = fr + 4096;
+            g_fbref = realloc(g_fbref, n * sizeof *g_fbref);
+            if (!g_fbref) rh_fatal("--fb-ref: out of memory");
+            memset(g_fbref + g_fbref_n, 0, (n - g_fbref_n) * sizeof *g_fbref); g_fbref_n = n;
+        }
+        g_fbref[fr] = h;
+    }
+    fclose(f);
+    rh_log("fb-ref: %s loaded\n", path);
+}
+static void fb_ref_check(uint64_t fh)
+{
+    if (!g_fbref) return;
+    if (g_fbref_hit) {
+        if (g_fbref_shots < 8) { char t[32]; snprintf(t, sizeof t, "f%06u", g_frame); rh_shot(t); g_fbref_shots++; }
+        return;
+    }
+    if (g_frame < g_fbref_n && g_fbref[g_frame] && g_fbref[g_frame] != fh) {
+        g_fbref_hit = g_frame;
+        rh_log("fb-ref: first differing frame %u (ref %016llx, this run %016llx)\n", g_frame,
+               (unsigned long long)g_fbref[g_frame], (unsigned long long)fh);
+        char t[32]; snprintf(t, sizeof t, "f%06u", g_frame); rh_shot(t); g_fbref_shots = 1;
+    }
+}
+
 /* runs at the ENTRY of every Flip (the frame's back buffer is complete): frame g_frame ends */
 static void __cdecl boundary(void)
 {
@@ -1286,7 +1327,11 @@ static void __cdecl boundary(void)
     }
     if (O.fb_hash) {
         uint64_t fh;
-        if (rh_fb_hash(&fh)) { g_fb_chain = (g_fb_chain ^ fh) * 0x100000001b3ull; g_fb_n++; }
+        if (rh_fb_hash(&fh)) {
+            g_fb_chain = (g_fb_chain ^ fh) * 0x100000001b3ull; g_fb_n++;
+            if (O.fb_log) rh_log("fbh f%u %016llx\n", g_frame, (unsigned long long)fh);
+            fb_ref_check(fh);
+        }
     }
     rh_state_note_world();
     if (O.hash_every && g_frame % O.hash_every == 0) {
@@ -1633,6 +1678,8 @@ static void parse(int argc, char **argv)
             g_tva[g_ntrap++] = strtoul(t, 0, 16);
             O.trap_max = 0;
         }
+        else if (!strcmp(a, "--fb-log")) O.fb_log = 1;
+        else if (!strcmp(a, "--fb-ref")) O.fb_ref = ARG();
         else if (!strcmp(a, "--undef-record")) O.undef_record = 1;
         else if (!strcmp(a, "--undef-feed")) O.undef_feed = ARG();
         else if (!strcmp(a, "--trap")) {
@@ -1887,6 +1934,7 @@ platform_done:
         undef_record_install();
     }
     if (O.undef_feed) undef_feed_load(O.undef_feed);
+    if (O.fb_ref) fb_ref_load(O.fb_ref);
     if (O.coverage) cov_install();
     AddVectoredExceptionHandler(0, crash_veh);   /* last in line: the trap / watch handlers see theirs first */
     if (g_nw) AddVectoredExceptionHandler(1, watch_veh);

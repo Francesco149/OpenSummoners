@@ -5163,6 +5163,14 @@ code, a 20-tick `+0x2a0` cooldown); a door returns 1/2/6 and the room loop retur
   rh-after-prologue's replay then never writes the human's last save (`savedata05.sdt`, rh-water-shrine's start).
   SE: `0x47e5f0`.
 
+### #186 — the behaviour AI's nav-move command carries 2 stale stack bytes into the character's command (2026-11-24)
+- `0x47b990` (behaviour AI) nav-move block: the local command `var_A0` (32 bytes) is cleared by `0x411530`, which writes
+  every field but `+0x1e` (its `+0x1c` store is a 16-bit `mov [eax+1Ch], cx`); the tries (`0x47d790` / `0x4412d0`) fill
+  some fields; `0x47c38c`..`0x47c39b` copies all 32 bytes (`rep movsd`) to the character's command `+0x14854`. So
+  `+0x14872` = whatever the stack held at `var_A0+0x1e`. story-day10d f447498 (410230, the Wyvern intro): `0x300a`
+  (high half of a heap pointer). Nothing seen reading it (the copy is overwritten within ~1200 frames; frame / RNG /
+  pixels unaffected) — only the state hash sees it. Pillar 5, same class as #182 / #185.
+
 ## 76. Combat-voice ids are BAKED into the actor at creation, gated on the voice bank
 The SE engine plays character combat grunts (Arche attacking = `sotesx_s.dll` clips 2235/2236)
 NOT through the dialogue voice path but per-actor: the action-table builder (JP `FUN_00423890`

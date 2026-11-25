@@ -227,6 +227,9 @@ static int random_walk(wl_char *self, wl_body *b, int32_t gr)
         if (r == 0) cmd_clear(&cmd);
     }
 accept:
+    /* retail's clear (0x411530) never writes the command's +0x1e: the copy carries whatever its stack slot held (quirk
+     * #186).  Port value 0 (deterministic); the gates feed retail's (the high half of the recorded +0x1c dword). */
+    cmd._p1e = (uint16_t)((uint32_t)UNDEF_READ(186, 0, 0) >> 16);
     memcpy(&self->cmd, &cmd, sizeof cmd);
     return r;
 }
