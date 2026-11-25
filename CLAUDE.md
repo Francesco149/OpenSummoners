@@ -65,7 +65,7 @@ runs the port with NO retail code (data sections only); `rhost.exe --standalone`
   REG±OFF:LEN` dumps memory at each hit), `--shadow-from F` (shadows only from flip F), `coverage` (first-hit
   over all IDA functions; `--hybrid`: what retail code still runs), `--dump-at` + `rhs.py` (state diffs),
   `--shot-at` / `--shot-every` (frames as images).
-- **Windows:** `ssh win` + task `oss-rhost-runner` + `C:\oss-rhost\` — separate from openrecet's
+- **Windows:** `ssh win-wifi` (Wi-Fi; the wired `win` alias is NOT connected — USER 2026-11-25) + task `oss-rhost-runner` + `C:\oss-rhost\` — separate from openrecet's
   `orc-rhost-runner`/`C:\orc-rhost\` (verified running simultaneously); the binary is `oss-rhost.exe` there
   (openrecet kills `rhost.exe` by name — never kill anything by exe NAME on that box). Wine (`--target wine`: always
   `--headless`, on the bunker when it answers else maximus — USER 2026-11-14) = the logic oracle. IDA 9.4 headless: `python3 tools/ida/ida.py export [--kb] [--fresh]`

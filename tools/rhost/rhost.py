@@ -18,7 +18,7 @@
 
 Common opts: --frames N --seed S --hook SPEC --dump-at F,..|end --shot-at F,..|end
              --shot-every N --hash-every N --edition E -j J --extra "raw rhost args"
-Windows: `ssh win` (OpenSSH, PowerShell) + the interactive-session queue runner
+Windows: `ssh win-wifi` (OpenSSH, PowerShell) + the interactive-session queue runner
 `oss-rhost-runner` (C:\\oss-rhost\\queue) — separate from openrecet's C:\\orc-rhost, so both
 projects can run batches at the same time. Results: /mnt/ephemeral/opensummoners/rhost-runs/.
 """
@@ -40,7 +40,7 @@ SCEN = os.path.join(ROOT, "tests", "scenarios")
 BUILD = os.path.join(ROOT, "build", "rhost")
 LOCAL_RUNS = os.environ.get("RHOST_RUNS", "/mnt/ephemeral/opensummoners/rhost-runs")
 IDA_DIR = os.environ.get("OSS_IDA_LOCAL", "/mnt/ephemeral/opensummoners/decompiled-ida")
-WIN = os.environ.get("RHOST_WIN", "win")
+WIN = os.environ.get("RHOST_WIN", "win-wifi")   # USER 2026-11-25: the box is on Wi-Fi; `win` (wired) is not connected
 WROOT = "C:\\oss-rhost"
 WEXE = "oss-rhost.exe"   # Windows-side binary name (distinct from openrecet's rhost.exe)
 def volatile_file(ed):
