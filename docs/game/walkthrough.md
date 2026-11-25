@@ -549,6 +549,18 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
    4. 🔑 [Glue]: back down, left, unlock gate, tiny ledges, stairs; Arche pushes block on leftmost platform while Sana/Stella holds it; one member on rightmost platform, other two jump to highest → lifts rightmost to lever → chest.
    5. 🔑 [Poton Sap]: back to area start, past stairs, right, drop pit, right stairs down; key starts platforms → cross → chest.
    6. 🔑 [Rozack Polish]: back, left stairs down, left, stairs down; key on lock to right; **leap of faith** far right off ledge → outside w/ harpies → right chest.
+   - [RD story-d11e] EN-old: 440200 zone 3 → **440205** library: key on the lock (f678120); **5th shelf** x 102000 = "Magic
+     Pot Repair for Beginners". **Glue:** 440200 bottom-left door → 440190 TOP floor, lock x 36800 → 440195 (3 outdoor pillars;
+     Org Swordmaster + Bowman) → ↑ (19200, 25600) → **440198** = the puzzle: two balance pairs P1 x 59200 ↔ P2 x 80000 (neutral
+     y 35200, ±9600) and P3 x 92800 ↔ P4 x 112000 (neutral 28800, ±16000); heavier side sinks, equal/empty → neutral. Sana on
+     P1 ('Stay There!'), Arche pushes the block (x 102400) left onto P1 (block alone holds P1 down), Arche full-jumps floor → P4,
+     Sana floor → block → P2 → P3, Stella → P3 ⇒ P4 rises to ly 7200 by the lever; lever = **V** only → chest (147200, 41600).
+     **Poton Sap:** 440190 right shaft down → middle corridor left → left shaft down → bottom right → walk-out (214400, 108800)
+     → 440170 (drop through the hole) → ↑ (89600, 73600) → **440180**: key starts the 70202 platforms; scaffold beams are
+     scenery (fall-through) → chest (35200, 25600). **Rozack Polish:** 440150 ↑ (198400, 48000) → **440130** upper floor (not
+     440160), lock (184000, 22400) → **440140**: leap off the upper corridor's right end → right ledge → chest (216000, 51200)
+     opened FACING LEFT; back: down-left jump into the lower corridor, exit x 0 → 440130. 440150 pillar chest (27200, 19200)
+     skipped.
    7. 🔑 Save in bedroom (game suggests) → fix the pot = **numbered block puzzle I–IX**. [DK] solution (paraphrased order): VII far left; IX off left edge; VIII off right edge; V off right edge onto VIII; push VIII+V stack left to cover left half of VII/IV/I column; Stella burns vines → VI drops onto stack's top-right; push stack to IX; place VI; place VII; IV off left edge then off right edge → its spot; burn vines AROUND (not under) II, push II slightly left, burn under it → falls to spot (nudge); I off right edge → spot; member on right platform (down), push III onto it; both girls on left platform → III level w/ left ledge; push III onto ledge; girls move to right platform; push III off left edge → spot. **Break any block = reset**; a lever neatens blocks. Talk to the magician → events → **seal broken: Unison / wind boost jump** (Arche can jump 3× total).
    8. 🔑💎 Roof stairs → **MoH 17** (cap 20, 110,000) w/ boost jump. Left side w/ plank scaffolding → boost to chest [Memory Photo 7].
 6. 💎 **Unison backtrack** (all optional but includes Help Out items + Memory Photos):
