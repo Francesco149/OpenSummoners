@@ -103,7 +103,10 @@ per-frame PNGs of a re-run equal — the flake did not recur). **Until the box i
 evidence; wine (bunker / maximus) is the gate.** Window: **2026-11-06 → 2026-11-25** (cutestation = memslammer's DDR4 test box from 11-06; OWNER 2026-11-25: its
 daily setting was 3600 **16-16-16** with tuned secondaries — borderline, not memslammer's deliberately-unstable c14
 test profile); the owner loosened it 2026-11-25.
-Windows-only evidence from that window (Windows expected `fb` values, R12 "load" findings, `verify --real` fb) = retest. Probes added: `--fb-log` (every frame's fb hash) + `--fb-ref F` (shoot
+Windows-only evidence from that window (Windows expected `fb` values, R12 "load" findings, `verify --real` fb) = retest.
+**2026-11-25 after the owner loosened the settings: memslammer CLEAN** (`-r 20 -d 7200`, 10.4 GB, 24 threads: `RESULT
+errors=0 elapsed_s=7200`). Windows gating resumes; the next full Windows bless re-derives every Windows `fb` (the R12 guard
+names any that moved). Probes added: `--fb-log` (every frame's fb hash) + `--fb-ref F` (shoot
 the first frame differing from F's).
 **Decision (USER, 2026-11-23):** Windows `corpus --bless/--check` run `--headless` by default (`--real-device` = the old
 path, informational); `rd verify --real` blocks on the real device's frame + RNG only, its fb is printed, not gated.
