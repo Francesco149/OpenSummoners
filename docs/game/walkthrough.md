@@ -698,6 +698,14 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
   54–80k), (27200, 115200) [Stronggirl Juice], (75200, 179200) [Mind Chocolate] (2 Ice Dragon Pups); lever 70216 (59200,
   339200) bottom left (floor spikes x 10–17k / 177–196k); Saint's Brooch / Mystery Juice / CP likely in **450420**.
   Monsters: Black Harpy 51092 (sleep song), Black Panther 51213 (860 HP), Ice Dragon Pup 51262.
+- [RD story-pgb] EN-old: **450420** (74×112; 4 left-edge exits back to 450410 at y 19200 / 131200 / 185600 / 329600; right
+  shaft x ~208–224k top to bottom). "Drop hugging left wall" is literal: 450410 z3 → 450420 → the gated chamber (y 97–116k:
+  2 Ice Dragon Pups + Centurion) → walk off into the right shaft holding ← → the middle corridor: chests (19200, 259200)
+  [Saint's Brooch] (Arche: every stat up) + (12800, 259200) 4000 CP; bottom corridor chest (155200, 342400) 1000 CP; entry-4
+  corridor chest (40000, 198400) [Revival Drink EX]; side-room chest (131200, 185600) + top chest (94400, 44800) (via 450410
+  z2; probably [Mystery Juice]) NOT taken. The 450410 lever (59200, 339200) fires with V FACING RIGHT from lx ≈ 61612 →
+  teleport → 450400 (9600, 39200); 450400 z1 (124800, 28800) → 450180 (its top corridor = a monster trap) → z5 → fountain 1.
+  Ice Dragon Pups freeze (`lpose` 119) and hover ~10k up (jump attacks).
 - New monsters here: Black Panther, Black Harpy. Then fight Selene again to re-see ending.
 - Nightmare difficulty unlocked; NG with skill books (side-content.md).
 
