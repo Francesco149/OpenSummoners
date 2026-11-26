@@ -92,7 +92,7 @@ renderer's frames — not a local fix.
 Evidence: `runs/accept/d10b-gates-wine.log`, hookbisect `wine/root/runs/20261123-002950-bisect2-story-day10b`, census
 `wine/root/runs/20261123-013322-run`.
 
-### R12 — Windows real-device `fb` flake: pixel chain ≠ pure, intermittently (MITIGATED: gates headless, USER 2026-11-23; root cause OPEN)
+### R12 — Windows `fb` flake on cutestation: pixel chain ≠ pure, intermittently (MITIGATED: gates on galaxybook, 2026-11-26; cutestation's cause OPEN)
 **2026-11-25 — HARDWARE: the Windows box's memory is unstable.** memslammer (USER's `../memslammer`, CLI `-d 7200`,
 verify, 6.9 GB = the free half of 16 GB, 24 threads) on win-wifi: `ERROR thread 20 cycle 6 bits 0x00ff000000000000` at
 177.8 s (a whole byte of a 64-bit word wrong). Fits every R12 fact: pixel-only, intermittent, Windows-only (wine on
@@ -117,6 +117,14 @@ box; other projects' tests) or a smoothing / DWM state change can alter pixels o
 ~17:00–17:10 (AFTER the flaked bless — not its cause) while the Windows hybrid gate (from 16:35) ran: a natural A/B. Next:
 log the screen mode (`GetDeviceCaps(BITSPIXEL)`, `SPI_GETFONTSMOOTHING*`) per frame window in rhost; a controlled A/B
 (display-mode switch mid-run) needs the owner's OK; fix = headless GDI pinned to a fixed-format DIB DC, not the screen.
+**2026-11-26 — it is CUTESTATION, not determinism (owner's A/B):** the owner's laptop `galaxybook` (i5-1335U, 8 GB, Win,
+browser only) — whole-corpus pure bless (`20261125-201524-corpus`, -j 3, headless) then a full `--check`
+(`20261126-000000-corpus`): **72/72 PASS, 0 differences** (frame / tick / RNG / state_sem / fb), plus 2 earlier identical
+rounds of the 3 flaked scenarios. Its state_sem + fb differ from cutestation's (machine-specific, like wine's
+expected.wine.json); its undef streams equal cutestation's byte for byte. Same hours, cutestation: hybrid 9 + standalone 10
+fb-only fails, and story-day11b gave a different fb in each. ⇒ **Windows gates = galaxybook** (rhost.py / gates.sh /
+accept-batch.sh default `RHOST_WIN`); cutestation = informational only. Root cause on cutestation still OPEN
+(memslammer-clean RAM; screen-compatible GDI / other desktop activity remain the suspects).
 **Decision (USER, 2026-11-23):** Windows `corpus --bless/--check` run `--headless` by default (`--real-device` = the old
 path, informational); `rd verify --real` blocks on the real device's frame + RNG only, its fb is printed, not gated.
 Trigger: the 2026-11-23 d10c batch — Windows PURE bless baked 7 flaked fb values (options-deep, party-magic-controls,
