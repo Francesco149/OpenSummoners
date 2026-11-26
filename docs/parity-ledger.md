@@ -123,7 +123,8 @@ browser only) — whole-corpus pure bless (`20261125-201524-corpus`, -j 3, headl
 rounds of the 3 flaked scenarios. Its state_sem + fb differ from cutestation's (machine-specific, like wine's
 expected.wine.json); its undef streams equal cutestation's byte for byte. Same hours, cutestation: hybrid 9 + standalone 10
 fb-only fails, and story-day11b gave a different fb in each. ⇒ **Windows gates = galaxybook** (rhost.py / gates.sh /
-accept-batch.sh default `RHOST_WIN`); cutestation = informational only. Root cause on cutestation still OPEN
+accept-batch.sh default `RHOST_WIN`); cutestation = informational only. galaxybook gates on its baselines: hybrid 72/72 PASS,
+standalone PASS (2026-11-26; the 4 h job limit → `RHOST_WIN_TIMEOUT`, default 10 h). Root cause on cutestation still OPEN
 (memslammer-clean RAM; screen-compatible GDI / other desktop activity remain the suspects).
 **Decision (USER, 2026-11-23):** Windows `corpus --bless/--check` run `--headless` by default (`--real-device` = the old
 path, informational); `rd verify --real` blocks on the real device's frame + RNG only, its fb is printed, not gated.
