@@ -597,6 +597,13 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      Dew 96, Revival Drink 350, Recall Lamp 500, Magic Bracelet 11000), right = inn (28 CP, rest + save). Stella Lv16 →
      Interceptor. Unison drifts ~3000 during the cast: not on a ledge edge.
 7. 🔑 Go to school → cutscene: darkness ("Dark World") → **Labyrinth of Night** (exe: `Labyrith of Night`). Point of no return-ish: once you beat the Dark Witch the ending plays; post-game save resumes BEFORE Selene (so nothing permanently lost) [DK]. Monsters: Vile Bat, Purple Slime, Rattlesnake, Org Centurion (rare drop [Org Sword] = Help Out), Baby Aquamage, Ice Dragon Pup, Skeletal Corporal, Ghost Warlock, Baby Blazemage, Org Bowman.
+   - [RD story-d11i] EN-old: Guardpost → 430110 zone 1 → 420180 → 420170 → 420160 (top-right (252800, 12800)) → 420150 →
+     420120 → 420110 → Chartreux 300110; 300120 gate → 265110 … 265160 (White Rose Inn 265165: 7 CP rest + save; the
+     rose bush at x 202800–211200 regrows: Stella burns it) → 265170 → 2601xx → Tonkiness 210110 → zone 7 → 225110 (pit
+     x 102400–118400: dash-jump) → 225120 → 225130 → school yard 230110 (darkness scene starts by itself) → zone 2 ↑
+     (158400) → **450110** Labyrinth of Night entrance hall (statues of Colm and Leon; zones 2 (28800, 54400) / 3
+     (275200, 54400) → 450120; zone 1 = back out; no save point). Chartreux 300220 page 2: Battle Sword 18000, Magic
+     Dagger 9700, Iron Armor 9800 (Arche), Bronze Gauntlets 2800.
    1. Ledge chest [Mind Chocolate]; across, stairs down; straight; next area top-left [Revival Drink EX]; drop, left door; boost jump to upper wooden door → [Pitch Black Key] + **MoH 18** (cap 21, 120,000).
    2. Back; right, stairs down; far right wooden door → water cavern: Sana / Mermaid Robe → [Guardian Drop], [Best Herb].
    3. Up past stairs, far left: ⚠ chest = **teleport trap**; drop, bottom-left 2500 CP; stairs; far right [Broken Lamp] (Help Out); back far left past entry stairs, jump, right → wooden door = **fountain 1**.
