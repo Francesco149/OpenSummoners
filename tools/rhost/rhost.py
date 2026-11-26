@@ -42,6 +42,9 @@ LOCAL_RUNS = os.environ.get("RHOST_RUNS", "/mnt/ephemeral/opensummoners/rhost-ru
 IDA_DIR = os.environ.get("OSS_IDA_LOCAL", "/mnt/ephemeral/opensummoners/decompiled-ida")
 WIN = os.environ.get("RHOST_WIN", "galaxybook")   # USER 2026-11-25: the quiet laptop (cutestation `win-wifi` fb-flakes, R12)
 WROOT = "C:\\oss-rhost"
+# a whole-corpus batch on the laptop (galaxybook) takes ~4 h at -j 3: the old fixed 4 h limit cancelled its gates
+# (2026-11-26).  Counts from the job's START (see win_job).
+WIN_JOB_TIMEOUT = int(os.environ.get("RHOST_WIN_TIMEOUT", "36000"))
 WEXE = "oss-rhost.exe"   # Windows-side binary name (distinct from openrecet's rhost.exe)
 def volatile_file(ed):
     return os.path.join(HERE, f"volatile.{ed}.txt")
@@ -711,7 +714,7 @@ def run_batch(a, runs, tag, fetch=("rhost.log",)):
     scp(bdir, f"{WIN}:C:/oss-rhost/runs/", recursive=True)
     t0 = time.time()
     try:
-        out = win_job(batch, f"{WROOT}\\runs\\{batch}\\go.ps1")
+        out = win_job(batch, f"{WROOT}\\runs\\{batch}\\go.ps1", timeout=WIN_JOB_TIMEOUT)
     except BaseException:
         win_prune(batch)
         raise
