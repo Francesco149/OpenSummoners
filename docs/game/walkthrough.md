@@ -568,9 +568,18 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      (83200, 67200), 502 VIII (46400, 41600), 503 IX (73600, 41600), 504 IV (35200, 19200), 505 V (32000, 41600), 506 VI
      (54400, 6800, in vines), 507 I (46400, 19200), 508 II (67200, 7600, in vines), 509 III? (118400, 67200). Lever 70216
      (16000, 64000) snaps every block to the 6400 grid — NEEDED before "IV off right edge" (else IV lands on V's corner).
-     Followers don't push. Vines 70400: burning one switches every actor whose handle (+0x1d8) == its link (+0x298),
-     recursively (`0x40be30`; +0x288 == 0 ⇒ first match only) — the burn groups are map data. VII…VI placed by f741344;
-     II stuck (each burn tried also burned the piece under it).
+     Followers don't push. VII…VI placed by f741344.
+   - [RD story-d11g] EN-old: the 14 vines 70400 (world +0x11e0 objects) have NO links (+0x1d8 / +0x298 = 0): each burns
+     only when a shot hits it (material +0x290 = 4). Left pair (62000, 4400/9200): Stella jumping `UX`/`RX` from on top of
+     I; right trio (74800, 4400/9200/12400): `UX` fired while falling into the well. II: Arche stands on the under vine's
+     exposed right lip (lx 73316, ly 8400) and pushes II left → it drops at x 63600 to (63600, 54400) → push left from
+     III's cell → (60800, 54400). I: push right off the upper-mid ledge → snaps to (54400, 54400). III: platforms ±12800
+     (Sana alone ≈ III; Stella lighter); push III to ledge B's left end (x 99300) BEFORE moving the girls right; Arche
+     pushes from the jump-through (118400, 48000); off ledge A's left edge → (67200, 54400). Magician Towarin = far left of
+     440240 (x ~12000) → "Did you fix my pot?" Yes → 440210 → **Unison + Wind Thrust** (f759511). Unison: sword drawn,
+     hold X ~105 frames, release (10 MP); C in the air chains boosts. 440220 zone 2 → **440230** roof: **MoH 17** 70100 at
+     (102400, 23235). 440230 has NO chest (Memory Photo 7 is elsewhere). Quirk: a 'Stay There!' follower left on a moving
+     balance platform hovers at the old height and weighs nothing until moved.
    8. 🔑💎 Roof stairs → **MoH 17** (cap 20, 110,000) w/ boost jump. Left side w/ plank scaffolding → boost to chest [Memory Photo 7].
 6. 💎 **Unison backtrack** (all optional but includes Help Out items + Memory Photos):
    - Flower-picking area: boost twice across → 1500 CP, [Stronggirl Juice].
