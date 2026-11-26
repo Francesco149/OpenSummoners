@@ -628,11 +628,20 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      **450215**: chest (36800, 35200) [Pitch Black Key], **MoH 19** 70100 (33600, 18905) — cap shows 120000 (each MoH
      cap is 10,000 below this guide's figure); "Congratulations" closes on `ent`. 450200 bottom-left gate (lock (19200,
      89600)) → z3 x 0 → **450220** (z4 (252800, 96000) → **450225 = fountain 2**; z2 (67200, 115200) → 450230; z3 (204800,
-     118400) → 450240; the gargoyles 70410 at (192000 / 220800, 117600) = step 6's pair — fountains share code 70410,
-     handles 450185501 / 450225501). 7.5 loot NOT taken yet: 450200 chests (232000, 25600) / (321600, 32000) / (475200,
+     118400) → 450240; 70410 at (192000 / 220800, 117600) = BACKGROUND statues (walk-through, not pushable — story-d11l); fountains share
+     code 70410, handles 450185501 / 450225501). 7.5 loot NOT taken yet: 450200 chests (232000, 25600) / (321600, 32000) / (475200,
      44800) (stone-block rides); 450190 bottom-right (238400, 89600) = probably 7.3's 2500 CP / [Broken Lamp]. Statue
      saves are free (drink → heal, then save). Life Dew from the menu: one message box per member, closed with X.
    6. 🔑 Very top left, drop pit → [Pitch Black Key]; exit top right; drop, right; top right past up-stairs → boost → [Celebrity Ring] (Stella). Bottom right: push right gargoyle left → fancy doors appear. 💎 first: far left of this area, boost up, examine skeleton → [White Iron Ore] (Help Out).
+   - [RD story-d11l] EN-old: 450200 lift 70202 x 113600 (cage on a rail, y 26800↔~93000, ~660 f round trip) → tower top →
+     stone blocks 70210 → chests (232000, 25600) [Stronggirl Juice], (321600, 32000) [Recall Lamp]; Unison boost onto the
+     ledge (top y 42400) → (475200, 44800) [Magician's Outfit] (Stella: Def 95→107, Res 51→75). Pit falls → the "last
+     ledge" (368012, 71200). 450220 zone 2 (67200, 115200, bottom-left stairs) → **450230**: drop the far-left shaft (x
+     32000–44000) from the top-left corridor → chest (97600, 86400) [Pitch Black Key]; back via a Unison boost at x ≈ 163000;
+     z1 (297600, 57600) ↑ → 450220; **z2 (432000, 35200) top right → 450240** (the step-6 gargoyle area, unvisited). The
+     Recall Lamp in the labyrinth → Tonkiness 210110. Sana's Heal Water II = numpad n8 (6 MP, heals the lowest-HP% member,
+     any distance); her slots n5 Splash, n6 Mermaid Robe, n7 Turbid Squall, n8 Heal Water II, n9 Force Field, n0 Antidote.
+     Ice Dragon 51262 (655 HP).
    7. 🔑 Doors: Sana water chest [Tough Drop]; boat; wooden door; right [Mystery Juice]; ⚠ falling spike traps after stone blocks; unlock end → right [Star Rod] (Sana); top right stairs down → **4-way junction**.
    8. 🔑 Bottom-left path → wooden door: crate/platform puzzle (boost Arche to crate; member on right platform raises left; push crate on; member off; push crate off; member on right platform; push crate onto right platform; Arche boosts onto left platform; Sana+Stella join left; Arche off, push crate onto button) → [Pitch Black Key].
    9. Bottom-right path → **MoH 20** (cap 23, 140,000) + **fountain 3**.
