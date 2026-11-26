@@ -6,6 +6,15 @@ specific commits where relevant.
 
 ---
 
+## 2026-11-26 — the story driven to the END: Selene beaten, Game Clear Data saved (story-d11o)
+
+- Subagent drivers on the session model, story-d11d … d11o: Archmage's Tower (MoH 16–17, pot puzzle → Unison), Labyrinth
+  of Night (MoH 18–20, Skeletal Sergeant ×2, the crate puzzle), **Dark Witch Selene** (100174, 5256 HP) beaten f31608 of
+  story-d11o; the ending + credits played; "Game Clear Data" saved (`9b1a5151b929`); every leg `rd check` PASS + `rd verify`
+  MATCH. The whole main story is now driven from New Game in retail under rhost.
+- Windows gates on galaxybook (the owner's laptop): bless + full check 72/72 0 diffs, hybrid 72/72, standalone PASS; R12 =
+  cutestation. Accepting story-d11d … d11n (batch running); story-d11o next.
+
 ## 2026-11-25 — story-d10e … d11c accepted (corpus 72); R12 survives the RAM fix → Windows gates to the laptop
 
 - Accepted story-day10e / 11a / 11b / 11c (det PASS ×4; volatile 56631 → 57355); whole-corpus re-bless win ∥ wine; wine

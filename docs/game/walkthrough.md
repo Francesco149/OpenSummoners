@@ -669,6 +669,16 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      Stella onto L, Arche boosts onto R (2v2 → both mid) → push the crate onto the button. Ice Dragons fly out past their
      trap gates; Arche's sword draw (~45 f) is hittable.
    10. 🔑 Junction lower-floor stairs → outside by gargoyle → drop right → lock (key) → small brick platforms: boost to top chest [Memory Photo 8] → fancy doors → cutscene → **FINAL BOSS: Dark Witch Selene**.
+   - [RD story-d11o] EN-old: junction 450270 z2 (102400, 73600) needs ↑ → **450300**: the "drop right" from the start
+     ledge falls into a pit — dash / jump down to the lock floor (ly 61600); lock 70217 (113600, 60800) eats the [Pitch Black
+     Key]; 4 bridge foes x 200–235k; brick blocks x 339–352k / 368–381k / 394–406k, slab x 336–406k: Unison boosts to the
+     slab top → chest (347200, 12800) [Memory Photo 8]; z2 (451200, 38400) ↑ → 450310 (gargoyle bridge; 70410s are NOT
+     statues — **no save point between fountain 3 and Selene**) → z2 (252800, 19200) → **450320**: cutscene → **Selene**
+     (code 100174, 5256 HP; mostly airborne; dark ring ~40–60 per hit, light-beam rain, summons Black Panther + Skeletal
+     Sergeants, sleep). Won f31608 (EXP 16560) with short Arche segments (The Full Moon `C*12 UX`, Wind Thrust) + a Sana-led
+     Heal Water II phase whenever anyone < 180. Ending: 450320 nexus → 450310 → nurse's room 230150 → home 210140 →
+     narration → credits (world = 0, ~10.5k frames) → classroom 230140: the president's number (this run **9792**) →
+     "save your victory data?" → slot → "Game Clear Data" → bonus menu items unlocked → title.
 8. 🔑 Post-fight: a mystery voice; ending cutscenes + credits. Class president gives a **4-digit number** (example 6472; **differs per game** — note yours) for a locked door near the start of the Labyrinth of Night. Save → `Game Clear Data`.
 
 ---
