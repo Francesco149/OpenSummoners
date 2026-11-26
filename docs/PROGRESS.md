@@ -12,6 +12,8 @@ specific commits where relevant.
   of Night (MoH 18–20, Skeletal Sergeant ×2, the crate puzzle), **Dark Witch Selene** (100174, 5256 HP) beaten f31608 of
   story-d11o; the ending + credits played; "Game Clear Data" saved (`9b1a5151b929`); every leg `rd check` PASS + `rd verify`
   MATCH. The whole main story is now driven from New Game in retail under rhost.
+  Post-game: story-pga opened the code door (450400) and looted 3 of the code room's chests; the code lives in-memory
+  (cfg+0xa88) and is not flushed to config.dat in-session, so a run continued from the Game Clear Data save re-rolls it.
 - Windows gates on galaxybook (the owner's laptop): bless + full check 72/72 0 diffs, hybrid 72/72, standalone PASS; R12 =
   cutestation. Accepting story-d11d … d11n (batch running); story-d11o next.
 

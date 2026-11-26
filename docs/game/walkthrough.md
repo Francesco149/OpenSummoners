@@ -685,6 +685,19 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
 ## POST-GAME (load Game Clear Data) [DK]
 - Load → you're in Tonkiness, state = just before Selene. Go to school → Labyrinth of Night → from **fountain 1** keep heading left → **4-digit code door** → enter the president's number.
 - Code room (drop-shaft w/ side passages): right: spikes + [Mystery Juice]; drop, 1st left passage: ride spike traps → [Rapier] (Stella, best dagger slot); bottom [Stronggirl Juice]; next passage right side, drop hugging left wall → [Saint's Brooch] (Arche) + 4000 CP; drop → 1000 CP; **lever teleports you back outside the door**. Re-enter: 2nd left area, chest between spikes [Mind Chocolate]; hug right twice; final lever.
+- [RD story-pga] EN-old: the code = the IN-MEMORY config field `cfg+0xa88` (`u32(u32(u32(0x8a6e80))+0xa88)`); 0 ⇒ retail rolls
+  4 random digits (no two adjacent equal; `rand_draw` 0x5bf505) at the president's scene (flag 100100101 == 1610) or at the
+  door (0x5a… "What will you set dial %d to?" site), compares `%04d`. The roll is NOT written to config.dat in-session
+  (story-d11o's ending rolled 9792; its end save's config.dat is byte-identical to the pre-ending one) ⇒ a run continued
+  from the Game Clear Data save boots with code 0 and re-rolls (story-pga: 4596). Read `cfg+0xa88` in your own run.
+  OPEN: when retail flushes config.dat (exit? options?) — a player who quits normally may keep the president's number.
+  Door = **450400** (450180 far top-left z4 (x 0, y 19200)) z2 x 64000, ↑ twice (1st: "sealed shut" + party talk; 2nd:
+  "locked fast" → "try setting the dials?" Yes → 4 × "What will you set dial N to?" lists 0–9). Right → "The door
+  opened!" → ↑ → **450410**; wrong → teleport trap → 450150. 450410 (72×112 cells; central shaft x ~140–157k; right-edge
+  exits → 450420 at y 19200 / 131200 / 198400 / 329600): chests (36800, 73600) [Rapier] (ride the spike traps 70430 x
+  54–80k), (27200, 115200) [Stronggirl Juice], (75200, 179200) [Mind Chocolate] (2 Ice Dragon Pups); lever 70216 (59200,
+  339200) bottom left (floor spikes x 10–17k / 177–196k); Saint's Brooch / Mystery Juice / CP likely in **450420**.
+  Monsters: Black Harpy 51092 (sleep song), Black Panther 51213 (860 HP), Ice Dragon Pup 51262.
 - New monsters here: Black Panther, Black Harpy. Then fight Selene again to re-see ending.
 - Nightmare difficulty unlocked; NG with skill books (side-content.md).
 
