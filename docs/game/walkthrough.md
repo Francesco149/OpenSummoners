@@ -643,6 +643,18 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      any distance); her slots n5 Splash, n6 Mermaid Robe, n7 Turbid Squall, n8 Heal Water II, n9 Force Field, n0 Antidote.
      Ice Dragon 51262 (655 HP).
    7. 🔑 Doors: Sana water chest [Tough Drop]; boat; wooden door; right [Mystery Juice]; ⚠ falling spike traps after stone blocks; unlock end → right [Star Rod] (Sana); top right stairs down → **4-way junction**.
+   - [RD story-d11m] EN-old: 450220 **z3 (204800, 118400) ↑ → 450240** directly (the arched door; no 450230 detour). 450240:
+     Celebrity Ring chest (433600, 22400) — Unison boost from the upper floor x ≈ 422000 onto the ledge (top y 20000); the
+     REAL gargoyles 70410 at x 369600 (already on its plate) and 414400: push the right one left (sword sheathed) ~25600
+     onto plate 70800 (384000) → fancy door z2 (377600, 89600) → 450245; skeleton ~(47000, 71200) in the far-left side
+     chamber (Unison boost from the bottom-left room x ≈ 74000) → [White Iron Ore]. **450245** water room: underwater chest
+     (91200, 57600) [Tough Drop] (Mermaid Robe; Arche opens); boat 70600 carries right at 200/f, stops x 124800 → jump to
+     the right bank → z2 (259200, 44800) → **450250**: top-right chest (276800, 32000) [Mystery Juice] (+2 max MP); the
+     top-left gate 70230 is a MONSTER TRAP (closes on approach; opens when Ice Dragon + 2 Blazemages die); left shaft →
+     bottom (stone blocks 70210, falling spikes 70430 ~145 HP) → lock 70217 (281600, 96000) → z2 (304000, 86400) →
+     **450260**: bottom-right chest (276800, 89600) [Star Rod] (Sana: Atk 67→83, Spi 97→105); trap gates 70230 at 154200 /
+     218200 (Ice Dragons); exit z2 (275200, 32000) top right → 450270 (unvisited; via the middle shaft x ≈ 96000–105600 and
+     the top corridor). Heal Water II: `n8` once, hold X ~75 frames, release.
    8. 🔑 Bottom-left path → wooden door: crate/platform puzzle (boost Arche to crate; member on right platform raises left; push crate on; member off; push crate off; member on right platform; push crate onto right platform; Arche boosts onto left platform; Sana+Stella join left; Arche off, push crate onto button) → [Pitch Black Key].
    9. Bottom-right path → **MoH 20** (cap 23, 140,000) + **fountain 3**.
    10. 🔑 Junction lower-floor stairs → outside by gargoyle → drop right → lock (key) → small brick platforms: boost to top chest [Memory Photo 8] → fancy doors → cutscene → **FINAL BOSS: Dark Witch Selene**.
