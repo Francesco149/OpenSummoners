@@ -657,6 +657,17 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      the top corridor). Heal Water II: `n8` once, hold X ~75 frames, release.
    8. 🔑 Bottom-left path → wooden door: crate/platform puzzle (boost Arche to crate; member on right platform raises left; push crate on; member off; push crate off; member on right platform; push crate onto right platform; Arche boosts onto left platform; Sana+Stella join left; Arche off, push crate onto button) → [Pitch Black Key].
    9. Bottom-right path → **MoH 20** (cap 23, 140,000) + **fountain 3**.
+   - [RD story-d11n] EN-old: **450270** = the 4-way junction (z1 (102400, 35200) → 450260; **z2 (102400, 73600) lower stairs →
+     450300** = 7.10; z3/z4 left → 450280; z5/z6 right → 450290; z6 fired on ↑ only). Bottom-right: z6 → 450290 (2-gate
+     bottom trap; right shaft) → z3 (201600, 54400) → **450295**: **MoH 20** 70100 (59200, 24835) + **fountain 3** statue
+     x 158400 (no enemies). Bottom-left: z4 → 450280 (mirror of 450290) → left shaft → upper corridor → wooden door z3
+     (89600, 44800) → **450285** crate puzzle: crate 70205 (12800, 12800) on the top-left ledge; cages 70460 L x 32000 / R x
+     64000 compare BODY COUNTS (crate = 1): equal → both mid (surface ly 29600 = the right floor), uneven → heavier at the
+     floor, the other at the ledge (ly 13600); button 70215 (84000, 35200) needs the crate; gate 70230 x 98200 → chest
+     (110400, 32000) [Pitch Black Key]. A crate dropped from a mid cage is lost (reset). Solution: Sana on R → L up → Arche
+     pushes the crate onto L → L down → push it along the floor onto R (left edge ≤ 67200) → Arche boosts onto L, Sana +
+     Stella onto L, Arche boosts onto R (2v2 → both mid) → push the crate onto the button. Ice Dragons fly out past their
+     trap gates; Arche's sword draw (~45 f) is hittable.
    10. 🔑 Junction lower-floor stairs → outside by gargoyle → drop right → lock (key) → small brick platforms: boost to top chest [Memory Photo 8] → fancy doors → cutscene → **FINAL BOSS: Dark Witch Selene**.
 8. 🔑 Post-fight: a mystery voice; ending cutscenes + credits. Class president gives a **4-digit number** (example 6472; **differs per game** — note yours) for a locked door near the start of the Labyrinth of Night. Save → `Game Clear Data`.
 
