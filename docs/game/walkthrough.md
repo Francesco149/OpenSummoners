@@ -605,6 +605,17 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
      (275200, 54400) → 450120; zone 1 = back out; no save point). Chartreux 300220 page 2: Battle Sword 18000, Magic
      Dagger 9700, Iron Armor 9800 (Arche), Bronze Gauntlets 2800.
    1. Ledge chest [Mind Chocolate]; across, stairs down; straight; next area top-left [Revival Drink EX]; drop, left door; boost jump to upper wooden door → [Pitch Black Key] + **MoH 18** (cap 21, 120,000).
+   - [RD story-d11j] EN-old: 450110 zone 2/3 → 450120 zone 1 (124800, 44800) → 450130 (plate 70130 x ≈ 100800 → the
+     Selene scene: teachers petrified) → zone 2 → 450140 (pit room: the floors are 70202 planks `rd map` doesn't draw;
+     Unison triple jump from (122788, 58400) to the brick platform → chest (160000, 22400) [Mind Chocolate]) → zone 2
+     (390400, 48000) → 450145 → zone 2 (288000, 19200) → **450150** hub (top-left chest (11200, 32000) [Revival Drink EX];
+     zone 2 (28800, 105600) → 450160; zone 3 (281600, 102400) → 450170). 450160: Unison triple jump from the floor's
+     right end (x ≈ 255000) to the upper ledge → zone 2 (217600, 76800) → **450165**: chest (78400, 38400) [Pitch Black
+     Key], **MoH 18** 70100 (76000, 24005) — money cap shows 110,000. 450170: zone 4 (297600, 70400) → **450175** water
+     cavern (Sana leads, Mermaid Robe = spell 6, hold X 90; then ARCHE walks underwater and opens the chests with V:
+     (174400, 51200) [Guardian Drop], (182400, 51200) [Best Herb]); zone 2 (48000, 32000) → 450180 (guarded: 2 Skeletal
+     Corporals 51252, Org Centurion 51122, 51242). Unison: 2 boosts from the air (start on flat ground), rises ~37000,
+     lasts > 1000 frames.
    2. Back; right, stairs down; far right wooden door → water cavern: Sana / Mermaid Robe → [Guardian Drop], [Best Herb].
    3. Up past stairs, far left: ⚠ chest = **teleport trap**; drop, bottom-left 2500 CP; stairs; far right [Broken Lamp] (Help Out); back far left past entry stairs, jump, right → wooden door = **fountain 1**.
    4. 🔑 Right: locked door → [Pitch Black Key]; stairs down; boost jump to lever; fancy doors → **BOSS: Skeletal Sergeant ×2**. Stairs down → chest [Pitch Black Key] + **MoH 19** (cap 22, 130,000).
