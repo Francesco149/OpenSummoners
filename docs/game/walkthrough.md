@@ -620,6 +620,18 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
    3. Up past stairs, far left: ⚠ chest = **teleport trap**; drop, bottom-left 2500 CP; stairs; far right [Broken Lamp] (Help Out); back far left past entry stairs, jump, right → wooden door = **fountain 1**.
    4. 🔑 Right: locked door → [Pitch Black Key]; stairs down; boost jump to lever; fancy doors → **BOSS: Skeletal Sergeant ×2**. Stairs down → chest [Pitch Black Key] + **MoH 19** (cap 22, 130,000).
    5. Ride stone block right → [Stronggirl Juice]; right → [Recall Lamp]; another block, drop, platforms → [Magician's Outfit]. 🔑 Back to bottom-left locked gate → key. ⚠ top chest = teleport trap. Bottom right past stairs → **fountain 2**. Bottom left stairs down.
+   - [RD story-d11k] EN-old: 450170 z2 → **450180** (z5 (166400, 38400) wooden door → **450185 = fountain 1**, statue 70410
+     x 68800; right-edge z2/z3 → 450190; far top-left z4 → 450400, unvisited) → 450190 (middle gap x 128k–152k: run-jump;
+     lock 70217 x 193600 = [Pitch Black Key], V facing it) → z3 (236800, 32000) → **450200** pit room: Unison triple jump
+     from the left ledge to the central tower; lever 70216 (139200, 22400) lowers plank 70202 x 113600; fancy doors z2
+     (150400, 25600) → **450210** BOSS Skeletal Sergeant ×2 (code 100167, ~3050 HP each; cast Unison at the start) → z2 →
+     **450215**: chest (36800, 35200) [Pitch Black Key], **MoH 19** 70100 (33600, 18905) — cap shows 120000 (each MoH
+     cap is 10,000 below this guide's figure); "Congratulations" closes on `ent`. 450200 bottom-left gate (lock (19200,
+     89600)) → z3 x 0 → **450220** (z4 (252800, 96000) → **450225 = fountain 2**; z2 (67200, 115200) → 450230; z3 (204800,
+     118400) → 450240; the gargoyles 70410 at (192000 / 220800, 117600) = step 6's pair — fountains share code 70410,
+     handles 450185501 / 450225501). 7.5 loot NOT taken yet: 450200 chests (232000, 25600) / (321600, 32000) / (475200,
+     44800) (stone-block rides); 450190 bottom-right (238400, 89600) = probably 7.3's 2500 CP / [Broken Lamp]. Statue
+     saves are free (drink → heal, then save). Life Dew from the menu: one message box per member, closed with X.
    6. 🔑 Very top left, drop pit → [Pitch Black Key]; exit top right; drop, right; top right past up-stairs → boost → [Celebrity Ring] (Stella). Bottom right: push right gargoyle left → fancy doors appear. 💎 first: far left of this area, boost up, examine skeleton → [White Iron Ore] (Help Out).
    7. 🔑 Doors: Sana water chest [Tough Drop]; boat; wooden door; right [Mystery Juice]; ⚠ falling spike traps after stone blocks; unlock end → right [Star Rod] (Sana); top right stairs down → **4-way junction**.
    8. 🔑 Bottom-left path → wooden door: crate/platform puzzle (boost Arche to crate; member on right platform raises left; push crate on; member off; push crate off; member on right platform; push crate onto right platform; Arche boosts onto left platform; Sana+Stella join left; Arche off, push crate onto button) → [Pitch Black Key].
