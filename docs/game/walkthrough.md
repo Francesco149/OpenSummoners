@@ -588,6 +588,14 @@ Cranbal Valley → Korat Village. [DK][ZO][MAP]
    - Inside Shrine of the Wind: MoH 2 room has 2 unlit torches → Stella lights → hidden door → [Poison Dagger], [Mystery Juice], 450 CP.
    - Mountain Cave: dead-vine area (Day 3 left side) → Stella burns → [Memory Photo 3].
    - Korat Mayor 2F shelf: 'Secret Tome of Magic' (only useful on NG+).
+   - [RD story-d11h] EN-old: the Recall Lamp is REFUSED inside the tower ("cannot teleport from here"); the way in is
+     one-way (440160's upper floor lip ~5000 above a full Unison triple jump). Exit: 440200 bottom-left door (lx ≈ 27200)
+     → 440190 (bottom corridor right, step x ~135500, ↑ (214400, 108800)) → 440170 (drop through the hole; ↑ (16000,
+     73600)) → 440150 zone 1 (198400, 48000) → 440130 (outside platforms down; lower door (137600, 99200)) → 440120 zone 1
+     (268800, 35200) → 440110 zone 1 (67200, 35200) → **420240** outside; the lamp there → **430110** Guardpost (not town).
+     Leaving 440210 → a 440200 cutscene ("let's get back to school"). 430120: left counter = item shop (Better Herb 18, Life
+     Dew 96, Revival Drink 350, Recall Lamp 500, Magic Bracelet 11000), right = inn (28 CP, rest + save). Stella Lv16 →
+     Interceptor. Unison drifts ~3000 during the cast: not on a ledge edge.
 7. 🔑 Go to school → cutscene: darkness ("Dark World") → **Labyrinth of Night** (exe: `Labyrith of Night`). Point of no return-ish: once you beat the Dark Witch the ending plays; post-game save resumes BEFORE Selene (so nothing permanently lost) [DK]. Monsters: Vile Bat, Purple Slime, Rattlesnake, Org Centurion (rare drop [Org Sword] = Help Out), Baby Aquamage, Ice Dragon Pup, Skeletal Corporal, Ghost Warlock, Baby Blazemage, Org Bowman.
    1. Ledge chest [Mind Chocolate]; across, stairs down; straight; next area top-left [Revival Drink EX]; drop, left door; boost jump to upper wooden door → [Pitch Black Key] + **MoH 18** (cap 21, 120,000).
    2. Back; right, stairs down; far right wooden door → water cavern: Sana / Mermaid Robe → [Guardian Drop], [Best Herb].
