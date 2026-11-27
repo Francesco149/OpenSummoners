@@ -2430,6 +2430,9 @@ def walk_movie(movie, V, preds, after=0, stop_when=None):
         ids = [lv.prog(V.compile(e)) for _, e in preds]
         truth = [[] for _ in preds]
         for at, hi in movie.chunks(0, movie.frame):
+            if hi <= after:     # the start prefix: nothing is judged there (cmd_check) — replay it without sampling
+                lv.cmd(f"run {movie.run_args(at, hi)}")
+                continue
             k = Live.kv(lv.cmd(f"run {movie.run_args(at, hi)} s={','.join(map(str, ids))} e=1"))
             for row in filter(None, k.get("samples", "").split(";")):
                 p = row.split(":")
@@ -2533,10 +2536,13 @@ def cmd_accept(a):
         if cmd_check(ns):
             raise SystemExit("check failed: not accepted")
         lines.append(f"check PASS ({a.task})")
-    ns = argparse.Namespace(run=a.run, real=not a.no_real)
-    if cmd_verify(ns):
-        raise SystemExit("verify failed: not accepted")
-    lines.append("verify MATCH" + (" (+ real device)" if not a.no_real else ""))
+    if a.no_verify:     # accept-batch: a leg whose movie a longer one in the batch replays is verified by that one
+        lines.append("verify: by the batch (the leaf movie of its chain: `rhost.py legs`)")
+    else:
+        ns = argparse.Namespace(run=a.run, real=not a.no_real)
+        if cmd_verify(ns):
+            raise SystemExit("verify failed: not accepted")
+        lines.append("verify MATCH" + (" (+ real device)" if not a.no_real else ""))
     r = Run(a.run, lock=False)
     p = file_scenario(r, a.name, a.task and os.path.basename(a.task) or "")
     lines.append(f"filed {os.path.relpath(p, ROOT)} ({r.movie.frame} frames)")
@@ -2641,7 +2647,8 @@ def main():
     p = sp.add_parser("accept", help="check → verify --real → file → bless → hybrid + standalone → archive the report")
     p.add_argument("run"); p.add_argument("name"); p.add_argument("note", nargs="*"); p.add_argument("--task")
     p.add_argument("--force", action="store_true", help="file even though the task check fails")
-    p.add_argument("--no-real", action="store_true"); p.add_argument("--no-gates", action="store_true"); p.set_defaults(fn=cmd_accept)
+    p.add_argument("--no-real", action="store_true"); p.add_argument("--no-gates", action="store_true")
+    p.add_argument("--no-verify", action="store_true", help="check + file only (accept-batch verifies the chain's leaf movie)"); p.set_defaults(fn=cmd_accept)
     p = sp.add_parser("stop"); p.add_argument("run"); p.set_defaults(fn=cmd_stop)
     sp.add_parser("ls").set_defaults(fn=cmd_ls)
     # an expression may start with "-" (--score "-exitd"): hand it to argparse as --flag=VALUE

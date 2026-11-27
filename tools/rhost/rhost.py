@@ -773,10 +773,90 @@ def resolve_runs(names, a=None):
     return [(os.path.splitext(os.path.basename(n))[0] if n.endswith(".jsonl") else n, *scenario_inputs(n, a)) for n in names]
 
 
-def all_scenarios(only=None):
+def trace_shape(tr):
+    """→ (start key, [(frame, keys)...], end frame): what a replay of the trace depends on.  The start key = every
+    non-input line (the start save, edition, chain parent) without the bookkeeping (`recorded`, `rd`)"""
+    start, ev, end = [], [], 0
+    for line in open(tr):
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        j = json.loads(line)
+        if "frame" in j:
+            ev.append((j["frame"], tuple(j.get("keys") or ())))
+            end = max(end, j["frame"])
+        elif "end" in j:
+            end = max(end, j["end"])
+        else:
+            if "meta" in j:
+                j = {"meta": {k: v for k, v in j["meta"].items() if k not in ("recorded", "rd")}}
+            start.append(json.dumps(j, sort_keys=True))
+    return tuple(sorted(start)), ev, end
+
+
+def covered_legs(names=None):
+    """{leg: leaf}: scenarios whose movie is a strict PREFIX of another's — same start, the same inputs on every frame
+    before the leg's end, and the other goes on (rd legs continued from a savestate: each leg's movie replays all the
+    earlier ones; 2026-11-27: 13.66M frames per corpus pass, 2.87M of them distinct).  A replay of the leaf runs the
+    leg's frames 1 .. end-1 bit for bit (same process state, same inputs), so its frame / RNG / pixel chain / sem series
+    cover the leg's; what only the leg's own run has is its tail (rhost idles 120 frames past a trace's end) and an end
+    state hash at that point.  corpus / verify / coverage skip covered legs unless --all."""
+    names = names if names is not None else all_scenarios(include_covered=True)
+    shape = {n: trace_shape(os.path.join(SCEN, n, "trace.jsonl")) for n in names}
+    by_start = {}
+    for n in names:
+        by_start.setdefault(shape[n][0], []).append(n)
+    out = {}
+    for group in by_start.values():
+        group.sort(key=lambda n: (shape[n][2], n))
+        for i, leg in enumerate(group):
+            _, ev, end = shape[leg]
+            pre = [e for e in ev if e[0] < end]
+            for other in reversed(group[i + 1:]):          # the longest movie that covers it
+                _, ev2, end2 = shape[other]
+                if end2 > end and ev2[:len(pre)] == pre and (len(ev2) == len(pre) or ev2[len(pre)][0] >= end):
+                    out[leg] = other
+                    break
+    for leg in list(out):                                   # leaf = the end of the chain
+        while out[leg] in out:
+            out[leg] = out[out[leg]]
+    return out
+
+
+def all_scenarios(only=None, include_covered=False, quiet=False):
+    """the corpus scenarios (matching --only); without include_covered (--all) the legs a longer movie covers are left
+    out (`covered_legs`) — one line says how many"""
     names = sorted(d for d in os.listdir(SCEN) if os.path.exists(os.path.join(SCEN, d, "trace.jsonl"))
                    and any('"keys"' in l for l in open(os.path.join(SCEN, d, "trace.jsonl"))))
+    if not include_covered:
+        cov = covered_legs(names)
+        sel = [n for n in names if n in cov and (not only or re.search(only, n))]
+        if sel and not quiet:
+            leaves = sorted({cov[n] for n in sel})
+            print(f"[{len(sel)} covered leg(s) skipped: each is a prefix of a longer movie that runs "
+                  f"({', '.join(leaves[:6])}{' …' if len(leaves) > 6 else ''}); --all runs them too]")
+        # a covered leg named by --only brings its leaf in (the run that covers it)
+        want = {n for n in names if not only or re.search(only, n)}
+        want = {cov.get(n, n) for n in want}
+        return [n for n in names if n in want]
     return [n for n in names if not only or re.search(only, n)]
+
+
+def cmd_legs(a):
+    """the prefix chains: leaf ← the legs it covers (frames per pass with / without them)"""
+    names = all_scenarios(include_covered=True)
+    cov = covered_legs(names)
+    if a.leaf_of:
+        for n in a.leaf_of:
+            print(n, cov.get(n, n))
+        return 0
+    end = {n: trace_shape(os.path.join(SCEN, n, "trace.jsonl"))[2] for n in names}
+    for leaf in sorted(set(cov.values())):
+        legs = sorted((n for n in cov if cov[n] == leaf), key=lambda n: end[n])
+        print(f"{leaf} ({end[leaf]} f) covers {len(legs)}: {' '.join(legs)}")
+    tot = sum(end.values()); run = sum(end[n] for n in names if n not in cov)
+    print(f"{len(names)} scenarios, {tot} frames; default pass: {len(names) - len(cov)} runs, {run} frames ({100 * run // tot}%)")
+    return 0
 
 
 def print_results(results, names):
@@ -900,7 +980,7 @@ def fb_series(log):
 
 
 def cmd_corpus(a):
-    names = all_scenarios(a.only)
+    names = all_scenarios(a.only, getattr(a, "all", False))
     if getattr(a, "standalone", False):   # the standalone is EN-old only (the port's edition)
         skip = [n for n in names if (trace_meta(os.path.join(SCEN, n, "trace.jsonl")).get("edition") or "enold") != "enold"]
         if skip:
@@ -942,6 +1022,9 @@ def cmd_corpus(a):
         keys = ("frame", "tick", "rng", "fb")
     gaps = KNOWN_GAPS if getattr(a, "hybrid", False) or getattr(a, "standalone", False) else {}
     bad = 0
+    # the volatile list a bless used ("vol"): state hashes are comparable only under the same list.  A default bless
+    # re-blesses the leaves only, so after a --calibrate the covered legs' files are stale until a `--bless --all`
+    vol = {r[0]: file_sha12(volatile_file(getattr(a, "edition", None) or r[3] or "enold")) for r in runs}
     for n in names:
         gap = gaps.get(n)
         ep = os.path.join(SCEN, n, "expected.json" if getattr(a, "target", "win") == "win" else f"expected.{a.target}.json")
@@ -956,6 +1039,7 @@ def cmd_corpus(a):
                 got["sem_series"] = series
             if fbs and a.hash_every == SERIES_EVERY:
                 got["fb_series"] = fbs
+            got["vol"] = vol.get(n)
             json.dump({k: v for k, v in got.items() if v is not None}, open(ep, "w"), indent=1)
             lg = os.path.join(bdir, n, "rhost.log")
             ul = [l for l in open(lg, errors="replace").read().splitlines() if l.startswith("undef-record ")] if os.path.exists(lg) else []
@@ -968,6 +1052,11 @@ def cmd_corpus(a):
             continue
         if a.check and os.path.exists(ep):
             exp = json.load(open(ep))
+            if exp.get("vol") and exp["vol"] != vol.get(n) and not getattr(a, "standalone", False):
+                bad += 1
+                print(f"  STALE {n}: blessed under another volatile list ({exp['vol']}, now {vol.get(n)}) — its state "
+                      f"hashes are not comparable: corpus --bless{' --all' if getattr(a, 'all', False) else ''} first")
+                continue
             diff = {} if gap else {k: (exp.get(k), got[k]) for k in keys if (k in exp or k != "fb") and exp.get(k) != got[k]}
             if gap and not (r.get("status") == "ok" or r.get("reason") == "game-exit"):   # past the gap it must still run
                 diff["status"] = ("ok", f"{r.get('status')} {r.get('reason')}")
@@ -1113,7 +1202,7 @@ CRT_HOOKS = ["crt_new", "crt_delete", "crt_atexit", "crt_exit", "crt_fopen", "cr
 
 
 def cmd_verify(a):
-    names = all_scenarios(a.only)
+    names = all_scenarios(a.only, getattr(a, "all", False))
     want = {h.split("@")[0]: h for h in (a.hooks or "").split(",") if h}   # `name@N` overrides the sampling
     hooks = [want[h.split("@")[0]] if "@" in want.get(h.split("@")[0], "") else h   # (a bare name keeps the list's @N)
              for h in VERIFY_HOOKS if not want or h.split("@")[0] in want]
@@ -1161,7 +1250,7 @@ def cmd_coverage(a):
     os.makedirs(LOCAL_RUNS, exist_ok=True)
     open(cov_in, "w").write("\n".join(vas) + "\n")
     a.coverage_file = cov_in
-    names = all_scenarios(a.only) if not a.scenarios else a.scenarios
+    names = all_scenarios(a.only, getattr(a, "all", False)) if not a.scenarios else a.scenarios
     if a.hybrid:    # every port REPLACING retail: what's hit is retail code that STILL runs (the standalone's gap)
         hs = hybrid_hooks()
         a.hook = ",".join(["replace:" + h for h in hs] + ([a.hook] if a.hook else []))
@@ -1405,18 +1494,21 @@ def main():
     p.add_argument("--calibrate", action="store_true")
     p.add_argument("--learn-every", type=int, help="also dump + compare every N frames (mid-run slots; with --calibrate)")
     common(p); p.set_defaults(fn=cmd_det)
-    p = sub.add_parser("corpus"); p.add_argument("--only"); p.add_argument("--bless", action="store_true")
+    ALL = dict(action="store_true", help="also run the legs a longer movie covers (covered_legs; the default skips them)")
+    p = sub.add_parser("legs", help="the prefix chains: which scenarios a longer movie covers")
+    p.add_argument("--leaf-of", nargs="+", metavar="SCEN", help="print `SCEN LEAF` per scenario"); p.set_defaults(fn=cmd_legs)
+    p = sub.add_parser("corpus"); p.add_argument("--only"); p.add_argument("--bless", action="store_true"); p.add_argument("--all", **ALL)
     p.add_argument("--check", action="store_true")
     p.add_argument("--hybrid", action="store_true", help="replace: every VERIFY_HOOKS + REPLACE_ONLY_HOOKS function (the hybrid gate)")
     p.add_argument("--real-device", action="store_true", help="Windows --bless/--check on the REAL DirectDraw (default: headless, "
                    "parity-ledger R12 — informational only)")
     common(p); p.set_defaults(fn=cmd_corpus)
-    p = sub.add_parser("verify"); p.add_argument("--only"); p.add_argument("--hooks", help="only these VERIFY_HOOKS names")
+    p = sub.add_parser("verify"); p.add_argument("--only"); p.add_argument("--all", **ALL); p.add_argument("--hooks", help="only these VERIFY_HOOKS names")
     p.add_argument("--split", type=int, default=1, help="run each scenario N times in parallel, 1/N of the hooks each")
     common(p); p.set_defaults(fn=cmd_verify)
     p = sub.add_parser("hookbisect"); p.add_argument("scenario"); p.add_argument("--hooks", help="candidate hook names (default: the hybrid set)")
     p.add_argument("--groups", type=int, default=8); common(p); p.set_defaults(fn=cmd_hookbisect)
-    p = sub.add_parser("coverage"); p.add_argument("--only"); p.add_argument("scenarios", nargs="*"); p.add_argument("--hybrid", action="store_true", help="with every port REPLACING retail: list the retail code that still runs"); common(p); p.set_defaults(fn=cmd_coverage)
+    p = sub.add_parser("coverage"); p.add_argument("--only"); p.add_argument("--all", **ALL); p.add_argument("scenarios", nargs="*"); p.add_argument("--hybrid", action="store_true", help="with every port REPLACING retail: list the retail code that still runs"); common(p); p.set_defaults(fn=cmd_coverage)
     p = sub.add_parser("newhooks", help="the verify hooks SCENARIOS are the first to reach (a --hooks list)")
     p.add_argument("scenarios", nargs="+"); p.add_argument("--coverage", required=True, help="a coverage batch dir or its coverage_union.tsv")
     p.set_defaults(fn=cmd_newhooks)

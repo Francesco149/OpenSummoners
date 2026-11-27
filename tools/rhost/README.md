@@ -68,6 +68,23 @@ bytes (rh-combat: `f9debda624d1` both). A replay warns if the derived save's dig
 recording started from. `record` reports whether the new play left a slot save (save at a statue before quitting
 to continue it later).
 
+**Prefix chains — leaves only (`rhost.py legs`, 2026-11-27):** an rd leg continued from a savestate (`rd new R --from
+SCEN@F | end:SCEN`) files a movie that replays every earlier leg of its chain from the same start save, so the chain's
+frames were run once per leg: 83 scenarios = 13.66M frames per corpus pass, 2.87M distinct (the tower chain alone: 23
+legs, 8.99M frames, 0.77M distinct) — a Windows pass took 5.1 h, a wine pass 2.7 h, four passes + the bless per accepted
+batch. `covered_legs()`: a scenario is COVERED when another has the same start (save, edition, chain parent), the same
+inputs on every frame before the leg's end, and goes on; its LEAF = the end of that chain. `corpus` / `verify` /
+`coverage` run the leaves only (41 runs); a covered leg named by `--only` brings its leaf in; `--all` runs every leg.
+What a leaf run proves of a leg: frames 1 .. end-1 are the same process fed the same inputs, so the leaf's frame /
+tick / RNG, its fb chain (every presented frame) and, on wine, its sem / fb series every 600 frames ARE the leg's
+(checked on the blessed pure-retail data: all 42 legs, 35,982 sem + fb samples equal to their leaf's). What only the
+leg's own run has: its tail (rhost idles 120 frames past a trace's end) and the end-state hash there — on Windows,
+which has no sem series, that was one extra state sample per leg. Run `corpus --check --all` (pure / `--hybrid` /
+`--standalone`) before a release or after a change to how a run ENDS. A default `--bless` after `det --calibrate`
+leaves the covered legs' files stale: each bless records the volatile list's digest (`"vol"`), and a check under
+another list says `STALE` instead of comparing (→ `--bless --all`). Keep chains short where the game allows it: a leg
+started from a save (`--from save:DIGEST`) is its own short movie.
+
 ## What makes a run deterministic
 
 | source of run-to-run difference | rhost layer |

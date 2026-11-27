@@ -45,6 +45,10 @@ runs the port with NO retail code (data sections only); `rhost.exe --standalone`
   back buffer (`fb`, + `fb_series` on wine) — pure ≡ hybrid in PIXELS on every presented frame, the
   verification for render ports (REPLACE; a shadow can't re-blit). **The standalone gate** `corpus --check
   --standalone` = frame / tick / RNG / pixels vs PURE retail (state hashes: PORT-DEBT(crt-heap)).
+  **Chain leaves (2026-11-27):** corpus / verify / coverage run only the LEAF movie of each prefix chain (`rhost.py legs`:
+  an rd leg continued from a savestate replays every earlier leg — 83 scenarios = 13.66M frames, 2.87M distinct; the
+  leaf's frame / RNG / pixel chain / sem series cover the legs frame for frame). `--all` = every leg too (their own
+  120-frame idle tails + end-state hashes): before a release, not per batch. `accept-batch.sh` verifies / dets leaves only.
   `rhost.py KNOWN_GAPS` = USER-accepted residuals (parity-ledger R9): hybrid / standalone checks compare such a
   scenario only before its gap frame — add one ONLY on a USER decision.
   Big functions: `tools/ida/decomp2c.py VA:name ...` first pass (keeps IDA's control flow / types / real class

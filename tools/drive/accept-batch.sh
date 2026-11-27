@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # accept-batch.sh LIST [--gates] — file a batch of finished driver runs, bless only what needs it, optionally gate.
-# LIST: one "RUN NAME TASK" per line (TASK = tools/drive/tasks/TASK.md). Per line: rd accept --no-gates (check, verify,
-# verify --real, file), then det -n 3 --calibrate (volatile list).
+# LIST: one "RUN NAME TASK" per line (TASK = tools/drive/tasks/TASK.md). Per line: rd accept --no-gates --no-verify
+# (task check, file); then, per chain LEAF only (see pass 2): rd verify --real + det -n 3 --calibrate (volatile list).
+# The bless / gates below run leaves only too (rhost.py corpus default; --all = every leg).
 # Bless (2026-11-23: a d10c batch whose only run FAILED verify --real still re-blessed + gated the whole corpus, ~11 h):
 #   no run accepted                     → stop (exit 2), nothing blessed;
 #   volatile.<ed>.txt unchanged         → bless ONLY the accepted scenarios (state_sem of the rest cannot move);
@@ -23,17 +24,34 @@ LIST=$1; GATES=${2:-}
 RH="nix develop --command python3 tools/rhost/rhost.py"
 VOL=tools/rhost/volatile.enold.txt
 vol0=$(sha1sum "$VOL" tools/rhost/volatile.*.txt 2>/dev/null | sha1sum)
-accepted=()
+accepted=(); declare -A runof
+# pass 1: check + file every run (no replays but the task check's walk)
 while read -r run name task <&3; do
   [ -z "${run:-}" ] && continue
   echo "#### $name"
-  ./rd accept "$run" "$name" --task "tools/drive/tasks/$task.md" --no-gates </dev/null > "runs/accept/.$name.accept.log" 2>&1
+  ./rd accept "$run" "$name" --task "tools/drive/tasks/$task.md" --no-gates --no-verify </dev/null > "runs/accept/.$name.accept.log" 2>&1
   rc=$?
-  grep -E "PASS|FAIL|MATCH|MISMATCH|report|not accepted" "runs/accept/.$name.accept.log"
+  grep -E "PASS|FAIL|report|not accepted" "runs/accept/.$name.accept.log"
   if [ $rc -ne 0 ] || [ ! -d "tests/scenarios/$name" ]; then echo "NOT ACCEPTED: $name (rc $rc; log runs/accept/.$name.accept.log)"; continue; fi
-  $RH det "$name" -n 3 --calibrate </dev/null 2>&1 | grep -E "PASS|FAIL|calibrated"
-  accepted+=("$name")
+  accepted+=("$name"); runof[$name]=$run
 done 3< "$LIST"
+if [ ${#accepted[@]} -eq 0 ]; then echo "NOTHING ACCEPTED: no bless, no gates"; exit 2; fi
+# pass 2: verify (+ real device) and det --calibrate only the LEAF movies — a leg whose movie is a prefix of another
+# scenario's (rhost.py covered_legs: rd legs continued from a savestate) is replayed, frame for frame, by that one.
+# 2026-11-27: d11d..d11g (675k..765k frames each, one chain) cost ~3 h apiece here; the leaf alone proves all four.
+while read -r name leaf; do
+  [ -z "${runof[$name]:-}" ] && continue
+  if [ "$name" != "$leaf" ]; then echo "#### $name: covered by $leaf"; continue; fi
+  echo "#### $name: verify --real, det"
+  ./rd verify "${runof[$name]}" --real </dev/null >> "runs/accept/.$name.accept.log" 2>&1
+  rc=$?
+  grep -E "MATCH|MISMATCH" "runs/accept/.$name.accept.log"
+  if [ $rc -ne 0 ]; then
+    echo "VERIFY FAILED: $name (log runs/accept/.$name.accept.log) — it and the legs it covers are FILED but unverified: fix or remove them. No bless."
+    exit 1
+  fi
+  $RH det "$name" -n 3 --calibrate </dev/null 2>&1 | grep -E "PASS|FAIL|calibrated"
+done < <($RH legs --leaf-of "${accepted[@]}" | grep -E "^[a-z0-9-]+ [a-z0-9-]+$")
 if [ ${#accepted[@]} -eq 0 ]; then echo "NOTHING ACCEPTED: no bless, no gates"; exit 2; fi
 vol1=$(sha1sum "$VOL" tools/rhost/volatile.*.txt 2>/dev/null | sha1sum)
 if [ "$vol0" = "$vol1" ]; then
