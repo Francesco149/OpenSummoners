@@ -2,14 +2,15 @@
  "frame": "762",
  "tick": "0",
  "rng": "40d00581",
- "state_sem": "f81b0ff0d821bbbb",
+ "state_sem": "80fc3dddc08e68bb",
  "fb": "7b7edd74522bdce0",
  "sem_series": {
   "0": "0a63a268640415b7",
-  "600": "b792e1925eecd01c"
+  "600": "b4e22992f8e93c3f"
  },
  "fb_series": {
   "0": "0a11a2ce8b590113",
   "600": "64498bd81649bbb8"
- }
+ },
+ "vol": "839af633ae8a"
 }

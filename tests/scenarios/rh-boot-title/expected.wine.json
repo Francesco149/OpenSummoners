@@ -2,16 +2,17 @@
  "frame": "1620",
  "tick": "0",
  "rng": "404a0a8f",
- "state_sem": "eb572c898f2e8dca",
+ "state_sem": "de38625a67363bd5",
  "fb": "4962ec6785241b95",
  "sem_series": {
   "0": "0a63a268640415b7",
-  "600": "b792e1925eecd01c",
-  "1200": "cde56c403ea1c4d7"
+  "600": "b4e22992f8e93c3f",
+  "1200": "4fb03867ed44bdc0"
  },
  "fb_series": {
   "0": "0a11a2ce8b590113",
   "600": "64498bd81649bbb8",
   "1200": "cc3a0e64a969e261"
- }
+ },
+ "vol": "839af633ae8a"
 }
