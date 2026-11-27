@@ -25,6 +25,12 @@ RH="nix develop --command python3 tools/rhost/rhost.py"
 VOL=tools/rhost/volatile.enold.txt
 vol0=$(sha1sum "$VOL" tools/rhost/volatile.*.txt 2>/dev/null | sha1sum)
 accepted=(); declare -A runof
+# RESUME_BLESS=1: the list's scenarios are already filed + verified + calibrated (a batch that died in the bless):
+# go straight to the whole-corpus bless + guard (+ gates)
+if [ -n "${RESUME_BLESS:-}" ]; then
+  while read -r run name task <&3; do [ -n "${name:-}" ] && [ -d "tests/scenarios/$name" ] && accepted+=("$name"); done 3< "$LIST"
+  vol0=resume
+else
 # pass 1: check + file every run (no replays but the task check's walk)
 while read -r run name task <&3; do
   [ -z "${run:-}" ] && continue
@@ -52,6 +58,7 @@ while read -r name leaf; do
   fi
   $RH det "$name" -n 3 --calibrate </dev/null 2>&1 | grep -E "PASS|FAIL|calibrated"
 done < <($RH legs --leaf-of "${accepted[@]}" | grep -E "^[a-z0-9-]+ [a-z0-9-]+$")
+fi
 if [ ${#accepted[@]} -eq 0 ]; then echo "NOTHING ACCEPTED: no bless, no gates"; exit 2; fi
 vol1=$(sha1sum "$VOL" tools/rhost/volatile.*.txt 2>/dev/null | sha1sum)
 if [ "$vol0" = "$vol1" ]; then

@@ -58,6 +58,31 @@ were removed 2026-10-31 (last commit with them `57b8ccb`); the retail facts they
 
 _(R1 moved to Confirmed bit-exact above.)_
 
+### R14 — story-day11k wine hybrid `sem@f90600..94800` ≠ pure: `char_behave` reloads the engage timer retail leaves at 0 (OPEN, found 2026-11-27)
+
+- **Symptom:** `corpus --check --hybrid --target wine`: `story-day11k: sem@f90600 e96818ccb69835b8→e596c7406adc9030
+  (8/174 sampled frames differ)`; frame / tick / RNG / every fb sample / the END state equal (it heals by f95400).
+  Reproduced bit for bit in a second pass (full corpus + leaves-only). Windows hybrid PASS — it has no sem series.
+- **Hook:** `hookbisect story-day11k --frames 90600 --target wine` → `char_behave` (0x47b990) alone. (Round 2 had a
+  second diverging group, g6 of 21 hooks, not followed: bisect it with `--hooks` once this one is fixed.)
+- **First call:** `verify --hooks char_behave --shadow-from 89900`: f90505, char `300ad010` code 100167, `f14288` 1,
+  think 0 — one dword, `char+0x14288`: `000a0001` vs `00000001`, i.e. `engage_t` (+0x1428a) 10 vs 0.
+- **Retail (pure, `--watch-write 0x300c129a@90504`):** one write that frame, eip `0x47c6ae` = the decrement at
+  `0x47c6a7` (1 → 0). No reload ⇒ the 10 is the PORT's (`engage_t = retarget`, `src/char_behave.c` l.411 / l.419, or
+  a helper's).
+- **Retail's path for that char at f90505 (`--trap`, esi = 300ad010):** reaches `0x47c6c2`, `0x47c6ea`, `0x47c805`,
+  `0x47c9a1`, `0x47cb51` (the gate `pose == 0 || act_len <= 200 || ai_state 5..6`), NOT `0x47cb80` ⇒ retail takes
+  the gate's skip; the port, whose gate reads the same on paper, goes in.
+- **Ruled out:** the helpers, shadowed unsampled f90400–90700, 0 divergences: `beh_47f9d0` (212), `beh_484ea0`
+  (281), `beh_481310` (67), `beh_481ac0` (60), `beh_47ecd0` (324), `beh_47e7c0` (71), `status_stuck` (45).
+- **Hypotheses:** (a) the port reads `body->pose` / `act_len` / `ai_state` AFTER a callee that changes them where
+  retail read a cached value (or the reverse) — check the asm between `0x47c9a1` and `0x47cb51` for the registers
+  the gate uses; (b) the port's body pointer at the gate is not retail's `[esi+40h]` for this code (eax at
+  `0x47cb51` = `20839350` = the `a3` argument); (c) an uninitialized local (pillar 5: `v86` / `hold`).
+- **Next probe:** which of the three gate conditions retail takes (a `--trap 0x47cb5d,0x47cb69 --trap-mem` run gave
+  1 hit per trap — adjacent traps 12 bytes apart seem to lose hits: fix or trap one per run), then the same three
+  values at the port's gate (a `--hook replace:char_behave` run + `--dump-at 90505`).
+
 ### R13 — story-day10b hybrid / standalone ≠ pure from f375239: spike-trap retract damage reads stale stack (RESOLVED 2026-11-24: the undefined-data oracle; found 2026-11-23)
 **Resolution (2026-11-24):** option (d) — the gates carry pure retail's value. Pure `corpus --bless` records every case-4
 read of `[esp+0x14]` (`rhost --undef-record`: a jmp stub at 0x5546c3 that touches no retail stack — pure rng / sem / fb

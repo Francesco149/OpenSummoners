@@ -18,7 +18,7 @@
 #include "rhost.h"
 
 #define MAXR 4096
-#define MAXVOL 65536
+#define MAXVOL 262144   /* 65536 was reached 2026-11-27 (65,780 after story-postgame-b) */
 static uint32_t g_vol[MAXVOL]; static int g_nvol, g_vol_sorted;
 static uint8_t g_volpg[1u << 17];        /* pages holding any volatile address */
 static uint8_t g_ext[1u << 17];          /* 1 bit per 4 KB page of the 4 GB space */
