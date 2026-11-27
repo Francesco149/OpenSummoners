@@ -2196,6 +2196,10 @@ int32_t beh_481310(wl_char *self, int32_t * a2, int32_t a3, int32_t a4)
     char *const v45__f = (char *)(frame_ + 0x5c);   /* ebp-0x5c8 */
     char *const v46__f = (char *)(frame_ + 0xac);   /* ebp-0x578 */
     char * *const v48__f = (char * *)(frame_ + 0x38c);   /* ebp-0x298 */
+    /* the dry run's two bodies are never cleared and the integrator never writes their +0x68 (quirk #187, as #182 in
+     * 0x481ac0): port value 0, the gates feed retail's stack leftovers */
+    *(int32_t *)(v47 + 0x68) = UNDEF_READ(188, 0, *(int32_t *)(v47 + 0x68));
+    *(int32_t *)((uint8_t *)v49 + 0x68) = UNDEF_READ(188, 1, *(int32_t *)((uint8_t *)v49 + 0x68));
 
   v5 = 0;
   v6 = F16(c, 0x1428a) == 0;
@@ -2256,6 +2260,11 @@ int32_t beh_481310(wl_char *self, int32_t * a2, int32_t a3, int32_t a4)
         v14 = a2;
         v15 = a2[1] + a2[3] / 2;
         v16 = a2[2] + a2[4] / 2;
+        /* the three out locals are never set here and 0x481790 leaves them alone when its list is empty: retail then
+         * tests stack leftovers (quirk #187).  Port value 0 (the cleared frame); the gates feed retail's. */
+        (*v41__f) = UNDEF_READ(187, 0, (int32_t)(*v41__f));
+        (*v42__f) = UNDEF_READ(187, 1, (int32_t)(*v42__f));
+        (*v43__f) = UNDEF_READ(187, 2, (int32_t)(*v43__f));
         beh_481790(v12, 0, v15, v16, &(*v37__f), &(*v41__f), &(*v43__f), &(*v42__f));
         if ( v15 >= (int)(*v37__f) )
         {

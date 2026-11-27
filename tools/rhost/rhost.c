@@ -952,7 +952,7 @@ static LONG CALLBACK trap_veh(EXCEPTION_POINTERS *e)
  * (esp = retail's), each its own stream SITE.K.  Static buffers: rhost's image size is pinned, a host-heap block would
  * move where the system DLLs place theirs */
 typedef struct { int32_t off; int ebp; } undef_read_t;
-#define UNDEF_RD 2
+#define UNDEF_RD 3
 typedef struct { int site; uint32_t va; uint8_t want[8]; uint32_t len; int nr; undef_read_t rd[UNDEF_RD]; } undef_site_t;
 static const undef_site_t UNDEF_SITES[] = {
     /* 0x554570 (spike traps) case 4 @0x5546c3: `cmp ecx,14h; mov [esp+10h],eax` — [esp+14h] = var_114, never set in
@@ -965,10 +965,22 @@ static const undef_site_t UNDEF_SITES[] = {
      * command var_A0 ([esp+0x54]) was cleared by 0x411530, which never writes +0x1e — the dword at +0x1c ([esp+0x70])
      * carries a stale high half into the character's command (+0x14872) — quirk #186 */
     { 186, 0x47c38cu, { 0x8D, 0xBE, 0x54, 0x48, 0x01, 0x00 }, 6, 1, { { 0x70, 0 } } },
+    /* 0x481310 (the attack pick's "ally near?" test) @0x48149f `lea eax,[esp+24h]; push eax; push edx`, the argument
+     * pushes of its call to 0x481790: the out locals var_5F4 / var_5F0 / var_5EC ([esp+20h/24h/28h]) are never set, and
+     * 0x481790 returns without writing them when its list is empty (`[ecx] == 0` → 0x481946) — the |dx| / |dy| < 9600
+     * test that reloads the engage timer (+0x1428a) then reads stack leftovers — quirk #187 */
+    { 187, 0x48149fu, { 0x8D, 0x44, 0x24, 0x24, 0x50, 0x52 }, 6, 3, { { 0x20, 0 }, { 0x24, 0 }, { 0x28, 0 } } },
+    /* 0x481310 (the attack pick) entry `sub esp,604h`: the same dry run as 0x481ac0 (site 182) over its own two
+     * 0x294-byte bodies (var_528 / var_294, never cleared; the integrator never writes +0x68), whose hazard-probe hit
+     * reloads the engage timer +0x1428a — quirk #187 */
+    { 188, 0x481310u, { 0x81, 0xEC, 0x04, 0x06, 0x00, 0x00 }, 6, 2, { { -0x528 + 0x68, 0 }, { -0x294 + 0x68, 0 } } },
 };
 #define UNDEF_NS (sizeof UNDEF_SITES / sizeof *UNDEF_SITES)
 #define UNDEF_RUNS 65536
-typedef struct { uint32_t val[UNDEF_RUNS], cnt[UNDEF_RUNS], f[UNDEF_RUNS]; uint32_t n, over; uint64_t reads; } undef_stream_t;
+/* the runs grow on the HOST heap (rh_hostalloc: its own fixed region, so its growth moves nothing retail sees) — the
+ * static arrays (65536 runs a stream) no longer fit the pinned image, and site 188.1 alone makes ~45k runs per 100k
+ * frames */
+typedef struct { uint32_t *val, *cnt, *f; uint32_t n, cap, over; uint64_t reads; } undef_stream_t;
 static undef_stream_t g_urs[UNDEF_NS][UNDEF_RD];
 static int g_ur_on;
 uint32_t g_ur_sv_esp;
@@ -983,7 +995,14 @@ static void __cdecl undef_rec_c(int si, const uint32_t *blk)
         undef_stream_t *t = &g_urs[si][k];
         t->reads++;
         if (t->n && t->val[t->n - 1] == v) { t->cnt[t->n - 1]++; continue; }
-        if (t->n == UNDEF_RUNS) { t->over++; continue; }
+        if (t->n == t->cap) {
+            uint32_t nc = t->cap ? t->cap * 2 : 4096;
+            uint32_t *nv = realloc(t->val, nc * 4), *nn = nv ? realloc(t->cnt, nc * 4) : NULL, *nf = nn ? realloc(t->f, nc * 4) : NULL;
+            if (nv) t->val = nv;
+            if (nn) t->cnt = nn;
+            if (!nf) { t->over++; continue; }
+            t->f = nf; t->cap = nc;
+        }
         t->val[t->n] = v; t->cnt[t->n] = 1; t->f[t->n++] = g_frame;
     }
 }

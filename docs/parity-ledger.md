@@ -58,30 +58,24 @@ were removed 2026-10-31 (last commit with them `57b8ccb`); the retail facts they
 
 _(R1 moved to Confirmed bit-exact above.)_
 
-### R14 — story-day11k wine hybrid `sem@f90600..94800` ≠ pure: `char_behave` reloads the engage timer retail leaves at 0 (OPEN, found 2026-11-27)
+### R14 — story-day11k wine hybrid `sem@f90600..94800` ≠ pure: the attack pick reads uninitialized stack (quirk #187) — oracle site 187 (found 2026-11-27)
 
 - **Symptom:** `corpus --check --hybrid --target wine`: `story-day11k: sem@f90600 e96818ccb69835b8→e596c7406adc9030
-  (8/174 sampled frames differ)`; frame / tick / RNG / every fb sample / the END state equal (it heals by f95400).
-  Reproduced bit for bit in a second pass (full corpus + leaves-only). Windows hybrid PASS — it has no sem series.
-- **Hook:** `hookbisect story-day11k --frames 90600 --target wine` → `char_behave` (0x47b990) alone. (Round 2 had a
-  second diverging group, g6 of 21 hooks, not followed: bisect it with `--hooks` once this one is fixed.)
-- **First call:** `verify --hooks char_behave --shadow-from 89900`: f90505, char `300ad010` code 100167, `f14288` 1,
-  think 0 — one dword, `char+0x14288`: `000a0001` vs `00000001`, i.e. `engage_t` (+0x1428a) 10 vs 0.
-- **Retail (pure, `--watch-write 0x300c129a@90504`):** one write that frame, eip `0x47c6ae` = the decrement at
-  `0x47c6a7` (1 → 0). No reload ⇒ the 10 is the PORT's (`engage_t = retarget`, `src/char_behave.c` l.411 / l.419, or
-  a helper's).
-- **Retail's path for that char at f90505 (`--trap`, esi = 300ad010):** reaches `0x47c6c2`, `0x47c6ea`, `0x47c805`,
-  `0x47c9a1`, `0x47cb51` (the gate `pose == 0 || act_len <= 200 || ai_state 5..6`), NOT `0x47cb80` ⇒ retail takes
-  the gate's skip; the port, whose gate reads the same on paper, goes in.
-- **Ruled out:** the helpers, shadowed unsampled f90400–90700, 0 divergences: `beh_47f9d0` (212), `beh_484ea0`
-  (281), `beh_481310` (67), `beh_481ac0` (60), `beh_47ecd0` (324), `beh_47e7c0` (71), `status_stuck` (45).
-- **Hypotheses:** (a) the port reads `body->pose` / `act_len` / `ai_state` AFTER a callee that changes them where
-  retail read a cached value (or the reverse) — check the asm between `0x47c9a1` and `0x47cb51` for the registers
-  the gate uses; (b) the port's body pointer at the gate is not retail's `[esi+40h]` for this code (eax at
-  `0x47cb51` = `20839350` = the `a3` argument); (c) an uninitialized local (pillar 5: `v86` / `hold`).
-- **Next probe:** which of the three gate conditions retail takes (a `--trap 0x47cb5d,0x47cb69 --trap-mem` run gave
-  1 hit per trap — adjacent traps 12 bytes apart seem to lose hits: fix or trap one per run), then the same three
-  values at the port's gate (a `--hook replace:char_behave` run + `--dump-at 90505`).
+  (8/174 sampled frames differ)`; frame / tick / RNG / fb / END state equal (heals by f95400). Bit-for-bit repeatable.
+  Windows hybrid PASS (no sem series there).
+- **Chase:** `hookbisect --frames 90600` → `char_behave`; shadow → f90505, monster 100167, `char+0x1428a` (engage
+  timer) retail 10 / port 0; state dumps every 5–10 frames (pure vs `replace:char_behave`): that one word at f90505,
+  then a drifting counter (`0x200aa230`) copied into ~400 record words. Retail `--trap 0x481310`: called from
+  `0x485c8c` (`0x485990`) ← `0x47d5d5`. Shadows: `beh_485990` diverges (1 dword), its callees do not (`beh_4834f0`,
+  `beh_481310`, `beh_483040` 0 / 5 calls) — a callee that matches alone and differs in sequence = stack leftovers.
+- **Cause:** quirk #187 — `0x481310` hands `0x481790` three never-set out locals; an empty list leaves them, and the
+  reload test reads what the previous call (here `0x4834f0`) left on the stack. Pillar 5, not port logic.
+- **Fix:** undefined-data oracle site 187 (`rhost.c` UNDEF_SITES @`0x48149f`, 3 reads; `src/behave_helpers.c`
+  `UNDEF_READ(187, 0..2)` before the call; port value 0). Streams pooled (`UNDEF_STREAMS`): the image size is pinned.
+- **Trap for next time:** `--watch-write` / `--trap` frame labels run one behind `--dump-at` / the shadow's (a write
+  the shadow reports at f90505 showed in the watch only with `--frames` ≥ 90507) — cost one wrong turn here.
+- **Open:** hookbisect round 2 had a second diverging group (g6, 21 hooks) — likely the same site reached through
+  another replaced caller; re-check after the re-bless.
 
 ### R13 — story-day10b hybrid / standalone ≠ pure from f375239: spike-trap retract damage reads stale stack (RESOLVED 2026-11-24: the undefined-data oracle; found 2026-11-23)
 **Resolution (2026-11-24):** option (d) — the gates carry pure retail's value. Pure `corpus --bless` records every case-4

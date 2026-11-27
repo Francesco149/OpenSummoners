@@ -5219,6 +5219,16 @@ instead would send them to bank=`sotesx_s` (the deluxe branch's hardcoded bank),
 sounds → still silent. `findings/ense-voice-combat-init.md`. (Corrects an earlier "worker-thread heap
 race" misdiagnosis: the mob silence is this deterministic deluxe-skip, not a heap race.)
 
+### #187 — the attack pick's "ally near?" test reads 3 UNINITIALIZED stack locals when the ally has no boxes (2026-11-27)
+
+`0x481310` (attack pick; called from `0x485990` @`0x485c8c`, `0x47b990`'s ai_state 2 and switch cases) — with the engage
+timer `+0x1428a` at 0 and an ally in `+0x1428c`, it calls `0x481790(ally_boxes, 0, cx, cy, &var_604, &var_5F4, &var_5EC,
+&var_5F0)` (`0x4814b3`) and reloads the timer (`+0x1428a = +0xc89e`, `0x48152c`) when the returned |dx| and |dy| are both
+< 9600. `var_604` is preset (`this+0x40`); `var_5F4` / `var_5F0` / `var_5EC` are never set, and `0x481790` returns at
+once without writing its out pointers when its list is empty (`cmp [ecx],0` → `0x481946`). The test then runs on whatever
+earlier calls left in those three stack slots (`[esp+20h/24h/28h]` at `0x48149f`). Seen: story-day11k f90505, monster
+100167 — retail reloads the timer to 10 off leftovers; a zeroed frame does not (dx = `a2[1] - 0` ≥ 9600).
+
 ### #183 — a script helper's wait runs the frame loop INSIDE the call (2026-10-31)
 - The chapter-script helpers that end in `script_wait` (`0x439690`, through the event's script context) —
   `0x406ab0`, `0x41a3a0`, `0x49e6c0`, `0x4b3f30`, `0x4b4570` — can return many frames after they were entered: the
