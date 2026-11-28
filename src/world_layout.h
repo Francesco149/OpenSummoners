@@ -505,7 +505,7 @@ typedef struct wl_room {
     int32_t    f4014;          /* +0x4014  (the partner's view record +0x3d4, 0x58d210)   */
     int32_t    f4018;          /* +0x4018  (0x58e170's last argument)                    */
     uint8_t    _p401c[0x4024 - 0x401c];
-    int32_t    f4024;          /* +0x4024  the script a zone result runs: its id, arg (0x586010) */
+    int32_t    f4024;          /* +0x4024  the current AREA id (fed to area_find; mod-loader-crossref.md #9) */
     int32_t    f4028;          /* +0x4028 */
     uint8_t    _p402c[0x4030 - 0x402c];
     wl_pslot  *slot[8];        /* +0x4030 */

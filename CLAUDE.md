@@ -225,7 +225,8 @@ runs the port with NO retail code (data sections only); `rhost.exe --standalone`
   the author's mods + registry in `../sotes-mods`; the injected EN-SE **trainer** is
   `tools/sotes_trainer` (RE map `SE_CODE_MAP.md`; MCP `sotes_trainer` in `.mcp.json`). All RE the SAME
   binary family, so findings transfer BOTH ways — cite them when a VA/struct is already reversed: safepoint
-  `0x437c70`, kb_poll `0x5e2a10` (kbd dev `*(0x92d5bc)`), main-window class
+  `0x437c70`, kb_poll `0x5e2a10` (kbd dev `*(0x92d5bc)`) — OLD SE build (md5 `3fe1bc9f`) VAs, moved by the
+  2026-08-09 SE update: current ones in the loader's HANDOFF; cross-check `docs/findings/mod-loader-crossref.md` —, main-window class
   `CLASS_LIZSOFT_SOTES`, launcher `#32770` (Launch 10003), roster/coordinates structs, base-stat
   table (`FUN_00426fd0`). The loader's `mod.mem`/`mod.game` + hook registry = a live RE probe on
   the real game (Lua or native), complementary to rhost.

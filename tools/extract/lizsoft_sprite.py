@@ -15,7 +15,7 @@ magic `5f 42 00 00 8b 36 00 00 …`):
     1134    8    sub-sig                (52 53 5f 42 00 00 8b 36)
     1142    W*H  8bpp indexed pixel data
 
-Width/height are NOT in the file.  They come from the engine's
+(STALE — W/H ARE in the file: docs/formats/lizsoft-sprite.md.)  Old note: Width/height are NOT in the file.  They come from the engine's
 `FUN_0056e190`-family registration calls which hardcode the dimensions
 per (resource_id) — typical values 0xa0×0xb0 etc.  Until that registry
 is dumped, callers must supply (W, H) explicitly or rely on the

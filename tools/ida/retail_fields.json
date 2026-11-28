@@ -2916,6 +2916,26 @@
      "reason": "body+0x18 vertical velocity at onEnter"
     }
    ]
+  },
+  "0x406500": {
+   "name": "item_take",
+   "_note": "removes the unstored inventory record with the smallest count; this needs only +8 = the room (mod-loader HANDOFF; port: sc_406500)"
+  },
+  "0x41c390": {
+   "name": "inn_run",
+   "_note": "the inn event (ev, price CP, 1, mode 0, speaker, offer, decline, broke, morning, bye) (mod-loader HANDOFF; port: el_41c390)"
+  },
+  "0x41a160": {
+   "name": "inn_rest",
+   "_note": "the inn's rest alone; clears world tick +0x1c afterwards (mod-loader HANDOFF; port: si_41a160)"
+  },
+  "0x5b14c0": {
+   "name": "display_restore",
+   "_note": "re-decodes every sprite bank; run only from 0x5b12e0's WM_ACTIVATEAPP case (mod-loader HANDOFF; port: wm_5b14c0)"
+  },
+  "0x57b280": {
+   "name": "sound_registrar",
+   "_note": "registers one sound resource (mod-loader HANDOFF; port: al_57b280)"
   }
  }
 }

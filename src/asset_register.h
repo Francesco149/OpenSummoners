@@ -158,6 +158,9 @@ typedef struct ar_sprite_slot {
     void     *aux_buf;
     /* +0x38 (4B): cleared to 0. */
     uint32_t  f_38;
+    /* NOTE (2026-11-28, mod-loader-crossref.md #6): `settings` is really the RESOURCE HMODULE
+     * (0x4178e0 → 0x5b7800 → FindResourceA; sound side 0x563ef0 → 0x5bb740 FindResourceA(.., "WAVE")),
+     * here and in ar_sound_slot +0x10.  The identifier is kept; the old description follows. */
     /* +0x3c (4B): settings pointer (the launcher's settings record;
      * sotes.exe passes it through every batch). */
     void     *settings;
@@ -250,9 +253,10 @@ _Static_assert(offsetof(ar_sound_slot, group)       == 0x14, "sound group offset
  *   ; then: *(entry + 8) = &DAT_006752f8   (const PE rdata pointer)
  *
  * Layout:
- *   +0x00 (u16):  live/active marker — values 1 or 2 in the prefix
- *                 table breakdown (see 0057ca40-rabbit-hole.md table).
- *                 Cleared to 0 by ar_info_entry_clear.
+ *   +0x00 (u16):  the MIRROR FRAME OFFSET (0x44ce94: `ax = [*(sys+0x18e0 + bank*4)]; inc ax`;
+ *                 actor_render / actor_spawn use it so) — NOT a live marker (corrected
+ *                 2026-11-28, mod-loader-crossref.md #7).  Cleared to 0 by ar_info_entry_clear.
+ *                 (+0x10 = the dynamic-tint-clone mark: EN-old banks 884..908, quirk #141.)
  *   +0x02 (u16):  pad — never touched by the clear or the template-
  *                 copy chain.  Untouched in every observed retail write.
  *   +0x04 (u32):  flag/state — 0/1/2/3 in observed writes/reads

@@ -5,6 +5,14 @@ ImageBase `0x400000`, load delta 0) with an external `ReadProcessMemory` scan to
 the pixel against the status-screen screenshots of **save 15** (the "Loch Carudale" save the
 sotes-mod-loader `autoload` mod loads). Party: Arche `0xc35a`, Sana `0xc35b`, Stella `0xc35c`.
 
+> **2026-11-28 corrections (mod-loader cross-check, `mod-loader-crossref.md`):**
+> - Every VA / global here is the OLD EN-SE build (md5 `3fe1bc9f…`); the 2026-08-09 Steam SE update
+>   (md5 `c382ced3…`, the port's `ense-en` export) moved them (e.g. render root `0x92dd38` → world
+>   `0x92dfd8`). Stat-block OFFSETS are SE; EN-old = SE − 4 from `0xd4` on (EN-old `+0xd8` combat level,
+>   `+0xdc` combat max / HUD stars, `+0xe0` adventurer level; "Lv" = `+0xd8 + +0xe0`).
+> - §4's negative result is WRONG: SE has the same fixed party array as EN-old — world → room
+>   (`+0x3788` SE, `+0x2784` EN-old) → `slots[8]` at room `+0x4030`.
+
 Ground truth (save 15 status screen):
 
 | member | Lv | HP  | MP  | Attack  | Defense | Spirit | Resist | Adv | Combat | EXP→Lv |

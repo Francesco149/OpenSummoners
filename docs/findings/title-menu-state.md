@@ -1,5 +1,8 @@
 # Title / main-menu state machine (EN-SE) + input injection
 
+> **2026-11-28:** VAs here are the OLD EN-SE build (md5 `3fe1bc9f…`); the 2026-08-09 SE update (md5
+> `c382ced3…`, the port's `ense-en` export) moved them — `0x437c70` is mid-function there. Structure / ids hold.
+
 RE'd against `sotes-trainer-oss.exe` (unpacked EN-SE) — the title screen's runner, its input path, and
 the button-injection mechanism the sotes-mod-loader `mod.game.input.press` / the trainer's menu-drive
 use. Motivation: drive the title menu programmatically (auto-load a save; arbitrary UI navigation) and

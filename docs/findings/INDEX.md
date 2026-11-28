@@ -77,6 +77,9 @@ Cite the `by-address/<va>.c` form (addresses are stable; names rename).
   view (FUN_004192b0), the cursor-nav engine (FUN_0043ca40, jump table
   recovered) and the input-action latch (FUN_0043ce50). Completes the
   poll → latch → nav input chain. **Ported, checkpoint 4.**
+- **[mod-loader-crossref.md](mod-loader-crossref.md)** — 2026-11-28 audit of the mod loader's RE vs the port:
+  9 port RECORD errors fixed (level fields `+0xd8/+0xdc/+0xe0`, old-SE-build VAs, area-table shape, HMODULE
+  fields, bad crosswalk pairs), 1 wrong loader claim, ~25 new retail facts (leads).
 - **[title-menu-state.md](title-menu-state.md)** — the SE title runner
   (`0x582c40`) + dispatcher (`0x581ba0`) live: the input-record ring
   (`mgr+0x0c`, slot 63 first-polled; record `{id,now,state}` + `now`-freshness),

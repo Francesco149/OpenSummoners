@@ -72,8 +72,11 @@ known character codes — each appears exactly once:
 
 ```
 0xc35a Arche   0xc35b Sana   0xc35c Stella     (base_stat_table.c)
-body[code_off + 4]  = combat_level_max  (== in-memory stat +0xe0: the MAX COMBAT LEVEL /
-                                    HUD stars; NOT the display level — that = +0xe0 + +0xd8)
+body[code_off + 4]  = a COMBAT level (3 early → 5 at Lv17; current vs max NOT pinned).
+                      EN-old stat block (0x494e60): +0xd8 current combat level, +0xdc max
+                      combat level (= HUD star count), +0xe0 adventurer level; display
+                      "Lv" = +0xd8 + +0xe0. (2026-11-28 fix: the earlier text put the max at
+                      +0xe0 — SE offsets, which sit at EN-old +4, applied unshifted.)
 ```
 
 VERIFIED: magic+handle 8/8 saves; roster matches party growth (slot1 = Arche+Sana only, no

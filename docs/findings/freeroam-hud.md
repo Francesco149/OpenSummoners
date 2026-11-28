@@ -546,6 +546,13 @@ not calls into the C code under test) before being baked into the C assertions. 
 
 ## 10. The element-star COUNT setter — RE'd BLOCKED (post-ckpt-189); the plan's "FUN_004f19e0" is WRONG
 
+> **2026-11-28 correction (mod-loader cross-check, `mod-loader-crossref.md`; decompile `0x494e60` /
+> `0x498620`):** `stats+0xdc` is the MAX COMBAT LEVEL (it is what the loop counts, hence "star count"),
+> `+0xd8` the CURRENT combat level, `+0xe0` the adventurer level; "Lv" = `+0xd8 + +0xe0`. The star
+> drawer's args are NOT ignored: frame = `16 + (index <= stats+0xd8)` — star i is FILLED while
+> i ≤ current combat level, empty up to the max. So there is no "element-affinity" setter to find:
+> the writer of `+0xdc` is the combat-level-cap logic. The text below is kept as history.
+
 Slice A (ckpt 189) retired the leader-panel HP/MP/level/EXP to REAL party data (`party.c`); the
 element-star **COUNT** (`stats+0xdc`, 494e60:100, Arche=2) stayed a `hud-party-context` stand-in,
 attributed by `docs/plans/party-band-phase2-hud-data.md` to "the equip subsystem `FUN_004f19e0`".

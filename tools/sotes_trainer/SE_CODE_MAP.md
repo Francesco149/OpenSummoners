@@ -6,6 +6,17 @@ addresses, struct offsets, and their relationship to the **old Steam base game**
 don't rediscover it every session. Companion to `DESIGN.md` (mechanics + roadmap). Update
 this whenever an SE VA/offset is verified.
 
+> **2026-11-28 corrections (mod-loader cross-check, `docs/findings/mod-loader-crossref.md`):**
+> - **OLD-BUILD VAs.** Every SE VA / global below is from the md5 `3fe1bc9f…` build. The 2026-08-09 Steam
+>   SE update (md5 `c382ced3…` = the port's `ense-en` IDA export) moved them: `0x437c70` is mid-function
+>   there, the world pointer is `0x92dfd8` (not `0x92dd38`). Re-derive before use (`tools/ida/crosswalk.py`,
+>   the loader's `tools/symgen_manual.tsv`).
+> - **Area table:** records are **344 B (0x158), from table+4, count at table `+0x56004`** (SE `area_find`
+>   `0x565a20`); there is no 8-B alloc header and it IS reachable (`area_find`'s `this`; EN-old: 336 B,
+>   count `+0x54004`, table at world `+0x103c`).
+> - **Base-game notes:** `root+0x1044` is the ROOM LOOP, not the map object; the 0x4120-B room is at world
+>   `+0x2784` (EN-old; `+0x3788` SE) and holds `+0x4030` slots[8]; room `+0x4024` = current AREA id.
+
 ## Conventions + tooling
 - **VA = fileoff + 0x400000** for `.text`/`.rdata`/`.data` alike (both exes; verified vs section
   headers). Live delta is **0** (the exe loads at its preferred base) → a Ghidra/objdump VA == the

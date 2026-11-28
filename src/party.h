@@ -114,11 +114,14 @@ typedef struct party_stats {
     int32_t hp_base, hp_equip, hp_buff;   /* +0x58 / +0x84 / +0x9c (max = sum)  */
     int32_t mp_cur;                       /* +0x5c — current MP                 */
     int32_t mp_base, mp_equip, mp_buff;   /* +0x60 / +0x88 / +0xa0 (max = sum)  */
-    int32_t combat_level_max;             /* +0xe0 — MAX COMBAT LEVEL (USER, live SE): the "N"
-                                           *   in the stat window's "combat level M/N" + the HUD
-                                           *   stars.  NOT the char's display level (see below).  */
-    int32_t level_bonus;                  /* +0xd8 (display level = combat_level_max + bonus)    */
-    int32_t star_count;                   /* +0xdc — element-affinity star count */
+    /* NAMES ARE HISTORICAL (2026-11-28, docs/findings/mod-loader-crossref.md #1): they came from
+     * the SE layout (= EN-old + 4) applied unshifted.  What retail's HUD (0x494e60 / 0x498620)
+     * does with the EN-old fields: "Lv" = +0xd8 + +0xe0; it draws +0xdc stars, star i FILLED
+     * while i <= +0xd8.  The sum and the count are unchanged, so no behaviour moved. */
+    int32_t combat_level_max;             /* +0xe0 — really the ADVENTURER level (0x426fd0 writes
+                                           *   the stat-row level here)                            */
+    int32_t level_bonus;                  /* +0xd8 — really the CURRENT combat level              */
+    int32_t star_count;                   /* +0xdc — really the MAX combat level (= HUD stars)    */
     int32_t exp_cur, exp_max;             /* +0xe8 / +0xec                      */
 } party_stats;
 
@@ -169,8 +172,8 @@ const party_member *party_leader(const party *p);
  * table row (base_stat_find, base_stat_table.h).  Sets HP/MP base = cur = row
  * HP/MP (equip/buff terms 0), combat_level_max = row.level (bonus 0), exp_cur = 0,
  * exp_max = row.exp_max, and CLEARS element/star_count (retail 426fd0:101-108
- * zeroes +0xd8/+0xdc — those are set later by the equip subsystem, NOT the base
- * table). */
+ * zeroes +0xd8/+0xdc — the current / max combat level, see party_stats; set later
+ * by the combat-level logic, NOT the base table). */
 void party_stats_init(party_stats *s, uint32_t code, int level);
 
 /* Populate `p` for the errands freeroam: Arche (dramatist handle 0x5f5e165 ->
