@@ -58,6 +58,27 @@ were removed 2026-10-31 (last commit with them `57b8ccb`); the retail facts they
 
 _(R1 moved to Confirmed bit-exact above.)_
 
+### R15 — story-day11o (Selene) hybrid / standalone ≠ pure from f21701: `shots_tick` part-macros on a `double` local (PORT BUG, RESOLVED 2026-11-28)
+
+- **Symptom:** all four gates (Windows + wine, hybrid + standalone): `story-day11o: tick 47647→59156, rng
+  9cbeb48d→836e1cc7`, fb differs; first differing wine sample f22200.
+- **Chase:** `hookbisect --frames 22200` → `shots_tick`; shadow (`--shadow-from 21500`) → f21701, shot `+4` (x):
+  retail `0x15288` / port `0xffffe700` (= 0 − w/2); `--watch-write` → retail `0x4718d0` `[esi+4] = var_B8 − w/2`,
+  `var_B8` = `0x460e40`'s x out. After fix 1 the first bad sample moved to f30000: shadow → f29893, shot `+4`
+  `0x70e0` / `0xfffff9c0`, retail `0x471b91`, `var_B8` written at `0x471a52`.
+- **Cause:** pillar 1, the port. decomp2c typed the frame slot `ebp-0xb8` `double` (IDA's `v391`, which other
+  cases of the switch use as a real double) and kept IDA's `LODWORD(v391)` / `LODWORD(v391) = x`. The prelude's
+  `LODWORD` / `SETLODW` cast the VALUE: an int stored in the slot reads back as 0 (a denormal), and a store writes
+  `(double)x`. 7 reads + 6 writes, all in `shots_tick` (shot kinds 0x186AF, 0x186C2 + two more cases) — first reached
+  by Selene's shots.
+- **Fix:** `src/shots.c`: `*(int32_t *)v391__f` / `*(uint32_t *)v391__f` at the 13 sites. **Class guard:** `OSS_NF(x)`
+  (`_Generic`: a floating operand is a compile error) inside every part-of-value macro (`LODWORD` … `BYTE2`, `SETLO` …
+  `SETHIDW`) in all 35 decomp2c-prelude files + `tools/ida/decomp2c.py` — the whole port compiles, so no other instance.
+- **Evidence:** `corpus --check --hybrid` / `--standalone --only story-day11o --target wine`: PASS / PASS.
+  Full gates after the fix: hybrid 43/43 + standalone 42/42, Windows (galaxybook) and wine, 0 diffs.
+- **Trap for next time:** hookbisect follows only the FIRST diverging group — after a fix, re-check and bisect again
+  to the new first bad sample (here the second site hid behind the first).
+
 ### R14 — story-day11k wine hybrid `sem@f90600..94800` ≠ pure: the attack pick reads uninitialized stack (quirk #187) — oracle site 187 (found 2026-11-27)
 
 - **Symptom:** `corpus --check --hybrid --target wine`: `story-day11k: sem@f90600 e96818ccb69835b8→e596c7406adc9030
@@ -74,8 +95,9 @@ _(R1 moved to Confirmed bit-exact above.)_
   `UNDEF_READ(187, 0..2)` before the call; port value 0). Streams pooled (`UNDEF_STREAMS`): the image size is pinned.
 - **Trap for next time:** `--watch-write` / `--trap` frame labels run one behind `--dump-at` / the shadow's (a write
   the shadow reports at f90505 showed in the watch only with `--frames` ≥ 90507) — cost one wrong turn here.
-- **Open:** hookbisect round 2 had a second diverging group (g6, 21 hooks) — likely the same site reached through
-  another replaced caller; re-check after the re-bless.
+- **Closed 2026-11-27:** the real cause was the dry-run bodies' `+0x68` (site 188, 2 reads, with 187); after the
+  re-bless day11k PASSES hybrid + standalone on Windows and wine (full corpus, `8f509cc`). The round-2 g6 group = the
+  same site through another replaced caller.
 
 ### R13 — story-day10b hybrid / standalone ≠ pure from f375239: spike-trap retract damage reads stale stack (RESOLVED 2026-11-24: the undefined-data oracle; found 2026-11-23)
 **Resolution (2026-11-24):** option (d) — the gates carry pure retail's value. Pure `corpus --bless` records every case-4

@@ -32,6 +32,15 @@ understates how much actual instruction volume is ported.
 
 ## Current front
 
+- **2026-11-28 — the WHOLE STORY is in the corpus; gates run LEAVES ONLY.** Corpus **86** scenarios: + story-day11d … 11o
+  (Archmage's Tower → Labyrinth of Night → BOSS Selene → ending) + story-postgame-a / -b. `rhost.py legs`: an rd leg
+  continued from a savestate replays every earlier leg, so corpus / verify / coverage / `accept-batch.sh` run only each
+  chain's LEAF (43 runs; `--all` = every leg, before a release — the covered legs' expected files are stale until a
+  `corpus --bless --all`). Bless + hybrid + standalone for a batch: **3 h 28** (was ~15 h + ~14 h of accepts). Windows gate
+  host = `galaxybook`. Closed: R14 (quirk #187, oracle sites 187 / 188), R15 (story-day11o: `shots_tick` part-macros on a
+  `double` local — port bug; class guarded at compile time, `OSS_NF`). Remaining cost drivers: the GLOBAL volatile list
+  (every calibrate ⇒ whole-corpus re-bless; per-scenario lists would end that), the 765k-frame tower chain (prefer legs
+  from `save:DIGEST`). Cross-check with the mod loader: `docs/findings/mod-loader-crossref.md`.
 - **2026-11-15 — ★ agent-driven play (`rd`): the campaign front.** Drivers (API `agent.sh` while credit lasts, else
   session-model subagents) author verified scenarios; `rd accept` → `det --calibrate` → one re-bless → hybrid / standalone
   (several runs: `tools/drive/accept-batch.sh LIST`). Corpus **72** scenarios (57 driven; + story-day10d, the Wyvern; + story-day10e / 11a / 11b / 11c, 2026-11-25): the story past the owner's saves

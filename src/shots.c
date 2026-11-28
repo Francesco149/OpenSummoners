@@ -65,16 +65,18 @@ static inline int ofadd32_(int32_t a, int32_t b) { int32_t r; return __builtin_a
 #define __CFADD__(a, b) ((uint32_t)(a) + (uint32_t)(b) < (uint32_t)(a))
 #define __CFSUB__(a, b) ((uint32_t)(a) < (uint32_t)(b))
 #define __SETS__(x) ((int32_t)(x) < 0)
-#define LODWORD(x) ((uint32_t)(uint64_t)(x))
-#define HIDWORD(x) ((uint32_t)((uint64_t)(x) >> 32))
-#define WORD1(x) ((uint16_t)((uint64_t)(x) >> 16))
-#define WORD2(x) ((uint16_t)((uint64_t)(x) >> 32))
-#define BYTE1(x) ((uint8_t)((uint64_t)(x) >> 8))
-#define BYTE2(x) ((uint8_t)((uint64_t)(x) >> 16))
-#define HIBYTE(x) ((uint8_t)((uint32_t)(x) >> 24))
-#define HIWORD(x) ((uint16_t)((uint32_t)(x) >> 16))
-#define SHIDWORD(x) ((int32_t)((uint64_t)(x) >> 32))
-#define SLODWORD(x) ((int32_t)(x))
+/* a part-of-value macro on a floating operand would convert the VALUE, not read its bits: refuse to compile */
+#define OSS_NF(x) _Generic((x), float: (void)0, double: (void)0, long double: (void)0, default: (x))
+#define LODWORD(x) ((uint32_t)(uint64_t)OSS_NF(x))
+#define HIDWORD(x) ((uint32_t)((uint64_t)OSS_NF(x) >> 32))
+#define WORD1(x) ((uint16_t)((uint64_t)OSS_NF(x) >> 16))
+#define WORD2(x) ((uint16_t)((uint64_t)OSS_NF(x) >> 32))
+#define BYTE1(x) ((uint8_t)((uint64_t)OSS_NF(x) >> 8))
+#define BYTE2(x) ((uint8_t)((uint64_t)OSS_NF(x) >> 16))
+#define HIBYTE(x) ((uint8_t)((uint32_t)OSS_NF(x) >> 24))
+#define HIWORD(x) ((uint16_t)((uint32_t)OSS_NF(x) >> 16))
+#define SHIDWORD(x) ((int32_t)((uint64_t)OSS_NF(x) >> 32))
+#define SLODWORD(x) ((int32_t)OSS_NF(x))
 #include <math.h>
 /* 0x471080: rounded half away from zero (fcomp 0.0, then fsub / fadd 0.5 and __ftol's truncation) */
 static inline int64_t ftol_round_(double a) { return a < 0.0 ? (int64_t)(a - 0.5) : (int64_t)(a + 0.5); }
@@ -106,12 +108,12 @@ static inline void eh_vec_dtor(intptr_t p, uint32_t size, int32_t n, void *dtor)
     while (--n >= 0) { p -= size; ((d_t)dtor)((void *)p); }
 }
 typedef char CHAR;
-#define SETLO(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff0000u) | (uint16_t)(v)))
-#define SETHI(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffu) | ((uint32_t)(uint16_t)(v) << 16)))
-#define SETLB(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffff00u) | (uint8_t)(v)))
-#define SETB1(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff00ffu) | ((uint32_t)(uint8_t)(v) << 8)))
-#define SETLODW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffff00000000ull) | (uint32_t)(v)))
-#define SETHIDW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffffull) | ((uint64_t)(uint32_t)(v) << 32)))
+#define SETLO(x, v) ((x) = (intptr_t)(((uint32_t)OSS_NF(x) & 0xffff0000u) | (uint16_t)(v)))
+#define SETHI(x, v) ((x) = (intptr_t)(((uint32_t)OSS_NF(x) & 0xffffu) | ((uint32_t)(uint16_t)(v) << 16)))
+#define SETLB(x, v) ((x) = (intptr_t)(((uint32_t)OSS_NF(x) & 0xffffff00u) | (uint8_t)(v)))
+#define SETB1(x, v) ((x) = (intptr_t)(((uint32_t)OSS_NF(x) & 0xffff00ffu) | ((uint32_t)(uint8_t)(v) << 8)))
+#define SETLODW(x, v) ((x) = (int64_t)(((uint64_t)OSS_NF(x) & 0xffffffff00000000ull) | (uint32_t)(v)))
+#define SETHIDW(x, v) ((x) = (int64_t)(((uint64_t)OSS_NF(x) & 0xffffffffull) | ((uint64_t)(uint32_t)(v) << 32)))
 #define F32(p, o) (*(int32_t *)((uint8_t *)(intptr_t)(p) + (o)))
 #define FU32(p, o) (*(uint32_t *)((uint8_t *)(intptr_t)(p) + (o)))   /* an `unsigned int` load: >> / < / / stay unsigned */
 #define F16(p, o) (*(uint16_t *)((uint8_t *)(intptr_t)(p) + (o)))
@@ -1804,7 +1806,7 @@ LABEL_485:
         }
       case 0x186AA:
         v211 = W_part_center_y(c, WORD2(errno_decorate));
-        SETLODW((*v391__f), 0);
+        *(int32_t *)v391__f = (0);
         v212 = 100072;
         if ( (int32_t)errno_decorate != 0 )
           goto LABEL_763;
@@ -1843,12 +1845,12 @@ LABEL_457:
           case 0xA:
             if ( v211 < F32(c, 0x21c) )
               F16(a3, 88) = 11;
-            SETLODW((*v391__f), 2500);
+            *(int32_t *)v391__f = (2500);
             break;
           case 0xB:
             if ( v211 > F32(c, 0x21c) )
               F16(a3, 88) = 12;
-            SETLODW((*v391__f), 2500);
+            *(int32_t *)v391__f = (2500);
             break;
           case 0xC:
             v212 = 100071;
@@ -1860,7 +1862,7 @@ LABEL_457:
             if ( v211 < F32(c, 0x21c) )
               F16(a3, 88) = 10;
 LABEL_468:
-            SETLODW((*v391__f), -2500);
+            *(int32_t *)v391__f = (-2500);
             break;
           default:
             break;
@@ -1887,7 +1889,7 @@ LABEL_468:
           v217 = 96000;
         v218 = (*v388__f);
         F32(a3, 40) = v217;
-        W_body_set_angle(a3, (int)v218 + LODWORD((*v391__f)), 1);
+        W_body_set_angle(a3, (int)v218 + (*(uint32_t *)v391__f), 1);
         shot_476ef0(c, a3, 0, 1, 7, 1, 1, 0, 7, 0, 0, 0, 0);
         shot_477070(c, a3, 0);
         goto LABEL_763;
@@ -2372,9 +2374,9 @@ LABEL_218:
         v64 = F32(a3, 8) + F32(a3, 16) / 2;
         v65 = F32(c, 0x210);
         if ( F32(c, 0x218) == (*v388__f) )
-          SETLODW((*v391__f), v62 + v65);
+          *(int32_t *)v391__f = (v62 + v65);
         else
-          SETLODW((*v391__f), v62 - v65);
+          *(int32_t *)v391__f = (v62 - v65);
         switch ( F16(a3, 88) )
         {
           case 0:
@@ -2389,7 +2391,7 @@ LABEL_218:
           case 1:
             if ( (int32_t)errno_decorate != 0 )
             {
-              v69 = LODWORD((*v391__f));
+              v69 = (*(uint32_t *)v391__f);
             }
             else
             {
@@ -2398,8 +2400,8 @@ LABEL_218:
                 F16(a3, 88) = 7;
                 goto LABEL_176;
               }
-              v69 = LODWORD((*v391__f));
-              if ( (int)abs32(v63 - LODWORD((*v391__f))) > 800 || (int)abs32(v64 - (*v389__f)) > 3200 )
+              v69 = (*(uint32_t *)v391__f);
+              if ( (int)abs32(v63 - (*(uint32_t *)v391__f)) > 800 || (int)abs32(v64 - (*v389__f)) > 3200 )
               {
                 F16(a3, 88) = 2;
                 F32(a3, 92) = 0;
@@ -2459,7 +2461,7 @@ LABEL_763:
             v74 = F32(a3, 24);
             goto LABEL_143;
           case 2:
-            v75 = abs32(v63 - LODWORD((*v391__f)));
+            v75 = abs32(v63 - (*(uint32_t *)v391__f));
             if ( v75 <= 800 && (int)abs32(v64 - (*v389__f)) <= 800 && F32(a3, 44) == (*v388__f) )
               goto LABEL_175;
             v76 = F32(a3, 40) + 2000;
@@ -2468,7 +2470,7 @@ LABEL_763:
             F32(a3, 40) = v76;
             if ( v75 > 800 )
             {
-              if ( v63 <= SLODWORD((*v391__f)) )
+              if ( v63 <= (*(int32_t *)v391__f) )
                 v77 = (int)((uint64_t)(1374389535LL * v76) >> 32) >> 5;
               else
                 v77 = (int)((uint64_t)(-1374389535LL * v76) >> 32) >> 5;
@@ -3531,7 +3533,7 @@ LABEL_100:
                 v55 = W_part_center_y(v51, WORD2(errno_decorate));
                 W_polar_div(8000, (int)(*v388__f), 1000, v54 + F32(c, 0x210), F32(c, 0x214) + v55, &(*v391__f), &(*v387__f));
                 v56 = v390[0];
-                F32(a3, 4) = (*v389__f) / -2 + LODWORD((*v391__f));
+                F32(a3, 4) = (*v389__f) / -2 + (*(uint32_t *)v391__f);
                 v57 = F16(a3, 88) == 1;
                 F32(a3, 8) = (uint8_t *)(*v387__f) + v56 / -2;
                 if ( v57

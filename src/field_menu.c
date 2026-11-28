@@ -69,16 +69,18 @@ static inline int ofadd32_(int32_t a, int32_t b) { int32_t r; return __builtin_a
 #define __CFADD__(a, b) ((uint32_t)(a) + (uint32_t)(b) < (uint32_t)(a))
 #define __CFSUB__(a, b) ((uint32_t)(a) < (uint32_t)(b))
 #define __SETS__(x) ((int32_t)(x) < 0)
-#define LODWORD(x) ((uint32_t)(uint64_t)(x))
-#define HIDWORD(x) ((uint32_t)((uint64_t)(x) >> 32))
-#define WORD1(x) ((uint16_t)((uint64_t)(x) >> 16))
-#define WORD2(x) ((uint16_t)((uint64_t)(x) >> 32))
-#define BYTE1(x) ((uint8_t)((uint64_t)(x) >> 8))
-#define BYTE2(x) ((uint8_t)((uint64_t)(x) >> 16))
-#define HIBYTE(x) ((uint8_t)((uint32_t)(x) >> 24))
-#define HIWORD(x) ((uint16_t)((uint32_t)(x) >> 16))
-#define SHIDWORD(x) ((int32_t)((uint64_t)(x) >> 32))
-#define SLODWORD(x) ((int32_t)(x))
+/* a part-of-value macro on a floating operand would convert the VALUE, not read its bits: refuse to compile */
+#define OSS_NF(x) _Generic((x), float: (void)0, double: (void)0, long double: (void)0, default: (x))
+#define LODWORD(x) ((uint32_t)(uint64_t)OSS_NF(x))
+#define HIDWORD(x) ((uint32_t)((uint64_t)OSS_NF(x) >> 32))
+#define WORD1(x) ((uint16_t)((uint64_t)OSS_NF(x) >> 16))
+#define WORD2(x) ((uint16_t)((uint64_t)OSS_NF(x) >> 32))
+#define BYTE1(x) ((uint8_t)((uint64_t)OSS_NF(x) >> 8))
+#define BYTE2(x) ((uint8_t)((uint64_t)OSS_NF(x) >> 16))
+#define HIBYTE(x) ((uint8_t)((uint32_t)OSS_NF(x) >> 24))
+#define HIWORD(x) ((uint16_t)((uint32_t)OSS_NF(x) >> 16))
+#define SHIDWORD(x) ((int32_t)((uint64_t)OSS_NF(x) >> 32))
+#define SLODWORD(x) ((int32_t)OSS_NF(x))
 #include <math.h>
 /* 0x471080: rounded half away from zero (fcomp 0.0, then fsub / fadd 0.5 and __ftol's truncation) */
 static inline int64_t ftol_round_(double a) { return a < 0.0 ? (int64_t)(a - 0.5) : (int64_t)(a + 0.5); }
@@ -110,12 +112,12 @@ static inline void eh_vec_dtor(intptr_t p, uint32_t size, int32_t n, void *dtor)
     while (--n >= 0) { p -= size; ((d_t)dtor)((void *)p); }
 }
 typedef char CHAR;
-#define SETLO(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff0000u) | (uint16_t)(v)))
-#define SETHI(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffu) | ((uint32_t)(uint16_t)(v) << 16)))
-#define SETLB(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffffff00u) | (uint8_t)(v)))
-#define SETB1(x, v) ((x) = (intptr_t)(((uint32_t)(x) & 0xffff00ffu) | ((uint32_t)(uint8_t)(v) << 8)))
-#define SETLODW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffff00000000ull) | (uint32_t)(v)))
-#define SETHIDW(x, v) ((x) = (int64_t)(((uint64_t)(x) & 0xffffffffull) | ((uint64_t)(uint32_t)(v) << 32)))
+#define SETLO(x, v) ((x) = (intptr_t)(((uint32_t)OSS_NF(x) & 0xffff0000u) | (uint16_t)(v)))
+#define SETHI(x, v) ((x) = (intptr_t)(((uint32_t)OSS_NF(x) & 0xffffu) | ((uint32_t)(uint16_t)(v) << 16)))
+#define SETLB(x, v) ((x) = (intptr_t)(((uint32_t)OSS_NF(x) & 0xffffff00u) | (uint8_t)(v)))
+#define SETB1(x, v) ((x) = (intptr_t)(((uint32_t)OSS_NF(x) & 0xffff00ffu) | ((uint32_t)(uint8_t)(v) << 8)))
+#define SETLODW(x, v) ((x) = (int64_t)(((uint64_t)OSS_NF(x) & 0xffffffff00000000ull) | (uint32_t)(v)))
+#define SETHIDW(x, v) ((x) = (int64_t)(((uint64_t)OSS_NF(x) & 0xffffffffull) | ((uint64_t)(uint32_t)(v) << 32)))
 #define F32(p, o) (*(int32_t *)((uint8_t *)(intptr_t)(p) + (o)))
 #define FU32(p, o) (*(uint32_t *)((uint8_t *)(intptr_t)(p) + (o)))   /* an `unsigned int` load: >> / < / / stay unsigned */
 #define F16(p, o) (*(uint16_t *)((uint8_t *)(intptr_t)(p) + (o)))

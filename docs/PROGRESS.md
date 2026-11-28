@@ -6,6 +6,18 @@ specific commits where relevant.
 
 ---
 
+## 2026-11-28 — leaves-only gates (15 h → 3.5 h), the story's last legs gated, R14 / R15 closed
+
+- **Verification time:** rd legs are prefix chains (83 scenarios = 13.66M frames / pass, 2.87M distinct). `rhost.py legs`
+  + `covered_legs()`: corpus / verify / coverage / accept run each chain's leaf only (`--all` = every leg); expected
+  files carry the volatile-list hash (`STALE` on mismatch). Batch bless + hybrid + standalone 3 h 28 (`896a14a`).
+- **Corpus 86:** story-day11d … 11o + story-postgame-a / -b filed and blessed (`f35ed1c`, `8f509cc`).
+- **R14** (story-day11k): quirk #187, `0x481310`'s dry run on uninitialized stack — oracle sites 187 / 188 (`934bf71`).
+- **R15** (story-day11o, Selene): `shots_tick` read / wrote an int through `LODWORD` / `SETLODW` on a `double`-typed
+  frame slot (value cast, not bits) — 13 sites fixed; `OSS_NF` makes the pattern a compile error port-wide.
+- **Mod-loader audit:** no behaviour-changing contradiction; 9 record errors fixed, new facts filed
+  (`docs/findings/mod-loader-crossref.md`).
+
 ## 2026-11-26 — the story driven to the END: Selene beaten, Game Clear Data saved (story-d11o)
 
 - Subagent drivers on the session model, story-d11d … d11o: Archmage's Tower (MoH 16–17, pot puzzle → Unison), Labyrinth
